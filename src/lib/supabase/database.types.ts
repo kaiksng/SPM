@@ -1,0 +1,684 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+  public: {
+    Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          details: Json
+          entity_id: string | null
+          entity_type: string
+          id: number
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          entity_id?: string | null
+          entity_type: string
+          id?: never
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json
+          entity_id?: string | null
+          entity_type?: string
+          id?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clarifications: {
+        Row: {
+          event_id: string
+          id: string
+          question: string
+          requested_at: string
+          requested_by: string
+          resolved_at: string | null
+          responded_at: string | null
+          response: string | null
+          status: Database["public"]["Enums"]["clarification_status"]
+        }
+        Insert: {
+          event_id: string
+          id?: string
+          question: string
+          requested_at?: string
+          requested_by: string
+          resolved_at?: string | null
+          responded_at?: string | null
+          response?: string | null
+          status?: Database["public"]["Enums"]["clarification_status"]
+        }
+        Update: {
+          event_id?: string
+          id?: string
+          question?: string
+          requested_at?: string
+          requested_by?: string
+          resolved_at?: string | null
+          responded_at?: string | null
+          response?: string | null
+          status?: Database["public"]["Enums"]["clarification_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clarifications_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clarifications_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_decisions: {
+        Row: {
+          decided_at: string
+          decided_by: string
+          decision: Database["public"]["Enums"]["event_decision_type"]
+          event_id: string
+          id: string
+          rationale: string
+        }
+        Insert: {
+          decided_at?: string
+          decided_by: string
+          decision: Database["public"]["Enums"]["event_decision_type"]
+          event_id: string
+          id?: string
+          rationale: string
+        }
+        Update: {
+          decided_at?: string
+          decided_by?: string
+          decision?: Database["public"]["Enums"]["event_decision_type"]
+          event_id?: string
+          id?: string
+          rationale?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_decisions_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_decisions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_equipment_requirements: {
+        Row: {
+          equipment_name: string
+          event_id: string
+          id: string
+          notes: string | null
+          quantity: number
+        }
+        Insert: {
+          equipment_name: string
+          event_id: string
+          id?: string
+          notes?: string | null
+          quantity?: number
+        }
+        Update: {
+          equipment_name?: string
+          event_id?: string
+          id?: string
+          notes?: string | null
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_equipment_requirements_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_registration_requirements: {
+        Row: {
+          attendee_capacity: number | null
+          event_id: string
+          registration_closes_at: string | null
+          registration_opens_at: string | null
+          registration_required: boolean
+          waitlist_enabled: boolean
+        }
+        Insert: {
+          attendee_capacity?: number | null
+          event_id: string
+          registration_closes_at?: string | null
+          registration_opens_at?: string | null
+          registration_required?: boolean
+          waitlist_enabled?: boolean
+        }
+        Update: {
+          attendee_capacity?: number | null
+          event_id?: string
+          registration_closes_at?: string | null
+          registration_opens_at?: string | null
+          registration_required?: boolean
+          waitlist_enabled?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registration_requirements_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_required_facilities: {
+        Row: {
+          event_id: string
+          facility_name: string
+          id: string
+          notes: string | null
+        }
+        Insert: {
+          event_id: string
+          facility_name: string
+          id?: string
+          notes?: string | null
+        }
+        Update: {
+          event_id?: string
+          facility_name?: string
+          id?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_required_facilities_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_status_history: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          event_id: string
+          from_status: Database["public"]["Enums"]["event_status"] | null
+          id: number
+          reason: string | null
+          to_status: Database["public"]["Enums"]["event_status"]
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          event_id: string
+          from_status?: Database["public"]["Enums"]["event_status"] | null
+          id?: never
+          reason?: string | null
+          to_status: Database["public"]["Enums"]["event_status"]
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          event_id?: string
+          from_status?: Database["public"]["Enums"]["event_status"] | null
+          id?: never
+          reason?: string | null
+          to_status?: Database["public"]["Enums"]["event_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_status_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_status_history_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_venue_requirements: {
+        Row: {
+          accessibility_notes: string | null
+          event_id: string
+          layout_notes: string | null
+          minimum_capacity: number | null
+          preferred_location: string | null
+          updated_at: string
+        }
+        Insert: {
+          accessibility_notes?: string | null
+          event_id: string
+          layout_notes?: string | null
+          minimum_capacity?: number | null
+          preferred_location?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accessibility_notes?: string | null
+          event_id?: string
+          layout_notes?: string | null
+          minimum_capacity?: number | null
+          preferred_location?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_venue_requirements_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          assigned_coordinator_id: string | null
+          created_at: string
+          description: string | null
+          ends_at: string | null
+          event_type: string | null
+          expected_attendance: number | null
+          id: string
+          organiser_id: string
+          starts_at: string | null
+          status: Database["public"]["Enums"]["event_status"]
+          submitted_at: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_coordinator_id?: string | null
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          event_type?: string | null
+          expected_attendance?: number | null
+          id?: string
+          organiser_id: string
+          starts_at?: string | null
+          status?: Database["public"]["Enums"]["event_status"]
+          submitted_at?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_coordinator_id?: string | null
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          event_type?: string | null
+          expected_attendance?: number | null
+          id?: string
+          organiser_id?: string
+          starts_at?: string | null
+          status?: Database["public"]["Enums"]["event_status"]
+          submitted_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_assigned_coordinator_id_fkey"
+            columns: ["assigned_coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_organiser_id_fkey"
+            columns: ["organiser_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          event_id: string | null
+          id: string
+          message: string
+          read_at: string | null
+          recipient_id: string
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Insert: {
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          message: string
+          read_at?: string | null
+          recipient_id: string
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Update: {
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          message?: string
+          read_at?: string | null
+          recipient_id?: string
+          title?: string
+          type?: Database["public"]["Enums"]["notification_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          full_name: string
+          id: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      can_view_event: { Args: { target_event_id: string }; Returns: boolean }
+      current_user_role: {
+        Args: never
+        Returns: Database["public"]["Enums"]["user_role"]
+      }
+      event_status_transition_allowed: {
+        Args: {
+          from_status: Database["public"]["Enums"]["event_status"]
+          to_status: Database["public"]["Enums"]["event_status"]
+        }
+        Returns: boolean
+      }
+    }
+    Enums: {
+      clarification_status: "open" | "answered" | "resolved"
+      event_decision_type: "approved" | "rejected"
+      event_status:
+        | "draft"
+        | "submitted"
+        | "clarification_requested"
+        | "under_review"
+        | "approved"
+        | "rejected"
+        | "confirmed"
+        | "cancelled"
+      notification_type:
+        | "assignment"
+        | "clarification"
+        | "decision"
+        | "status_change"
+      user_role:
+        | "event_organiser"
+        | "event_coordinator"
+        | "venue_staff"
+        | "technical_support_staff"
+        | "attendee"
+        | "administrator"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never) = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never) = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
+  public: {
+    Enums: {
+      clarification_status: ["open", "answered", "resolved"],
+      event_decision_type: ["approved", "rejected"],
+      event_status: [
+        "draft",
+        "submitted",
+        "clarification_requested",
+        "under_review",
+        "approved",
+        "rejected",
+        "confirmed",
+        "cancelled",
+      ],
+      notification_type: [
+        "assignment",
+        "clarification",
+        "decision",
+        "status_change",
+      ],
+      user_role: [
+        "event_organiser",
+        "event_coordinator",
+        "venue_staff",
+        "technical_support_staff",
+        "attendee",
+        "administrator",
+      ],
+    },
+  },
+} as const
