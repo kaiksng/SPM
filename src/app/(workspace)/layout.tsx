@@ -13,7 +13,11 @@ export default async function WorkspaceLayout({
   const profile = await getCurrentProfile(user.id);
 
   return (
-    <WorkspaceShell role={profile.role} email={user.email ?? ""}>
+    <WorkspaceShell
+      role={profile.role}
+      email={user.email ?? ""}
+      fullName={profile.full_name}
+    >
       {children}
     </WorkspaceShell>
   );
