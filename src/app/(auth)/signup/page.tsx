@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { AuthSplitScreen } from "@/features/auth/components/auth-split-screen";
 import { SignupForm } from "@/features/auth/components/signup-form";
 import { getRoleDestination } from "@/features/auth/domain/role-destination";
 import type { UserRole } from "@/features/auth/types/role";
@@ -29,22 +30,30 @@ export default async function SignupPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">
-          Create your account
-        </h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Join ConnectSphere to start planning and coordinating events.
+    <AuthSplitScreen
+      headline="Bring your team into one workspace."
+      subcopy="Give organisers, coordinators, and venue staff one shared source of truth for every event."
+    >
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">
+            Create your account
+          </h1>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Fill in your details to get started.
+          </p>
+        </div>
+        <SignupForm />
+        <p className="text-muted-foreground text-center text-sm">
+          Already have an account?{" "}
+          <Link
+            href="/login"
+            className="text-foreground font-medium underline"
+          >
+            Sign in
+          </Link>
         </p>
       </div>
-      <SignupForm />
-      <p className="text-muted-foreground text-center text-sm">
-        Already have an account?{" "}
-        <Link href="/login" className="text-foreground font-medium underline">
-          Sign in
-        </Link>
-      </p>
-    </div>
+    </AuthSplitScreen>
   );
 }

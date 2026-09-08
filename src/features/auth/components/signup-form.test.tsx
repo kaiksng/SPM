@@ -107,6 +107,33 @@ describe("SignupForm", () => {
     ).not.toBeDisabled();
   });
 
+  it("shows each field's server-returned error directly under that field", async () => {
+    signupMock.mockResolvedValue({
+      errors: {
+        fullName: ["Full name must be at least 2 characters."],
+        email: ["Please enter a valid email address."],
+      },
+    });
+
+    const user = userEvent.setup();
+    render(<SignupForm />);
+
+    await user.type(screen.getByLabelText("Full name"), "J");
+    await user.type(screen.getByLabelText("Email"), "not-an-email");
+    await user.type(screen.getByLabelText("Password"), "password-one");
+    await user.type(screen.getByLabelText("Confirm password"), "password-one");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    await screen.findByText("Full name must be at least 2 characters.");
+
+    expect(screen.getByLabelText("Full name")).toHaveAccessibleDescription(
+      "Full name must be at least 2 characters.",
+    );
+    expect(screen.getByLabelText("Email")).toHaveAccessibleDescription(
+      "Please enter a valid email address.",
+    );
+  });
+
   it("shows a generic message from the action for a duplicate email", async () => {
     signupMock.mockResolvedValue({
       message:

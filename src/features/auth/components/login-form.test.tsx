@@ -19,9 +19,23 @@ describe("LoginForm", () => {
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
   });
 
-  it("shows field errors returned by the action", async () => {
+  it("toggles password visibility", async () => {
+    const user = userEvent.setup();
+    render(<LoginForm />);
+
+    const password = screen.getByLabelText("Password");
+    expect(password).toHaveAttribute("type", "password");
+
+    await user.click(screen.getByRole("button", { name: "Show password" }));
+    expect(password).toHaveAttribute("type", "text");
+
+    await user.click(screen.getByRole("button", { name: "Hide password" }));
+    expect(password).toHaveAttribute("type", "password");
+  });
+
+  it("shows the email error directly under the email field", async () => {
     loginMock.mockResolvedValue({
-      errors: { email: ["Enter a valid email address"] },
+      errors: { email: ["Please enter a valid email address."] },
     });
 
     const user = userEvent.setup();
@@ -31,9 +45,13 @@ describe("LoginForm", () => {
     await user.type(screen.getByLabelText("Password"), "something");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(
-      await screen.findByText("Enter a valid email address"),
-    ).toBeInTheDocument();
+    const error = await screen.findByText(
+      "Please enter a valid email address.",
+    );
+    expect(error).toBeInTheDocument();
+    expect(screen.getByLabelText("Email")).toHaveAccessibleDescription(
+      "Please enter a valid email address.",
+    );
   });
 
   it("shows a generic error message from the action without rendering raw errors", async () => {

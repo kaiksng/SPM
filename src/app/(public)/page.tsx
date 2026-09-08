@@ -4,6 +4,7 @@ import {
   ShieldCheck,
   UsersRound,
 } from "lucide-react";
+import Link from "next/link";
 
 const foundations = [
   {
@@ -43,9 +44,17 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-            Foundation ready
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+              Foundation ready
+            </span>
+            <Link
+              href="/login"
+              className="rounded-full bg-slate-950 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            >
+              Sign in
+            </Link>
+          </div>
         </header>
 
         <section className="flex flex-1 flex-col justify-center py-20 lg:py-28">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,27 +38,9 @@ export function SignupForm() {
 
   const markConfirmPasswordTouched = () => setConfirmPasswordTouched(true);
 
-  const errors = useMemo(() => {
-    const messages: string[] = [
-      ...(state?.errors?.fullName ?? []),
-      ...(state?.errors?.email ?? []),
-      ...(state?.errors?.password ?? []),
-    ];
-
-    if (showPasswordMismatch) {
-      messages.push(PASSWORD_MISMATCH_MESSAGE);
-    } else {
-      messages.push(...(state?.errors?.confirmPassword ?? []));
-    }
-
-    messages.push(...(state?.errors?.role ?? []));
-
-    if (state?.message) {
-      messages.push(state.message);
-    }
-
-    return messages;
-  }, [state, showPasswordMismatch]);
+  const confirmPasswordErrors = showPasswordMismatch
+    ? [PASSWORD_MISMATCH_MESSAGE]
+    : (state?.errors?.confirmPassword ?? []);
 
   const hasConfirmPasswordError =
     showPasswordMismatch || Boolean(state?.errors?.confirmPassword);
@@ -73,8 +55,15 @@ export function SignupForm() {
           autoComplete="name"
           required
           aria-invalid={Boolean(state?.errors?.fullName)}
-          aria-describedby={errors.length > 0 ? "form-errors" : undefined}
+          aria-describedby={
+            state?.errors?.fullName ? "fullName-error" : undefined
+          }
         />
+        {state?.errors?.fullName?.map((error) => (
+          <p key={error} id="fullName-error" className="text-destructive text-sm">
+            {error}
+          </p>
+        ))}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -86,8 +75,13 @@ export function SignupForm() {
           autoComplete="email"
           required
           aria-invalid={Boolean(state?.errors?.email)}
-          aria-describedby={errors.length > 0 ? "form-errors" : undefined}
+          aria-describedby={state?.errors?.email ? "email-error" : undefined}
         />
+        {state?.errors?.email?.map((error) => (
+          <p key={error} id="email-error" className="text-destructive text-sm">
+            {error}
+          </p>
+        ))}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -100,8 +94,15 @@ export function SignupForm() {
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           aria-invalid={Boolean(state?.errors?.password)}
-          aria-describedby={errors.length > 0 ? "form-errors" : undefined}
+          aria-describedby={
+            state?.errors?.password ? "password-error" : undefined
+          }
         />
+        {state?.errors?.password?.map((error) => (
+          <p key={error} id="password-error" className="text-destructive text-sm">
+            {error}
+          </p>
+        ))}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -115,13 +116,24 @@ export function SignupForm() {
           onChange={(event) => setConfirmPassword(event.target.value)}
           onBlur={markConfirmPasswordTouched}
           aria-invalid={hasConfirmPasswordError}
-          aria-describedby={errors.length > 0 ? "form-errors" : undefined}
+          aria-describedby={
+            confirmPasswordErrors.length > 0 ? "confirmPassword-error" : undefined
+          }
         />
+        {confirmPasswordErrors.map((error) => (
+          <p
+            key={error}
+            id="confirmPassword-error"
+            className="text-destructive text-sm"
+          >
+            {error}
+          </p>
+        ))}
       </div>
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="role">Role</Label>
-        <Select name="role" defaultValue="attendee" required>
+        <Select name="role" items={roleLabels} defaultValue="attendee" required>
           <SelectTrigger id="role" aria-invalid={Boolean(state?.errors?.role)}>
             <SelectValue placeholder="Choose a role" />
           </SelectTrigger>
@@ -133,20 +145,17 @@ export function SignupForm() {
             ))}
           </SelectContent>
         </Select>
+        {state?.errors?.role?.map((error) => (
+          <p key={error} className="text-destructive text-sm">
+            {error}
+          </p>
+        ))}
       </div>
 
-      {errors.length > 0 && (
-        <div
-          id="form-errors"
-          role="alert"
-          className="border-destructive/30 bg-destructive/5 flex flex-col gap-1 rounded-lg border p-3"
-        >
-          {errors.map((error) => (
-            <p key={error} className="text-destructive text-sm">
-              {error}
-            </p>
-          ))}
-        </div>
+      {state?.message && (
+        <p role="alert" className="text-destructive text-sm">
+          {state.message}
+        </p>
       )}
 
       <Button
