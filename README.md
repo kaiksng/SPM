@@ -4,13 +4,14 @@ ConnectSphere is an event-planning workspace for organisers, event coordinators,
 
 ## Stack
 
-- Next.js 16, React 19, and TypeScript
-- Tailwind CSS and shadcn/ui components
+- React 19 + Vite + TypeScript for the frontend (`apps/frontend`)
+- Node.js + Express + TypeScript for the backend (`apps/backend`)
+- Tailwind CSS for styling
 - One shared Supabase project for authentication and PostgreSQL
-- Vitest, Playwright, pgTAP, ESLint, and Prettier
-- GitHub Actions for pull-request checks
+- A shared workspace package (`packages/shared`) for types, zod schemas, and domain logic used by both apps
+- Vitest, Playwright, pgTAP, and GitHub Actions for pull-request checks
 
-The project is a modular monolith. Next.js contains the frontend and server-side operations; Supabase provides the shared backend database and final authorization boundary. Prisma is intentionally not used.
+The project is a pnpm monorepo split into a frontend and a backend. The frontend talks to Supabase directly for authentication and for reads/writes protected by Row Level Security; the backend exists for privileged operations (using the Supabase `service_role` key) and business logic that shouldn't run in the browser. Supabase provides the shared backend database and final authorization boundary via RLS policies. Prisma is intentionally not used.
 
 ## Start developing
 
@@ -22,54 +23,75 @@ cd SPM
 corepack enable
 corepack prepare pnpm@11.19.0 --activate
 pnpm install
-cp .env.example .env.local
-pnpm dev
+cp apps/frontend/.env.example apps/frontend/.env.local
+cp apps/backend/.env.example apps/backend/.env
 ```
 
-Ask the team database owner for the Supabase **publishable key** and place it in `.env.local`:
+Ask the team database owner for the Supabase **publishable key** (frontend) and the **service role key** (backend, keep this secret) and place them in the files above:
 
 ```text
-NEXT_PUBLIC_SUPABASE_URL=https://qqyvnlznjgupmxfqutff.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_team_publishable_key
-NEXT_PUBLIC_APP_NAME=ConnectSphere
-APP_TIMEZONE=Asia/Singapore
+# apps/frontend/.env.local
+VITE_SUPABASE_URL=https://qqyvnlznjgupmxfqutff.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your_team_publishable_key
+VITE_BACKEND_URL=http://localhost:3001
+
+# apps/backend/.env
+PORT=3001
+FRONTEND_ORIGIN=http://localhost:5173
+SUPABASE_URL=https://qqyvnlznjgupmxfqutff.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_team_service_role_key
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Run both apps (in separate terminals):
 
-Do not commit `.env.local`. Team members do not need Docker, a local Supabase instance, the database password, or the Supabase secret key for normal development.
+```bash
+pnpm dev:frontend         # http://localhost:5173
+pnpm dev:backend          # http://localhost:3001
+```
+
+Do not commit `.env.local` or `.env`. Only the backend needs the Supabase service role key; the frontend only ever uses the publishable key plus Row Level Security.
 
 ## How the code is organised
 
 ```text
-src/
-  app/                    Thin routes and page composition
-    (public)/             Public pages
-    (auth)/               Authentication pages
-    (workspace)/          Signed-in workspace pages
-    api/                  External HTTP endpoints
-  components/             Shared UI and layout components
-  features/               Complete product feature slices
-  lib/supabase/           Browser/server Supabase clients and generated types
-  server/                 Shared authentication, authorization, audit, and errors
-  test/                   Shared test setup
+apps/
+  frontend/               React + Vite + Tailwind SPA
+    src/
+      routes/              Route components and layouts (React Router)
+      features/            Complete product feature slices (components, actions)
+      components/ui/       Shared UI primitives
+      context/             Auth session context
+      guards/               Route guards (e.g. require an authenticated session)
+      lib/                 Supabase browser client, backend API client, utils
+  backend/                Node.js + Express API
+    src/
+      routes/              HTTP routes for privileged/business-logic operations
+      middleware/          Auth verification, error handling
+      lib/                 Supabase service-role client
+      errors/              Application error types
+packages/
+  shared/                 Types, zod schemas, and domain logic shared by both apps
 supabase/
   migrations/             Version-controlled shared database changes
   tests/database/         Database and Row Level Security tests
 docs/                     Architecture, testing, API, and traceability
-tests/e2e/                Browser journeys
+tests/e2e/                Browser journeys (Playwright)
 ```
 
-Each feature keeps its own components, validation, queries, actions, domain rules, types, and tests. Pages should compose features rather than contain database or business logic.
+Each feature keeps its own components, validation, and actions. Simple reads/writes go straight from the frontend to Supabase, protected by RLS; the backend is for privileged operations (the `service_role` key) and business logic that shouldn't run client-side. See `packages/shared` for anything used by both apps.
 
 ## Daily commands
 
 ```bash
-pnpm dev                  # Start the application
-pnpm test:unit            # Run unit and component tests
-pnpm test:e2e             # Run browser tests
-pnpm check                # Format check, lint, types, unit tests, and build
+pnpm dev:frontend         # Start the frontend (Vite dev server)
+pnpm dev:backend          # Start the backend (Express)
+pnpm typecheck:frontend   # Typecheck the frontend
+pnpm typecheck:backend    # Typecheck the backend
+pnpm typecheck:shared     # Typecheck the shared package
+pnpm test:e2e             # Run browser tests against both apps
 ```
+
+Run `pnpm --filter @spm/frontend test`, `pnpm --filter @spm/backend test`, or `pnpm --filter @spm/shared test` for unit/component tests in a specific package.
 
 Use pnpm consistently. Do not run `npm install` or commit a `package-lock.json`.
 
@@ -127,7 +149,7 @@ pnpm db:push
 pnpm db:types
 ```
 
-Commit the migration and regenerated `database.types.ts` together. CI validates migrations against a temporary database so the shared team data is never reset.
+Commit the migration and regenerated `database.types.ts` (in `packages/shared/src/types/database.types.ts`) together. CI validates migrations against a temporary database so the shared team data is never reset.
 
 ## Definition of Done
 

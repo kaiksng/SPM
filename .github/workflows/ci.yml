@@ -11,6 +11,11 @@ permissions:
 jobs:
   application:
     runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -21,11 +26,13 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm format:check
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test:unit
-      - run: pnpm build
+      - run: pnpm typecheck:shared
+      - run: pnpm typecheck:frontend
+      - run: pnpm typecheck:backend
+      - run: pnpm --filter @spm/shared test
+      - run: pnpm --filter @spm/frontend test
+      - run: pnpm build:frontend
+      - run: pnpm build:backend
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
 
