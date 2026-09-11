@@ -1,7 +1,0 @@
-.next
-coverage
-node_modules
-playwright-report
-test-results
-pnpm-lock.yaml
-src/lib/supabase/database.types.ts

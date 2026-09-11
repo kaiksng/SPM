@@ -8,11 +8,11 @@ test("shows the ConnectSphere foundation", async ({ page }) => {
   await expect(page.getByText("Foundation ready")).toBeVisible();
 });
 
-test("reports application health", async ({ request }) => {
-  const response = await request.get("/api/health");
+test("reports application health from the backend", async ({ request }) => {
+  const response = await request.get("http://localhost:3001/health");
   expect(response.ok()).toBe(true);
   await expect(response.json()).resolves.toMatchObject({
     status: "ok",
-    service: "connectsphere",
+    service: "connectsphere-backend",
   });
 });

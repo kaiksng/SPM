@@ -1,1 +1,1 @@
-@AGENTS.md
+See README.md for the project layout: a pnpm monorepo with `apps/frontend` (React + Vite + Tailwind), `apps/backend` (Node.js + Express), and `packages/shared` (types, schemas, domain logic used by both).
