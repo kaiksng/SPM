@@ -30,6 +30,16 @@ test("redirects an unauthenticated visitor away from the protected workspace", a
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 });
 
+test("does not reveal a draft editor to an unauthenticated visitor", async ({
+  page,
+}) => {
+  await page.goto("/events/10000000-0000-0000-0000-000000000001/edit");
+
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByText("Event overview")).not.toBeVisible();
+});
+
 test("renders the signup form and validates mismatched passwords without calling Supabase", async ({
   page,
 }) => {

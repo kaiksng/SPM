@@ -37,5 +37,7 @@ export function getNavItemsForRole(role: UserRole): NavItem[] {
 
 /** Whether a role is entitled to a nav section, keyed by its route path. */
 export function isPathAllowedForRole(pathname: string, role: UserRole) {
-  return getNavItemsForRole(role).some((item) => item.href === pathname);
+  return getNavItemsForRole(role).some(
+    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
 }

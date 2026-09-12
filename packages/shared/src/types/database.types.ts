@@ -356,6 +356,7 @@ export type Database = {
           expected_attendance: number | null
           id: string
           organiser_id: string
+          purpose: string | null
           starts_at: string | null
           status: Database["public"]["Enums"]["event_status"]
           submitted_at: string | null
@@ -371,6 +372,7 @@ export type Database = {
           expected_attendance?: number | null
           id?: string
           organiser_id: string
+          purpose?: string | null
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
           submitted_at?: string | null
@@ -386,6 +388,7 @@ export type Database = {
           expected_attendance?: number | null
           id?: string
           organiser_id?: string
+          purpose?: string | null
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
           submitted_at?: string | null
@@ -497,6 +500,10 @@ export type Database = {
           to_status: Database["public"]["Enums"]["event_status"]
         }
         Returns: boolean
+      }
+      save_event_draft: {
+        Args: { draft: Json; target_event_id?: string }
+        Returns: string
       }
     }
     Enums: {
