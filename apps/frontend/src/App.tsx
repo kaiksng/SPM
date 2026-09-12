@@ -5,6 +5,7 @@ import { RequireSession } from "@/guards/require-session";
 import { AuthLayout } from "@/routes/AuthLayout";
 import { BrowseEventsPage } from "@/routes/BrowseEventsPage";
 import { EquipmentPage } from "@/routes/EquipmentPage";
+import { EventRequestEditorPage } from "@/routes/EventRequestEditorPage";
 import { EventsPage } from "@/routes/EventsPage";
 import { HomePage } from "@/routes/HomePage";
 import { LoginPage } from "@/routes/LoginPage";
@@ -29,6 +30,11 @@ export function App() {
             <Route element={<WorkspaceLayout />}>
               <Route path="home" element={<HomePage />} />
               <Route path="events" element={<EventsPage />} />
+              <Route path="events/new" element={<EventRequestEditorPage />} />
+              <Route
+                path="events/:eventId/edit"
+                element={<EventRequestEditorPage />}
+              />
               <Route path="venues" element={<VenuesPage />} />
               <Route path="equipment" element={<EquipmentPage />} />
               <Route path="browse-events" element={<BrowseEventsPage />} />

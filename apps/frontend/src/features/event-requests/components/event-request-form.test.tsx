@@ -1,0 +1,142 @@
+import {
+  emptyEventRequestFormValues,
+  type EventRequestFormValues,
+} from "@spm/shared";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+
+import { EventRequestForm } from "./event-request-form";
+
+function values(
+  overrides: Partial<EventRequestFormValues> = {},
+): EventRequestFormValues {
+  return {
+    ...emptyEventRequestFormValues,
+    venue: { ...emptyEventRequestFormValues.venue },
+    registration: { ...emptyEventRequestFormValues.registration },
+    equipment: [],
+    ...overrides,
+  };
+}
+
+describe("EventRequestForm draft mode", () => {
+  it("saves when only a valid event name is entered", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <EventRequestForm
+        initialValues={values()}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.type(screen.getByLabelText(/Event name/), "ABC");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "ABC", expectedAttendance: "" }),
+    );
+  });
+
+  it.each([
+    ["ab", "Event name must contain at least 3 characters"],
+    ["a".repeat(161), "Event name must contain at most 160 characters"],
+  ])("blocks an out-of-bound event name", async (title, expectedError) => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <EventRequestForm
+        initialValues={values({ title })}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect(await screen.findByText(expectedError)).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("explains invalid entered values beside their fields", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Valid draft" })}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Expected attendance"), "1.5");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect(
+      await screen.findByText("Enter a positive whole number"),
+    ).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("rejects an end time that is not later than the start time", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Valid draft" })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.type(screen.getByLabelText("Starts"), "2026-09-25T10:00");
+    await user.type(screen.getByLabelText("Ends"), "2026-09-25T10:00");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect(
+      await screen.findByText("End time must be after the start time"),
+    ).toBeInTheDocument();
+  });
+
+  it("preserves entered values and shows the save failure", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockRejectedValue(new Error("Shared database unavailable"));
+    render(
+      <EventRequestForm
+        initialValues={values()}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const title = screen.getByLabelText(/Event name/);
+    await user.type(title, "Kai Test Preserved");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect(await screen.findByText("Shared database unavailable")).toBeInTheDocument();
+    expect(title).toHaveValue("Kai Test Preserved");
+  });
+
+  it("adds and removes equipment rows without affecting the draft", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Equipment draft" })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add equipment" }));
+    await user.type(screen.getByLabelText("Equipment"), "Microphone");
+    expect(screen.getByLabelText("Equipment")).toHaveValue("Microphone");
+
+    await user.click(
+      screen.getByRole("button", { name: "Remove equipment item 1" }),
+    );
+    expect(screen.queryByLabelText("Equipment")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Event name/)).toHaveValue("Equipment draft");
+  });
+});

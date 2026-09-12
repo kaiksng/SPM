@@ -47,6 +47,16 @@ describe("workspace navigation", () => {
     expect(isPathAllowedForRole("/venues", "venue_staff")).toBe(true);
   });
 
+  it("allows an organiser to reach nested event-request routes", () => {
+    expect(isPathAllowedForRole("/events/new", "event_organiser")).toBe(true);
+    expect(
+      isPathAllowedForRole(
+        "/events/10000000-0000-0000-0000-000000000001/edit",
+        "event_organiser",
+      ),
+    ).toBe(true);
+  });
+
   it("blocks a role from a path outside its nav", () => {
     expect(isPathAllowedForRole("/venues", "event_organiser")).toBe(false);
   });
