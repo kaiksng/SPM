@@ -33,7 +33,20 @@ const draft = {
   startsAt: null,
   endsAt: null,
   updatedAt: "2026-09-12T08:00:00.000Z",
+  submittedAt: null,
   assignedCoordinatorId: null,
+};
+
+const requested = {
+  id: "requested-1",
+  title: "Shernice Test Submission",
+  purpose: "Test submission controls",
+  status: "requested",
+  startsAt: "2026-10-01T09:00:00.000Z",
+  endsAt: "2026-10-01T11:00:00.000Z",
+  updatedAt: "2026-09-13T08:00:00.000Z",
+  submittedAt: "2026-09-13T08:00:00.000Z",
+  assignedCoordinatorId: "20000000-0000-0000-0000-000000000002",
 };
 
 describe("EventsPage draft controls", () => {
@@ -55,6 +68,33 @@ describe("EventsPage draft controls", () => {
       "href",
       "/events/draft-1/edit",
     );
+    // PB-03.
+    expect(screen.getByRole("link", { name: "Submit request" })).toHaveAttribute(
+      "href",
+      "/events/draft-1/submit",
+    );
+  });
+
+  // PB-03 AC04 and AC07.
+  it("shows the submission time and a permitted edit action for a Requested event", async () => {
+    listEventRequestsMock.mockResolvedValue([requested]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
+    expect(screen.getByText("requested")).toBeInTheDocument();
+    expect(screen.getByText(/^Submitted/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit request" })).toHaveAttribute(
+      "href",
+      "/events/requested-1/edit",
+    );
+    expect(
+      screen.queryByRole("button", { name: `Delete ${requested.title}` }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the Draft when deletion is cancelled", async () => {

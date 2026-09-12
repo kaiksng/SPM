@@ -1,9 +1,10 @@
-# Sprint 1 test cases — PB-02
+# Sprint 1 test cases — PB-02, PB-03
 
 ## Test approach
 
 - Unit tests cover boundaries and validation without a network.
 - Component tests cover field feedback, failure-state retention, list status and deletion confirmation.
+- Route tests (`apps/backend`) cover authentication, authorization and SQLSTATE-to-HTTP mapping without a real database.
 - Database tests cover atomic persistence, constraints, cascade deletion and RLS with multiple identities.
 - Playwright covers unauthenticated protected-route access.
 - Manual execution uses the shared Supabase project only after its migration is deployed.
@@ -30,9 +31,25 @@ Test specifications remain separate from execution results. Never store account 
 | TC-PB02-14 | AC08 | A second organiser or another role is authenticated. | Attempt read, update and delete on Kai’s test draft. | Every operation is denied and no protected values are returned. | Database/RLS and manual | Second organiser received Draft unavailable; database identity tests denied read, update and delete. | Pass | Codex | 2026-09-12 | f059ccd | `pb02-shared.spec.ts`; `pb02_event_drafts.test.sql` |
 | TC-PB02-15 | AC03, AC05 | An existing Draft has valid data. | Cause one requirement write to fail during a later save. | Error shown, form retains attempted inputs, and stored draft remains consistent without partial update. | Database/integration | UI retention and transaction rollback automated | Automated pass | Codex | 2026-09-12 | f059ccd | `event-request-form.test.tsx`; `pb02_event_drafts.test.sql` |
 
+## PB-03 specifications and execution record
+
+| Test ID | AC | Scenario and preconditions | Test steps and data | Expected result | Test layer | Actual Result | Pass/Fail | Executed By | Execution Date | Build/Commit | Evidence Link |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TC-PB03-01 | AC01, AC06 | Event Organiser has a Draft with only an event name. | Attempt Submit request without completing purpose, description, attendance, dates or venue requirements. | Submission is blocked locally and every missing field is highlighted at once. | Unit/component | Every required field rejected in a single `safeParse`; component renders all corresponding errors together. | Automated pass | Shernice | 2026-09-13 | pending PR | `event-request.test.ts`; `event-request-form.test.tsx` |
+| TC-PB03-02 | AC06 | As above, submitted directly against the database (bypassing the browser). | Call `public.submit_event_request` on an incomplete Draft. | Raises `23514` with a `detail` array naming every affected field. | Database | `throws_ok` on `23514`; a `do` block parses `detail` and confirms multiple fields are present together. | Automated pass | Shernice | 2026-09-13 | pending PR | `pb03_submit_event_request.test.sql` |
+| TC-PB03-03 | AC01, AC02, AC03, AC05 | A Draft has every mandatory field, one venue requirement, and the requirements acknowledgement checked. | Submit the request. | Request is accepted, status becomes `requested`, submission time is recorded, and the event is not returned to draft editing/deletion. | Database/component | Status, `submitted_at` and `submitted_by` verified; `EventsPage` no longer offers delete for a Requested card. | Automated pass | Shernice | 2026-09-13 | pending PR | `pb03_submit_event_request.test.sql`; `EventsPage.test.tsx` |
+| TC-PB03-04 | AC02 | A complete Draft has the requirements acknowledgement left unchecked. | Attempt to submit. | Submission is blocked with a specific acknowledgement error; accepting equipment/registration values as genuinely optional otherwise. | Unit/database | Both layers reject an unacknowledged submission with the same field name. | Automated pass | Shernice | 2026-09-13 | pending PR | `event-request.test.ts`; `pb03_submit_event_request.test.sql` |
+| TC-PB03-05 | AC04 | A Requested event exists for the organiser. | View the organiser's event list. | The card shows status `requested` and the submission date and time. | Component | Rendering of the submission timestamp verified. | Automated pass | Shernice | 2026-09-13 | pending PR | `EventsPage.test.tsx` |
+| TC-PB03-06 | AC05 | A Draft is already Requested. | Attempt to submit the same event a second time. | Submission is rejected; the event is not found in Draft status. | Database | `throws_ok` on `42501` confirms a Requested event cannot be resubmitted. | Automated pass | Shernice | 2026-09-13 | pending PR | `pb03_submit_event_request.test.sql` |
+| TC-PB03-07 | AC07 | A Requested event exists and has not been approved. | The owning organiser edits a permitted field and saves. | The edit is applied, the status remains `requested`, and the change is timestamped (`updated_at`) and attributable to the organiser. | Database/component | `save_event_draft` widened status gate verified; `EventsPage` offers Edit request for a Requested card. | Automated pass | Shernice | 2026-09-13 | pending PR | `pb03_submit_event_request.test.sql`; `EventsPage.test.tsx` |
+| TC-PB03-08 | AC06, AC07 | A second organiser or a different role attempts to submit or edit another organiser's request. | Attempt submission and editing as a non-owner and as an Attendee. | Every operation is denied and no protected data changes. | Database | `throws_ok` on `42501` for cross-organiser edit, wrong-role submission and submit-on-behalf-of impersonation. | Automated pass | Shernice | 2026-09-13 | pending PR | `pb03_submit_event_request.test.sql` |
+| TC-PB03-09 | AC05, AC06 | The backend route receives the database's response. | Exercise the route with a successful submission, an insufficient-privilege error, a check-violation error, and an unrelated database error. | 200 with the submission result; 403; 422 with every affected field; 500 for anything unexpected. | Route (backend) | All four cases pass with `supertest` against a mocked service client. | Automated pass | Shernice | 2026-09-13 | pending PR | `event-submissions.route.test.ts` |
+| TC-PB03-10 | AC05 | An Event Organiser and an Event Coordinator exist in the shared environment. | Submit a `[Shernice Test]` request end to end through the UI. | The request reaches `requested` status and is visible to the coordinator for review. | E2E/manual | Pending shared-environment execution. | Pending | — | — | — | `tests/e2e/pb03-shared.spec.ts` |
+
 ## Shared-environment execution rules
 
-1. Use the first Event Organiser account in the planning workbook as Kai’s identity and the second as the unauthorized-organiser identity.
-2. Prefix temporary event names with `[Kai Test]`.
-3. Do not reset the shared database. Delete only the test records created for this execution.
-4. Record commit, environment, tester, date, actual result and evidence link for every manual case.
+1. Use the first Event Organiser account in the planning workbook as Kai's identity and the second as the unauthorized-organiser identity for PB-02.
+2. For PB-03, use `jasmine@gmail.com` (Event Organiser) and `joyce@gmail.com` (Event Coordinator) from the Test User Account sheet.
+3. Prefix temporary event names with `[Kai Test]` (PB-02) or `[Shernice Test]` (PB-03).
+4. Do not reset the shared database. Delete only the test records created for this execution.
+5. Record commit, environment, tester, date, actual result and evidence link for every manual case.

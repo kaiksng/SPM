@@ -13,3 +13,4 @@ export * from "./domain/permissions";
 export * from "./domain/navigation";
 
 export * from "./errors/map-auth-error";
+export * from "./errors/event-submission-error";

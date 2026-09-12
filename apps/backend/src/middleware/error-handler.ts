@@ -16,7 +16,14 @@ export function errorHandler(
   _next: NextFunction,
 ) {
   if (err instanceof ApplicationError) {
-    res.status(STATUS_BY_CODE[err.code]).json({ error: err.message });
+    // VALIDATION errors may carry a {field, message}[] in `cause` (see
+    // routes/event-submissions.route.ts) so the frontend can highlight every
+    // affected field at once, the same way it highlights a failed local
+    // validation.
+    const fields = Array.isArray(err.cause) ? err.cause : undefined;
+    res
+      .status(STATUS_BY_CODE[err.code])
+      .json({ error: err.message, ...(fields ? { fields } : {}) });
     return;
   }
 

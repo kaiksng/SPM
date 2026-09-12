@@ -30,6 +30,7 @@ jobs:
       - run: pnpm typecheck:frontend
       - run: pnpm typecheck:backend
       - run: pnpm --filter @spm/shared test
+      - run: pnpm --filter @spm/backend test
       - run: pnpm --filter @spm/frontend test
       - run: pnpm build:frontend
       - run: pnpm build:backend
