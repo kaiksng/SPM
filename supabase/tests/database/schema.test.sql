@@ -1,6 +1,6 @@
 begin;
 
-select plan(14);
+select plan(17);
 
 select has_table('public', 'profiles', 'profiles table exists');
 select has_table('public', 'events', 'events table exists');
@@ -36,6 +36,22 @@ select isnt(
 select ok(
   public.event_status_transition_allowed('draft', 'requested'),
   'PB-03: draft events can become Requested'
+);
+select ok(
+  exists(select 1 from pg_constraint where conname = 'events_assignment_after_submission'),
+  'PB-04: an event past Draft must have an assigned coordinator'
+);
+select has_trigger(
+  'public', 'events', 'events_prevent_coordinator_reassignment',
+  'PB-04: coordinator reassignment is guarded by a trigger'
+);
+select ok(
+  exists(
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'profiles'
+      and policyname = 'organisers view their assigned coordinator'
+  ),
+  'PB-04 AC02: organisers can read the profile of their assigned coordinator'
 );
 
 select * from finish();

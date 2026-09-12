@@ -17,6 +17,8 @@ export type EventDraftSummary = {
   updatedAt: string;
   submittedAt: string | null;
   assignedCoordinatorId: string | null;
+  // PB-04 AC02: the organiser can see who is coordinating their request.
+  assignedCoordinatorName: string | null;
 };
 
 function localDateTime(isoValue: string | null) {
@@ -34,7 +36,18 @@ export async function listEventRequests(organiserId: string) {
   const { data, error } = await supabase
     .from("events")
     .select(
-      "id, title, purpose, status, starts_at, ends_at, updated_at, submitted_at, assigned_coordinator_id",
+      `
+        id,
+        title,
+        purpose,
+        status,
+        starts_at,
+        ends_at,
+        updated_at,
+        submitted_at,
+        assigned_coordinator_id,
+        assigned_coordinator:profiles!events_assigned_coordinator_id_fkey (full_name)
+      `,
     )
     .eq("organiser_id", organiserId)
     .order("updated_at", { ascending: false });
@@ -52,6 +65,7 @@ export async function listEventRequests(organiserId: string) {
       updatedAt: event.updated_at,
       submittedAt: event.submitted_at,
       assignedCoordinatorId: event.assigned_coordinator_id,
+      assignedCoordinatorName: event.assigned_coordinator?.full_name ?? null,
     }),
   );
 }

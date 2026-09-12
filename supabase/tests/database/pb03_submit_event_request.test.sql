@@ -18,6 +18,15 @@ values
     '30000000-0000-0000-0000-000000000003',
     'pb03-attendee@example.test',
     '{"full_name":"PB03 Attendee","role":"attendee"}'::jsonb
+  ),
+  (
+    -- PB-04 assigns every Requested event to a coordinator in the same
+    -- transaction as submission; without one, submission itself would fail.
+    -- Which coordinator is chosen is PB-04's concern, tested in
+    -- pb04_coordinator_assignment.test.sql — this file only checks that one is.
+    '30000000-0000-0000-0000-000000000004',
+    'pb03-coordinator@example.test',
+    '{"full_name":"PB03 Coordinator","role":"event_coordinator"}'::jsonb
   );
 
 set local role authenticated;
@@ -130,11 +139,12 @@ select is(
   'the submitting organiser is recorded'
 );
 
--- PB-04 has not run on this branch, so no coordinator is assigned yet.
-select is(
+-- PB-04 AC01: submission assigns a coordinator in the same transaction.
+-- Which one is chosen is asserted in pb04_coordinator_assignment.test.sql.
+select isnt(
   (select assigned_coordinator_id from public.events where id = (select id from pb03_event_ids)),
   null::uuid,
-  'submission alone does not assign a coordinator'
+  'submission assigns a coordinator'
 );
 
 -- The status change is historised with the submitting actor.

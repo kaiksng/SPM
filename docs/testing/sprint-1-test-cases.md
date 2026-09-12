@@ -1,4 +1,4 @@
-# Sprint 1 test cases — PB-02, PB-03
+# Sprint 1 test cases — PB-02, PB-03, PB-04
 
 ## Test approach
 
@@ -45,6 +45,19 @@ Test specifications remain separate from execution results. Never store account 
 | TC-PB03-08 | AC06, AC07 | A second organiser or a different role attempts to submit or edit another organiser's request. | Attempt submission and editing as a non-owner and as an Attendee. | Every operation is denied and no protected data changes. | Database | `throws_ok` on `42501` for cross-organiser edit, wrong-role submission and submit-on-behalf-of impersonation. | Automated pass | Shernice | 2026-09-13 | pending PR | `pb03_submit_event_request.test.sql` |
 | TC-PB03-09 | AC05, AC06 | The backend route receives the database's response. | Exercise the route with a successful submission, an insufficient-privilege error, a check-violation error, and an unrelated database error. | 200 with the submission result; 403; 422 with every affected field; 500 for anything unexpected. | Route (backend) | All four cases pass with `supertest` against a mocked service client. | Automated pass | Shernice | 2026-09-13 | pending PR | `event-submissions.route.test.ts` |
 | TC-PB03-10 | AC05 | An Event Organiser and an Event Coordinator exist in the shared environment. | Submit a `[Shernice Test]` request end to end through the UI. | The request reaches `requested` status and is visible to the coordinator for review. | E2E/manual | Pending shared-environment execution. | Pending | — | — | — | `tests/e2e/pb03-shared.spec.ts` |
+
+## PB-04 specifications and execution record
+
+| Test ID | AC | Scenario and preconditions | Test steps and data | Expected result | Test layer | Actual Result | Pass/Fail | Executed By | Execution Date | Build/Commit | Evidence Link |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TC-PB04-01 | AC01 | Two Event Coordinators exist with equal (zero) active load. | Submit a complete request. | The request is assigned to exactly one coordinator, chosen deterministically. | Database | `is` confirms the lower-id coordinator is chosen on a tie. | Automated pass | Shernice | 2026-09-13 | pending PR | `pb04_coordinator_assignment.test.sql` |
+| TC-PB04-02 | AC01 | One coordinator now has one active event; another has none. | Submit a second complete request. | The request is assigned to the now-least-loaded coordinator. | Database | Second event assigned to the other coordinator. | Automated pass | Shernice | 2026-09-13 | pending PR | `pb04_coordinator_assignment.test.sql` |
+| TC-PB04-03 | AC04 | A request has just been assigned. | Inspect the `notifications` table. | Exactly one `assignment` notification exists for the assigned coordinator and event. | Database | Row count verified. | Automated pass | Shernice | 2026-09-13 | pending PR | `pb04_coordinator_assignment.test.sql` |
+| TC-PB04-04 | AC03, AC05 | An event has an assigned coordinator. | The assigned coordinator attempts to change `assigned_coordinator_id` directly. | The change is rejected and the original assignment is unchanged. | Database | `throws_ok` on `42501`; assignment verified unchanged afterward. | Automated pass | Shernice | 2026-09-13 | pending PR | `pb04_coordinator_assignment.test.sql` |
+| TC-PB04-05 | AC01 | No Event Coordinator exists. | Attempt to submit a complete request. | Submission fails and the event remains a Draft. | Database | `throws_ok` on `23514`; status confirmed unchanged. | Automated pass | Shernice | 2026-09-13 | pending PR | `pb04_coordinator_assignment.test.sql` |
+| TC-PB04-06 | — | An authenticated non-service caller. | Call `assign_event_coordinator` directly via RPC. | The call is denied; assignment is only reachable through submission. | Database | `throws_ok` on `42501` (permission denied). | Automated pass | Shernice | 2026-09-13 | pending PR | `pb04_coordinator_assignment.test.sql` |
+| TC-PB04-07 | AC02 | An organiser has a Requested event with an assigned coordinator. | View the organiser's event list. | The assigned coordinator's name is shown on the card. | Component | Coordinator name rendered from the mocked service. | Automated pass | Shernice | 2026-09-13 | pending PR | `EventsPage.test.tsx` |
+| TC-PB04-08 | AC01–AC04 | An Event Organiser and an Event Coordinator exist in the shared environment. | Submit a `[Shernice Test]` request end to end through the UI, then sign in as the coordinator. | The request is assigned, the coordinator has a notification, and the organiser sees the coordinator's name. | E2E/manual | Pending shared-environment execution. | Pending | — | — | — | Extends `tests/e2e/pb03-shared.spec.ts` |
 
 ## Shared-environment execution rules
 

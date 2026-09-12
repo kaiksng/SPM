@@ -35,6 +35,7 @@ const draft = {
   updatedAt: "2026-09-12T08:00:00.000Z",
   submittedAt: null,
   assignedCoordinatorId: null,
+  assignedCoordinatorName: null,
 };
 
 const requested = {
@@ -47,6 +48,7 @@ const requested = {
   updatedAt: "2026-09-13T08:00:00.000Z",
   submittedAt: "2026-09-13T08:00:00.000Z",
   assignedCoordinatorId: "20000000-0000-0000-0000-000000000002",
+  assignedCoordinatorName: "Joyce Coordinator",
 };
 
 describe("EventsPage draft controls", () => {
@@ -88,6 +90,8 @@ describe("EventsPage draft controls", () => {
     expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
     expect(screen.getByText("requested")).toBeInTheDocument();
     expect(screen.getByText(/^Submitted/)).toBeInTheDocument();
+    // PB-04 AC02.
+    expect(screen.getByText("Coordinator: Joyce Coordinator")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Edit request" })).toHaveAttribute(
       "href",
       "/events/requested-1/edit",

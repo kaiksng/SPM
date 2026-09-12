@@ -5,12 +5,20 @@ import {
 } from "@spm/shared";
 
 import { ApiError, apiFetch } from "@/lib/api-client";
+import { saveEventDraft } from "@/features/event-requests/services/event-drafts";
 
 /**
  * Submits a draft event request for coordinator assignment and review.
  * Validates locally first so the organiser sees every problem without a
  * round trip; public.submit_event_request re-validates regardless, since the
  * database — not this schema — is authoritative (AC06).
+ *
+ * public.submit_event_request only reads the row already stored in Postgres
+ * — the backend route sends it nothing but the event id. So whatever the
+ * organiser just typed into the form (including ticking the requirements
+ * acknowledgement) must be persisted first, exactly as a draft save would,
+ * or the database re-validates stale data and rejects a submission that
+ * looks complete on screen.
  */
 export async function submitEventRequest(
   eventId: string,
@@ -30,6 +38,7 @@ export async function submitEventRequest(
   }
 
   try {
+    await saveEventDraft(result.data, eventId);
     return await apiFetch(`/events/${eventId}/submit`, { method: "POST" });
   } catch (error) {
     if (error instanceof ApiError && error.fields) {

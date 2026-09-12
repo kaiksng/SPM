@@ -502,6 +502,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_event_coordinator: {
+        Args: { p_event_id: string }
+        Returns: string
+      }
       can_view_event: { Args: { target_event_id: string }; Returns: boolean }
       current_user_role: {
         Args: never

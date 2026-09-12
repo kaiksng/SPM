@@ -39,7 +39,10 @@ paths:
                     format: date-time
   /events/{eventId}/submit:
     post:
-      summary: Submit a draft event request for coordinator assignment and review (PB-03)
+      summary: >
+        Submit a draft event request for coordinator assignment and review
+        (PB-03). Assigns the least-loaded Event Coordinator in the same
+        transaction (PB-04).
       operationId: submitEventRequest
       parameters:
         - name: eventId
@@ -51,8 +54,8 @@ paths:
       responses:
         "200":
           description: >
-            The request was complete and became Requested. `assignedCoordinatorId`
-            is null until PB-04 ships.
+            The request was complete, became Requested, and was assigned to
+            an Event Coordinator.
           content:
             application/json:
               schema:
@@ -91,7 +94,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "422":
-          description: The request is not complete enough to submit (AC06)
+          description: >
+            The request is not complete enough to submit (PB-03 AC06), or no
+            Event Coordinator is available to take it (PB-04)
           content:
             application/json:
               schema:

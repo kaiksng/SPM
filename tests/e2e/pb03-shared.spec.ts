@@ -18,10 +18,13 @@ async function startFreshSession(page: Page, email: string, password: string) {
 /**
  * Covers the organiser side of PB-03: completing a draft, submitting it, and
  * confirming the Requested state and permitted pre-approval edit (AC04, AC05,
- * AC07). PB-04's assignment and the coordinator's view of the request are not
- * yet built on this branch — see pb03_submit_event_request.test.sql for the
- * database-level assignment-column assertions, and PB-04's own e2e spec for
- * the coordinator side once assignment ships.
+ * AC07). Assignment now happens automatically on submission (PB-04) and the
+ * organiser's card names the assigned coordinator, but this spec does not yet
+ * sign in as the coordinator — there is no coordinator-facing page to view the
+ * request against (that is PB-05/PB-06 territory). TC-PB04-08 in
+ * docs/testing/sprint-1-test-cases.md tracks adding that leg once such a page
+ * exists; until then, PB-04's assignment mechanics are covered at the
+ * database level by pb04_coordinator_assignment.test.sql.
  */
 test("PB-03 shared submission journey", async ({ page }) => {
   test.skip(
@@ -80,6 +83,9 @@ test("PB-03 shared submission journey", async ({ page }) => {
     await expect(
       requestCard.getByRole("button", { name: `Delete ${title}` }),
     ).not.toBeVisible();
+    // PB-04 AC01/AC02: assignment happens automatically on submission, and
+    // the organiser can see who was assigned.
+    await expect(requestCard.getByText(/^Coordinator: /)).toBeVisible();
 
     if (evidenceDirectory) {
       await page.screenshot({

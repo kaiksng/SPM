@@ -199,6 +199,12 @@ function EventCard({
           }).format(new Date(event.submittedAt))}
         </p>
       )}
+      {/* PB-04 AC02: the organiser can see who is coordinating their request. */}
+      {event.assignedCoordinatorName && (
+        <p className="mt-1 text-xs text-slate-500">
+          Coordinator: {event.assignedCoordinatorName}
+        </p>
+      )}
       <div className="mt-auto flex flex-wrap gap-2 border-t border-slate-100 pt-4">
         {isDraft ? (
           <>
