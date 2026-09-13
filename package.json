@@ -16,7 +16,7 @@
     "db:types": "supabase gen types typescript --linked > packages/shared/src/types/database.types.ts",
     "db:push:preview": "supabase db push --linked --dry-run",
     "db:push": "supabase db push --linked",
-    "check": "pnpm typecheck:shared && pnpm typecheck:frontend && pnpm typecheck:backend && pnpm --filter @spm/shared test && pnpm --filter @spm/frontend test && pnpm build:frontend && pnpm build:backend"
+    "check": "pnpm typecheck:shared && pnpm typecheck:frontend && pnpm typecheck:backend && pnpm --filter @spm/shared test && pnpm --filter @spm/backend test && pnpm --filter @spm/frontend test && pnpm build:frontend && pnpm build:backend"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

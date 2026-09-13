@@ -15,7 +15,10 @@ export type EventDraftSummary = {
   startsAt: string | null;
   endsAt: string | null;
   updatedAt: string;
+  submittedAt: string | null;
   assignedCoordinatorId: string | null;
+  // PB-04 AC02: the organiser can see who is coordinating their request.
+  assignedCoordinatorName: string | null;
 };
 
 function localDateTime(isoValue: string | null) {
@@ -33,7 +36,18 @@ export async function listEventRequests(organiserId: string) {
   const { data, error } = await supabase
     .from("events")
     .select(
-      "id, title, purpose, status, starts_at, ends_at, updated_at, assigned_coordinator_id",
+      `
+        id,
+        title,
+        purpose,
+        status,
+        starts_at,
+        ends_at,
+        updated_at,
+        submitted_at,
+        assigned_coordinator_id,
+        assigned_coordinator:profiles!events_assigned_coordinator_id_fkey (full_name)
+      `,
     )
     .eq("organiser_id", organiserId)
     .order("updated_at", { ascending: false });
@@ -49,7 +63,9 @@ export async function listEventRequests(organiserId: string) {
       startsAt: event.starts_at,
       endsAt: event.ends_at,
       updatedAt: event.updated_at,
+      submittedAt: event.submitted_at,
       assignedCoordinatorId: event.assigned_coordinator_id,
+      assignedCoordinatorName: event.assigned_coordinator?.full_name ?? null,
     }),
   );
 }
@@ -68,6 +84,7 @@ export async function loadEventDraft(eventId: string) {
         starts_at,
         ends_at,
         status,
+        requirements_acknowledged,
         event_venue_requirements (
           preferred_location,
           minimum_capacity,
@@ -86,11 +103,13 @@ export async function loadEventDraft(eventId: string) {
       `,
     )
     .eq("id", eventId)
-    .eq("status", "draft")
+    // A requested event may still be reopened for a permitted pre-approval
+    // edit (PB-03 AC07); public.save_event_draft enforces the same statuses.
+    .in("status", ["draft", "requested"])
     .maybeSingle();
 
   if (error || !data) {
-    throw operationError("This draft is unavailable or you do not have access to it.");
+    throw operationError("This request is unavailable or you do not have access to it.");
   }
 
   const venue = data.event_venue_requirements;
@@ -126,6 +145,7 @@ export async function loadEventDraft(eventId: string) {
       capacity: registration?.attendee_capacity?.toString() ?? "",
       waitlistEnabled: registration?.waitlist_enabled ?? false,
     },
+    requirementsAcknowledged: data.requirements_acknowledged,
   } satisfies EventRequestFormValues;
 }
 

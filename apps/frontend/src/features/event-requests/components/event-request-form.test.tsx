@@ -1,5 +1,7 @@
 import {
+  EventSubmissionError,
   emptyEventRequestFormValues,
+  eventSubmissionSchema,
   type EventRequestFormValues,
 } from "@spm/shared";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -138,5 +140,75 @@ describe("EventRequestForm draft mode", () => {
     );
     expect(screen.queryByLabelText("Equipment")).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Event name/)).toHaveValue("Equipment draft");
+  });
+});
+
+describe("EventRequestForm submit mode (PB-03)", () => {
+  // AC06: an incomplete request is blocked locally, before the network call.
+  it("blocks submission of an incomplete request without calling onSave", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Incomplete request" })}
+        onSave={onSave}
+        onCancel={vi.fn()}
+        validationSchema={eventSubmissionSchema}
+        submitLabel="Submit request"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Submit request" }));
+
+    expect(
+      await screen.findByText("Describe the purpose of the event before submitting"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Confirm that each optional requirement is provided or not required",
+      ),
+    ).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  // AC06: a rejection from the backend highlights every affected field the
+  // same way a local validation failure does, and retains entered values.
+  it("highlights every field returned by a rejected submission", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockRejectedValue(
+      new EventSubmissionError("Check the highlighted fields and try again.", {
+        "venue.preferredLocation":
+          "Record at least one venue requirement, or state that none is required",
+      }),
+    );
+    render(
+      <EventRequestForm
+        initialValues={values({
+          title: "Complete-looking request",
+          purpose: "Welcome new students",
+          description: "A briefing for the incoming cohort.",
+          expectedAttendance: "120",
+          startsAt: "2099-01-01T10:00",
+          endsAt: "2099-01-01T12:00",
+          requirementsAcknowledged: true,
+        })}
+        onSave={onSave}
+        onCancel={vi.fn()}
+        validationSchema={eventSubmissionSchema}
+        submitLabel="Submit request"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Submit request" }));
+
+    expect(await screen.findByText("Check the highlighted fields and try again.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Record at least one venue requirement, or state that none is required",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Event name/)).toHaveValue(
+      "Complete-looking request",
+    );
   });
 });

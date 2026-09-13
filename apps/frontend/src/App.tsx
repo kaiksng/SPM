@@ -35,6 +35,10 @@ export function App() {
                 path="events/:eventId/edit"
                 element={<EventRequestEditorPage />}
               />
+              <Route
+                path="events/:eventId/submit"
+                element={<EventRequestEditorPage mode="submit" />}
+              />
               <Route path="venues" element={<VenuesPage />} />
               <Route path="equipment" element={<EquipmentPage />} />
               <Route path="browse-events" element={<BrowseEventsPage />} />

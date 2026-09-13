@@ -1,4 +1,5 @@
 import {
+  EventSubmissionError,
   eventDraftSchema,
   type EventRequestFormValues,
 } from "@spm/shared";
@@ -88,6 +89,11 @@ export function EventRequestForm({
     try {
       await onSave(result.data);
     } catch (error) {
+      // AC06: a server-side rejection (e.g. submission) highlights every
+      // affected field the same way a local validation failure does.
+      if (error instanceof EventSubmissionError && error.fieldErrors) {
+        setErrors(error.fieldErrors);
+      }
       setMessage(
         error instanceof Error
           ? error.message
@@ -313,7 +319,7 @@ export function EventRequestForm({
       <FormSection
         number="05"
         title="Registration needs"
-        description="Record early registration intentions. PB-03 will check completeness at submission."
+        description="Record early registration intentions. Submitting checks that every optional requirement is provided or marked not required."
       >
         <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4">
           <input
@@ -369,6 +375,30 @@ export function EventRequestForm({
             </label>
           </>
         )}
+        <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4 accent-blue-600"
+            checked={values.requirementsAcknowledged}
+            onChange={(event) =>
+              setRoot("requirementsAcknowledged", event.target.checked)
+            }
+            aria-invalid={Boolean(errors.requirementsAcknowledged)}
+          />
+          <span>
+            <span className="block text-sm font-semibold text-slate-900">
+              Each optional requirement above is provided, or not required
+            </span>
+            <span className="mt-1 block text-sm text-slate-500">
+              Required before this request can be submitted for review.
+            </span>
+            {errors.requirementsAcknowledged && (
+              <span role="alert" className="mt-1.5 block text-sm text-red-700">
+                {errors.requirementsAcknowledged}
+              </span>
+            )}
+          </span>
+        </label>
       </FormSection>
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-12px_32px_-24px_rgba(15,23,42,0.45)] backdrop-blur lg:left-64">

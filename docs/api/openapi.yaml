@@ -1,15 +1,24 @@
 openapi: 3.1.0
 info:
   title: ConnectSphere API
-  version: 0.1.0
-  description: HTTP endpoints owned by the ConnectSphere Next.js application.
+  version: 0.2.0
+  description: >
+    HTTP endpoints owned by apps/backend (Node.js + Express). This service is
+    only for privileged operations (using the Supabase service_role key) and
+    business logic that should not run client-side — see
+    apps/backend/src/README.md. Routine reads and writes protected by Row
+    Level Security go straight from the frontend to Supabase and are not
+    documented here.
 servers:
-  - url: http://localhost:3000
+  - url: http://localhost:3001
+security:
+  - bearerAuth: []
 paths:
-  /api/health:
+  /health:
     get:
-      summary: Check whether the web application is running
+      summary: Check whether the backend is running
       operationId: getHealth
+      security: []
       responses:
         "200":
           description: Service is healthy
@@ -24,7 +33,97 @@ paths:
                     const: ok
                   service:
                     type: string
-                    const: connectsphere
+                    const: connectsphere-backend
                   timestamp:
                     type: string
                     format: date-time
+  /events/{eventId}/submit:
+    post:
+      summary: >
+        Submit a draft event request for coordinator assignment and review
+        (PB-03). Assigns the least-loaded Event Coordinator in the same
+        transaction (PB-04).
+      operationId: submitEventRequest
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: >
+            The request was complete, became Requested, and was assigned to
+            an Event Coordinator.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [eventId, status, submittedAt, assignedCoordinatorId]
+                    properties:
+                      eventId:
+                        type: string
+                        format: uuid
+                      status:
+                        type: string
+                        const: requested
+                      submittedAt:
+                        type: string
+                        format: date-time
+                      assignedCoordinatorId:
+                        type: string
+                        format: uuid
+                        nullable: true
+        "401":
+          description: No valid session was presented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "403":
+          description: >
+            The caller is not the owning Event Organiser, is not an Event
+            Organiser, or the event is not a Draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: >
+            The request is not complete enough to submit (PB-03 AC06), or no
+            Event Coordinator is available to take it (PB-04)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Error"
+                  - type: object
+                    properties:
+                      fields:
+                        type: array
+                        items:
+                          type: object
+                          required: [field, message]
+                          properties:
+                            field:
+                              type: string
+                            message:
+                              type: string
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: A Supabase access token, as sent by apps/frontend/src/lib/api-client.ts
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string

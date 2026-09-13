@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 
 import { errorHandler } from "./middleware/error-handler";
+import { eventSubmissionsRouter } from "./routes/event-submissions.route";
 import { healthRouter } from "./routes/health.route";
 
 export function createApp() {
@@ -11,6 +12,7 @@ export function createApp() {
   app.use(express.json());
 
   app.use("/health", healthRouter);
+  app.use("/events", eventSubmissionsRouter);
 
   app.use(errorHandler);
 

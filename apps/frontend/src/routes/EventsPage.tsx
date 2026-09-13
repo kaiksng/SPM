@@ -1,4 +1,4 @@
-import { CalendarDays, FilePlus2, Pencil, Trash2 } from "lucide-react";
+import { CalendarDays, FilePlus2, Pencil, Send, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 
@@ -161,6 +161,9 @@ function EventCard({
   onDelete: () => void;
 }) {
   const isDraft = event.status === "draft";
+  // PB-03 AC07: a requested event may still be edited by its organiser
+  // before it is approved.
+  const isRequested = event.status === "requested";
   return (
     <article className="group flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_22px_50px_-34px_rgba(37,99,235,0.35)] motion-reduce:transform-none">
       <div className="flex items-start justify-between gap-3">
@@ -186,7 +189,23 @@ function EventCard({
             }).format(new Date(event.startsAt))
           : "Schedule not added"}
       </div>
-      <div className="mt-auto flex gap-2 border-t border-slate-100 pt-4">
+      {/* PB-03 AC04: the organiser can see when a request was submitted. */}
+      {event.submittedAt && (
+        <p className="mt-1 text-xs text-slate-400">
+          Submitted{" "}
+          {new Intl.DateTimeFormat("en-SG", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          }).format(new Date(event.submittedAt))}
+        </p>
+      )}
+      {/* PB-04 AC02: the organiser can see who is coordinating their request. */}
+      {event.assignedCoordinatorName && (
+        <p className="mt-1 text-xs text-slate-500">
+          Coordinator: {event.assignedCoordinatorName}
+        </p>
+      )}
+      <div className="mt-auto flex flex-wrap gap-2 border-t border-slate-100 pt-4">
         {isDraft ? (
           <>
             <Link
@@ -194,6 +213,12 @@ function EventCard({
               className={buttonVariants({ variant: "outline" })}
             >
               <Pencil /> Continue editing
+            </Link>
+            <Link
+              to={`/events/${event.id}/submit`}
+              className={buttonVariants({ variant: "default" })}
+            >
+              <Send /> Submit request
             </Link>
             <Button
               type="button"
@@ -206,6 +231,13 @@ function EventCard({
               <Trash2 />
             </Button>
           </>
+        ) : isRequested ? (
+          <Link
+            to={`/events/${event.id}/edit`}
+            className={buttonVariants({ variant: "outline" })}
+          >
+            <Pencil /> Edit request
+          </Link>
         ) : (
           <span className="text-sm text-slate-500">Editing is unavailable in this workflow.</span>
         )}

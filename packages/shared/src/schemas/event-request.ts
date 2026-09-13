@@ -27,69 +27,84 @@ export const equipmentRequirementSchema = z.object({
   notes: optionalText(1_000),
 });
 
-export const eventDraftSchema = z
-  .object({
-    title: z
-      .string()
-      .trim()
-      .min(3, "Event name must contain at least 3 characters")
-      .max(160, "Event name must contain at most 160 characters"),
-    purpose: optionalText(1_000),
-    description: optionalText(5_000),
-    eventType: optionalText(100),
-    expectedAttendance: optionalPositiveWholeNumber,
-    startsAt: optionalDateTime,
-    endsAt: optionalDateTime,
-    venue: z.object({
-      preferredLocation: optionalText(240),
-      minimumCapacity: optionalPositiveWholeNumber,
-      accessibilityNotes: optionalText(2_000),
-      layoutNotes: optionalText(2_000),
-      facilities: z
-        .array(z.string().trim().min(1).max(120))
-        .max(20, "Add no more than 20 facilities"),
-    }),
-    equipment: z.array(equipmentRequirementSchema).max(20),
-    registration: z.object({
-      required: z.boolean(),
-      opensAt: optionalDateTime,
-      closesAt: optionalDateTime,
-      capacity: optionalPositiveWholeNumber,
-      waitlistEnabled: z.boolean(),
-    }),
-  })
-  .superRefine(({ startsAt, endsAt, venue, registration }, context) => {
-    if (startsAt && endsAt && new Date(endsAt) <= new Date(startsAt)) {
-      context.addIssue({
-        code: "custom",
-        path: ["endsAt"],
-        message: "End time must be after the start time",
-      });
-    }
+const eventRequestObject = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(3, "Event name must contain at least 3 characters")
+    .max(160, "Event name must contain at most 160 characters"),
+  purpose: optionalText(1_000),
+  description: optionalText(5_000),
+  eventType: optionalText(100),
+  expectedAttendance: optionalPositiveWholeNumber,
+  startsAt: optionalDateTime,
+  endsAt: optionalDateTime,
+  venue: z.object({
+    preferredLocation: optionalText(240),
+    minimumCapacity: optionalPositiveWholeNumber,
+    accessibilityNotes: optionalText(2_000),
+    layoutNotes: optionalText(2_000),
+    facilities: z
+      .array(z.string().trim().min(1).max(120))
+      .max(20, "Add no more than 20 facilities"),
+  }),
+  equipment: z.array(equipmentRequirementSchema).max(20),
+  registration: z.object({
+    required: z.boolean(),
+    opensAt: optionalDateTime,
+    closesAt: optionalDateTime,
+    capacity: optionalPositiveWholeNumber,
+    waitlistEnabled: z.boolean(),
+  }),
+  // PB-03 AC02. A draft may leave this false; submission requires it.
+  requirementsAcknowledged: z.boolean(),
+});
 
-    if (
-      registration.opensAt &&
-      registration.closesAt &&
-      new Date(registration.closesAt) <= new Date(registration.opensAt)
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["registration", "closesAt"],
-        message: "Registration closing time must be after its opening time",
-      });
-    }
+type EventRequestShape = z.infer<typeof eventRequestObject>;
 
-    const normalisedFacilities = venue.facilities.map((facility) =>
-      facility.toLocaleLowerCase(),
-    );
-    if (new Set(normalisedFacilities).size !== normalisedFacilities.length) {
-      context.addIssue({
-        code: "custom",
-        path: ["venue", "facilities"],
-        message: "Each required facility can appear only once",
-      });
-    }
-  });
+/**
+ * Cross-field rules that hold in both draft and submission mode. Kept in one
+ * place so PB-03's stricter schema cannot drift away from PB-02's.
+ */
+function addSharedCrossFieldIssues(
+  { startsAt, endsAt, venue, registration }: EventRequestShape,
+  context: z.RefinementCtx,
+) {
+  if (startsAt && endsAt && new Date(endsAt) <= new Date(startsAt)) {
+    context.addIssue({
+      code: "custom",
+      path: ["endsAt"],
+      message: "End time must be after the start time",
+    });
+  }
+
+  if (
+    registration.opensAt &&
+    registration.closesAt &&
+    new Date(registration.closesAt) <= new Date(registration.opensAt)
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["registration", "closesAt"],
+      message: "Registration closing time must be after its opening time",
+    });
+  }
+
+  const normalisedFacilities = venue.facilities.map((facility) =>
+    facility.toLocaleLowerCase(),
+  );
+  if (new Set(normalisedFacilities).size !== normalisedFacilities.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["venue", "facilities"],
+      message: "Each required facility can appear only once",
+    });
+  }
+}
+
+export const eventDraftSchema = eventRequestObject.superRefine(
+  addSharedCrossFieldIssues,
+);
 
 export type EventRequestFormValues = z.infer<typeof eventDraftSchema>;
 
@@ -116,7 +131,93 @@ export const emptyEventRequestFormValues: EventRequestFormValues = {
     capacity: "",
     waitlistEnabled: false,
   },
+  requirementsAcknowledged: false,
 };
+
+/**
+ * PB-03 submission rules. Everything PB-02 validates for a draft still applies;
+ * this schema adds the completeness the coordinator needs before review, and
+ * mirrors public.submit_event_request in the database field for field. The
+ * database is authoritative — this schema exists so the organiser sees every
+ * problem before a round trip (AC06).
+ */
+export const eventSubmissionSchema = eventRequestObject
+  .extend({
+    purpose: z
+      .string()
+      .trim()
+      .min(1, "Describe the purpose of the event before submitting")
+      .max(1_000),
+    description: z
+      .string()
+      .trim()
+      .min(1, "Describe the event before submitting")
+      .max(5_000),
+    expectedAttendance: z
+      .string()
+      .trim()
+      .regex(/^[1-9]\d*$/, "Enter the expected attendance as a whole number"),
+    startsAt: z
+      .string()
+      .trim()
+      .min(1, "Enter the proposed start date and time")
+      .refine(
+        (value) => !Number.isNaN(Date.parse(value)),
+        "Enter a valid date and time",
+      ),
+    endsAt: z
+      .string()
+      .trim()
+      .min(1, "Enter the proposed end date and time")
+      .refine(
+        (value) => !Number.isNaN(Date.parse(value)),
+        "Enter a valid date and time",
+      ),
+    requirementsAcknowledged: z.literal(true, {
+      message:
+        "Confirm that each optional requirement is provided or not required",
+    }),
+  })
+  .superRefine((values, context) => {
+    addSharedCrossFieldIssues(values, context);
+
+    if (values.startsAt && new Date(values.startsAt) <= new Date()) {
+      context.addIssue({
+        code: "custom",
+        path: ["startsAt"],
+        message: "The proposed start date and time must be in the future",
+      });
+    }
+
+    // AC02. Venue requirements are what the coordinator needs in order to start
+    // planning, so at least one must be stated. Equipment and registration stay
+    // genuinely optional under the acknowledgement above.
+    const { preferredLocation, minimumCapacity, accessibilityNotes, layoutNotes } =
+      values.venue;
+    if (
+      !preferredLocation &&
+      !minimumCapacity &&
+      !accessibilityNotes &&
+      !layoutNotes
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["venue", "preferredLocation"],
+        message:
+          "Record at least one venue requirement, or state that none is required",
+      });
+    }
+
+    if (values.registration.required && !values.registration.capacity) {
+      context.addIssue({
+        code: "custom",
+        path: ["registration", "capacity"],
+        message: "Enter a registration capacity when registration is required",
+      });
+    }
+  });
+
+export type EventSubmissionFormValues = z.infer<typeof eventSubmissionSchema>;
 
 export type EventDraftPayload = {
   title: string;
@@ -145,6 +246,7 @@ export type EventDraftPayload = {
     capacity: string | null;
     waitlistEnabled: boolean;
   };
+  requirementsAcknowledged: boolean;
 };
 
 const optionalValue = (value: string) => value.trim() || null;
@@ -181,5 +283,6 @@ export function toEventDraftPayload(
       capacity: optionalValue(values.registration.capacity),
       waitlistEnabled: values.registration.waitlistEnabled,
     },
+    requirementsAcknowledged: values.requirementsAcknowledged,
   };
 }

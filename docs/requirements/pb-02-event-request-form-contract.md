@@ -34,6 +34,6 @@ The canonical TypeScript contract is `EventRequestFormValues` in `packages/share
 | Mode | Behaviour |
 | --- | --- |
 | Draft (PB-02) | Event name is required and must contain 3–160 characters. Every optional value may be blank, but any entered number or date/time relationship must be valid. |
-| Submit (PB-03) | Reuses the fields and draft rules, adds final-submission completeness rules, and changes the request from `draft` to the PB-03 submission status. |
+| Submit (PB-03) | Reuses the fields and draft rules, adds final-submission completeness rules, and changes the request from `draft` to `requested`. See `docs/requirements/pb-03-submit-event-request-contract.md`. |
 
 Blank optional number fields remain empty strings in the form and become database `null` values. Dates become ISO timestamps only at the persistence boundary. The browser never receives or uses a Supabase service-role key.

@@ -357,9 +357,11 @@ export type Database = {
           id: string
           organiser_id: string
           purpose: string | null
+          requirements_acknowledged: boolean
           starts_at: string | null
           status: Database["public"]["Enums"]["event_status"]
           submitted_at: string | null
+          submitted_by: string | null
           title: string
           updated_at: string
         }
@@ -373,9 +375,11 @@ export type Database = {
           id?: string
           organiser_id: string
           purpose?: string | null
+          requirements_acknowledged?: boolean
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
           submitted_at?: string | null
+          submitted_by?: string | null
           title: string
           updated_at?: string
         }
@@ -389,9 +393,11 @@ export type Database = {
           id?: string
           organiser_id?: string
           purpose?: string | null
+          requirements_acknowledged?: boolean
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
           submitted_at?: string | null
+          submitted_by?: string | null
           title?: string
           updated_at?: string
         }
@@ -406,6 +412,13 @@ export type Database = {
           {
             foreignKeyName: "events_organiser_id_fkey"
             columns: ["organiser_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_submitted_by_fkey"
+            columns: ["submitted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -489,6 +502,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_event_coordinator: {
+        Args: { p_event_id: string }
+        Returns: string
+      }
       can_view_event: { Args: { target_event_id: string }; Returns: boolean }
       current_user_role: {
         Args: never
@@ -505,12 +522,17 @@ export type Database = {
         Args: { draft: Json; target_event_id?: string }
         Returns: string
       }
+      submit_event_request: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       clarification_status: "open" | "answered" | "resolved"
       event_decision_type: "approved" | "rejected"
       event_status:
         | "draft"
+        | "requested"
         | "submitted"
         | "clarification_requested"
         | "under_review"
@@ -664,6 +686,7 @@ export const Constants = {
       event_decision_type: ["approved", "rejected"],
       event_status: [
         "draft",
+        "requested",
         "submitted",
         "clarification_requested",
         "under_review",
