@@ -5,6 +5,10 @@ import { Link, useLocation } from "react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import {
+  listAssignedEvents,
+  type AssignedEventSummary,
+} from "@/features/event-requests/services/assigned-events";
+import {
   deleteEventDraft,
   listEventRequests,
   type EventDraftSummary,
@@ -17,7 +21,23 @@ type LocationState = { notice?: string } | null;
 
 export function EventsPage() {
   usePageTitle("Events");
-  const { profile, user } = useAuth();
+  const { profile } = useAuth();
+
+  if (profile?.role === "event_organiser") return <OrganiserEventsView />;
+  if (profile?.role === "event_coordinator") return <CoordinatorEventsView />;
+
+  return (
+    <RoleGate>
+      <PagePlaceholder
+        title="Events"
+        description="Create, review, and track events here."
+      />
+    </RoleGate>
+  );
+}
+
+function OrganiserEventsView() {
+  const { user } = useAuth();
   const { state } = useLocation();
   const [events, setEvents] = useState<EventDraftSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +45,7 @@ export function EventsPage() {
   const [draftToDelete, setDraftToDelete] = useState<EventDraftSummary>();
 
   useEffect(() => {
-    if (!user || profile?.role !== "event_organiser") {
+    if (!user) {
       setLoading(false);
       return;
     }
@@ -51,18 +71,7 @@ export function EventsPage() {
     return () => {
       active = false;
     };
-  }, [profile?.role, user]);
-
-  if (profile?.role !== "event_organiser") {
-    return (
-      <RoleGate>
-        <PagePlaceholder
-          title="Events"
-          description="Create, review, and track events here."
-        />
-      </RoleGate>
-    );
-  }
+  }, [user]);
 
   async function confirmDelete() {
     if (!draftToDelete) return;
@@ -149,6 +158,84 @@ export function EventsPage() {
           onConfirm={confirmDelete}
         />
       )}
+    </RoleGate>
+  );
+}
+
+function CoordinatorEventsView() {
+  const { user } = useAuth();
+  const [events, setEvents] = useState<AssignedEventSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    let active = true;
+    listAssignedEvents(user.id)
+      .then((items) => {
+        if (active) setEvents(items);
+      })
+      .catch((loadError: unknown) => {
+        if (active) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "We couldn't load your assigned events.",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  return (
+    <RoleGate>
+      <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
+        <div className="mx-auto max-w-6xl">
+          <header className="border-b border-slate-200 pb-7">
+            <p className="text-xs font-semibold tracking-[0.16em] text-blue-600 uppercase">
+              Coordinator workspace
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-slate-950">
+              Assigned events
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Events automatically assigned to you appear here as soon as an
+              organiser submits their request.
+            </p>
+          </header>
+
+          {error && (
+            <p
+              role="alert"
+              className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+            >
+              {error}
+            </p>
+          )}
+
+          {loading ? (
+            <LoadingList />
+          ) : events.length === 0 ? (
+            <CoordinatorEmptyState />
+          ) : (
+            <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {events.map((event) => (
+                <AssignedEventCard key={event.id} event={event} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </RoleGate>
   );
 }
@@ -243,6 +330,66 @@ function EventCard({
         )}
       </div>
     </article>
+  );
+}
+
+function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
+  return (
+    <article className="flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)]">
+      <div className="flex items-start justify-between gap-3">
+        <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 capitalize">
+          {event.status.replaceAll("_", " ")}
+        </span>
+        <span className="text-xs text-slate-400">
+          Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium" }).format(new Date(event.updatedAt))}
+        </span>
+      </div>
+      <h2 className="mt-5 text-lg font-semibold tracking-tight text-slate-950">
+        {event.title}
+      </h2>
+      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
+        {event.purpose || "Purpose not added yet"}
+      </p>
+      <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+        <CalendarDays className="size-4" aria-hidden="true" />
+        {event.startsAt
+          ? new Intl.DateTimeFormat("en-SG", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(new Date(event.startsAt))
+          : "Schedule not added"}
+      </div>
+      {event.submittedAt && (
+        <p className="mt-1 text-xs text-slate-400">
+          Submitted{" "}
+          {new Intl.DateTimeFormat("en-SG", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          }).format(new Date(event.submittedAt))}
+        </p>
+      )}
+      {event.organiserName && (
+        <p className="mt-1 text-xs text-slate-500">
+          Organiser: {event.organiserName}
+        </p>
+      )}
+    </article>
+  );
+}
+
+function CoordinatorEmptyState() {
+  return (
+    <section className="mt-7 grid min-h-80 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 text-center">
+      <div className="max-w-sm py-12">
+        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-blue-50 text-blue-600">
+          <CalendarDays aria-hidden="true" />
+        </span>
+        <h2 className="mt-5 text-lg font-semibold text-slate-950">No events assigned yet</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          Events are assigned automatically when an organiser submits a request.
+        </p>
+      </div>
+    </section>
   );
 }
 

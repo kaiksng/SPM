@@ -1,10 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listEventRequestsMock = vi.fn();
 const deleteEventDraftMock = vi.fn();
+const listAssignedEventsMock = vi.fn();
 const authState = {
   profile: { full_name: "Kai Test", role: "event_organiser" },
   user: { id: "10000000-0000-0000-0000-000000000001" },
@@ -19,6 +20,10 @@ vi.mock("@/context/auth-context", () => ({
 vi.mock("@/features/event-requests/services/event-drafts", () => ({
   listEventRequests: (...args: unknown[]) => listEventRequestsMock(...args),
   deleteEventDraft: (...args: unknown[]) => deleteEventDraftMock(...args),
+}));
+
+vi.mock("@/features/event-requests/services/assigned-events", () => ({
+  listAssignedEvents: (...args: unknown[]) => listAssignedEventsMock(...args),
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -53,6 +58,7 @@ const requested = {
 
 describe("EventsPage draft controls", () => {
   beforeEach(() => {
+    authState.profile.role = "event_organiser";
     listEventRequestsMock.mockReset().mockResolvedValue([draft]);
     deleteEventDraftMock.mockReset().mockResolvedValue(undefined);
   });
@@ -135,5 +141,52 @@ describe("EventsPage draft controls", () => {
     await waitFor(() =>
       expect(screen.queryByText("Kai Test Draft")).not.toBeInTheDocument(),
     );
+  });
+});
+
+const assignedEvent = {
+  id: "assigned-1",
+  title: "Shernice Test Submission",
+  purpose: "Test submission controls",
+  status: "requested",
+  startsAt: "2026-10-01T09:00:00.000Z",
+  endsAt: "2026-10-01T11:00:00.000Z",
+  updatedAt: "2026-09-13T08:00:00.000Z",
+  submittedAt: "2026-09-13T08:00:00.000Z",
+  organiserName: "Kai Test",
+};
+
+describe("EventsPage coordinator view", () => {
+  beforeEach(() => {
+    authState.profile.role = "event_coordinator";
+    listAssignedEventsMock.mockReset().mockResolvedValue([assignedEvent]);
+  });
+
+  afterEach(() => {
+    authState.profile.role = "event_organiser";
+  });
+
+  it("lists an event assigned to the signed-in coordinator", async () => {
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
+    expect(screen.getByText("Organiser: Kai Test")).toBeInTheDocument();
+    expect(listAssignedEventsMock).toHaveBeenCalledWith(authState.user.id);
+  });
+
+  it("shows an empty state when nothing is assigned", async () => {
+    listAssignedEventsMock.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("No events assigned yet")).toBeInTheDocument();
   });
 });
