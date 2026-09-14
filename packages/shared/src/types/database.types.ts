@@ -81,33 +81,42 @@ export type Database = {
         Row: {
           event_id: string
           id: string
+          permitted_fields: string[]
           question: string
           requested_at: string
           requested_by: string
           resolved_at: string | null
+          resolved_by: string | null
           responded_at: string | null
+          responded_by: string | null
           response: string | null
           status: Database["public"]["Enums"]["clarification_status"]
         }
         Insert: {
           event_id: string
           id?: string
+          permitted_fields?: string[]
           question: string
           requested_at?: string
           requested_by: string
           resolved_at?: string | null
+          resolved_by?: string | null
           responded_at?: string | null
+          responded_by?: string | null
           response?: string | null
           status?: Database["public"]["Enums"]["clarification_status"]
         }
         Update: {
           event_id?: string
           id?: string
+          permitted_fields?: string[]
           question?: string
           requested_at?: string
           requested_by?: string
           resolved_at?: string | null
+          resolved_by?: string | null
           responded_at?: string | null
+          responded_by?: string | null
           response?: string | null
           status?: Database["public"]["Enums"]["clarification_status"]
         }
@@ -122,6 +131,20 @@ export type Database = {
           {
             foreignKeyName: "clarifications_requested_by_fkey"
             columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clarifications_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clarifications_responded_by_fkey"
+            columns: ["responded_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -511,12 +534,37 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      event_has_unresolved_clarification: {
+        Args: { p_event_id: string }
+        Returns: boolean
+      }
       event_status_transition_allowed: {
         Args: {
           from_status: Database["public"]["Enums"]["event_status"]
           to_status: Database["public"]["Enums"]["event_status"]
         }
         Returns: boolean
+      }
+      request_event_clarification: {
+        Args: {
+          p_actor_id?: string
+          p_event_id: string
+          p_permitted_fields?: string[]
+          p_question: string
+        }
+        Returns: Json
+      }
+      resolve_event_clarification: {
+        Args: { p_actor_id?: string; p_clarification_id: string }
+        Returns: Json
+      }
+      respond_event_clarification: {
+        Args: {
+          p_actor_id?: string
+          p_clarification_id: string
+          p_response: string
+        }
+        Returns: Json
       }
       save_event_draft: {
         Args: { draft: Json; target_event_id?: string }

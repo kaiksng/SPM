@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
 import {
   listAssignedEvents,
   type AssignedEventSummary,
@@ -329,6 +330,7 @@ function EventCard({
           <span className="text-sm text-slate-500">Editing is unavailable in this workflow.</span>
         )}
       </div>
+      <ClarificationPanel eventId={event.id} eventStatus={event.status} role="organiser" />
     </article>
   );
 }
@@ -373,6 +375,7 @@ function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
           Organiser: {event.organiserName}
         </p>
       )}
+      <ClarificationPanel eventId={event.id} eventStatus={event.status} role="coordinator" />
     </article>
   );
 }

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const listEventRequestsMock = vi.fn();
 const deleteEventDraftMock = vi.fn();
 const listAssignedEventsMock = vi.fn();
+const listClarificationsMock = vi.fn();
 const authState = {
   profile: { full_name: "Kai Test", role: "event_organiser" },
   user: { id: "10000000-0000-0000-0000-000000000001" },
@@ -24,6 +25,13 @@ vi.mock("@/features/event-requests/services/event-drafts", () => ({
 
 vi.mock("@/features/event-requests/services/assigned-events", () => ({
   listAssignedEvents: (...args: unknown[]) => listAssignedEventsMock(...args),
+}));
+
+vi.mock("@/features/event-requests/services/clarifications", () => ({
+  listClarifications: (...args: unknown[]) => listClarificationsMock(...args),
+  requestClarification: vi.fn(),
+  respondToClarification: vi.fn(),
+  resolveClarification: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -61,6 +69,7 @@ describe("EventsPage draft controls", () => {
     authState.profile.role = "event_organiser";
     listEventRequestsMock.mockReset().mockResolvedValue([draft]);
     deleteEventDraftMock.mockReset().mockResolvedValue(undefined);
+    listClarificationsMock.mockReset().mockResolvedValue([]);
   });
 
   it("lists an owned Draft with its status and edit action", async () => {
@@ -105,6 +114,37 @@ describe("EventsPage draft controls", () => {
     expect(
       screen.queryByRole("button", { name: `Delete ${requested.title}` }),
     ).not.toBeInTheDocument();
+    // No open clarification: no "Awaiting Organiser" pill.
+    await waitFor(() => expect(listClarificationsMock).toHaveBeenCalledWith("requested-1"));
+    expect(screen.queryByText("Awaiting Organiser")).not.toBeInTheDocument();
+  });
+
+  it("shows the coordinator's question and a Respond action while a clarification is open", async () => {
+    listEventRequestsMock.mockResolvedValue([requested]);
+    listClarificationsMock.mockResolvedValue([
+      {
+        id: "clarification-1",
+        question: "Can you confirm the headcount?",
+        response: null,
+        status: "open",
+        permittedFields: ["expectedAttendance"],
+        requestedAt: "2026-09-14T08:00:00.000Z",
+        respondedAt: null,
+        resolvedAt: null,
+      },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Awaiting Organiser")).toBeInTheDocument();
+    expect(
+      screen.getByText('Coordinator asked: "Can you confirm the headcount?"'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Respond" })).toBeInTheDocument();
   });
 
   it("keeps the Draft when deletion is cancelled", async () => {
@@ -160,6 +200,7 @@ describe("EventsPage coordinator view", () => {
   beforeEach(() => {
     authState.profile.role = "event_coordinator";
     listAssignedEventsMock.mockReset().mockResolvedValue([assignedEvent]);
+    listClarificationsMock.mockReset().mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -176,6 +217,9 @@ describe("EventsPage coordinator view", () => {
     expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
     expect(screen.getByText("Organiser: Kai Test")).toBeInTheDocument();
     expect(listAssignedEventsMock).toHaveBeenCalledWith(authState.user.id);
+    expect(
+      await screen.findByRole("button", { name: "Request clarification" }),
+    ).toBeInTheDocument();
   });
 
   it("shows an empty state when nothing is assigned", async () => {

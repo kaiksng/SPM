@@ -1,6 +1,9 @@
 import {
+  clarificationPermittedFieldLabels,
   emptyEventRequestFormValues,
   eventSubmissionSchema,
+  isUnresolvedClarificationStatus,
+  type ClarificationPermittedField,
   type EventRequestFormValues,
 } from "@spm/shared";
 import { ArrowLeft } from "lucide-react";
@@ -10,6 +13,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { EventRequestForm } from "@/features/event-requests/components/event-request-form";
+import { listClarifications } from "@/features/event-requests/services/clarifications";
 import {
   loadEventDraft,
   saveEventDraft,
@@ -35,6 +39,10 @@ export function EventRequestEditorPage({
   const [initialValues, setInitialValues] = useState<EventRequestFormValues>();
   const [loading, setLoading] = useState(Boolean(eventId));
   const [error, setError] = useState<string>();
+  const [openClarification, setOpenClarification] = useState<{
+    question: string;
+    permittedFields: string[];
+  }>();
   const editing = Boolean(eventId);
   const submitting = mode === "submit";
 
@@ -69,6 +77,31 @@ export function EventRequestEditorPage({
       })
       .finally(() => {
         if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [eventId, profile?.role]);
+
+  useEffect(() => {
+    if (!eventId || profile?.role !== "event_organiser") return;
+
+    let active = true;
+    listClarifications(eventId)
+      .then((items) => {
+        const unresolved = items.find((c) => isUnresolvedClarificationStatus(c.status));
+        if (active) {
+          setOpenClarification(
+            unresolved
+              ? { question: unresolved.question, permittedFields: unresolved.permittedFields }
+              : undefined,
+          );
+        }
+      })
+      .catch(() => {
+        // Non-critical: the lock is still enforced by save_event_draft even
+        // if this informational banner fails to load.
       });
 
     return () => {
@@ -148,6 +181,26 @@ export function EventRequestEditorPage({
                 : "Start with an event name. You can save now and return to complete the remaining requirements later."}
             </p>
           </header>
+
+          {openClarification && (
+            <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <p className="font-medium">
+                Your coordinator requested clarification: "{openClarification.question}"
+              </p>
+              <p className="mt-1 text-xs text-amber-800">
+                You may update:{" "}
+                {openClarification.permittedFields
+                  .map(
+                    (field) =>
+                      clarificationPermittedFieldLabels[
+                        field as ClarificationPermittedField
+                      ] ?? field,
+                  )
+                  .join(", ") || "nothing else"}
+                . Other fields are locked until this is resolved.
+              </p>
+            </div>
+          )}
 
           {loading ? (
             <div className="mt-7 h-96 animate-pulse rounded-2xl bg-slate-200/70 motion-reduce:animate-none" />
