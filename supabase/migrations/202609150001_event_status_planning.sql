@@ -1,0 +1,11 @@
+-- Approve/Reject an Event Request (AC02): approving moves an event to
+-- Planning, not the placeholder "approved" value the schema originally used.
+-- This is the PB-08 alignment flagged (but deliberately deferred) in
+-- 202609130001 and 202609130002 — "Planning" is one of the Release 1
+-- statuses named by the refined backlog.
+--
+-- Own migration file on purpose: Postgres refuses to reference an enum value
+-- added earlier in the same transaction, and Supabase runs each migration
+-- file in one transaction — the function that uses 'planning' has to live in
+-- the next file. Same reason 'requested' got its own file in 202609130001.
+alter type public.event_status add value if not exists 'planning' after 'under_review';

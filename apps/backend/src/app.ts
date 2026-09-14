@@ -3,6 +3,7 @@ import express from "express";
 
 import { errorHandler } from "./middleware/error-handler";
 import { eventClarificationsRouter } from "./routes/event-clarifications.route";
+import { eventDecisionsRouter } from "./routes/event-decisions.route";
 import { eventSubmissionsRouter } from "./routes/event-submissions.route";
 import { healthRouter } from "./routes/health.route";
 
@@ -15,6 +16,7 @@ export function createApp() {
   app.use("/health", healthRouter);
   app.use("/events", eventSubmissionsRouter);
   app.use(eventClarificationsRouter);
+  app.use(eventDecisionsRouter);
 
   app.use(errorHandler);
 

@@ -13,7 +13,10 @@ import { Link, useNavigate, useParams } from "react-router";
 import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { EventRequestForm } from "@/features/event-requests/components/event-request-form";
-import { listClarifications } from "@/features/event-requests/services/clarifications";
+import {
+  listClarifications,
+  respondToClarification,
+} from "@/features/event-requests/services/clarifications";
 import {
   loadEventDraft,
   saveEventDraft,
@@ -40,6 +43,8 @@ export function EventRequestEditorPage({
   const [loading, setLoading] = useState(Boolean(eventId));
   const [error, setError] = useState<string>();
   const [openClarification, setOpenClarification] = useState<{
+    id: string;
+    status: string;
     question: string;
     permittedFields: string[];
   }>();
@@ -94,7 +99,12 @@ export function EventRequestEditorPage({
         if (active) {
           setOpenClarification(
             unresolved
-              ? { question: unresolved.question, permittedFields: unresolved.permittedFields }
+              ? {
+                  id: unresolved.id,
+                  status: unresolved.status,
+                  question: unresolved.question,
+                  permittedFields: unresolved.permittedFields,
+                }
               : undefined,
           );
         }
@@ -141,10 +151,20 @@ export function EventRequestEditorPage({
     }
 
     await saveEventDraft(values, eventId);
-    navigate("/events", {
-      replace: true,
-      state: { notice: editing ? "Draft updated." : "Draft saved." },
-    });
+
+    // Saving permitted edits while a clarification is open is itself how the
+    // organiser responds — no separate typed message required (AC04 is
+    // still satisfied: a response is recorded, with a timestamp and actor).
+    let notice = editing ? "Draft updated." : "Draft saved.";
+    if (openClarification?.status === "open") {
+      await respondToClarification(
+        openClarification.id,
+        "Organiser has addressed the clarification.",
+      );
+      notice = "Draft updated. Clarification addressed.";
+    }
+
+    navigate("/events", { replace: true, state: { notice } });
   }
 
   return (
@@ -224,6 +244,7 @@ export function EventRequestEditorPage({
                 onCancel={() => navigate("/events")}
                 validationSchema={submitting ? eventSubmissionSchema : undefined}
                 submitLabel={submitting ? "Submit request" : undefined}
+                permittedFields={openClarification?.permittedFields}
               />
             </div>
           ) : null}

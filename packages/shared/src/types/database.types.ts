@@ -158,7 +158,7 @@ export type Database = {
           decision: Database["public"]["Enums"]["event_decision_type"]
           event_id: string
           id: string
-          rationale: string
+          rationale: string | null
         }
         Insert: {
           decided_at?: string
@@ -166,7 +166,7 @@ export type Database = {
           decision: Database["public"]["Enums"]["event_decision_type"]
           event_id: string
           id?: string
-          rationale: string
+          rationale?: string | null
         }
         Update: {
           decided_at?: string
@@ -174,7 +174,7 @@ export type Database = {
           decision?: Database["public"]["Enums"]["event_decision_type"]
           event_id?: string
           id?: string
-          rationale?: string
+          rationale?: string | null
         }
         Relationships: [
           {
@@ -534,7 +534,20 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      decide_event_request: {
+        Args: {
+          p_actor_id?: string
+          p_decision: Database["public"]["Enums"]["event_decision_type"]
+          p_event_id: string
+          p_rationale: string
+        }
+        Returns: Json
+      }
       event_has_unresolved_clarification: {
+        Args: { p_event_id: string }
+        Returns: boolean
+      }
+      event_planning_allowed: {
         Args: { p_event_id: string }
         Returns: boolean
       }
@@ -584,6 +597,7 @@ export type Database = {
         | "submitted"
         | "clarification_requested"
         | "under_review"
+        | "planning"
         | "approved"
         | "rejected"
         | "confirmed"
@@ -738,6 +752,7 @@ export const Constants = {
         "submitted",
         "clarification_requested",
         "under_review",
+        "planning",
         "approved",
         "rejected",
         "confirmed",

@@ -5,15 +5,15 @@ import {
   type ClarificationPermittedField,
 } from "@spm/shared";
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   listClarifications,
   requestClarification,
-  respondToClarification,
-  resolveClarification,
   type ClarificationSummary,
 } from "@/features/event-requests/services/clarifications";
+import { decideEvent } from "@/features/event-requests/services/decisions";
 
 const dateFormatter = new Intl.DateTimeFormat("en-SG", {
   dateStyle: "medium",
@@ -30,16 +30,32 @@ export function ClarificationPanel({
   eventId,
   eventStatus,
   role,
+  onReviewStateChange,
+  onDecided,
+  className = "mt-3 border-t border-slate-100 pt-3 text-sm",
 }: {
   eventId: string;
   eventStatus: string;
   role: "organiser" | "coordinator";
+  /** Reports the unresolved round's status (or undefined once none is
+   * unresolved), so the card header (shared by both the organiser's and
+   * coordinator's view of this same event) can show a matching badge next to
+   * the status pill, without fetching the clarification list a second time. */
+  onReviewStateChange?: (state: "open" | "answered" | undefined) => void;
+  /** Fires after a successful Approve/Reject — the event has left
+   * "requested" at that point, so the caller (EventDetailPage) navigates
+   * away rather than this panel trying to re-render a state it no longer
+   * covers. */
+  onDecided?: (decision: "approved" | "rejected") => void;
+  /** Overrides the wrapper's styling — the default suits a card footer;
+   * a standalone page (EventDetailPage) passes its own spacing instead. */
+  className?: string;
 }) {
   const [clarifications, setClarifications] = useState<ClarificationSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string>();
   const [showRequestDialog, setShowRequestDialog] = useState(false);
-  const [showRespondDialog, setShowRespondDialog] = useState(false);
+  const [showDecisionDialog, setShowDecisionDialog] = useState<"approved" | "rejected">();
 
   const shouldRender = eventStatus === "requested";
 
@@ -69,63 +85,87 @@ export function ClarificationPanel({
     };
   }, [eventId, shouldRender]);
 
-  if (!shouldRender) return null;
-  if (!loaded) return null;
-
   // A failed history load never blocks the action below it — worst case, a
   // coordinator sees "Request clarification" when one is already open and
   // gets a clear error back from the RPC, rather than a dead-end panel.
   const unresolved = clarifications.find((c) => isUnresolvedClarificationStatus(c.status));
+
+  useEffect(() => {
+    // unresolved is filtered to open/answered only, but its type is the
+    // broader ClarificationStatus — narrow it for the callback's signature.
+    onReviewStateChange?.(unresolved?.status as "open" | "answered" | undefined);
+    // onReviewStateChange intentionally excluded: callers pass an inline
+    // setState function, so including it here would refire on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unresolved?.status]);
+
+  if (!shouldRender) return null;
+  if (!loaded) return null;
 
   function handleRequested(created: ClarificationSummary) {
     setClarifications((current) => [...(current ?? []), created]);
     setShowRequestDialog(false);
   }
 
-  function handleUpdated(updated: Partial<ClarificationSummary> & { id: string }) {
-    setClarifications((current) =>
-      current?.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
-    );
-    setShowRespondDialog(false);
+  async function handleDecide(decision: "approved" | "rejected", rationale: string) {
+    await decideEvent(eventId, decision, rationale);
+    setShowDecisionDialog(undefined);
+    onDecided?.(decision);
   }
 
+  // AC05: a genuinely open (unanswered) round blocks everything else. An
+  // answered one no longer blocks — asking again or deciding is itself how
+  // the coordinator closes it (AC06), so all three actions stay available.
+  const blockedByOpenClarification = unresolved?.status === "open";
+
   return (
-    <div className="mt-3 border-t border-slate-100 pt-3 text-sm">
+    <div className={className}>
       {error && (
         <p role="alert" className="mb-2 text-xs text-red-700">
           {error}
         </p>
       )}
-      {unresolved && (
-        <span className="mb-2 inline-block rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">
-          Awaiting Organiser
-        </span>
-      )}
 
-      {role === "coordinator" && !unresolved && (
-        <Button size="sm" variant="outline" onClick={() => setShowRequestDialog(true)}>
-          Request clarification
-        </Button>
-      )}
-      {role === "coordinator" && unresolved?.status === "open" && (
-        <p className="text-xs text-slate-500">
-          Awaiting the organiser's response to: "{unresolved.question}"
-        </p>
-      )}
-      {role === "coordinator" && unresolved?.status === "answered" && (
+      {role === "coordinator" && (
         <div>
-          <p className="text-xs text-slate-600">Response: {unresolved.response}</p>
-          <Button
-            size="sm"
-            className="mt-2"
-            onClick={() =>
-              resolveClarification(unresolved.id).then(() =>
-                handleUpdated({ id: unresolved.id, status: "resolved" }),
-              )
-            }
-          >
-            Resolve clarification
-          </Button>
+          {unresolved?.status === "open" && (
+            <p className="text-xs text-slate-500">
+              Awaiting the organiser's response to: "{unresolved.question}"
+            </p>
+          )}
+          {unresolved?.status === "answered" && (
+            <p className="text-xs text-slate-600">Response: {unresolved.response}</p>
+          )}
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={blockedByOpenClarification}
+              onClick={() => setShowRequestDialog(true)}
+            >
+              Request clarification
+            </Button>
+            <Button
+              size="sm"
+              disabled={blockedByOpenClarification}
+              onClick={() => setShowDecisionDialog("approved")}
+            >
+              Approve
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={blockedByOpenClarification}
+              onClick={() => setShowDecisionDialog("rejected")}
+            >
+              Reject
+            </Button>
+          </div>
+          {blockedByOpenClarification && (
+            <p className="mt-1 text-xs text-slate-400">
+              Waiting for the organiser's response before you can decide or ask again.
+            </p>
+          )}
         </div>
       )}
 
@@ -138,14 +178,17 @@ export function ClarificationPanel({
               .join(", ") || "nothing else"}
             . Other fields are locked until you respond.
           </p>
-          <Button size="sm" className="mt-2" onClick={() => setShowRespondDialog(true)}>
+          <Link
+            to={`/events/${eventId}/edit`}
+            className={buttonVariants({ size: "sm", className: "mt-2" })}
+          >
             Respond
-          </Button>
+          </Link>
         </div>
       )}
       {role === "organiser" && unresolved?.status === "answered" && (
         <p className="text-xs text-slate-500">
-          Waiting for the coordinator to close this clarification.
+          Waiting for the coordinator to review your response.
         </p>
       )}
 
@@ -189,19 +232,11 @@ export function ClarificationPanel({
           }
         />
       )}
-      {showRespondDialog && unresolved && (
-        <RespondClarificationDialog
-          onCancel={() => setShowRespondDialog(false)}
-          onSubmit={(response) =>
-            respondToClarification(unresolved.id, response).then((result) =>
-              handleUpdated({
-                id: unresolved.id,
-                response,
-                status: "answered",
-                respondedAt: result.data.respondedAt,
-              }),
-            )
-          }
+      {showDecisionDialog && (
+        <DecisionDialog
+          decision={showDecisionDialog}
+          onCancel={() => setShowDecisionDialog(undefined)}
+          onSubmit={(rationale) => handleDecide(showDecisionDialog, rationale)}
         />
       )}
     </div>
@@ -333,62 +368,67 @@ function RequestClarificationDialog({
   );
 }
 
-function RespondClarificationDialog({
+function DecisionDialog({
+  decision,
   onCancel,
   onSubmit,
 }: {
+  decision: "approved" | "rejected";
   onCancel: () => void;
-  onSubmit: (response: string) => Promise<unknown>;
+  onSubmit: (rationale: string) => Promise<unknown>;
 }) {
-  const [response, setResponse] = useState("");
+  const [rationale, setRationale] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
+  const isReject = decision === "rejected";
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!response.trim()) {
-      setError("Enter a response before submitting.");
+    // AC03: only rejection requires a reason — approval may be submitted blank.
+    if (isReject && !rationale.trim()) {
+      setError("Explain the reason for rejecting this event.");
       return;
     }
     setSubmitting(true);
     setError(undefined);
     try {
-      await onSubmit(response.trim());
+      await onSubmit(rationale.trim());
     } catch (submitError) {
       setError(
         submitError instanceof Error
           ? submitError.message
-          : "This response could not be submitted.",
+          : "This decision could not be submitted.",
       );
       setSubmitting(false);
     }
   }
 
   return (
-    <Modal titleId="respond-clarification-title" title="Respond to clarification" onCancel={onCancel}>
+    <Modal
+      titleId="decision-dialog-title"
+      title={isReject ? "Reject event request" : "Approve event request"}
+      onCancel={onCancel}
+    >
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
         <div>
-          <label htmlFor="clarification-response" className="text-sm font-medium text-slate-700">
-            Your response
+          <label htmlFor="decision-rationale" className="text-sm font-medium text-slate-700">
+            {isReject ? "Reason for rejecting" : "Notes (optional)"}
           </label>
           <textarea
-            id="clarification-response"
+            id="decision-rationale"
             rows={4}
-            value={response}
-            onChange={(event) => setResponse(event.target.value)}
+            value={rationale}
+            onChange={(event) => setRationale(event.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus-visible:border-blue-400 focus-visible:ring-3 focus-visible:ring-blue-100"
           />
-          <p className="mt-1 text-xs text-slate-400">
-            To change a permitted field, use "Edit request" — this only records your written response.
-          </p>
         </div>
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="submit" disabled={submitting}>
-            Submit response
+          <Button type="submit" variant={isReject ? "destructive" : "default"} disabled={submitting}>
+            {isReject ? "Reject event" : "Approve event"}
           </Button>
         </div>
       </form>

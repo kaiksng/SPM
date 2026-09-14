@@ -41,6 +41,30 @@ export async function listClarifications(eventId: string) {
 }
 
 /**
+ * A cheap lookup for the list-card badge, which only needs the one
+ * unresolved round's status — not the full history listClarifications loads
+ * for the detail page's panel. Fails closed to "no badge" rather than
+ * blocking the card. Distinguishing open/answered is what lets the badge
+ * change (Clarification Required → Response Received) once the organiser
+ * responds — the visible stand-in for a notification.
+ */
+export async function getClarificationReviewState(
+  eventId: string,
+): Promise<"open" | "answered" | undefined> {
+  const { data, error } = await supabase
+    .from("clarifications")
+    .select("status")
+    .eq("event_id", eventId)
+    .in("status", ["open", "answered"])
+    .order("requested_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) return undefined;
+  return data.status as "open" | "answered";
+}
+
+/**
  * These three mutations insert a `notifications` row, which has no INSERT
  * policy for regular users, so they go through apps/backend's service client
  * — same reason event-submissions.ts calls submit through the backend

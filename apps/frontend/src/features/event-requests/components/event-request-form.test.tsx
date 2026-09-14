@@ -143,6 +143,71 @@ describe("EventRequestForm draft mode", () => {
   });
 });
 
+describe("EventRequestForm with an open clarification", () => {
+  it("disables only the fields not in permittedFields", () => {
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Locked draft" })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        permittedFields={["purpose"]}
+      />,
+    );
+
+    expect(screen.getByLabelText(/Event name/)).toBeDisabled();
+    expect(screen.getByLabelText("Purpose")).toBeEnabled();
+    expect(screen.getByLabelText("Description")).toBeDisabled();
+    expect(screen.getByLabelText("Expected attendance")).toBeDisabled();
+    expect(screen.getByLabelText("Starts")).toBeDisabled();
+    expect(screen.getByLabelText("Ends")).toBeDisabled();
+  });
+
+  it("locks the whole requirements group behind one bucket key", () => {
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Locked draft" })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        permittedFields={["purpose"]}
+      />,
+    );
+
+    expect(screen.getByLabelText("Preferred location")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add equipment" })).toBeDisabled();
+    expect(
+      screen.getByLabelText(/Attendee registration is required/),
+    ).toBeDisabled();
+  });
+
+  it("unlocks the requirements group when it is permitted", () => {
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Locked draft" })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        permittedFields={["requirements"]}
+      />,
+    );
+
+    expect(screen.getByLabelText("Preferred location")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Add equipment" })).toBeEnabled();
+    expect(screen.getByLabelText(/Event name/)).toBeDisabled();
+  });
+
+  it("leaves every field enabled when no clarification is open", () => {
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Unlocked draft" })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/Event name/)).toBeEnabled();
+    expect(screen.getByLabelText("Preferred location")).toBeEnabled();
+  });
+});
+
 describe("EventRequestForm submit mode (PB-03)", () => {
   // AC06: an incomplete request is blocked locally, before the network call.
   it("blocks submission of an incomplete request without calling onSave", async () => {

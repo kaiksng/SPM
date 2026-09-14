@@ -4,6 +4,7 @@ import {
   allowedEventStatusTransitions,
   canTransitionEventStatus,
   eventStatuses,
+  isPlanningAllowed,
   isSubmittedEventStatus,
   submittedEventStatuses,
 } from "./event-status";
@@ -32,10 +33,14 @@ describe("event status transitions", () => {
   it.each([
     ["clarification_requested", true],
     ["under_review", true],
+    ["planning", true],
     ["rejected", true],
     ["cancelled", true],
     ["confirmed", false],
     ["draft", false],
+    // Approving now produces "planning", not "approved" — see "Approve or
+    // Reject an Event Request" AC02.
+    ["approved", false],
   ] as const)("moves requested to %s: %s", (to, expected) => {
     expect(canTransitionEventStatus("requested", to)).toBe(expected);
   });
@@ -45,5 +50,18 @@ describe("event status transitions", () => {
     expect(isSubmittedEventStatus("requested")).toBe(true);
     expect(submittedEventStatuses).not.toContain("draft");
     expect(submittedEventStatuses).toHaveLength(eventStatuses.length - 1);
+  });
+});
+
+describe("isPlanningAllowed", () => {
+  it("blocks venue/equipment planning once an event is rejected or cancelled", () => {
+    expect(isPlanningAllowed("rejected")).toBe(false);
+    expect(isPlanningAllowed("cancelled")).toBe(false);
+  });
+
+  it("allows planning for every other status", () => {
+    expect(isPlanningAllowed("planning")).toBe(true);
+    expect(isPlanningAllowed("requested")).toBe(true);
+    expect(isPlanningAllowed("confirmed")).toBe(true);
   });
 });

@@ -5,10 +5,12 @@ import { Link, useLocation } from "react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
+import { EventStatusBadge } from "@/features/event-requests/components/status-badges";
 import {
   listAssignedEvents,
   type AssignedEventSummary,
 } from "@/features/event-requests/services/assigned-events";
+import { getClarificationReviewState } from "@/features/event-requests/services/clarifications";
 import {
   deleteEventDraft,
   listEventRequests,
@@ -165,6 +167,7 @@ function OrganiserEventsView() {
 
 function CoordinatorEventsView() {
   const { user } = useAuth();
+  const { state } = useLocation();
   const [events, setEvents] = useState<AssignedEventSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -198,6 +201,8 @@ function CoordinatorEventsView() {
     };
   }, [user]);
 
+  const notice = (state as LocationState)?.notice;
+
   return (
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
@@ -215,6 +220,14 @@ function CoordinatorEventsView() {
             </p>
           </header>
 
+          {notice && (
+            <p
+              role="status"
+              className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+            >
+              {notice}
+            </p>
+          )}
           {error && (
             <p
               role="alert"
@@ -252,13 +265,18 @@ function EventCard({
   // PB-03 AC07: a requested event may still be edited by its organiser
   // before it is approved.
   const isRequested = event.status === "requested";
+  const [reviewState, setReviewState] = useState<"open" | "answered">();
   return (
     <article className="group flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_22px_50px_-34px_rgba(37,99,235,0.35)] motion-reduce:transform-none">
       <div className="flex items-start justify-between gap-3">
-        <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 capitalize">
-          {event.status.replaceAll("_", " ")}
-        </span>
-        <span className="text-xs text-slate-400">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <EventStatusBadge
+            status={event.status}
+            reviewState={reviewState === "open" ? "open" : undefined}
+            role="organiser"
+          />
+        </div>
+        <span className="shrink-0 text-xs text-slate-400">
           Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium" }).format(new Date(event.updatedAt))}
         </span>
       </div>
@@ -330,23 +348,48 @@ function EventCard({
           <span className="text-sm text-slate-500">Editing is unavailable in this workflow.</span>
         )}
       </div>
-      <ClarificationPanel eventId={event.id} eventStatus={event.status} role="organiser" />
+      <ClarificationPanel
+        eventId={event.id}
+        eventStatus={event.status}
+        role="organiser"
+        onReviewStateChange={setReviewState}
+      />
     </article>
   );
 }
 
 function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
+  const [reviewState, setReviewState] = useState<"open" | "answered">();
+
+  useEffect(() => {
+    if (event.status !== "requested") return;
+    let active = true;
+    getClarificationReviewState(event.id).then((result) => {
+      if (active) setReviewState(result);
+    });
+    return () => {
+      active = false;
+    };
+  }, [event.id, event.status]);
+
   return (
-    <article className="flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)]">
+    <Link
+      to={`/events/${event.id}`}
+      className="group flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_22px_50px_-34px_rgba(37,99,235,0.35)] motion-reduce:transform-none"
+    >
       <div className="flex items-start justify-between gap-3">
-        <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 capitalize">
-          {event.status.replaceAll("_", " ")}
-        </span>
-        <span className="text-xs text-slate-400">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <EventStatusBadge
+            status={event.status}
+            reviewState={reviewState === "open" ? "open" : undefined}
+            role="coordinator"
+          />
+        </div>
+        <span className="shrink-0 text-xs text-slate-400">
           Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium" }).format(new Date(event.updatedAt))}
         </span>
       </div>
-      <h2 className="mt-5 text-lg font-semibold tracking-tight text-slate-950">
+      <h2 className="mt-5 text-lg font-semibold tracking-tight text-slate-950 group-hover:text-blue-700">
         {event.title}
       </h2>
       <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
@@ -375,8 +418,15 @@ function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
           Organiser: {event.organiserName}
         </p>
       )}
-      <ClarificationPanel eventId={event.id} eventStatus={event.status} role="coordinator" />
-    </article>
+      {reviewState === "answered" && (
+        <p className="mt-1 text-xs font-semibold text-red-600">
+          Organiser has addressed the clarification — ready for your review.
+        </p>
+      )}
+      <span className="mt-auto pt-4 text-sm font-medium text-blue-600 group-hover:underline">
+        View details
+      </span>
+    </Link>
   );
 }
 

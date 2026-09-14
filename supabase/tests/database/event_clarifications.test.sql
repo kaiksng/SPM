@@ -260,7 +260,7 @@ select set_config(
   true
 );
 select throws_ok(
-  format($$update public.events set status = 'approved' where id = %L::uuid$$, (select id from pb05_event_ids)),
+  format($$update public.events set status = 'planning' where id = %L::uuid$$, (select id from pb05_event_ids)),
   '23514',
   'This event has an unresolved clarification and cannot be approved or rejected until it is closed',
   'AC05: approval is blocked while the clarification is unresolved'
@@ -356,7 +356,7 @@ select is(
 
 -- AC06: with every clarification resolved, a decision is no longer blocked.
 select lives_ok(
-  format($$update public.events set status = 'approved' where id = %L::uuid$$, (select id from pb05_event_ids)),
+  format($$update public.events set status = 'planning' where id = %L::uuid$$, (select id from pb05_event_ids)),
   'AC06: approval succeeds once every clarification is resolved'
 );
 

@@ -7,6 +7,7 @@ const listEventRequestsMock = vi.fn();
 const deleteEventDraftMock = vi.fn();
 const listAssignedEventsMock = vi.fn();
 const listClarificationsMock = vi.fn();
+const getClarificationReviewStateMock = vi.fn();
 const authState = {
   profile: { full_name: "Kai Test", role: "event_organiser" },
   user: { id: "10000000-0000-0000-0000-000000000001" },
@@ -29,9 +30,13 @@ vi.mock("@/features/event-requests/services/assigned-events", () => ({
 
 vi.mock("@/features/event-requests/services/clarifications", () => ({
   listClarifications: (...args: unknown[]) => listClarificationsMock(...args),
+  getClarificationReviewState: (...args: unknown[]) => getClarificationReviewStateMock(...args),
   requestClarification: vi.fn(),
   respondToClarification: vi.fn(),
-  resolveClarification: vi.fn(),
+}));
+
+vi.mock("@/features/event-requests/services/decisions", () => ({
+  decideEvent: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -103,7 +108,7 @@ describe("EventsPage draft controls", () => {
     );
 
     expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
-    expect(screen.getByText("requested")).toBeInTheDocument();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
     expect(screen.getByText(/^Submitted/)).toBeInTheDocument();
     // PB-04 AC02.
     expect(screen.getByText("Coordinator: Joyce Coordinator")).toBeInTheDocument();
@@ -114,9 +119,9 @@ describe("EventsPage draft controls", () => {
     expect(
       screen.queryByRole("button", { name: `Delete ${requested.title}` }),
     ).not.toBeInTheDocument();
-    // No open clarification: no "Awaiting Organiser" pill.
+    // No open clarification: no "Clarification Required" pill.
     await waitFor(() => expect(listClarificationsMock).toHaveBeenCalledWith("requested-1"));
-    expect(screen.queryByText("Awaiting Organiser")).not.toBeInTheDocument();
+    expect(screen.queryByText("Clarification Required")).not.toBeInTheDocument();
   });
 
   it("shows the coordinator's question and a Respond action while a clarification is open", async () => {
@@ -140,11 +145,15 @@ describe("EventsPage draft controls", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("Awaiting Organiser")).toBeInTheDocument();
+    expect(await screen.findByText("Clarification Required")).toBeInTheDocument();
     expect(
       screen.getByText('Coordinator asked: "Can you confirm the headcount?"'),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Respond" })).toBeInTheDocument();
+    // Responding means editing directly — no separate typed-response dialog.
+    expect(screen.getByRole("link", { name: "Respond" })).toHaveAttribute(
+      "href",
+      "/events/requested-1/edit",
+    );
   });
 
   it("keeps the Draft when deletion is cancelled", async () => {
@@ -200,7 +209,7 @@ describe("EventsPage coordinator view", () => {
   beforeEach(() => {
     authState.profile.role = "event_coordinator";
     listAssignedEventsMock.mockReset().mockResolvedValue([assignedEvent]);
-    listClarificationsMock.mockReset().mockResolvedValue([]);
+    getClarificationReviewStateMock.mockReset().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -217,9 +226,45 @@ describe("EventsPage coordinator view", () => {
     expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
     expect(screen.getByText("Organiser: Kai Test")).toBeInTheDocument();
     expect(listAssignedEventsMock).toHaveBeenCalledWith(authState.user.id);
+    // The card links to the detail page rather than hosting actions itself.
+    expect(screen.getByRole("link", { name: /Shernice Test Submission/ })).toHaveAttribute(
+      "href",
+      "/events/assigned-1",
+    );
+    expect(await screen.findByText("View details")).toBeInTheDocument();
+  });
+
+  it("shows the Awaiting Organiser badge while a clarification is open", async () => {
+    getClarificationReviewStateMock.mockResolvedValue("open");
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Awaiting Organiser")).toBeInTheDocument();
+  });
+
+  it("falls back to the plain Pending status once the organiser has answered", async () => {
+    getClarificationReviewStateMock.mockResolvedValue("answered");
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    // "Pending" also renders on the very first tick before the async review-
+    // state fetch resolves, so wait on the notice (which only appears once
+    // that fetch settles as "answered") rather than on the badge text.
     expect(
-      await screen.findByRole("button", { name: "Request clarification" }),
+      await screen.findByText(
+        "Organiser has addressed the clarification — ready for your review.",
+      ),
     ).toBeInTheDocument();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.queryByText("Awaiting Organiser")).not.toBeInTheDocument();
   });
 
   it("shows an empty state when nothing is assigned", async () => {
