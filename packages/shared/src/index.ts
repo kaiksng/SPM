@@ -10,6 +10,7 @@ export * from "./domain/role-destination";
 export * from "./domain/role-label";
 export * from "./domain/event-status";
 export * from "./domain/clarification";
+export * from "./domain/event-field-history";
 export * from "./domain/coordinator-assignment";
 export * from "./domain/permissions";
 export * from "./domain/navigation";

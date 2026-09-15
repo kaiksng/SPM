@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
+import { RequirementHistoryPanel } from "@/features/event-requests/components/requirement-history-panel";
 import { EventStatusBadge } from "@/features/event-requests/components/status-badges";
 import {
   loadEventDetail,
@@ -231,6 +232,12 @@ export function EventDetailPage() {
                   <p className="mt-4 text-sm text-slate-500">Registration is not required</p>
                 )}
               </section>
+
+              <RequirementHistoryPanel
+                eventId={event.id}
+                eventStatus={event.status}
+                role={role}
+              />
 
               <ClarificationPanel
                 eventId={event.id}

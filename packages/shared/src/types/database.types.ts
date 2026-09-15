@@ -225,6 +225,51 @@ export type Database = {
           },
         ]
       }
+      event_field_changes: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          event_id: string
+          field_name: string
+          id: number
+          new_value: string | null
+          previous_value: string | null
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          event_id: string
+          field_name: string
+          id?: never
+          new_value?: string | null
+          previous_value?: string | null
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          event_id?: string
+          field_name?: string
+          id?: never
+          new_value?: string | null
+          previous_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_field_changes_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_field_changes_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_registration_requirements: {
         Row: {
           attendee_capacity: number | null

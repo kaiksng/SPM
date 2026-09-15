@@ -20,6 +20,9 @@ This is the living link between Jira, acceptance criteria, implementation, and t
 | PB-04 | AC02 | `assigned_coordinator` profile join in `event-drafts.ts`; `EventsPage.tsx` coordinator display | TC-PB04-07; component test | Automated tests passing locally |
 | PB-04 | AC04 | `notifications` insert in `assign_event_coordinator` | TC-PB04-03; database test | Automated tests passing locally |
 | PB-04 | AC05 | `events_prevent_coordinator_reassignment` trigger | TC-PB04-04; database test | Automated tests passing locally |
+| PB-07 | AC01 | `RequirementHistoryPanel`; `EventDetailPage.tsx` (pre-existing `loadEventDetail` for the "latest requirements" half) | TC-PB07-01, 06; component and database tests | Automated tests passing locally |
+| PB-07 | AC02 | `event_field_changes` table; `record_event_field_change`/`record_event_venue_change`/`record_event_registration_change` triggers; `loadEventFieldHistory` | TC-PB07-02, 03, 04; database and component tests | Automated tests passing locally |
+| PB-07 | AC03, AC04 | "assigned coordinator views field change history" RLS policy on `event_field_changes` | TC-PB07-05, 07; database tests | Automated tests passing locally |
 
 ## Implementation locations
 
@@ -32,7 +35,8 @@ This is the living link between Jira, acceptance criteria, implementation, and t
 - Create, reopen, edit and submit: `apps/frontend/src/routes/EventRequestEditorPage.tsx`
 - Coordinator assignment: `supabase/migrations/202609140001_pb04_coordinator_assignment.sql`; `packages/shared/src/domain/coordinator-assignment.ts`
 - Decision record: `docs/architecture/adr/0003-submission-through-backend.md`
+- Change history: `supabase/migrations/202609150003_pb07_event_field_history.sql`; `packages/shared/src/domain/event-field-history.ts`; `apps/frontend/src/features/event-requests/services/field-history.ts`; `apps/frontend/src/features/event-requests/components/requirement-history-panel.tsx`; `docs/requirements/pb-07-event-field-history-contract.md`
 
 ## Evidence rule
 
-Manual evidence must record the exact commit, environment, tester, execution date and evidence link. PB-02 can move to Done only when all approved manual cases have been executed against the shared environment and Shernice has approved the pull request. PB-03 can move to Done only when TC-PB03-10 has been executed against the shared environment (organiser `jasmine@gmail.com`, coordinator `joyce@gmail.com`) and its reviewer, Guang Hao, has approved the pull request. PB-04 can move to Done only when TC-PB04-08 has been executed against the shared environment and its reviewer, Kai Kin, has approved the pull request.
+Manual evidence must record the exact commit, environment, tester, execution date and evidence link. PB-02 can move to Done only when all approved manual cases have been executed against the shared environment and Shernice has approved the pull request. PB-03 can move to Done only when TC-PB03-10 has been executed against the shared environment (organiser `jasmine@gmail.com`, coordinator `joyce@gmail.com`) and its reviewer, Guang Hao, has approved the pull request. PB-04 can move to Done only when TC-PB04-08 has been executed against the shared environment and its reviewer, Kai Kin, has approved the pull request. PB-07 can move to Done only once its migration has been pushed to the shared environment by the database owner and TC-PB07-06 has been executed there.
