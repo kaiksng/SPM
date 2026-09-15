@@ -235,7 +235,10 @@ describe("EventsPage coordinator view", () => {
   });
 
   it("shows the Awaiting Organiser badge while a clarification is open", async () => {
-    getClarificationReviewStateMock.mockResolvedValue("open");
+    getClarificationReviewStateMock.mockResolvedValue({
+      status: "open",
+      permittedFields: ["expectedAttendance"],
+    });
 
     render(
       <MemoryRouter initialEntries={["/events"]}>
@@ -246,8 +249,11 @@ describe("EventsPage coordinator view", () => {
     expect(await screen.findByText("Awaiting Organiser")).toBeInTheDocument();
   });
 
-  it("falls back to the plain Pending status once the organiser has answered", async () => {
-    getClarificationReviewStateMock.mockResolvedValue("answered");
+  it("names the edited area, not a generic sentence, once the organiser has answered", async () => {
+    getClarificationReviewStateMock.mockResolvedValue({
+      status: "answered",
+      permittedFields: ["expectedAttendance"],
+    });
 
     render(
       <MemoryRouter initialEntries={["/events"]}>
@@ -256,13 +262,13 @@ describe("EventsPage coordinator view", () => {
     );
 
     // "Pending" also renders on the very first tick before the async review-
-    // state fetch resolves, so wait on the notice (which only appears once
+    // state fetch resolves, so wait on "Edited:" (which only appears once
     // that fetch settles as "answered") rather than on the badge text.
+    expect(await screen.findByText("Edited:")).toBeInTheDocument();
+    expect(screen.getByText("Expected attendance")).toBeInTheDocument();
     expect(
-      await screen.findByText(
-        "Organiser has addressed the clarification — ready for your review.",
-      ),
-    ).toBeInTheDocument();
+      screen.queryByText(/Organiser has addressed the clarification/),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Pending")).toBeInTheDocument();
     expect(screen.queryByText("Awaiting Organiser")).not.toBeInTheDocument();
   });

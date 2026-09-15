@@ -42,18 +42,20 @@ export async function listClarifications(eventId: string) {
 
 /**
  * A cheap lookup for the list-card badge, which only needs the one
- * unresolved round's status — not the full history listClarifications loads
- * for the detail page's panel. Fails closed to "no badge" rather than
- * blocking the card. Distinguishing open/answered is what lets the badge
- * change (Clarification Required → Response Received) once the organiser
- * responds — the visible stand-in for a notification.
+ * unresolved round's status and which fields it covers — not the full
+ * history listClarifications loads for the detail page's panel. Fails closed
+ * to "no badge" rather than blocking the card. Distinguishing open/answered
+ * is what lets the badge change (Clarification Required → Response
+ * Received) once the organiser responds — the visible stand-in for a
+ * notification. permittedFields lets the card name the edited area(s)
+ * instead of a generic "addressed" sentence.
  */
 export async function getClarificationReviewState(
   eventId: string,
-): Promise<"open" | "answered" | undefined> {
+): Promise<{ status: "open" | "answered"; permittedFields: string[] } | undefined> {
   const { data, error } = await supabase
     .from("clarifications")
-    .select("status")
+    .select("status, permitted_fields")
     .eq("event_id", eventId)
     .in("status", ["open", "answered"])
     .order("requested_at", { ascending: false })
@@ -61,7 +63,10 @@ export async function getClarificationReviewState(
     .maybeSingle();
 
   if (error || !data) return undefined;
-  return data.status as "open" | "answered";
+  return {
+    status: data.status as "open" | "answered",
+    permittedFields: data.permitted_fields,
+  };
 }
 
 /**

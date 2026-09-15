@@ -8,9 +8,14 @@ import {
 
 describe("clarification permitted fields", () => {
   it("defines a label for every permitted field key", () => {
-    expect(Object.keys(clarificationPermittedFieldLabels).sort()).toEqual(
-      [...clarificationPermittedFieldKeys].sort(),
-    );
+    for (const key of clarificationPermittedFieldKeys) {
+      expect(clarificationPermittedFieldLabels[key]).toBeTruthy();
+    }
+  });
+
+  it("also labels the retired legacy 'requirements' bucket for old rows", () => {
+    expect(clarificationPermittedFieldLabels.requirements).toBeTruthy();
+    expect(clarificationPermittedFieldKeys).not.toContain("requirements");
   });
 
   it("has no duplicate keys", () => {

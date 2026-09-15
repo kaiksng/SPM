@@ -40,9 +40,24 @@ export function EventRequestForm({
   const [message, setMessage] = useState<string>();
   const [saving, setSaving] = useState(false);
 
-  const isLocked = (field: string) =>
-    permittedFields !== undefined && !permittedFields.includes(field);
-  const requirementsLocked = isLocked("requirements");
+  const isLocked = (field: string) => {
+    if (permittedFields === undefined) return false;
+    if (permittedFields.includes(field)) return false;
+    // Legacy: a clarification requested before the venue/equipment/
+    // registration split (202609150004) stores the single combined
+    // "requirements" bucket, which still unlocks all three sections for any
+    // round that predates the split.
+    if (
+      (field === "venue" || field === "equipment" || field === "registration") &&
+      permittedFields.includes("requirements")
+    ) {
+      return false;
+    }
+    return true;
+  };
+  const venueLocked = isLocked("venue");
+  const equipmentLocked = isLocked("equipment");
+  const registrationLocked = isLocked("registration");
 
   const setRoot = <Key extends keyof EventRequestFormValues>(
     key: Key,
@@ -214,7 +229,7 @@ export function EventRequestForm({
             value={values.venue.preferredLocation}
             onChange={(event) => setVenue("preferredLocation", event.target.value)}
             placeholder="Building, campus area or neighbourhood"
-            disabled={requirementsLocked}
+            disabled={venueLocked}
           />
         </Field>
         <Field label="Minimum capacity" error={errors["venue.minimumCapacity"]}>
@@ -224,7 +239,7 @@ export function EventRequestForm({
             onChange={(event) => setVenue("minimumCapacity", event.target.value)}
             placeholder="Leave blank if unknown"
             aria-invalid={Boolean(errors["venue.minimumCapacity"])}
-            disabled={requirementsLocked}
+            disabled={venueLocked}
           />
         </Field>
         <Field label="Room layout" error={errors["venue.layoutNotes"]}>
@@ -232,7 +247,7 @@ export function EventRequestForm({
             value={values.venue.layoutNotes}
             onChange={(event) => setVenue("layoutNotes", event.target.value)}
             placeholder="Theatre, classroom, banquet…"
-            disabled={requirementsLocked}
+            disabled={venueLocked}
           />
         </Field>
         <Field label="Required facilities" error={errors["venue.facilities"]}>
@@ -249,7 +264,7 @@ export function EventRequestForm({
             }
             placeholder="Projector, stage, pantry"
             aria-invalid={Boolean(errors["venue.facilities"])}
-            disabled={requirementsLocked}
+            disabled={venueLocked}
           />
           <p className="mt-1 text-xs text-slate-500">Separate facilities with commas.</p>
         </Field>
@@ -263,7 +278,7 @@ export function EventRequestForm({
             onChange={(event) => setVenue("accessibilityNotes", event.target.value)}
             placeholder="Wheelchair access, hearing loop, step-free route…"
             rows={3}
-            disabled={requirementsLocked}
+            disabled={venueLocked}
           />
         </Field>
       </FormSection>
@@ -276,7 +291,7 @@ export function EventRequestForm({
           <Button
             type="button"
             variant="outline"
-            disabled={requirementsLocked}
+            disabled={equipmentLocked}
             onClick={() =>
               setRoot("equipment", [
                 ...values.equipment,
@@ -305,7 +320,7 @@ export function EventRequestForm({
                     setEquipment(index, "equipmentName", event.target.value)
                   }
                   placeholder="Wireless microphone"
-                  disabled={requirementsLocked}
+                  disabled={equipmentLocked}
                 />
               </Field>
               <Field label="Quantity" error={errors[`equipment.${index}.quantity`]}>
@@ -313,7 +328,7 @@ export function EventRequestForm({
                   inputMode="numeric"
                   value={item.quantity}
                   onChange={(event) => setEquipment(index, "quantity", event.target.value)}
-                  disabled={requirementsLocked}
+                  disabled={equipmentLocked}
                 />
               </Field>
               <Field label="Technical notes" error={errors[`equipment.${index}.notes`]}>
@@ -321,7 +336,7 @@ export function EventRequestForm({
                   value={item.notes}
                   onChange={(event) => setEquipment(index, "notes", event.target.value)}
                   placeholder="Setup or compatibility details"
-                  disabled={requirementsLocked}
+                  disabled={equipmentLocked}
                 />
               </Field>
               <div className="flex items-end">
@@ -330,7 +345,7 @@ export function EventRequestForm({
                   variant="ghost"
                   size="icon"
                   aria-label={`Remove equipment item ${index + 1}`}
-                  disabled={requirementsLocked}
+                  disabled={equipmentLocked}
                   onClick={() =>
                     setRoot(
                       "equipment",
@@ -357,7 +372,7 @@ export function EventRequestForm({
             className="mt-0.5 size-4 accent-blue-600"
             checked={values.registration.required}
             onChange={(event) => setRegistration("required", event.target.checked)}
-            disabled={requirementsLocked}
+            disabled={registrationLocked}
           />
           <span>
             <span className="block text-sm font-semibold text-slate-900">
@@ -375,7 +390,7 @@ export function EventRequestForm({
                 type="datetime-local"
                 value={values.registration.opensAt}
                 onChange={(event) => setRegistration("opensAt", event.target.value)}
-                disabled={requirementsLocked}
+                disabled={registrationLocked}
               />
             </Field>
             <Field label="Registration closes" error={errors["registration.closesAt"]}>
@@ -384,7 +399,7 @@ export function EventRequestForm({
                 value={values.registration.closesAt}
                 onChange={(event) => setRegistration("closesAt", event.target.value)}
                 aria-invalid={Boolean(errors["registration.closesAt"])}
-                disabled={requirementsLocked}
+                disabled={registrationLocked}
               />
             </Field>
             <Field label="Registration capacity" error={errors["registration.capacity"]}>
@@ -393,7 +408,7 @@ export function EventRequestForm({
                 value={values.registration.capacity}
                 onChange={(event) => setRegistration("capacity", event.target.value)}
                 placeholder="Leave blank if unknown"
-                disabled={requirementsLocked}
+                disabled={registrationLocked}
               />
             </Field>
             <label className="flex items-center gap-3 self-end pb-2 text-sm font-medium text-slate-800 has-disabled:cursor-not-allowed has-disabled:opacity-50">
@@ -404,7 +419,7 @@ export function EventRequestForm({
                 onChange={(event) =>
                   setRegistration("waitlistEnabled", event.target.checked)
                 }
-                disabled={requirementsLocked}
+                disabled={registrationLocked}
               />
               Enable waiting list
             </label>

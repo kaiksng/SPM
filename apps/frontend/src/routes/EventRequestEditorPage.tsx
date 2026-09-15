@@ -155,11 +155,16 @@ export function EventRequestEditorPage({
     // Saving permitted edits while a clarification is open is itself how the
     // organiser responds — no separate typed message required (AC04 is
     // still satisfied: a response is recorded, with a timestamp and actor).
+    // The response text names the edited area(s) rather than a generic
+    // sentence, since that's what the coordinator's review actually needs.
     let notice = editing ? "Draft updated." : "Draft saved.";
     if (openClarification?.status === "open") {
+      const editedAreas = openClarification.permittedFields
+        .map((field) => clarificationPermittedFieldLabels[field as ClarificationPermittedField] ?? field)
+        .join(", ");
       await respondToClarification(
         openClarification.id,
-        "Organiser has addressed the clarification.",
+        editedAreas ? `Edited: ${editedAreas}` : "Updated the requested information.",
       );
       notice = "Draft updated. Clarification addressed.";
     }

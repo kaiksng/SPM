@@ -1,6 +1,6 @@
 begin;
 
-select plan(14);
+select plan(16);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -173,8 +173,11 @@ select is(
   'AC03/AC04: a coordinator not assigned to the event sees no change history'
 );
 
--- AC03/AC04: the organiser can see the event itself (can_view_event) but is
--- not an "authorised coordinator" for this narrower view.
+-- 202609150005: the organiser can now read their own event's change history
+-- too (added so ClarificationPanel can name the exact field(s) they edited
+-- on both sides of a clarification round) — narrower than "authorised
+-- coordinator" in that it is scoped to their own event specifically, not any
+-- event they merely have organiser-role visibility into.
 select set_config(
   'request.jwt.claims',
   '{"sub":"60000000-0000-0000-0000-000000000001","role":"authenticated"}',
@@ -189,8 +192,31 @@ select is(
     select count(*)::integer from public.event_field_changes
     where event_id = (select id from pb07_event_ids)
   ),
+  5,
+  '202609150005: the organiser can view the change history for their own event'
+);
+
+-- 202609150005 is scoped to the event's own organiser, not organisers in
+-- general — a different organiser with no relationship to this event sees
+-- nothing.
+insert into auth.users (id, email, raw_user_meta_data)
+values (
+  '60000000-0000-0000-0000-000000000004',
+  'history-other-organiser@example.test',
+  '{"full_name":"Other Organiser","role":"event_organiser"}'::jsonb
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"60000000-0000-0000-0000-000000000004","role":"authenticated"}',
+  true
+);
+select is(
+  (
+    select count(*)::integer from public.event_field_changes
+    where event_id = (select id from pb07_event_ids)
+  ),
   0,
-  'AC03/AC04: the organiser is not authorised to view the change history'
+  '202609150005: an unrelated organiser still sees no change history'
 );
 
 select * from finish();

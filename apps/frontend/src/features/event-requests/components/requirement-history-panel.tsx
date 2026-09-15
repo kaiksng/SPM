@@ -1,31 +1,16 @@
-import {
-  eventFieldHistoryLabel,
-  isEventFieldHistoryBooleanField,
-  isEventFieldHistoryDateField,
-} from "@spm/shared";
+import { eventFieldHistoryLabel } from "@spm/shared";
 import { useEffect, useState } from "react";
 
 import {
   loadEventFieldHistory,
   type EventFieldChange,
 } from "@/features/event-requests/services/field-history";
+import { formatEventFieldChangeValue } from "@/features/event-requests/utils/format-field-change-value";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
   dateStyle: "medium",
   timeStyle: "short",
 });
-
-function formatValue(fieldName: string, value: string | null) {
-  if (value === null) return "Not set";
-  if (isEventFieldHistoryDateField(fieldName)) {
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? value : dateTimeFormatter.format(parsed);
-  }
-  if (isEventFieldHistoryBooleanField(fieldName)) {
-    return value === "true" ? "Yes" : "No";
-  }
-  return value;
-}
 
 /**
  * PB-07: the coordinator's view of how a Planning event's requirements got to
@@ -118,9 +103,12 @@ export function RequirementHistoryPanel({
               </div>
               <p className="mt-1 text-slate-600">
                 <span className="text-slate-400 line-through">
-                  {formatValue(change.fieldName, change.previousValue)}
+                  {formatEventFieldChangeValue(change.fieldName, change.previousValue)}
                 </span>{" "}
-                → <span className="text-slate-800">{formatValue(change.fieldName, change.newValue)}</span>
+                →{" "}
+                <span className="text-slate-800">
+                  {formatEventFieldChangeValue(change.fieldName, change.newValue)}
+                </span>
               </p>
             </li>
           ))}

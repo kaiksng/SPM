@@ -1,3 +1,7 @@
+import {
+  clarificationPermittedFieldLabels,
+  type ClarificationPermittedField,
+} from "@spm/shared";
 import { ArrowLeft, CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -7,6 +11,7 @@ import { useAuth } from "@/context/auth-context";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
 import { RequirementHistoryPanel } from "@/features/event-requests/components/requirement-history-panel";
 import { EventStatusBadge } from "@/features/event-requests/components/status-badges";
+import type { ClarificationSummary } from "@/features/event-requests/services/clarifications";
 import {
   loadEventDetail,
   type EventDetail,
@@ -36,6 +41,8 @@ export function EventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [reviewState, setReviewState] = useState<"open" | "answered">();
+  const [unresolvedClarification, setUnresolvedClarification] =
+    useState<ClarificationSummary>();
 
   usePageTitle(event?.title ?? "Event details");
 
@@ -96,9 +103,19 @@ export function EventDetailPage() {
                   role={role}
                 />
               </div>
-              <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] text-slate-950">
-                {event.title}
-              </h1>
+              <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+                <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950">
+                  {event.title}
+                </h1>
+                {role === "coordinator" && event.status === "planning" && (
+                  <Link
+                    to={`/events/${event.id}/coordinator-edit`}
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                  >
+                    Edit event
+                  </Link>
+                )}
+              </div>
               <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
                 {event.organiserName && <span>Organiser: {event.organiserName}</span>}
                 {event.assignedCoordinatorName && (
@@ -108,11 +125,24 @@ export function EventDetailPage() {
                   <span>Submitted {formatDateTime(event.submittedAt)}</span>
                 )}
               </div>
-              {role === "coordinator" && reviewState === "answered" && (
-                <p className="mt-2 text-sm font-semibold text-red-600">
-                  Organiser has addressed the clarification — ready for your review.
-                </p>
-              )}
+              {role === "coordinator" &&
+                reviewState === "answered" &&
+                unresolvedClarification &&
+                unresolvedClarification.permittedFields.length > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <span className="text-xs font-medium text-amber-800">Edited:</span>
+                    {unresolvedClarification.permittedFields.map((field) => (
+                      <span
+                        key={field}
+                        className="rounded-full bg-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-900"
+                      >
+                        {clarificationPermittedFieldLabels[
+                          field as ClarificationPermittedField
+                        ] ?? field}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
               <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
                 <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
@@ -244,6 +274,7 @@ export function EventDetailPage() {
                 eventStatus={event.status}
                 role={role}
                 onReviewStateChange={setReviewState}
+                onUnresolvedChange={setUnresolvedClarification}
                 onDecided={(decision) =>
                   navigate("/events", {
                     replace: true,

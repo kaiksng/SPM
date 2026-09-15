@@ -1,3 +1,7 @@
+import {
+  clarificationPermittedFieldLabels,
+  type ClarificationPermittedField,
+} from "@spm/shared";
 import { CalendarDays, FilePlus2, Pencil, Send, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
@@ -345,7 +349,17 @@ function EventCard({
             <Pencil /> Edit request
           </Link>
         ) : (
-          <span className="text-sm text-slate-500">Editing is unavailable in this workflow.</span>
+          <>
+            <Link
+              to={`/events/${event.id}`}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              View details
+            </Link>
+            <span className="self-center text-sm text-slate-500">
+              Editing is unavailable in this workflow.
+            </span>
+          </>
         )}
       </div>
       <ClarificationPanel
@@ -359,7 +373,10 @@ function EventCard({
 }
 
 function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
-  const [reviewState, setReviewState] = useState<"open" | "answered">();
+  const [reviewState, setReviewState] = useState<{
+    status: "open" | "answered";
+    permittedFields: string[];
+  }>();
 
   useEffect(() => {
     if (event.status !== "requested") return;
@@ -381,7 +398,7 @@ function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <EventStatusBadge
             status={event.status}
-            reviewState={reviewState === "open" ? "open" : undefined}
+            reviewState={reviewState?.status === "open" ? "open" : undefined}
             role="coordinator"
           />
         </div>
@@ -418,10 +435,18 @@ function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
           Organiser: {event.organiserName}
         </p>
       )}
-      {reviewState === "answered" && (
-        <p className="mt-1 text-xs font-semibold text-red-600">
-          Organiser has addressed the clarification — ready for your review.
-        </p>
+      {reviewState?.status === "answered" && (
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-semibold text-red-600">Edited:</span>
+          {reviewState.permittedFields.map((field) => (
+            <span
+              key={field}
+              className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700"
+            >
+              {clarificationPermittedFieldLabels[field as ClarificationPermittedField] ?? field}
+            </span>
+          ))}
+        </div>
       )}
       <span className="mt-auto pt-4 text-sm font-medium text-blue-600 group-hover:underline">
         View details

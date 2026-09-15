@@ -97,6 +97,24 @@ describe("EventDetailPage", () => {
     expect(screen.getByText("Coordinator: Joyce Coordinator")).toBeInTheDocument();
   });
 
+  it("shows the coordinator an Edit event link only once the event is Planning", async () => {
+    renderPage();
+
+    await screen.findByText("Student Leadership Summit 2");
+    expect(screen.queryByRole("link", { name: "Edit event" })).not.toBeInTheDocument();
+  });
+
+  it("links the coordinator to the coordinator edit page for a Planning event", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
+
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "Edit event" })).toHaveAttribute(
+      "href",
+      "/events/event-1/coordinator-edit",
+    );
+  });
+
   it("shows the coordinator's Request clarification, Approve and Reject actions", async () => {
     renderPage();
 
@@ -107,12 +125,12 @@ describe("EventDetailPage", () => {
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
   });
 
-  it("tells the coordinator the organiser has addressed the clarification", async () => {
+  it("tells the coordinator which area was edited, without a generic sentence or the question", async () => {
     listClarificationsMock.mockResolvedValue([
       {
         id: "clarification-1",
         question: "Can you confirm the headcount?",
-        response: "Organiser has addressed the clarification.",
+        response: "It will be 120 attendees.",
         status: "answered",
         permittedFields: ["expectedAttendance"],
         requestedAt: "2026-09-14T08:00:00.000Z",
@@ -123,11 +141,14 @@ describe("EventDetailPage", () => {
 
     renderPage();
 
+    expect(await screen.findByText("Edited:")).toBeInTheDocument();
+    // "Expected attendance" also labels the Overview field above, so this
+    // only asserts the highlighted chip renders too, not that it's unique.
+    expect(screen.getAllByText("Expected attendance").length).toBeGreaterThan(0);
     expect(
-      await screen.findByText(
-        "Organiser has addressed the clarification — ready for your review.",
-      ),
-    ).toBeInTheDocument();
+      screen.queryByText(/Organiser has addressed your clarification/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Clarification:/)).not.toBeInTheDocument();
     // The badge itself stays neutral (Pending), not a distinct "answered" pill.
     expect(screen.getByText("Pending")).toBeInTheDocument();
   });

@@ -592,10 +592,7 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: boolean
       }
-      event_planning_allowed: {
-        Args: { p_event_id: string }
-        Returns: boolean
-      }
+      event_planning_allowed: { Args: { p_event_id: string }; Returns: boolean }
       event_status_transition_allowed: {
         Args: {
           from_status: Database["public"]["Enums"]["event_status"]
@@ -631,6 +628,10 @@ export type Database = {
       submit_event_request: {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json
+      }
+      update_event_as_coordinator: {
+        Args: { p_event_id: string; updates: Json }
+        Returns: string
       }
     }
     Enums: {

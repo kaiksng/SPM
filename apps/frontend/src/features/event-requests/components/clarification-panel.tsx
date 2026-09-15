@@ -1,6 +1,7 @@
 import {
   clarificationPermittedFieldKeys,
   clarificationPermittedFieldLabels,
+  eventFieldHistoryLabel,
   isUnresolvedClarificationStatus,
   type ClarificationPermittedField,
 } from "@spm/shared";
@@ -14,6 +15,11 @@ import {
   type ClarificationSummary,
 } from "@/features/event-requests/services/clarifications";
 import { decideEvent } from "@/features/event-requests/services/decisions";
+import {
+  loadEventFieldHistory,
+  type EventFieldChange,
+} from "@/features/event-requests/services/field-history";
+import { formatEventFieldChangeValue } from "@/features/event-requests/utils/format-field-change-value";
 
 const dateFormatter = new Intl.DateTimeFormat("en-SG", {
   dateStyle: "medium",
@@ -31,6 +37,7 @@ export function ClarificationPanel({
   eventStatus,
   role,
   onReviewStateChange,
+  onUnresolvedChange,
   onDecided,
   className = "mt-3 border-t border-slate-100 pt-3 text-sm",
 }: {
@@ -42,6 +49,11 @@ export function ClarificationPanel({
    * coordinator's view of this same event) can show a matching badge next to
    * the status pill, without fetching the clarification list a second time. */
   onReviewStateChange?: (state: "open" | "answered" | undefined) => void;
+  /** Reports the full unresolved round (or undefined), for a caller that
+   * wants to show more than the badge — e.g. EventDetailPage's coordinator
+   * banner naming the exact question, response, and clarified sections
+   * instead of a generic "ready for your review." */
+  onUnresolvedChange?: (clarification: ClarificationSummary | undefined) => void;
   /** Fires after a successful Approve/Reject — the event has left
    * "requested" at that point, so the caller (EventDetailPage) navigates
    * away rather than this panel trying to re-render a state it no longer
@@ -52,6 +64,7 @@ export function ClarificationPanel({
   className?: string;
 }) {
   const [clarifications, setClarifications] = useState<ClarificationSummary[]>([]);
+  const [fieldChanges, setFieldChanges] = useState<EventFieldChange[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string>();
   const [showRequestDialog, setShowRequestDialog] = useState(false);
@@ -80,10 +93,41 @@ export function ClarificationPanel({
         if (active) setLoaded(true);
       });
 
+    // Best-effort: naming the edited field(s) per round is a bonus on top of
+    // the question/response text, not something either role's flow depends
+    // on. A denied or failed fetch (e.g. an organiser on an older Supabase
+    // schema still missing the read policy) just leaves that detail out
+    // rather than blocking the rest of the panel.
+    loadEventFieldHistory(eventId)
+      .then((changes) => {
+        if (active) setFieldChanges(changes);
+      })
+      .catch(() => undefined);
+
     return () => {
       active = false;
     };
   }, [eventId, shouldRender]);
+
+  /**
+   * The field(s) an organiser actually edited while this round was the
+   * active one — from requesting it to whenever the next round (if any)
+   * started. There is no direct foreign key between a clarification and the
+   * event_field_changes rows an edit produced (save_event_draft and
+   * respond_event_clarification are separate calls), so this correlates by
+   * time window instead. Works for any field, and for any number of saves
+   * made during the round, not just the first one that flipped it to
+   * "answered".
+   */
+  function editsDuringRound(round: ClarificationSummary, index: number) {
+    const windowStart = new Date(round.requestedAt).getTime();
+    const nextRound = clarifications[index + 1];
+    const windowEnd = nextRound ? new Date(nextRound.requestedAt).getTime() : Infinity;
+    return fieldChanges.filter((change) => {
+      const changedAt = new Date(change.changedAt).getTime();
+      return changedAt >= windowStart && changedAt < windowEnd;
+    });
+  }
 
   // A failed history load never blocks the action below it — worst case, a
   // coordinator sees "Request clarification" when one is already open and
@@ -94,10 +138,12 @@ export function ClarificationPanel({
     // unresolved is filtered to open/answered only, but its type is the
     // broader ClarificationStatus — narrow it for the callback's signature.
     onReviewStateChange?.(unresolved?.status as "open" | "answered" | undefined);
-    // onReviewStateChange intentionally excluded: callers pass an inline
-    // setState function, so including it here would refire on every render.
+    onUnresolvedChange?.(unresolved);
+    // onReviewStateChange/onUnresolvedChange intentionally excluded: callers
+    // pass an inline setState function, so including them here would refire
+    // on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unresolved?.status]);
+  }, [unresolved]);
 
   if (!shouldRender) return null;
   if (!loaded) return null;
@@ -198,17 +244,39 @@ export function ClarificationPanel({
             Clarification history ({clarifications.length})
           </summary>
           <ol className="mt-2 space-y-2">
-            {clarifications.map((c) => (
-              <li key={c.id} className="text-xs text-slate-500">
-                <p>Coordinator requested {dateFormatter.format(new Date(c.requestedAt))}: "{c.question}"</p>
-                {c.response && c.respondedAt && (
-                  <p>Organiser responded {dateFormatter.format(new Date(c.respondedAt))}: "{c.response}"</p>
-                )}
-                {c.status === "resolved" && c.resolvedAt && (
-                  <p>Coordinator resolved {dateFormatter.format(new Date(c.resolvedAt))}</p>
-                )}
-              </li>
-            ))}
+            {clarifications.map((c, index) => {
+              const edits = c.response && c.respondedAt ? editsDuringRound(c, index) : [];
+              return (
+                <li key={c.id} className="text-xs text-slate-500">
+                  <p>Coordinator requested {dateFormatter.format(new Date(c.requestedAt))}: "{c.question}"</p>
+                  {c.response && c.respondedAt && (
+                    <p>Organiser responded {dateFormatter.format(new Date(c.respondedAt))}: "{c.response}"</p>
+                  )}
+                  {edits.length > 0 && (
+                    <div className="mt-1 rounded-lg border border-slate-100 bg-slate-50 p-2">
+                      <p className="font-medium text-slate-600">
+                        Organiser has edited these field(s):
+                      </p>
+                      <ul className="mt-1 space-y-0.5">
+                        {edits.map((change) => (
+                          <li key={change.id}>
+                            <span className="font-medium text-slate-600">
+                              {eventFieldHistoryLabel(change.fieldName)}:
+                            </span>{" "}
+                            {formatEventFieldChangeValue(change.fieldName, change.previousValue)}
+                            {" → "}
+                            {formatEventFieldChangeValue(change.fieldName, change.newValue)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {c.status === "resolved" && c.resolvedAt && (
+                    <p>Coordinator resolved {dateFormatter.format(new Date(c.resolvedAt))}</p>
+                  )}
+                </li>
+              );
+            })}
           </ol>
         </details>
       )}

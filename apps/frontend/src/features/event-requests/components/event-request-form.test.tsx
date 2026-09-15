@@ -162,7 +162,7 @@ describe("EventRequestForm with an open clarification", () => {
     expect(screen.getByLabelText("Ends")).toBeDisabled();
   });
 
-  it("locks the whole requirements group behind one bucket key", () => {
+  it("locks venue, equipment and registration by default", () => {
     render(
       <EventRequestForm
         initialValues={values({ title: "Locked draft" })}
@@ -179,7 +179,25 @@ describe("EventRequestForm with an open clarification", () => {
     ).toBeDisabled();
   });
 
-  it("unlocks the requirements group when it is permitted", () => {
+  it("unlocks only the granular bucket that was permitted", () => {
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Locked draft" })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        permittedFields={["registration"]}
+      />,
+    );
+
+    expect(
+      screen.getByLabelText(/Attendee registration is required/),
+    ).toBeEnabled();
+    expect(screen.getByLabelText("Preferred location")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add equipment" })).toBeDisabled();
+    expect(screen.getByLabelText(/Event name/)).toBeDisabled();
+  });
+
+  it("unlocks venue, equipment and registration together for a legacy 'requirements' grant", () => {
     render(
       <EventRequestForm
         initialValues={values({ title: "Locked draft" })}
@@ -191,6 +209,9 @@ describe("EventRequestForm with an open clarification", () => {
 
     expect(screen.getByLabelText("Preferred location")).toBeEnabled();
     expect(screen.getByRole("button", { name: "Add equipment" })).toBeEnabled();
+    expect(
+      screen.getByLabelText(/Attendee registration is required/),
+    ).toBeEnabled();
     expect(screen.getByLabelText(/Event name/)).toBeDisabled();
   });
 
