@@ -124,6 +124,30 @@ describe("EventsPage draft controls", () => {
     expect(screen.queryByText("Clarification Required")).not.toBeInTheDocument();
   });
 
+  it("directs the organiser to a change request instead of editing a Confirmed event", async () => {
+    listEventRequestsMock.mockResolvedValue([
+      { ...requested, id: "confirmed-1", title: "Confirmed Gala", status: "confirmed" },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Confirmed Gala")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This event is confirmed. Direct edits are locked — submit a change request instead.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Edit request" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute(
+      "href",
+      "/events/confirmed-1",
+    );
+  });
+
   it("shows the coordinator's question and a Respond action while a clarification is open", async () => {
     listEventRequestsMock.mockResolvedValue([requested]);
     listClarificationsMock.mockResolvedValue([

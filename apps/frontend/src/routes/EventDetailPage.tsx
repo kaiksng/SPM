@@ -110,7 +110,11 @@ export function EventDetailPage() {
                 {role === "coordinator" && event.status === "planning" && (
                   <Link
                     to={`/events/${event.id}/coordinator-edit`}
-                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                    className={buttonVariants({
+                      variant: "outline",
+                      size: "sm",
+                      className: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
+                    })}
                   >
                     Edit event
                   </Link>
@@ -125,6 +129,12 @@ export function EventDetailPage() {
                   <span>Submitted {formatDateTime(event.submittedAt)}</span>
                 )}
               </div>
+              {event.status === "confirmed" && (
+                <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                  This event is confirmed. Direct edits are locked to keep finalised arrangements
+                  accurate — submit a change request instead of editing it directly.
+                </p>
+              )}
               {role === "coordinator" &&
                 reviewState === "answered" &&
                 unresolvedClarification &&

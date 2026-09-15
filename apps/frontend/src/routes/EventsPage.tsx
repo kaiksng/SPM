@@ -357,7 +357,9 @@ function EventCard({
               View details
             </Link>
             <span className="self-center text-sm text-slate-500">
-              Editing is unavailable in this workflow.
+              {event.status === "confirmed"
+                ? "This event is confirmed. Direct edits are locked — submit a change request instead."
+                : "Editing is unavailable in this workflow."}
             </span>
           </>
         )}

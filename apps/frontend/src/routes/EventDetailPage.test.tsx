@@ -104,6 +104,17 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("link", { name: "Edit event" })).not.toBeInTheDocument();
   });
 
+  it("tells either role a Confirmed event's edits are locked, pointing to a change request", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+
+    renderPage();
+
+    expect(
+      await screen.findByText(/submit a change request instead of editing it directly/),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Edit event" })).not.toBeInTheDocument();
+  });
+
   it("links the coordinator to the coordinator edit page for a Planning event", async () => {
     loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
 
