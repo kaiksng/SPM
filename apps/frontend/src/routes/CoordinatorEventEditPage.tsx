@@ -109,6 +109,10 @@ export function CoordinatorEventEditPage() {
               Changes are recorded with the previous value, new value, your name, and the time —
               visible in this event's change history.
             </p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Overview, schedule, and registration details are locked once an event reaches
+              Planning — only venue requirements and equipment can be adjusted here.
+            </p>
           </header>
 
           {loading ? (
@@ -133,6 +137,12 @@ export function CoordinatorEventEditPage() {
                 onSave={handleSave}
                 onCancel={() => navigate(`/events/${eventId}`)}
                 submitLabel="Save changes"
+                // Reuses EventRequestForm's clarification-lock mechanism: any
+                // section not named here is disabled. Overview, schedule, and
+                // registration are locked once Planning is reached (enforced
+                // again, independently, by update_event_as_coordinator's own
+                // checks) — only venue and equipment remain editable.
+                permittedFields={["venue", "equipment"]}
               />
             </div>
           ) : null}

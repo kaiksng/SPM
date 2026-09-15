@@ -1,6 +1,6 @@
 begin;
 
-select plan(14);
+select plan(19);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -24,6 +24,10 @@ select set_config(
   true
 );
 
+-- Every call below resubmits title/purpose/description/eventType/
+-- expectedAttendance/startsAt/endsAt/registration unchanged from this
+-- baseline — those are the fields 202609150008 locks once Planning. Only
+-- venue and equipment vary between calls.
 select lives_ok(
   $$insert into pcp_event_ids
     select public.save_event_draft(
@@ -89,17 +93,80 @@ select is(
   'the event has moved to Planning'
 );
 
--- AC01: one field changed in one save records previous value, new value,
--- actor and timestamp.
+-- 202609150008: overview, schedule and registration are locked once
+-- Planning — one representative field from each group.
+select throws_ok(
+  format(
+    $$select public.update_event_as_coordinator(
+      %L::uuid,
+      '{"title":"Renamed Event","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
+    )$$,
+    (select id from pcp_event_ids)
+  ),
+  '23514',
+  'Event name is locked once the event reaches Planning',
+  'the event name is locked once Planning is reached'
+);
+select throws_ok(
+  format(
+    $$select public.update_event_as_coordinator(
+      %L::uuid,
+      '{"title":"Original Title","purpose":"A different purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
+    )$$,
+    (select id from pcp_event_ids)
+  ),
+  '23514',
+  'Purpose is locked once the event reaches Planning',
+  'purpose is locked once Planning is reached'
+);
+select throws_ok(
+  format(
+    $$select public.update_event_as_coordinator(
+      %L::uuid,
+      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"500","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
+    )$$,
+    (select id from pcp_event_ids)
+  ),
+  '23514',
+  'Expected attendance is locked once the event reaches Planning',
+  'expected attendance (overview) is locked once Planning is reached'
+);
+select throws_ok(
+  format(
+    $$select public.update_event_as_coordinator(
+      %L::uuid,
+      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-02T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
+    )$$,
+    (select id from pcp_event_ids)
+  ),
+  '23514',
+  'Start time is locked once the event reaches Planning',
+  'the schedule (start time) is locked once Planning is reached'
+);
+select throws_ok(
+  format(
+    $$select public.update_event_as_coordinator(
+      %L::uuid,
+      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":true,"capacity":"50","waitlistEnabled":false}}'::jsonb
+    )$$,
+    (select id from pcp_event_ids)
+  ),
+  '23514',
+  'Registration details are locked once the event reaches Planning',
+  'registration is locked once Planning is reached'
+);
+
+-- AC01: one field changed in one save (venue, still open to the
+-- coordinator) records previous value, new value, actor and timestamp.
 select lives_ok(
   format(
     $$select public.update_event_as_coordinator(
       %L::uuid,
-      '{"title":"Updated Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
+      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Auditorium","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
     )$$,
     (select id from pcp_event_ids)
   ),
-  'the assigned coordinator can update a Planning event'
+  'the coordinator can still update venue while overview/schedule/registration stay locked'
 );
 select is(
   (
@@ -107,30 +174,31 @@ select is(
     from public.event_field_changes
     where event_id = (select id from pcp_event_ids)
   ),
-  row('title', 'Original Title', 'Updated Title', '80000000-0000-0000-0000-000000000002'::uuid),
+  row('venue.preferredLocation', 'Main Hall', 'Auditorium', '80000000-0000-0000-0000-000000000002'::uuid),
   'AC01: the change records the previous value, new value and actor'
 );
 
--- AC02: multiple fields changed in one save are logged as separate entries.
+-- AC02: multiple still-open fields changed in one save are logged as
+-- separate entries.
 select lives_ok(
   format(
     $$select public.update_event_as_coordinator(
       %L::uuid,
-      '{"title":"Updated Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"150","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Auditorium","facilities":[]},"equipment":[],"registration":{"required":true,"capacity":"100","waitlistEnabled":false}}'::jsonb
+      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Auditorium","minimumCapacity":"200","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
     )$$,
     (select id from pcp_event_ids)
   ),
-  'the coordinator can change several fields in one save'
+  'the coordinator can change several still-open fields in one save'
 );
 select results_eq(
   format(
     $$select field_name from public.event_field_changes
-      where event_id = %L::uuid and field_name <> 'title'
+      where event_id = %L::uuid and field_name <> 'venue.preferredLocation'
       order by changed_at asc, id asc$$,
     (select id from pcp_event_ids)
   ),
-  array['expectedAttendance', 'venue.preferredLocation', 'registration.required', 'registration.capacity'],
-  'AC02: each changed field is logged as its own entry'
+  array['venue.minimumCapacity'],
+  'AC02: the newly changed field is logged as its own entry'
 );
 
 -- AC03: resubmitting with no actual changes creates no new entries.
@@ -139,14 +207,14 @@ select is(
     select count(*)::integer from public.event_field_changes
     where event_id = (select id from pcp_event_ids)
   ),
-  5,
-  'sanity check: five entries recorded so far (1 + 4)'
+  2,
+  'sanity check: two entries recorded so far'
 );
 select lives_ok(
   format(
     $$select public.update_event_as_coordinator(
       %L::uuid,
-      '{"title":"Updated Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"150","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Auditorium","facilities":[]},"equipment":[],"registration":{"required":true,"capacity":"100","waitlistEnabled":false}}'::jsonb
+      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Auditorium","minimumCapacity":"200","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
     )$$,
     (select id from pcp_event_ids)
   ),
@@ -157,7 +225,7 @@ select is(
     select count(*)::integer from public.event_field_changes
     where event_id = (select id from pcp_event_ids)
   ),
-  5,
+  2,
   'AC03: no new entries are created when nothing actually changed'
 );
 
@@ -171,7 +239,7 @@ select throws_ok(
   format(
     $$select public.update_event_as_coordinator(
       %L::uuid,
-      '{"title":"Hijacked","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"150","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Auditorium","facilities":[]},"equipment":[],"registration":{"required":true,"capacity":"100","waitlistEnabled":false}}'::jsonb
+      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Hijacked Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
     )$$,
     (select id from pcp_event_ids)
   ),
@@ -191,7 +259,7 @@ select throws_ok(
   format(
     $$select public.update_event_as_coordinator(
       %L::uuid,
-      '{"title":"Organiser Edit","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"150","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Auditorium","facilities":[]},"equipment":[],"registration":{"required":true,"capacity":"100","waitlistEnabled":false}}'::jsonb
+      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Organiser Edit","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
     )$$,
     (select id from pcp_event_ids)
   ),

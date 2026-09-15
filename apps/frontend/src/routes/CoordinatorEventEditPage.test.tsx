@@ -71,6 +71,24 @@ describe("CoordinatorEventEditPage", () => {
     expect(loadEventForCoordinatorEditMock).toHaveBeenCalledWith("event-1");
   });
 
+  it("locks overview, schedule and registration, leaving venue and equipment open", async () => {
+    renderPage();
+
+    await screen.findByDisplayValue("Student Leadership Summit 2");
+
+    expect(screen.getByLabelText(/Event name/)).toBeDisabled();
+    expect(screen.getByLabelText("Purpose")).toBeDisabled();
+    expect(screen.getByLabelText("Expected attendance")).toBeDisabled();
+    expect(screen.getByLabelText("Starts")).toBeDisabled();
+    expect(screen.getByLabelText("Ends")).toBeDisabled();
+    expect(
+      screen.getByLabelText(/Attendee registration is required/),
+    ).toBeDisabled();
+
+    expect(screen.getByLabelText("Preferred location")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Add equipment" })).toBeEnabled();
+  });
+
   it("shows an error state when the event is unavailable", async () => {
     loadEventForCoordinatorEditMock.mockRejectedValue(
       new Error("This event is unavailable, not in Planning, or you do not have access to it."),

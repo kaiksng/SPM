@@ -14,6 +14,12 @@ Almost nothing new on the audit side. AC01–AC03 are already fully satisfied by
 
 What was actually missing was a **write path**: nothing in the codebase let a coordinator update an event's fields at all — `save_event_draft` is organiser-only and restricted to `draft`/`requested` status, and the RLS policies backing it never granted a coordinator write access to the requirement tables. This story adds exactly that write path — `public.update_event_as_coordinator` (`supabase/migrations/202609150006_coordinator_update_planning_event.sql`) — which the existing triggers then log automatically, the same way they already log an organiser's edits.
 
+## Field lock (202609150008)
+
+Overview (event name, purpose, description, event type, expected attendance), schedule (start/end time), and every registration field are **locked once the event is Planning** — for both roles. The organiser needed no change (already fully locked out of a Planning event by `save_event_draft`'s own status gate). For the coordinator, `update_event_as_coordinator` now compares each of those fields against what is currently stored and rejects the call if any of them would actually change, the same compare-and-reject pattern `save_event_draft` already uses for a clarification's `permitted_fields` (`202609140003`). Only **venue requirements** and **equipment** remain editable by the coordinator at this stage.
+
+On the frontend, `CoordinatorEventEditPage` locks the same sections by passing a fixed `permittedFields={["venue", "equipment"]}` into `EventRequestForm` — reusing the exact mechanism already built for the clarification-lock UI, not a second one.
+
 ## Authorisation and scope
 
 - Restricted to the event's **assigned coordinator**, or an administrator — the same rule already established for `decide_event_request` and `request_event_clarification`.
