@@ -25,7 +25,7 @@ export function NotFoundPage() {
           to={user ? "/home" : "/"}
           className={buttonVariants({ variant: "default", className: "mt-6" })}
         >
-          Go to home
+          {user ? "Go to dashboard" : "Go to home"}
         </Link>
       </div>
     </div>

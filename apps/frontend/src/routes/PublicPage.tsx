@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router";
 
+import { useAuth } from "@/context/auth-context";
 import { usePageTitle } from "@/hooks/use-page-title";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001";
@@ -33,6 +34,7 @@ const foundations = [
 
 export function PublicPage() {
   usePageTitle("ConnectSphere");
+  const { user } = useAuth();
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#f7f8fb] text-slate-950">
@@ -55,10 +57,10 @@ export function PublicPage() {
               Foundation ready
             </span>
             <Link
-              to="/login"
+              to={user ? "/home" : "/login"}
               className="rounded-full bg-slate-950 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             >
-              Sign in
+              {user ? "Go to dashboard" : "Sign in"}
             </Link>
           </div>
         </header>
