@@ -9,7 +9,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
-import { RequirementHistoryPanel } from "@/features/event-requests/components/requirement-history-panel";
+import { EventHistoryButton } from "@/features/event-requests/components/event-history-dialog";
 import { EventStatusBadge } from "@/features/event-requests/components/status-badges";
 import type { ClarificationSummary } from "@/features/event-requests/services/clarifications";
 import {
@@ -273,11 +273,9 @@ export function EventDetailPage() {
                 )}
               </section>
 
-              <RequirementHistoryPanel
-                eventId={event.id}
-                eventStatus={event.status}
-                role={role}
-              />
+              <div className="mt-6">
+                <EventHistoryButton eventId={event.id} />
+              </div>
 
               <ClarificationPanel
                 eventId={event.id}

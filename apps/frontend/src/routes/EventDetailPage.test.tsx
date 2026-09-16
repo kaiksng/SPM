@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const loadEventDetailMock = vi.fn();
 const listClarificationsMock = vi.fn();
+const listEventDecisionsMock = vi.fn();
+const loadEventFieldHistoryMock = vi.fn();
 const authState = {
   profile: { full_name: "Joyce Coordinator", role: "event_coordinator" },
   user: { id: "20000000-0000-0000-0000-000000000002" },
@@ -27,6 +29,11 @@ vi.mock("@/features/event-requests/services/clarifications", () => ({
 
 vi.mock("@/features/event-requests/services/decisions", () => ({
   decideEvent: vi.fn(),
+  listEventDecisions: (...args: unknown[]) => listEventDecisionsMock(...args),
+}));
+
+vi.mock("@/features/event-requests/services/field-history", () => ({
+  loadEventFieldHistory: (...args: unknown[]) => loadEventFieldHistoryMock(...args),
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -78,6 +85,8 @@ describe("EventDetailPage", () => {
   beforeEach(() => {
     loadEventDetailMock.mockReset().mockResolvedValue(event);
     listClarificationsMock.mockReset().mockResolvedValue([]);
+    listEventDecisionsMock.mockReset().mockResolvedValue([]);
+    loadEventFieldHistoryMock.mockReset().mockResolvedValue([]);
   });
 
   it("shows the full event detail a card cannot fit", async () => {

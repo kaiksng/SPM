@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const listClarificationsMock = vi.fn();
 const requestClarificationMock = vi.fn();
 const decideEventMock = vi.fn();
-const loadEventFieldHistoryMock = vi.fn();
 
 vi.mock("@/features/event-requests/services/clarifications", () => ({
   listClarifications: (...args: unknown[]) => listClarificationsMock(...args),
@@ -15,10 +14,6 @@ vi.mock("@/features/event-requests/services/clarifications", () => ({
 
 vi.mock("@/features/event-requests/services/decisions", () => ({
   decideEvent: (...args: unknown[]) => decideEventMock(...args),
-}));
-
-vi.mock("@/features/event-requests/services/field-history", () => ({
-  loadEventFieldHistory: (...args: unknown[]) => loadEventFieldHistoryMock(...args),
 }));
 
 import { ClarificationPanel } from "./clarification-panel";
@@ -53,7 +48,6 @@ beforeEach(() => {
   listClarificationsMock.mockReset().mockResolvedValue([]);
   requestClarificationMock.mockReset();
   decideEventMock.mockReset();
-  loadEventFieldHistoryMock.mockReset().mockResolvedValue([]);
 });
 
 describe("ClarificationPanel", () => {
@@ -244,85 +238,4 @@ describe("ClarificationPanel", () => {
     expect(screen.queryByRole("link", { name: "Respond" })).not.toBeInTheDocument();
   });
 
-  it("names the exact field(s) edited during a round, with before/after values", async () => {
-    listClarificationsMock.mockResolvedValue([answeredClarification]);
-    loadEventFieldHistoryMock.mockResolvedValue([
-      {
-        id: 1,
-        fieldName: "expectedAttendance",
-        previousValue: "50",
-        newValue: "80",
-        changedByName: "Jasmine",
-        changedAt: "2026-09-14T08:30:00.000Z",
-      },
-    ]);
-
-    renderPanel({ eventId: "event-1", eventStatus: "requested", role: "coordinator" });
-
-    expect(await screen.findByText("Clarification history (1)")).toBeInTheDocument();
-    const editBlock = screen.getByText("Organiser has edited these field(s):").closest("div");
-    expect(editBlock?.textContent).toContain("Expected attendance:");
-    expect(editBlock?.textContent).toContain("50");
-    expect(editBlock?.textContent).toContain("80");
-  });
-
-  it("does not attribute a field change to the wrong round", async () => {
-    listClarificationsMock.mockResolvedValue([
-      { ...answeredClarification, id: "round-1", requestedAt: "2026-09-14T08:00:00.000Z" },
-      {
-        ...answeredClarification,
-        id: "round-2",
-        question: "What about the venue?",
-        requestedAt: "2026-09-14T10:00:00.000Z",
-        respondedAt: "2026-09-14T11:00:00.000Z",
-      },
-    ]);
-    loadEventFieldHistoryMock.mockResolvedValue([
-      {
-        id: 1,
-        fieldName: "expectedAttendance",
-        previousValue: "50",
-        newValue: "80",
-        changedByName: "Jasmine",
-        changedAt: "2026-09-14T08:30:00.000Z",
-      },
-      {
-        id: 2,
-        fieldName: "venue.preferredLocation",
-        previousValue: "Main Hall",
-        newValue: "Auditorium",
-        changedByName: "Jasmine",
-        changedAt: "2026-09-14T10:30:00.000Z",
-      },
-    ]);
-
-    renderPanel({ eventId: "event-1", eventStatus: "requested", role: "coordinator" });
-
-    expect(await screen.findByText("Clarification history (2)")).toBeInTheDocument();
-    const editBlocks = screen
-      .getAllByText("Organiser has edited these field(s):")
-      .map((node) => node.closest("div"));
-    expect(editBlocks).toHaveLength(2);
-    expect(editBlocks[0]?.textContent).toContain("Expected attendance:");
-    expect(editBlocks[0]?.textContent).not.toContain("Preferred location:");
-    expect(editBlocks[1]?.textContent).toContain("Preferred location:");
-    expect(editBlocks[1]?.textContent).not.toContain("Expected attendance:");
-  });
-
-  it("lists resolved rounds in the history disclosure", async () => {
-    listClarificationsMock.mockResolvedValue([
-      {
-        ...answeredClarification,
-        status: "resolved" as const,
-        resolvedAt: "2026-09-14T10:00:00.000Z",
-      },
-    ]);
-
-    renderPanel({ eventId: "event-1", eventStatus: "requested", role: "coordinator" });
-
-    expect(await screen.findByText("Clarification history (1)")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Request clarification" }),
-    ).toBeInTheDocument();
-  });
 });

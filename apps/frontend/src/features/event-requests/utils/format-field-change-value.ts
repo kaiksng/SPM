@@ -7,11 +7,10 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
 
 /**
  * Renders one event_field_changes value for display, applying the same
- * field-type rules (date vs. boolean vs. plain text) wherever a field
- * change is shown — RequirementHistoryPanel's Planning-only view and
- * ClarificationPanel's per-round edit summary both use this, so a field's
- * before/after values always read the same way regardless of where they
- * appear.
+ * field-type rules (date vs. boolean vs. plain text) wherever a field change
+ * is shown — EventHistoryButton's Pre-Approved and Planning sections both use
+ * this, so a field's before/after values always read the same way regardless
+ * of which stage they appear under.
  */
 export function formatEventFieldChangeValue(fieldName: string, value: string | null) {
   if (value === null) return "Not set";

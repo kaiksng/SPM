@@ -8,6 +8,8 @@ const deleteEventDraftMock = vi.fn();
 const listAssignedEventsMock = vi.fn();
 const listClarificationsMock = vi.fn();
 const getClarificationReviewStateMock = vi.fn();
+const listEventDecisionsMock = vi.fn();
+const loadEventFieldHistoryMock = vi.fn();
 const authState = {
   profile: { full_name: "Kai Test", role: "event_organiser" },
   user: { id: "10000000-0000-0000-0000-000000000001" },
@@ -37,6 +39,11 @@ vi.mock("@/features/event-requests/services/clarifications", () => ({
 
 vi.mock("@/features/event-requests/services/decisions", () => ({
   decideEvent: vi.fn(),
+  listEventDecisions: (...args: unknown[]) => listEventDecisionsMock(...args),
+}));
+
+vi.mock("@/features/event-requests/services/field-history", () => ({
+  loadEventFieldHistory: (...args: unknown[]) => loadEventFieldHistoryMock(...args),
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -75,6 +82,8 @@ describe("EventsPage draft controls", () => {
     listEventRequestsMock.mockReset().mockResolvedValue([draft]);
     deleteEventDraftMock.mockReset().mockResolvedValue(undefined);
     listClarificationsMock.mockReset().mockResolvedValue([]);
+    listEventDecisionsMock.mockReset().mockResolvedValue([]);
+    loadEventFieldHistoryMock.mockReset().mockResolvedValue([]);
   });
 
   it("lists an owned Draft with its status and edit action", async () => {

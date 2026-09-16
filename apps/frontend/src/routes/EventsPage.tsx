@@ -9,6 +9,7 @@ import { Link, useLocation } from "react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
+import { EventHistoryButton } from "@/features/event-requests/components/event-history-dialog";
 import { EventStatusBadge } from "@/features/event-requests/components/status-badges";
 import {
   listAssignedEvents,
@@ -364,6 +365,7 @@ function EventCard({
           </>
         )}
       </div>
+      <EventHistoryButton eventId={event.id} />
       <ClarificationPanel
         eventId={event.id}
         eventStatus={event.status}
