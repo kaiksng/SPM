@@ -9,6 +9,7 @@ import { EventRequestEditorPage } from "@/routes/EventRequestEditorPage";
 import { EventsPage } from "@/routes/EventsPage";
 import { HomePage } from "@/routes/HomePage";
 import { LoginPage } from "@/routes/LoginPage";
+import { NotFoundPage } from "@/routes/NotFoundPage";
 import { PublicPage } from "@/routes/PublicPage";
 import { SignupPage } from "@/routes/SignupPage";
 import { VenuesPage } from "@/routes/VenuesPage";
@@ -44,6 +45,8 @@ export function App() {
               <Route path="browse-events" element={<BrowseEventsPage />} />
             </Route>
           </Route>
+
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
