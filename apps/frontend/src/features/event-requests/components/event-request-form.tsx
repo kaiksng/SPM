@@ -39,6 +39,14 @@ export function EventRequestForm({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [message, setMessage] = useState<string>();
   const [saving, setSaving] = useState(false);
+  // Required facilities is typed as free text and only turned into a list on
+  // save — keeping the input's displayed value as whatever was actually
+  // typed, rather than re-deriving it from values.venue.facilities.join(", ")
+  // on every keystroke, which used to insert a space after each comma the
+  // user hadn't typed themselves.
+  const [facilitiesText, setFacilitiesText] = useState(() =>
+    initialValues.venue.facilities.join(", "),
+  );
 
   const isLocked = (field: string) => {
     if (permittedFields === undefined) return false;
@@ -252,16 +260,23 @@ export function EventRequestForm({
         </Field>
         <Field label="Required facilities" error={errors["venue.facilities"]}>
           <Input
-            value={values.venue.facilities.join(", ")}
-            onChange={(event) =>
+            value={facilitiesText}
+            onChange={(event) => {
+              // The box shows exactly what was typed — no re-deriving it from
+              // values.venue.facilities.join(", "), which used to insert a
+              // space after every comma the user hadn't typed themselves.
+              // Trimming/dropping empty entries happens only in the
+              // background list used for saving and validation.
+              const text = event.target.value;
+              setFacilitiesText(text);
               setVenue(
                 "facilities",
-                event.target.value
+                text
                   .split(",")
-                  .map((facility) => facility.trimStart())
+                  .map((facility) => facility.trim())
                   .filter(Boolean),
-              )
-            }
+              );
+            }}
             placeholder="Projector, stage, pantry"
             aria-invalid={Boolean(errors["venue.facilities"])}
             disabled={venueLocked}

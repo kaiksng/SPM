@@ -121,6 +121,51 @@ describe("EventRequestForm draft mode", () => {
     expect(title).toHaveValue("Kai Test Preserved");
   });
 
+  it("lets a comma actually be typed into the required facilities field", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Facilities draft" })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const facilities = screen.getByLabelText(/^Required facilities/);
+    await user.type(facilities, "Projector,Stage");
+
+    // Regression: re-deriving the displayed value from
+    // values.venue.facilities.join(", ") on every keystroke used to erase a
+    // trailing comma outright (splitting "Projector," produces
+    // ["Projector", ""], and dropping that empty entry snapped the field back
+    // to "Projector") and, even once that was fixed, silently inserted a
+    // space after every comma the user hadn't typed. The field now shows
+    // exactly what was typed — no re-formatting at all while typing.
+    expect(facilities).toHaveValue("Projector,Stage");
+  });
+
+  it("submits a completed comma-separated facilities list", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Facilities draft" })}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.type(screen.getByLabelText(/^Required facilities/), "Projector, Stage");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        venue: expect.objectContaining({ facilities: ["Projector", "Stage"] }),
+      }),
+    );
+  });
+
   it("adds and removes equipment rows without affecting the draft", async () => {
     const user = userEvent.setup();
     render(
