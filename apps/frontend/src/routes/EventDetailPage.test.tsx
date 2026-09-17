@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,6 +7,8 @@ const loadEventDetailMock = vi.fn();
 const listClarificationsMock = vi.fn();
 const listEventDecisionsMock = vi.fn();
 const loadEventFieldHistoryMock = vi.fn();
+const listEventStatusHistoryMock = vi.fn();
+const completeEventMock = vi.fn();
 const authState = {
   profile: { full_name: "Joyce Coordinator", role: "event_coordinator" },
   user: { id: "20000000-0000-0000-0000-000000000002" },
@@ -34,6 +37,11 @@ vi.mock("@/features/event-requests/services/decisions", () => ({
 
 vi.mock("@/features/event-requests/services/field-history", () => ({
   loadEventFieldHistory: (...args: unknown[]) => loadEventFieldHistoryMock(...args),
+}));
+
+vi.mock("@/features/event-requests/services/event-lifecycle", () => ({
+  listEventStatusHistory: (...args: unknown[]) => listEventStatusHistoryMock(...args),
+  completeEvent: (...args: unknown[]) => completeEventMock(...args),
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -87,6 +95,8 @@ describe("EventDetailPage", () => {
     listClarificationsMock.mockReset().mockResolvedValue([]);
     listEventDecisionsMock.mockReset().mockResolvedValue([]);
     loadEventFieldHistoryMock.mockReset().mockResolvedValue([]);
+    listEventStatusHistoryMock.mockReset().mockResolvedValue([]);
+    completeEventMock.mockReset().mockResolvedValue({ eventId: "event-1", status: "completed" });
   });
 
   it("shows the full event detail a card cannot fit", async () => {
@@ -132,6 +142,65 @@ describe("EventDetailPage", () => {
     expect(await screen.findByRole("link", { name: "Edit event" })).toHaveAttribute(
       "href",
       "/events/event-1/coordinator-edit",
+    );
+  });
+
+  it("shows a status timeline for the event's recorded history", async () => {
+    listEventStatusHistoryMock.mockResolvedValue([
+      { id: 1, fromStatus: null, toStatus: "draft", changedByName: null, changedAt: "2026-09-10T08:00:00.000Z" },
+      { id: 2, fromStatus: "draft", toStatus: "requested", changedByName: null, changedAt: "2026-09-11T08:00:00.000Z" },
+      { id: 3, fromStatus: "requested", toStatus: "planning", changedByName: null, changedAt: "2026-09-12T08:00:00.000Z" },
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText("draft")).toBeInTheDocument();
+    // "Pending" also appears as the top-of-page status badge (the mock
+    // event's own status is "requested"), so there are two matches — this
+    // only asserts the timeline's own also renders.
+    expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
+    expect(screen.getByText("planning")).toBeInTheDocument();
+  });
+
+  it("offers Mark as completed to the coordinator only for a Confirmed event", async () => {
+    renderPage();
+    await screen.findByText("Student Leadership Summit 2");
+    expect(
+      screen.queryByRole("button", { name: "Mark as completed" }),
+    ).not.toBeInTheDocument();
+
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+    renderPage();
+
+    expect(
+      await screen.findByRole("button", { name: "Mark as completed" }),
+    ).toBeInTheDocument();
+  });
+
+  it("marks the event completed and updates the badge", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Mark as completed" }));
+
+    expect(completeEventMock).toHaveBeenCalledWith("event-1");
+    expect(await screen.findByText("completed")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Mark as completed" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows an error if marking an event completed fails", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+    completeEventMock.mockRejectedValue(new Error("This event could not be marked completed."));
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Mark as completed" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This event could not be marked completed.",
     );
   });
 

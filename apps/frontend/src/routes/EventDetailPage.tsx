@@ -6,16 +6,18 @@ import { ArrowLeft, CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
-import { EventHistoryButton } from "@/features/event-requests/components/event-history-dialog";
+import { EventHistoryButton } from "@/features/event-requests/components/event-history-link";
 import { EventStatusBadge } from "@/features/event-requests/components/status-badges";
+import { EventStatusTimeline } from "@/features/event-requests/components/status-timeline";
 import type { ClarificationSummary } from "@/features/event-requests/services/clarifications";
 import {
   loadEventDetail,
   type EventDetail,
 } from "@/features/event-requests/services/event-details";
+import { completeEvent } from "@/features/event-requests/services/event-lifecycle";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
@@ -43,6 +45,8 @@ export function EventDetailPage() {
   const [reviewState, setReviewState] = useState<"open" | "answered">();
   const [unresolvedClarification, setUnresolvedClarification] =
     useState<ClarificationSummary>();
+  const [completing, setCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState<string>();
 
   usePageTitle(event?.title ?? "Event details");
 
@@ -73,6 +77,24 @@ export function EventDetailPage() {
   }, [eventId]);
 
   const role = profile?.role === "event_organiser" ? "organiser" : "coordinator";
+
+  async function handleComplete() {
+    if (!event) return;
+    setCompleting(true);
+    setCompleteError(undefined);
+    try {
+      await completeEvent(event.id);
+      setEvent({ ...event, status: "completed" });
+    } catch (completeErr) {
+      setCompleteError(
+        completeErr instanceof Error
+          ? completeErr.message
+          : "This event could not be marked completed.",
+      );
+    } finally {
+      setCompleting(false);
+    }
+  }
 
   return (
     <RoleGate>
@@ -119,7 +141,17 @@ export function EventDetailPage() {
                     Edit event
                   </Link>
                 )}
+                {role === "coordinator" && event.status === "confirmed" && (
+                  <Button size="sm" disabled={completing} onClick={handleComplete}>
+                    {completing ? "Marking completed…" : "Mark as completed"}
+                  </Button>
+                )}
               </div>
+              {completeError && (
+                <p role="alert" className="mt-2 text-sm text-red-700">
+                  {completeError}
+                </p>
+              )}
               <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
                 {event.organiserName && <span>Organiser: {event.organiserName}</span>}
                 {event.assignedCoordinatorName && (
@@ -129,6 +161,7 @@ export function EventDetailPage() {
                   <span>Submitted {formatDateTime(event.submittedAt)}</span>
                 )}
               </div>
+              <EventStatusTimeline eventId={event.id} />
               {event.status === "confirmed" && (
                 <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
                   This event is confirmed. Direct edits are locked to keep finalised arrangements

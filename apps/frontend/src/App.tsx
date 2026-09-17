@@ -7,6 +7,7 @@ import { BrowseEventsPage } from "@/routes/BrowseEventsPage";
 import { CoordinatorEventEditPage } from "@/routes/CoordinatorEventEditPage";
 import { EquipmentPage } from "@/routes/EquipmentPage";
 import { EventDetailPage } from "@/routes/EventDetailPage";
+import { EventHistoryPage } from "@/routes/EventHistoryPage";
 import { EventRequestEditorPage } from "@/routes/EventRequestEditorPage";
 import { EventsPage } from "@/routes/EventsPage";
 import { HomePage } from "@/routes/HomePage";
@@ -35,6 +36,7 @@ export function App() {
               <Route path="events" element={<EventsPage />} />
               <Route path="events/new" element={<EventRequestEditorPage />} />
               <Route path="events/:eventId" element={<EventDetailPage />} />
+              <Route path="events/:eventId/history" element={<EventHistoryPage />} />
               <Route
                 path="events/:eventId/edit"
                 element={<EventRequestEditorPage />}

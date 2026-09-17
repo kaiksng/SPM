@@ -8,6 +8,7 @@ export const eventStatuses = [
   "approved",
   "rejected",
   "confirmed",
+  "completed",
   "cancelled",
 ] as const;
 
@@ -18,38 +19,29 @@ export type EventStatus = (typeof eventStatuses)[number];
  * authoritative rule. Keep the two in step: a transition permitted here but
  * refused there surfaces as a failed write rather than a blocked button.
  *
- * PB-03 adds draft -> requested. "Approve or Reject an Event Request" (AC02)
- * adds requested -> planning, replacing requested -> approved: approving now
- * produces "Planning", not "approved". The "approved" arm is left in place
- * rather than removed — same policy PB-03 used for "submitted"/"under_review"
- * — since nothing currently reaches it, but retiring it outright is a
- * separate decision than this story makes. PB-08 still owns retiring
- * "submitted"/"under_review" in favour of "completed".
+ * "As an authorised user, I want to see an event's current lifecycle status"
+ * retires "submitted" and "under_review" as reachable targets — flagged as
+ * this story's job by PB-03 and "Approve or Reject an Event Request" back
+ * when they first noticed nothing ever produces either value. "approved" is
+ * left exactly as those stories left it (unreachable, but not this story's
+ * to retire either) — the same "add, don't remove an already-listed arm
+ * outside what a story actually asks" policy applies here. "completed" is
+ * new: an event's terminal, successful end state, reached only from
+ * "confirmed" via public.complete_event.
  */
 export const allowedEventStatusTransitions: Readonly<
   Record<EventStatus, readonly EventStatus[]>
 > = {
-  draft: ["requested", "submitted", "cancelled"],
-  requested: [
-    "clarification_requested",
-    "under_review",
-    "planning",
-    "rejected",
-    "cancelled",
-  ],
-  submitted: ["clarification_requested", "under_review", "cancelled"],
-  clarification_requested: ["requested", "submitted", "cancelled"],
-  under_review: [
-    "clarification_requested",
-    "planning",
-    "approved",
-    "rejected",
-    "cancelled",
-  ],
+  draft: ["requested", "cancelled"],
+  requested: ["clarification_requested", "planning", "rejected", "cancelled"],
+  submitted: [],
+  clarification_requested: ["requested", "cancelled"],
+  under_review: [],
   planning: ["confirmed", "cancelled"],
   approved: ["confirmed", "cancelled"],
   rejected: [],
-  confirmed: ["cancelled"],
+  confirmed: ["completed", "cancelled"],
+  completed: [],
   cancelled: [],
 };
 

@@ -16,8 +16,9 @@ describe("event status transitions", () => {
     );
   });
 
-  it("allows a draft event to be submitted", () => {
-    expect(canTransitionEventStatus("draft", "submitted")).toBe(true);
+  // "submitted" is retired as a reachable target — nothing ever produces it.
+  it("does not allow a draft event to become submitted", () => {
+    expect(canTransitionEventStatus("draft", "submitted")).toBe(false);
   });
 
   it("does not allow a rejected event to be confirmed", () => {
@@ -32,7 +33,9 @@ describe("event status transitions", () => {
   // PB-03 AC05: a requested event is available for review, not for confirmation.
   it.each([
     ["clarification_requested", true],
-    ["under_review", true],
+    // "under_review" is retired as a reachable target — nothing ever
+    // produces it.
+    ["under_review", false],
     ["planning", true],
     ["rejected", true],
     ["cancelled", true],
@@ -43,6 +46,15 @@ describe("event status transitions", () => {
     ["approved", false],
   ] as const)("moves requested to %s: %s", (to, expected) => {
     expect(canTransitionEventStatus("requested", to)).toBe(expected);
+  });
+
+  it("allows a confirmed event to be marked completed", () => {
+    expect(canTransitionEventStatus("confirmed", "completed")).toBe(true);
+  });
+
+  it("does not allow completed to transition anywhere else", () => {
+    expect(canTransitionEventStatus("completed", "cancelled")).toBe(false);
+    expect(canTransitionEventStatus("completed", "confirmed")).toBe(false);
   });
 
   it("treats every status except draft as submitted", () => {

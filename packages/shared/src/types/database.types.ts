@@ -575,6 +575,7 @@ export type Database = {
         Returns: string
       }
       can_view_event: { Args: { target_event_id: string }; Returns: boolean }
+      complete_event: { Args: { p_event_id: string }; Returns: Json }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
@@ -647,6 +648,7 @@ export type Database = {
         | "approved"
         | "rejected"
         | "confirmed"
+        | "completed"
         | "cancelled"
       notification_type:
         | "assignment"
@@ -802,6 +804,7 @@ export const Constants = {
         "approved",
         "rejected",
         "confirmed",
+        "completed",
         "cancelled",
       ],
       notification_type: [
