@@ -1,6 +1,6 @@
 begin;
 
-select plan(16);
+select plan(15);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -15,14 +15,14 @@ values
     '{"full_name":"History Coordinator A","role":"event_coordinator"}'::jsonb
   );
 
-create temporary table pb07_event_ids (id uuid);
-
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
   '{"sub":"60000000-0000-0000-0000-000000000001","role":"authenticated"}',
   true
 );
+
+create temporary table pb07_event_ids (id uuid);
 
 -- A complete request, submitted while only one coordinator exists, so
 -- assignment is deterministic without depending on PB-04's tie-break rule.
@@ -57,12 +57,14 @@ select is(
 -- A second coordinator, added after assignment, is never accountable for
 -- this event and so is not "authorised" for it (mirrors AC08 in
 -- event_clarifications.test.sql).
+reset role;
 insert into auth.users (id, email, raw_user_meta_data)
 values (
   '60000000-0000-0000-0000-000000000003',
   'history-coordinator-b@example.test',
   '{"full_name":"History Coordinator B","role":"event_coordinator"}'::jsonb
 );
+set local role authenticated;
 
 -- AC02: the organiser edits several fields across events, venue and
 -- registration in one save — this should log one row per changed field,
@@ -122,7 +124,7 @@ select is(
     from public.event_field_changes
     where event_id = (select id from pb07_event_ids) and field_name = 'title'
   ),
-  row('Original Title', 'Updated Title', '60000000-0000-0000-0000-000000000001'::uuid),
+  row('Original Title'::text, 'Updated Title'::text, '60000000-0000-0000-0000-000000000001'::uuid),
   'AC02: the title change records its previous value, new value, and actor'
 );
 select is(
@@ -131,7 +133,7 @@ select is(
     from public.event_field_changes
     where event_id = (select id from pb07_event_ids) and field_name = 'registration.required'
   ),
-  row('false', 'true'),
+  row('false'::text, 'true'::text),
   'a boolean field change is recorded as text'
 );
 
@@ -199,12 +201,14 @@ select is(
 -- 202609150005 is scoped to the event's own organiser, not organisers in
 -- general — a different organiser with no relationship to this event sees
 -- nothing.
+reset role;
 insert into auth.users (id, email, raw_user_meta_data)
 values (
   '60000000-0000-0000-0000-000000000004',
   'history-other-organiser@example.test',
   '{"full_name":"Other Organiser","role":"event_organiser"}'::jsonb
 );
+set local role authenticated;
 select set_config(
   'request.jwt.claims',
   '{"sub":"60000000-0000-0000-0000-000000000004","role":"authenticated"}',

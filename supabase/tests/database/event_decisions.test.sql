@@ -15,9 +15,6 @@ values
     '{"full_name":"Decide Coordinator A","role":"event_coordinator"}'::jsonb
   );
 
-create temporary table pb06_event_ids (label text primary key, id uuid);
-create temporary table pb06_clarification_ids (label text primary key, id uuid);
-
 -- Switches request.jwt.claims to whichever coordinator assign_event_coordinator
 -- actually picked for a given event, so later tests don't have to hand-track
 -- least-loaded tie-breaks across an increasingly long scenario.
@@ -47,6 +44,9 @@ select set_config(
   true
 );
 
+create temporary table pb06_event_ids (label text primary key, id uuid);
+create temporary table pb06_clarification_ids (label text primary key, id uuid);
+
 select lives_ok(
   $$insert into pb06_event_ids
     select 'event-1', public.save_event_draft(
@@ -72,12 +72,14 @@ select lives_ok(
 
 -- A second coordinator, never assigned to event-1 (it existed alone at
 -- event-1's submission, so assignment was deterministic).
+reset role;
 insert into auth.users (id, email, raw_user_meta_data)
 values (
   '60000000-0000-0000-0000-000000000003',
   'decide-coordinator-b@example.test',
   '{"full_name":"Decide Coordinator B","role":"event_coordinator"}'::jsonb
 );
+set local role authenticated;
 
 -- Only the assigned coordinator may decide.
 select set_config(
@@ -185,6 +187,13 @@ select is(
   'Confirmed and ready to proceed.',
   'AC05: the rationale is recorded'
 );
+-- Notifications are only visible to their own recipient (RLS), so briefly
+-- switch to the organiser to check it, then back to the deciding coordinator.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"60000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
 select is(
   (
     select count(*)::integer from public.notifications
@@ -194,6 +203,11 @@ select is(
   ),
   1,
   'AC06: the organiser is notified of the decision'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"60000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
 );
 
 -- A decided event cannot be decided again.

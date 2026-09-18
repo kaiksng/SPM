@@ -282,7 +282,7 @@ function EventCard({
           />
         </div>
         <span className="shrink-0 text-xs text-slate-400">
-          Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium" }).format(new Date(event.updatedAt))}
+          Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeZone: "Asia/Singapore" }).format(new Date(event.updatedAt))}
         </span>
       </div>
       <h2 className="mt-5 text-lg font-semibold tracking-tight text-slate-950">
@@ -297,6 +297,7 @@ function EventCard({
           ? new Intl.DateTimeFormat("en-SG", {
               dateStyle: "medium",
               timeStyle: "short",
+              timeZone: "Asia/Singapore",
             }).format(new Date(event.startsAt))
           : "Schedule not added"}
       </div>
@@ -307,6 +308,7 @@ function EventCard({
           {new Intl.DateTimeFormat("en-SG", {
             dateStyle: "medium",
             timeStyle: "short",
+            timeZone: "Asia/Singapore",
           }).format(new Date(event.submittedAt))}
         </p>
       )}
@@ -407,7 +409,7 @@ function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
           />
         </div>
         <span className="shrink-0 text-xs text-slate-400">
-          Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium" }).format(new Date(event.updatedAt))}
+          Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeZone: "Asia/Singapore" }).format(new Date(event.updatedAt))}
         </span>
       </div>
       <h2 className="mt-5 text-lg font-semibold tracking-tight text-slate-950 group-hover:text-blue-700">
@@ -422,6 +424,7 @@ function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
           ? new Intl.DateTimeFormat("en-SG", {
               dateStyle: "medium",
               timeStyle: "short",
+              timeZone: "Asia/Singapore",
             }).format(new Date(event.startsAt))
           : "Schedule not added"}
       </div>
@@ -431,6 +434,7 @@ function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
           {new Intl.DateTimeFormat("en-SG", {
             dateStyle: "medium",
             timeStyle: "short",
+            timeZone: "Asia/Singapore",
           }).format(new Date(event.submittedAt))}
         </p>
       )}

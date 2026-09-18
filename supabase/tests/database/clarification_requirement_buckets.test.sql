@@ -15,14 +15,14 @@ values
     '{"full_name":"Buckets Coordinator","role":"event_coordinator"}'::jsonb
   );
 
-create temporary table pbb_event_ids (id uuid);
-
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
   '{"sub":"70000000-0000-0000-0000-000000000001","role":"authenticated"}',
   true
 );
+
+create temporary table pbb_event_ids (id uuid);
 
 select lives_ok(
   $$insert into pbb_event_ids

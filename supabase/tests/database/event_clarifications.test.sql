@@ -15,15 +15,15 @@ values
     '{"full_name":"Clarify Coordinator A","role":"event_coordinator"}'::jsonb
   );
 
-create temporary table pb05_event_ids (id uuid);
-create temporary table pb05_clarification_ids (label text primary key, id uuid);
-
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
   '{"sub":"50000000-0000-0000-0000-000000000001","role":"authenticated"}',
   true
 );
+
+create temporary table pb05_event_ids (id uuid);
+create temporary table pb05_clarification_ids (label text primary key, id uuid);
 
 -- A complete request, submitted while only one coordinator exists, so
 -- assignment is deterministic without depending on PB-04's tie-break rule.
@@ -57,12 +57,14 @@ select is(
 
 -- A second coordinator, added after assignment, is never accountable for
 -- this event and so is not "authorised" for it (AC08).
+reset role;
 insert into auth.users (id, email, raw_user_meta_data)
 values (
   '50000000-0000-0000-0000-000000000003',
   'clarify-coordinator-b@example.test',
   '{"full_name":"Clarify Coordinator B","role":"event_coordinator"}'::jsonb
 );
+set local role authenticated;
 
 select set_config(
   'request.jwt.claims',
@@ -109,6 +111,13 @@ select is(
   array['purpose'],
   'the permitted fields are recorded'
 );
+-- Notifications are only visible to their own recipient (RLS), so briefly
+-- switch to the organiser to check it, then back to the assigned coordinator.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"50000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
 select is(
   (
     select count(*)::integer from public.notifications
@@ -118,6 +127,11 @@ select is(
   ),
   1,
   'AC04-adjacent: the organiser is notified of the request'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"50000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
 );
 
 -- Only one clarification may be open per event at a time.
@@ -230,6 +244,13 @@ select isnt(
   null,
   'AC04: the response timestamp is recorded'
 );
+-- Notifications are only visible to their own recipient (RLS), so briefly
+-- switch to the coordinator to check it, then back to the organiser.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"50000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
 select is(
   (
     select count(*)::integer from public.notifications
@@ -239,6 +260,11 @@ select is(
   ),
   1,
   'AC04: the requesting coordinator is notified of the response'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"50000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
 );
 
 -- A clarification that is no longer open cannot be answered again.

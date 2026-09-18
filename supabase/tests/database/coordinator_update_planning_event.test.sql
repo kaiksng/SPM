@@ -15,14 +15,14 @@ values
     '{"full_name":"Planning Coordinator A","role":"event_coordinator"}'::jsonb
   );
 
-create temporary table pcp_event_ids (id uuid);
-
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
   '{"sub":"80000000-0000-0000-0000-000000000001","role":"authenticated"}',
   true
 );
+
+create temporary table pcp_event_ids (id uuid);
 
 -- Every call below resubmits title/purpose/description/eventType/
 -- expectedAttendance/startsAt/endsAt/registration unchanged from this
@@ -53,12 +53,14 @@ select lives_ok(
 
 -- A second coordinator, added after assignment, so they are never
 -- accountable for this event and are not "the assigned coordinator" for it.
+reset role;
 insert into auth.users (id, email, raw_user_meta_data)
 values (
   '80000000-0000-0000-0000-000000000003',
   'planning-coordinator-b@example.test',
   '{"full_name":"Planning Coordinator B","role":"event_coordinator"}'::jsonb
 );
+set local role authenticated;
 
 select set_config(
   'request.jwt.claims',
@@ -135,7 +137,7 @@ select throws_ok(
   format(
     $$select public.update_event_as_coordinator(
       %L::uuid,
-      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-02T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
+      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T11:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
     )$$,
     (select id from pcp_event_ids)
   ),
@@ -174,7 +176,7 @@ select is(
     from public.event_field_changes
     where event_id = (select id from pcp_event_ids)
   ),
-  row('venue.preferredLocation', 'Main Hall', 'Auditorium', '80000000-0000-0000-0000-000000000002'::uuid),
+  row('venue.preferredLocation'::text, 'Main Hall'::text, 'Auditorium'::text, '80000000-0000-0000-0000-000000000002'::uuid),
   'AC01: the change records the previous value, new value and actor'
 );
 

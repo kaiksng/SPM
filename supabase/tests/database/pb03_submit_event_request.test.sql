@@ -61,29 +61,46 @@ select throws_ok(
 );
 
 -- AC06: every affected field is identified in one pass, not one at a time.
-do $$
+-- A plain DO block's `perform ok(...)` discards its return value (that's
+-- what PERFORM does), so the TAP line never reaches the test runner — the
+-- assertion silently vanishes instead of failing. Route the check through a
+-- function instead, called from a top-level `select ok(...)` so its result
+-- is actually emitted.
+create or replace function pg_temp.pb03_incomplete_submission_issues()
+returns jsonb
+language plpgsql
+as $$
 declare
   detail_text text;
-  fields jsonb;
 begin
   begin
     perform public.submit_event_request((select id from pb03_event_ids));
     raise exception 'expected submit_event_request to fail';
   exception when check_violation then
     get stacked diagnostics detail_text = pg_exception_detail;
-    fields := detail_text::jsonb;
-    perform ok(
-      (select bool_and(elem ? 'field' and elem ? 'message') from jsonb_array_elements(fields) as elem),
-      'every issue names a field and a message'
-    );
-    perform ok(
-      'purpose' = any(array(select value ->> 'field' from jsonb_array_elements(fields)))
-        and 'requirementsAcknowledged' = any(array(select value ->> 'field' from jsonb_array_elements(fields))),
-      'both purpose and the requirements acknowledgement are reported together'
-    );
+    return detail_text::jsonb;
   end;
 end;
 $$;
+
+select ok(
+  (
+    select bool_and(elem ? 'field' and elem ? 'message')
+    from jsonb_array_elements(pg_temp.pb03_incomplete_submission_issues()) as elem
+  ),
+  'every issue names a field and a message'
+);
+select ok(
+  (
+    'purpose' = any(array(
+      select value ->> 'field' from jsonb_array_elements(pg_temp.pb03_incomplete_submission_issues()) as value
+    ))
+    and 'requirementsAcknowledged' = any(array(
+      select value ->> 'field' from jsonb_array_elements(pg_temp.pb03_incomplete_submission_issues()) as value
+    ))
+  ),
+  'both purpose and the requirements acknowledgement are reported together'
+);
 
 -- Complete the draft so it can be submitted.
 select lives_ok(

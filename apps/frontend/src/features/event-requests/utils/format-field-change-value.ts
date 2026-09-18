@@ -3,6 +3,7 @@ import { isEventFieldHistoryBooleanField, isEventFieldHistoryDateField } from "@
 const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
   dateStyle: "medium",
   timeStyle: "short",
+  timeZone: "Asia/Singapore",
 });
 
 /**

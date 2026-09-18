@@ -15,14 +15,14 @@ values
     '{"full_name":"Lifecycle Coordinator A","role":"event_coordinator"}'::jsonb
   );
 
-create temporary table lsm_event_ids (label text primary key, id uuid);
-
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
   '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}',
   true
 );
+
+create temporary table lsm_event_ids (label text primary key, id uuid);
 
 -- Draft -> Requested -> Planning -> Confirmed -> Completed, the happy path,
 -- checking the status history logs each hop.
@@ -73,12 +73,14 @@ select throws_ok(
   '"under_review" is retired as a reachable status from Requested'
 );
 
+reset role;
 insert into auth.users (id, email, raw_user_meta_data)
 values (
   'a0000000-0000-0000-0000-000000000003',
   'lifecycle-coordinator-b@example.test',
   '{"full_name":"Lifecycle Coordinator B","role":"event_coordinator"}'::jsonb
 );
+set local role authenticated;
 
 select set_config(
   'request.jwt.claims',

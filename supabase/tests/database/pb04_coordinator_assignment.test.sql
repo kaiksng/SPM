@@ -20,14 +20,14 @@ values
     '{"full_name":"PB04 Coordinator B","role":"event_coordinator"}'::jsonb
   );
 
-create temporary table pb04_event_ids (label text primary key, id uuid);
-
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
   '{"sub":"40000000-0000-0000-0000-000000000001","role":"authenticated"}',
   true
 );
+
+create temporary table pb04_event_ids (label text primary key, id uuid);
 
 -- Two coordinators start with equal load: the lower id wins the tie-break.
 select lives_ok(
@@ -57,6 +57,13 @@ select is(
   '40000000-0000-0000-0000-000000000002'::uuid,
   'the first event is assigned to the lower-id coordinator on a tie'
 );
+-- Notifications are only visible to their own recipient (RLS), so briefly
+-- switch to the assigned coordinator to check it, then back to the organiser.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"40000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
 select is(
   (
     select count(*)::integer from public.notifications
@@ -66,6 +73,11 @@ select is(
   ),
   1,
   'the assigned coordinator receives one assignment notification'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"40000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
 );
 
 -- Coordinator A now has one active event; coordinator B is least loaded next.
@@ -118,10 +130,13 @@ select is(
   'the failed reassignment attempt left the original assignment unchanged'
 );
 
--- assign_event_coordinator is an internal step of submission, not a public RPC.
+-- assign_event_coordinator is an internal step of submission, not a public
+-- RPC: it's revoked from authenticated (202609180001), so Postgres itself
+-- rejects a direct call before the function body ever runs.
 select throws_ok(
   $$select public.assign_event_coordinator((select id from pb04_event_ids where label = 'event-1'))$$,
   '42501',
+  'permission denied for function assign_event_coordinator',
   'an authenticated user cannot call assign_event_coordinator directly'
 );
 

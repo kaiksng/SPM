@@ -24,6 +24,7 @@ import { RoleGate } from "@/routes/RoleGate";
 const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
   dateStyle: "medium",
   timeStyle: "short",
+  timeZone: "Asia/Singapore",
 });
 
 function formatDateTime(value: string | null) {

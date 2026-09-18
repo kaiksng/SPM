@@ -25,8 +25,8 @@ select policies_are(
   'events have the expected RLS policies'
 );
 select ok(
-  public.event_status_transition_allowed('draft', 'submitted'),
-  'draft events can be submitted'
+  public.event_status_transition_allowed('draft', 'requested'),
+  'draft events can be requested'
 );
 select isnt(
   public.event_status_transition_allowed('rejected', 'confirmed'),

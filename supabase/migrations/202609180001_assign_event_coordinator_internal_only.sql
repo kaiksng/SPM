@@ -1,0 +1,13 @@
+-- assign_event_coordinator is meant to be an internal step of submission
+-- (called from inside submit_event_request), never a public RPC — its own
+-- comment says so, and 202609140001 revoked it from 'public' and 'anon' to
+-- enforce that. It never revoked it from 'authenticated' though, and Supabase
+-- grants every new function EXECUTE to authenticated/anon/service_role by
+-- default (via roles.sql's default privileges) regardless of what a
+-- migration revokes from 'public' — revoking from public only removes the
+-- separate PUBLIC grant, it does nothing to the role-specific one. The
+-- result: any signed-in user has been able to call
+-- assign_event_coordinator(uuid) directly all along, bypassing
+-- submit_event_request's completeness checks and reassigning load-balancing
+-- outside its intended single call site.
+revoke all on function public.assign_event_coordinator(uuid) from authenticated;
