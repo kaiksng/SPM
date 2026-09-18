@@ -12,6 +12,7 @@ import { Modal } from "@/features/event-requests/components/modal";
 import {
   listClarifications,
   requestClarification,
+  resolveClarification,
   type ClarificationSummary,
 } from "@/features/event-requests/services/clarifications";
 import { decideEvent } from "@/features/event-requests/services/decisions";
@@ -58,6 +59,7 @@ export function ClarificationPanel({
   const [error, setError] = useState<string>();
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [showDecisionDialog, setShowDecisionDialog] = useState<"approved" | "rejected">();
+  const [resolving, setResolving] = useState(false);
 
   const shouldRender = eventStatus === "requested";
 
@@ -107,7 +109,17 @@ export function ClarificationPanel({
   if (!loaded) return null;
 
   function handleRequested(created: ClarificationSummary) {
-    setClarifications((current) => [...(current ?? []), created]);
+    // Asking again over an answered-but-unclosed round auto-resolves it
+    // server-side (request_event_clarification) — mirror that here so
+    // `unresolved` picks up the new round instead of the stale answered one.
+    setClarifications((current) => [
+      ...current.map((c) =>
+        isUnresolvedClarificationStatus(c.status)
+          ? { ...c, status: "resolved" as const }
+          : c,
+      ),
+      created,
+    ]);
     setShowRequestDialog(false);
   }
 
@@ -115,6 +127,31 @@ export function ClarificationPanel({
     await decideEvent(eventId, decision, rationale);
     setShowDecisionDialog(undefined);
     onDecided?.(decision);
+  }
+
+  // AC06: an explicit close, independent of answering — the coordinator may
+  // decide the question is moot without waiting for a response.
+  async function handleResolve(clarificationId: string) {
+    setResolving(true);
+    setError(undefined);
+    try {
+      const result = await resolveClarification(clarificationId);
+      setClarifications((current) =>
+        current.map((c) =>
+          c.id === clarificationId
+            ? { ...c, status: "resolved", resolvedAt: result.data.resolvedAt }
+            : c,
+        ),
+      );
+    } catch (resolveError) {
+      setError(
+        resolveError instanceof Error
+          ? resolveError.message
+          : "This clarification could not be closed.",
+      );
+    } finally {
+      setResolving(false);
+    }
   }
 
   // AC05: a genuinely open (unanswered) round blocks everything else. An
@@ -144,10 +181,14 @@ export function ClarificationPanel({
             <Button
               size="sm"
               variant="outline"
-              disabled={blockedByOpenClarification}
-              onClick={() => setShowRequestDialog(true)}
+              disabled={resolving}
+              onClick={() =>
+                blockedByOpenClarification && unresolved
+                  ? handleResolve(unresolved.id)
+                  : setShowRequestDialog(true)
+              }
             >
-              Request clarification
+              {blockedByOpenClarification ? "Close clarification" : "Request clarification"}
             </Button>
             <Button
               size="sm"
@@ -167,7 +208,8 @@ export function ClarificationPanel({
           </div>
           {blockedByOpenClarification && (
             <p className="mt-1 text-xs text-slate-400">
-              Waiting for the organiser's response before you can decide or ask again.
+              Wait for the organiser's response, or close this clarification to decide without
+              it.
             </p>
           )}
         </div>
