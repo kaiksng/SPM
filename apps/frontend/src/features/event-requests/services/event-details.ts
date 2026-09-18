@@ -13,6 +13,7 @@ export type EventDetail = {
   submittedAt: string | null;
   organiserId: string;
   organiserName: string | null;
+  assignedCoordinatorId: string | null;
   assignedCoordinatorName: string | null;
   venue: {
     preferredLocation: string | null;
@@ -55,6 +56,7 @@ export async function loadEventDetail(eventId: string) {
         submitted_at,
         organiser_id,
         organiser:profiles!events_organiser_id_fkey (full_name),
+        assigned_coordinator_id,
         assigned_coordinator:profiles!events_assigned_coordinator_id_fkey (full_name),
         event_venue_requirements (
           preferred_location,
@@ -96,6 +98,7 @@ export async function loadEventDetail(eventId: string) {
     submittedAt: data.submitted_at,
     organiserId: data.organiser_id,
     organiserName: data.organiser?.full_name ?? null,
+    assignedCoordinatorId: data.assigned_coordinator_id,
     assignedCoordinatorName: data.assigned_coordinator?.full_name ?? null,
     venue: {
       preferredLocation: venue?.preferred_location ?? null,

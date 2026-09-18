@@ -39,7 +39,7 @@ function formatDateTime(value: string | null) {
 export function EventDetailPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [event, setEvent] = useState<EventDetail>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -78,6 +78,12 @@ export function EventDetailPage() {
   }, [eventId]);
 
   const role = profile?.role === "event_organiser" ? "organiser" : "coordinator";
+  // SPM-09 AC02: "authorised coordinator" means the one coordinator assigned
+  // to this specific event — a coordinator who isn't assigned sees the same
+  // denial as an event they can't load at all. Administrators are unaffected
+  // (they have no per-event assignment and keep their existing override).
+  const isUnassignedCoordinator =
+    !!event && profile?.role === "event_coordinator" && event.assignedCoordinatorId !== user?.id;
 
   async function handleComplete() {
     if (!event) return;
@@ -115,6 +121,13 @@ export function EventDetailPage() {
               <h1 className="font-semibold text-red-900">Event unavailable</h1>
               <p role="alert" className="mt-2 text-sm text-red-800">
                 {error ?? "This event could not be found."}
+              </p>
+            </section>
+          ) : isUnassignedCoordinator ? (
+            <section className="mt-7 rounded-2xl border border-red-200 bg-red-50 p-6">
+              <h1 className="font-semibold text-red-900">Event unavailable</h1>
+              <p role="alert" className="mt-2 text-sm text-red-800">
+                This event is unavailable or you do not have access to it.
               </p>
             </section>
           ) : (

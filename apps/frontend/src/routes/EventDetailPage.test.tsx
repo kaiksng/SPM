@@ -61,6 +61,7 @@ const event = {
   submittedAt: "2026-09-12T21:05:00.000Z",
   organiserId: "10000000-0000-0000-0000-000000000001",
   organiserName: "jasmine",
+  assignedCoordinatorId: "20000000-0000-0000-0000-000000000002",
   assignedCoordinatorName: "Joyce Coordinator",
   venue: {
     preferredLocation: "Main Auditorium",
@@ -252,5 +253,20 @@ describe("EventDetailPage", () => {
     expect(
       await screen.findByText("This event is unavailable or you do not have access to it."),
     ).toBeInTheDocument();
+  });
+
+  it("denies a coordinator who is not assigned to this event (SPM-09 AC02)", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      ...event,
+      assignedCoordinatorId: "20000000-0000-0000-0000-000000000099",
+      assignedCoordinatorName: "Someone Else",
+    });
+
+    renderPage();
+
+    expect(
+      await screen.findByText("This event is unavailable or you do not have access to it."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Student Leadership Summit 2")).not.toBeInTheDocument();
   });
 });

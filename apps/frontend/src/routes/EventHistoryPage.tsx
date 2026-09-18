@@ -4,12 +4,17 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import { buttonVariants } from "@/components/ui/button";
+import { useAuth } from "@/context/auth-context";
 import { StatusBadge } from "@/features/event-requests/components/status-badges";
 import {
   listClarifications,
   type ClarificationSummary,
 } from "@/features/event-requests/services/clarifications";
 import { listEventDecisions } from "@/features/event-requests/services/decisions";
+import {
+  loadEventDetail,
+  type EventDetail,
+} from "@/features/event-requests/services/event-details";
 import {
   listEventStatusHistory,
   type EventStatusChange,
@@ -39,10 +44,13 @@ const dateFormatter = new Intl.DateTimeFormat("en-SG", {
  */
 export function EventHistoryPage() {
   const { eventId } = useParams();
+  const { profile, user } = useAuth();
   const [clarifications, setClarifications] = useState<ClarificationSummary[]>([]);
   const [fieldChanges, setFieldChanges] = useState<EventFieldChange[]>([]);
   const [statusHistory, setStatusHistory] = useState<EventStatusChange[]>([]);
   const [approvedAt, setApprovedAt] = useState<string>();
+  const [event, setEvent] = useState<EventDetail>();
+  const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(true);
 
   usePageTitle("Change history");
@@ -52,23 +60,43 @@ export function EventHistoryPage() {
     let active = true;
 
     Promise.all([
+      loadEventDetail(eventId),
       listClarifications(eventId).catch(() => [] as ClarificationSummary[]),
       loadEventFieldHistory(eventId).catch(() => [] as EventFieldChange[]),
       listEventDecisions(eventId).catch(() => []),
       listEventStatusHistory(eventId).catch(() => [] as EventStatusChange[]),
-    ]).then(([clarificationRows, fieldChangeRows, decisions, statusRows]) => {
-      if (!active) return;
-      setClarifications(clarificationRows);
-      setFieldChanges(fieldChangeRows);
-      setApprovedAt(decisions.find((d) => d.decision === "approved")?.decidedAt);
-      setStatusHistory(statusRows);
-      setLoading(false);
-    });
+    ])
+      .then(([eventDetail, clarificationRows, fieldChangeRows, decisions, statusRows]) => {
+        if (!active) return;
+        setEvent(eventDetail);
+        setClarifications(clarificationRows);
+        setFieldChanges(fieldChangeRows);
+        setApprovedAt(decisions.find((d) => d.decision === "approved")?.decidedAt);
+        setStatusHistory(statusRows);
+      })
+      .catch((loadError: unknown) => {
+        if (active) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "This event is unavailable or you do not have access to it.",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
     return () => {
       active = false;
     };
   }, [eventId]);
+
+  // SPM-09 AC02: same "assigned coordinator only" rule as EventDetailPage —
+  // a coordinator who isn't assigned to this event gets the same denial as
+  // an event that failed to load, rather than an empty-but-visible page.
+  const isUnassignedCoordinator =
+    !!event && profile?.role === "event_coordinator" && event.assignedCoordinatorId !== user?.id;
 
   const planningChanges = approvedAt
     ? fieldChanges.filter((change) => change.changedAt >= approvedAt)
@@ -96,6 +124,13 @@ export function EventHistoryPage() {
 
           {loading ? (
             <div className="mt-7 h-96 animate-pulse rounded-2xl bg-slate-200/70 motion-reduce:animate-none" />
+          ) : error || !event || isUnassignedCoordinator ? (
+            <section className="mt-7 rounded-2xl border border-red-200 bg-red-50 p-6">
+              <h1 className="font-semibold text-red-900">Event unavailable</h1>
+              <p role="alert" className="mt-2 text-sm text-red-800">
+                {error ?? "This event is unavailable or you do not have access to it."}
+              </p>
+            </section>
           ) : (
             <div className="mt-7 space-y-6">
               <HistorySection title="Lifecycle">

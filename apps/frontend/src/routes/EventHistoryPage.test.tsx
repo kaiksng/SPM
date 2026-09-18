@@ -6,6 +6,7 @@ const listClarificationsMock = vi.fn();
 const loadEventFieldHistoryMock = vi.fn();
 const listEventDecisionsMock = vi.fn();
 const listEventStatusHistoryMock = vi.fn();
+const loadEventDetailMock = vi.fn();
 const authState = {
   profile: { full_name: "Joyce Coordinator", role: "event_coordinator" },
   user: { id: "20000000-0000-0000-0000-000000000002" },
@@ -23,6 +24,10 @@ vi.mock("@/features/event-requests/services/clarifications", () => ({
 
 vi.mock("@/features/event-requests/services/field-history", () => ({
   loadEventFieldHistory: (...args: unknown[]) => loadEventFieldHistoryMock(...args),
+}));
+
+vi.mock("@/features/event-requests/services/event-details", () => ({
+  loadEventDetail: (...args: unknown[]) => loadEventDetailMock(...args),
 }));
 
 vi.mock("@/features/event-requests/services/decisions", () => ({
@@ -64,6 +69,9 @@ beforeEach(() => {
   loadEventFieldHistoryMock.mockReset().mockResolvedValue([]);
   listEventDecisionsMock.mockReset().mockResolvedValue([]);
   listEventStatusHistoryMock.mockReset().mockResolvedValue([]);
+  loadEventDetailMock.mockReset().mockResolvedValue({
+    assignedCoordinatorId: "20000000-0000-0000-0000-000000000002",
+  });
 });
 
 describe("EventHistoryPage", () => {
@@ -256,5 +264,18 @@ describe("EventHistoryPage", () => {
     expect(
       screen.getByText("No changes have been made since this event was approved."),
     ).toBeInTheDocument();
+  });
+
+  it("denies a coordinator who is not assigned to this event (SPM-09 AC02)", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      assignedCoordinatorId: "20000000-0000-0000-0000-000000000099",
+    });
+
+    renderPage();
+
+    expect(
+      await screen.findByText("This event is unavailable or you do not have access to it."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Lifecycle")).not.toBeInTheDocument();
   });
 });
