@@ -1,5 +1,6 @@
 import {
   clarificationPermittedFieldLabels,
+  isDirectEditBlocked,
   type ClarificationPermittedField,
 } from "@spm/shared";
 import { CalendarDays, FilePlus2, Pencil, Send, Trash2 } from "lucide-react";
@@ -360,8 +361,8 @@ function EventCard({
               View details
             </Link>
             <span className="self-center text-sm text-slate-500">
-              {event.status === "confirmed"
-                ? "This event is confirmed. Direct edits are locked — submit a change request instead."
+              {isDirectEditBlocked(event.status)
+                ? "This event is finalised. Direct edits are locked — submit a change request instead."
                 : "Editing is unavailable in this workflow."}
             </span>
           </>

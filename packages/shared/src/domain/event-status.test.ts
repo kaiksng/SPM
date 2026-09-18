@@ -4,6 +4,7 @@ import {
   allowedEventStatusTransitions,
   canTransitionEventStatus,
   eventStatuses,
+  isDirectEditBlocked,
   isPlanningAllowed,
   isSubmittedEventStatus,
   submittedEventStatuses,
@@ -75,5 +76,21 @@ describe("isPlanningAllowed", () => {
     expect(isPlanningAllowed("planning")).toBe(true);
     expect(isPlanningAllowed("requested")).toBe(true);
     expect(isPlanningAllowed("confirmed")).toBe(true);
+  });
+});
+
+describe("isDirectEditBlocked", () => {
+  it("blocks direct edits once an event is finalised", () => {
+    expect(isDirectEditBlocked("confirmed")).toBe(true);
+    expect(isDirectEditBlocked("completed")).toBe(true);
+    expect(isDirectEditBlocked("rejected")).toBe(true);
+    expect(isDirectEditBlocked("cancelled")).toBe(true);
+  });
+
+  it("allows direct edits for every other status", () => {
+    expect(isDirectEditBlocked("draft")).toBe(false);
+    expect(isDirectEditBlocked("requested")).toBe(false);
+    expect(isDirectEditBlocked("clarification_requested")).toBe(false);
+    expect(isDirectEditBlocked("planning")).toBe(false);
   });
 });

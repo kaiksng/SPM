@@ -133,29 +133,32 @@ describe("EventsPage draft controls", () => {
     expect(screen.queryByText("Clarification Required")).not.toBeInTheDocument();
   });
 
-  it("directs the organiser to a change request instead of editing a Confirmed event", async () => {
-    listEventRequestsMock.mockResolvedValue([
-      { ...requested, id: "confirmed-1", title: "Confirmed Gala", status: "confirmed" },
-    ]);
+  it.each(["confirmed", "completed", "rejected", "cancelled"])(
+    "directs the organiser to a change request instead of editing a %s event",
+    async (status) => {
+      listEventRequestsMock.mockResolvedValue([
+        { ...requested, id: "finalised-1", title: "Finalised Gala", status },
+      ]);
 
-    render(
-      <MemoryRouter initialEntries={["/events"]}>
-        <EventsPage />
-      </MemoryRouter>,
-    );
+      render(
+        <MemoryRouter initialEntries={["/events"]}>
+          <EventsPage />
+        </MemoryRouter>,
+      );
 
-    expect(await screen.findByText("Confirmed Gala")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "This event is confirmed. Direct edits are locked — submit a change request instead.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Edit request" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute(
-      "href",
-      "/events/confirmed-1",
-    );
-  });
+      expect(await screen.findByText("Finalised Gala")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "This event is finalised. Direct edits are locked — submit a change request instead.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Edit request" })).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute(
+        "href",
+        "/events/finalised-1",
+      );
+    },
+  );
 
   it("shows the coordinator's question and a Respond action while a clarification is open", async () => {
     listEventRequestsMock.mockResolvedValue([requested]);

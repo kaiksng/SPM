@@ -73,3 +73,21 @@ export function isSubmittedEventStatus(status: EventStatus) {
 export function isPlanningAllowed(status: EventStatus) {
   return status !== "rejected" && status !== "cancelled";
 }
+
+/**
+ * "Block Direct Edits on Finalized Events": once an event reaches Confirmed,
+ * Completed, Rejected, or Cancelled, neither the organiser nor the
+ * coordinator may edit it directly — only a change request can move it
+ * further. Mirrors the exclusion list "coordinators manage assigned events"
+ * enforces in the database (202609150007, extended to Completed by
+ * 202609190002); the organiser's own block predates both — save_event_draft's
+ * status gate never allowed any of these four.
+ */
+export function isDirectEditBlocked(status: string) {
+  return (
+    status === "confirmed" ||
+    status === "completed" ||
+    status === "rejected" ||
+    status === "cancelled"
+  );
+}

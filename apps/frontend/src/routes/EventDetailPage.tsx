@@ -1,5 +1,6 @@
 import {
   clarificationPermittedFieldLabels,
+  isDirectEditBlocked,
   type ClarificationPermittedField,
 } from "@spm/shared";
 import { ArrowLeft, CalendarDays } from "lucide-react";
@@ -176,9 +177,9 @@ export function EventDetailPage() {
                 )}
               </div>
               <EventStatusTimeline eventId={event.id} />
-              {event.status === "confirmed" && (
+              {isDirectEditBlocked(event.status) && (
                 <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                  This event is confirmed. Direct edits are locked to keep finalised arrangements
+                  This event is finalised. Direct edits are locked to keep finalised arrangements
                   accurate — submit a change request instead of editing it directly.
                 </p>
               )}

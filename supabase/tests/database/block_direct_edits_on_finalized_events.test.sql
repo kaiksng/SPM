@@ -1,6 +1,6 @@
 begin;
 
-select plan(8);
+select plan(11);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -118,6 +118,35 @@ select throws_ok(
   '42501',
   'Draft not found or cannot be edited',
   'the organiser cannot edit a Confirmed event through save_event_draft'
+);
+
+-- 202609190002: the same RLS gap, now for Completed. Move the event on from
+-- Confirmed via its own write path (complete_event), then repeat the direct
+-- table update probe against it.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"90000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+select lives_ok(
+  format($$select public.complete_event(%L::uuid)$$, (select id from bde_event_ids)),
+  'the assigned coordinator can mark the Confirmed event completed'
+);
+
+-- AC01/AC03 (coordinator, direct table access): a raw update against a
+-- Completed event must be silently excluded by RLS, the same way it already
+-- is for Confirmed.
+select lives_ok(
+  format(
+    $$update public.events set title = 'Bypassed via direct update on Completed' where id = %L::uuid$$,
+    (select id from bde_event_ids)
+  ),
+  'a direct table update against a Completed event is accepted as a statement...'
+);
+select is(
+  (select title from public.events where id = (select id from bde_event_ids)),
+  'Original Title',
+  '...but RLS silently excludes the row, so nothing is actually changed (AC01/AC03, Completed)'
 );
 
 -- AC03, overall: none of the blocked attempts above produced an audit entry.

@@ -179,7 +179,13 @@ select is(
   'AC03: the completion records the previous status, new status and actor'
 );
 
--- Completed is terminal.
+-- Completed is terminal, enforced by enforce_event_status_transition. Probed
+-- as postgres (RLS bypassed) so this exercises the transition trigger
+-- itself, not 202609190002's now-stricter RLS: as the assigned coordinator,
+-- this same update would be silently excluded by RLS before ever reaching
+-- the trigger (see block_direct_edits_on_finalized_events.test.sql, which
+-- covers that path instead).
+reset role;
 select throws_ok(
   format(
     $$update public.events set status = 'planning' where id = %L::uuid$$,
@@ -189,6 +195,7 @@ select throws_ok(
   'Invalid event status transition from completed to planning',
   'a Completed event cannot transition anywhere else'
 );
+set local role authenticated;
 
 select * from finish();
 rollback;
