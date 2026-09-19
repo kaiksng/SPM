@@ -23,6 +23,30 @@ function values(
 }
 
 describe("EventRequestForm draft mode", () => {
+  it("shows only the simple Week 4 Release 1 fields", () => {
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Simple request" })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Event category")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Minimum capacity")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Registration opens")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Registration closes")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Registration capacity")).not.toBeInTheDocument();
+
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
+    expect(screen.getByLabelText(/Preferred location/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Room layout")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Required facilities/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Accessibility needs")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add equipment" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Attendee registration is required/)).toBeInTheDocument();
+  });
+
   it("saves when only a valid event name is entered", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
@@ -104,7 +128,7 @@ describe("EventRequestForm draft mode", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Expected attendance"), "1.5");
+    await user.type(screen.getByLabelText(/Expected attendance/), "1.5");
     await user.click(screen.getByRole("button", { name: "Save draft" }));
 
     expect(
@@ -123,8 +147,8 @@ describe("EventRequestForm draft mode", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText("Starts"), "2026-09-25T10:00");
-    await user.type(screen.getByLabelText("Ends"), "2026-09-25T10:00");
+    await user.type(screen.getByLabelText(/Starts/), "2026-09-25T10:00");
+    await user.type(screen.getByLabelText(/Ends/), "2026-09-25T10:00");
     await user.click(screen.getByRole("button", { name: "Save draft" }));
 
     expect(
@@ -219,10 +243,23 @@ describe("EventRequestForm draft mode", () => {
 });
 
 describe("EventRequestForm with an open clarification", () => {
+  const requirementValues = () =>
+    values({
+      title: "Locked draft",
+      venue: {
+        ...emptyEventRequestFormValues.venue,
+        preferredLocation: "City centre",
+      },
+      registration: {
+        ...emptyEventRequestFormValues.registration,
+        required: true,
+      },
+    });
+
   it("disables only the fields not in permittedFields", () => {
     render(
       <EventRequestForm
-        initialValues={values({ title: "Locked draft" })}
+        initialValues={requirementValues()}
         onSave={vi.fn()}
         onCancel={vi.fn()}
         permittedFields={["purpose"]}
@@ -230,44 +267,40 @@ describe("EventRequestForm with an open clarification", () => {
     );
 
     expect(screen.getByLabelText(/Event name/)).toBeDisabled();
-    expect(screen.getByLabelText("Purpose")).toBeEnabled();
-    expect(screen.getByLabelText("Description")).toBeDisabled();
-    expect(screen.getByLabelText("Expected attendance")).toBeDisabled();
-    expect(screen.getByLabelText("Starts")).toBeDisabled();
-    expect(screen.getByLabelText("Ends")).toBeDisabled();
+    expect(screen.getByLabelText(/Purpose/)).toBeEnabled();
+    expect(screen.getByLabelText(/Description/)).toBeDisabled();
+    expect(screen.getByLabelText(/Expected attendance/)).toBeDisabled();
+    expect(screen.getByLabelText(/Starts/)).toBeDisabled();
+    expect(screen.getByLabelText(/Ends/)).toBeDisabled();
   });
 
   it("locks venue, equipment and registration by default", () => {
     render(
       <EventRequestForm
-        initialValues={values({ title: "Locked draft" })}
+        initialValues={requirementValues()}
         onSave={vi.fn()}
         onCancel={vi.fn()}
         permittedFields={["purpose"]}
       />,
     );
 
-    expect(screen.getByLabelText("Preferred location")).toBeDisabled();
+    expect(screen.getByLabelText(/Preferred location/)).toBeDisabled();
     expect(screen.getByRole("button", { name: "Add equipment" })).toBeDisabled();
-    expect(
-      screen.getByLabelText(/Attendee registration is required/),
-    ).toBeDisabled();
+    expect(screen.getByLabelText(/Attendee registration is required/)).toBeDisabled();
   });
 
   it("unlocks only the granular bucket that was permitted", () => {
     render(
       <EventRequestForm
-        initialValues={values({ title: "Locked draft" })}
+        initialValues={requirementValues()}
         onSave={vi.fn()}
         onCancel={vi.fn()}
         permittedFields={["registration"]}
       />,
     );
 
-    expect(
-      screen.getByLabelText(/Attendee registration is required/),
-    ).toBeEnabled();
-    expect(screen.getByLabelText("Preferred location")).toBeDisabled();
+    expect(screen.getByLabelText(/Attendee registration is required/)).toBeEnabled();
+    expect(screen.getByLabelText(/Preferred location/)).toBeDisabled();
     expect(screen.getByRole("button", { name: "Add equipment" })).toBeDisabled();
     expect(screen.getByLabelText(/Event name/)).toBeDisabled();
   });
@@ -275,32 +308,30 @@ describe("EventRequestForm with an open clarification", () => {
   it("unlocks venue, equipment and registration together for a legacy 'requirements' grant", () => {
     render(
       <EventRequestForm
-        initialValues={values({ title: "Locked draft" })}
+        initialValues={requirementValues()}
         onSave={vi.fn()}
         onCancel={vi.fn()}
         permittedFields={["requirements"]}
       />,
     );
 
-    expect(screen.getByLabelText("Preferred location")).toBeEnabled();
+    expect(screen.getByLabelText(/Preferred location/)).toBeEnabled();
     expect(screen.getByRole("button", { name: "Add equipment" })).toBeEnabled();
-    expect(
-      screen.getByLabelText(/Attendee registration is required/),
-    ).toBeEnabled();
+    expect(screen.getByLabelText(/Attendee registration is required/)).toBeEnabled();
     expect(screen.getByLabelText(/Event name/)).toBeDisabled();
   });
 
   it("leaves every field enabled when no clarification is open", () => {
     render(
       <EventRequestForm
-        initialValues={values({ title: "Unlocked draft" })}
+        initialValues={requirementValues()}
         onSave={vi.fn()}
         onCancel={vi.fn()}
       />,
     );
 
     expect(screen.getByLabelText(/Event name/)).toBeEnabled();
-    expect(screen.getByLabelText("Preferred location")).toBeEnabled();
+    expect(screen.getByLabelText(/Preferred location/)).toBeEnabled();
   });
 });
 
@@ -325,9 +356,7 @@ describe("EventRequestForm submit mode (PB-03)", () => {
       await screen.findByText("Describe the purpose of the event before submitting"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Confirm that each optional requirement is provided or not required",
-      ),
+      screen.getByText("Add at least one venue requirement before submitting"),
     ).toBeInTheDocument();
     expect(onSave).not.toHaveBeenCalled();
   });
@@ -351,7 +380,10 @@ describe("EventRequestForm submit mode (PB-03)", () => {
           expectedAttendance: "120",
           startsAt: "2099-01-01T10:00",
           endsAt: "2099-01-01T12:00",
-          requirementsAcknowledged: true,
+          venue: {
+            ...emptyEventRequestFormValues.venue,
+            preferredLocation: "City centre",
+          },
         })}
         onSave={onSave}
         onCancel={vi.fn()}

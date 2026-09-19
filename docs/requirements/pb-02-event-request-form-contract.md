@@ -23,17 +23,17 @@ The canonical TypeScript contract is `EventRequestFormValues` in `packages/share
 
 | Section | Fields |
 | --- | --- |
-| Event | Event name, purpose, description, category, expected attendance |
+| Event | Event name, purpose, description, expected attendance |
 | Schedule | Proposed start and end time |
-| Venue | Preferred location, minimum capacity, accessibility needs, room layout, facilities |
-| Equipment | Equipment name, quantity, technical notes |
-| Registration | Registration required, opening and closing time, capacity, waiting-list setting |
+| Venue | Preferred location, room layout, required facilities and accessibility needs |
+| Equipment | Equipment name, quantity, and relevant requirements or notes |
+| Registration | Whether attendee registration is required |
 
 ## Validation responsibility
 
 | Mode | Behaviour |
 | --- | --- |
 | Draft (PB-02) | Event name is required and must contain 3–160 characters. Every optional value may be blank, but any entered number or date/time relationship must be valid. |
-| Submit (PB-03) | Reuses the fields and draft rules, adds final-submission completeness rules, and changes the request from `draft` to `requested`. See `docs/requirements/pb-03-submit-event-request-contract.md`. |
+| Submit (PB-03) | Reuses the fields and draft rules, requires the Week 4 core event details and at least one venue requirement, and changes the request from `draft` to `requested`. Optional requirement sections may remain blank. See `docs/requirements/pb-03-submit-event-request-contract.md`. |
 
 Blank optional number fields remain empty strings in the form and become database `null` values. Dates become ISO timestamps only at the persistence boundary. The browser never receives or uses a Supabase service-role key.

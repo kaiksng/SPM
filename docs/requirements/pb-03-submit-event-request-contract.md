@@ -2,7 +2,7 @@
 
 ## Ownership boundary
 
-PB-03 extends `EventRequestForm` (owned jointly with PB-02 — see `docs/requirements/pb-02-event-request-form-contract.md`) with a stricter `eventSubmissionSchema`, a `submitLabel="Submit request"` override, and a new `events/:eventId/submit` route. It does not create a second event-request form.
+PB-03 extends `EventRequestForm` (owned jointly with PB-02 — see `docs/requirements/pb-02-event-request-form-contract.md`) with a stricter `eventSubmissionSchema` and a submission action beside Save Draft. It does not create a second event-request form.
 
 Submission is one Postgres transaction, `public.submit_event_request`, called through `apps/backend`'s `POST /events/:eventId/submit` route rather than directly from the browser — see `docs/architecture/adr/0003-submission-through-backend.md`. The database function is authoritative; the frontend's zod schema exists only so the organiser sees every problem before a round trip (AC06).
 
@@ -11,8 +11,8 @@ PB-03 does not assign a coordinator (PB-04), start coordinator review (PB-05/PB-
 ## Acceptance criteria
 
 - AC01 — The request records event name, purpose, description, proposed date, valid start and end time, and positive whole-number expected attendance.
-- AC02 — The organiser records venue requirements, accessibility needs, equipment and technical requirements, and registration needs, or marks each optional requirement Not Required via the requirements acknowledgement.
-- AC03 — Event category and room-layout preference may also be recorded.
+- AC02 — The organiser records venue and accessibility needs, equipment requirements, and whether attendee registration is required where relevant. A blank optional equipment section or unchecked registration box means it is not required.
+- AC03 — Preferred location, room layout, required facilities, accessibility notes, and equipment notes may be recorded where relevant.
 - AC04 — After submission, the organiser can view the submission date, time, and request status.
 - AC05 — Given all mandatory information is valid, when the organiser submits the request, then it is accepted, its status becomes `requested`, and it becomes available for coordinator assignment and review.
 - AC06 — Given mandatory information is missing or invalid, when submission is attempted, then submission is blocked and every affected field is identified.
@@ -27,9 +27,15 @@ PB-03 does not assign a coordinator (PB-04), start coordinator review (PB-05/PB-
 | `purpose`, `description` | optional | required |
 | `expectedAttendance` | optional | required, positive whole number |
 | `startsAt`, `endsAt` | optional | required, `startsAt` in the future, `endsAt` after `startsAt` |
-| `venue.*` | optional | at least one of preferred location, minimum capacity, accessibility notes, or layout notes |
-| `registration.capacity` | optional | required when `registration.required` is true |
-| `requirementsAcknowledged` | may stay `false` | must be `true` |
+| `venue.preferredLocation`, `venue.layoutNotes`, `venue.accessibilityNotes` | optional | at least one venue requirement is required |
+| `venue.facilities` | optional | recorded when relevant |
+| `equipment` | optional | each added item needs a name and positive whole-number quantity |
+| `registration.required` | defaults to unchecked | checked only when attendee registration is required |
+
+Event category, organiser-entered minimum venue capacity, registration dates,
+registration capacity, and waiting-list setup are not part of the Week 4
+Release 1 event-request form. Existing stored values remain backwards compatible
+but are not requested from organisers in this workflow.
 
 `public.submit_event_request` re-validates the same rules against the stored row and raises `check_violation` (`23514`) with a `detail` payload of `{field, message}[]` covering every failing field, matching the zod issue paths so the frontend highlights fields identically whether the failure was local or server-side.
 

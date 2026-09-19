@@ -161,30 +161,32 @@ export function EventRequestForm({
         title="Event overview"
         description="Give the request a recognisable name. Everything else can be completed later."
       >
-        <Field label="Event name" required error={errors.title} className="sm:col-span-2">
+        <Field
+          label="Event name"
+          required="Required to save"
+          error={errors.title}
+          className="sm:col-span-2"
+        >
           <Input
             name="title"
             value={values.title}
             onChange={(event) => setRoot("title", event.target.value)}
             placeholder="e.g. Student Leadership Summit"
-            maxLength={161}
+            maxLength={160}
             aria-invalid={Boolean(errors.title)}
             disabled={isLocked("title")}
           />
         </Field>
-        <Field label="Event category" error={errors.eventType}>
+        <Field
+          label="Expected attendance"
+          required="Required to submit"
+          error={errors.expectedAttendance}
+        >
           <Input
-            name="eventType"
-            value={values.eventType}
-            onChange={(event) => setRoot("eventType", event.target.value)}
-            placeholder="Conference, workshop, ceremony…"
-            disabled={isLocked("eventType")}
-          />
-        </Field>
-        <Field label="Expected attendance" error={errors.expectedAttendance}>
-          <Input
+            type="number"
             name="expectedAttendance"
-            inputMode="numeric"
+            min="1"
+            step="1"
             value={values.expectedAttendance}
             onChange={(event) => setRoot("expectedAttendance", event.target.value)}
             placeholder="Leave blank if unknown"
@@ -192,7 +194,12 @@ export function EventRequestForm({
             disabled={isLocked("expectedAttendance")}
           />
         </Field>
-        <Field label="Purpose" error={errors.purpose} className="sm:col-span-2">
+        <Field
+          label="Purpose"
+          required="Required to submit"
+          error={errors.purpose}
+          className="sm:col-span-2"
+        >
           <TextArea
             name="purpose"
             value={values.purpose}
@@ -202,12 +209,17 @@ export function EventRequestForm({
             disabled={isLocked("purpose")}
           />
         </Field>
-        <Field label="Description" error={errors.description} className="sm:col-span-2">
+        <Field
+          label="Description"
+          required="Required to submit"
+          error={errors.description}
+          className="sm:col-span-2"
+        >
           <TextArea
             name="description"
             value={values.description}
             onChange={(event) => setRoot("description", event.target.value)}
-            placeholder="Add the working agenda, audience or other planning context."
+            placeholder="Describe the format, audience and planning context."
             rows={5}
             disabled={isLocked("description")}
           />
@@ -219,7 +231,7 @@ export function EventRequestForm({
         title="Proposed schedule"
         description="Drafts can be saved without dates. When both are entered, the end must be later."
       >
-        <Field label="Starts" error={errors.startsAt}>
+        <Field label="Starts" required="Required to submit" error={errors.startsAt}>
           <Input
             type="datetime-local"
             name="startsAt"
@@ -229,7 +241,7 @@ export function EventRequestForm({
             disabled={isLocked("startsAt")}
           />
         </Field>
-        <Field label="Ends" error={errors.endsAt}>
+        <Field label="Ends" required="Required to submit" error={errors.endsAt}>
           <Input
             type="datetime-local"
             name="endsAt"
@@ -244,9 +256,13 @@ export function EventRequestForm({
       <FormSection
         number="03"
         title="Venue requirements"
-        description="Capture what the event needs, without selecting or booking a venue yet."
+        description="Add a location, layout or accessibility requirement before submitting. Other details can be left blank."
       >
-        <Field label="Preferred location" error={errors["venue.preferredLocation"]}>
+        <Field
+          label="Preferred location"
+          required="At least one venue detail is required"
+          error={errors["venue.preferredLocation"]}
+        >
           <Input
             value={values.venue.preferredLocation}
             onChange={(event) => setVenue("preferredLocation", event.target.value)}
@@ -254,33 +270,22 @@ export function EventRequestForm({
             disabled={venueLocked}
           />
         </Field>
-        <Field label="Minimum capacity" error={errors["venue.minimumCapacity"]}>
-          <Input
-            inputMode="numeric"
-            value={values.venue.minimumCapacity}
-            onChange={(event) => setVenue("minimumCapacity", event.target.value)}
-            placeholder="Leave blank if unknown"
-            aria-invalid={Boolean(errors["venue.minimumCapacity"])}
-            disabled={venueLocked}
-          />
-        </Field>
         <Field label="Room layout" error={errors["venue.layoutNotes"]}>
           <Input
             value={values.venue.layoutNotes}
             onChange={(event) => setVenue("layoutNotes", event.target.value)}
-            placeholder="Theatre, classroom, banquet…"
+            placeholder="Theatre, classroom, boardroom…"
             disabled={venueLocked}
           />
         </Field>
-        <Field label="Required facilities" error={errors["venue.facilities"]}>
+        <Field
+          label="Required facilities"
+          error={errors["venue.facilities"]}
+          className="sm:col-span-2"
+        >
           <Input
             value={facilitiesText}
             onChange={(event) => {
-              // The box shows exactly what was typed — no re-deriving it from
-              // values.venue.facilities.join(", "), which used to insert a
-              // space after every comma the user hadn't typed themselves.
-              // Trimming/dropping empty entries happens only in the
-              // background list used for saving and validation.
               const text = event.target.value;
               setFacilitiesText(text);
               setVenue(
@@ -291,7 +296,7 @@ export function EventRequestForm({
                   .filter(Boolean),
               );
             }}
-            placeholder="Projector, stage, pantry"
+            placeholder="Stage, pantry, writable wall"
             aria-invalid={Boolean(errors["venue.facilities"])}
             disabled={venueLocked}
           />
@@ -305,7 +310,7 @@ export function EventRequestForm({
           <TextArea
             value={values.venue.accessibilityNotes}
             onChange={(event) => setVenue("accessibilityNotes", event.target.value)}
-            placeholder="Wheelchair access, hearing loop, step-free route…"
+            placeholder="Describe any accessibility support, or leave blank if none."
             rows={3}
             disabled={venueLocked}
           />
@@ -314,8 +319,8 @@ export function EventRequestForm({
 
       <FormSection
         number="04"
-        title="Equipment and technical needs"
-        description="Add only the equipment known at this stage. More items can be added later."
+        title="Equipment requirements"
+        description="Add only the equipment needed for the event. Leave this section empty if none is required."
         action={
           <Button
             type="button"
@@ -354,13 +359,15 @@ export function EventRequestForm({
               </Field>
               <Field label="Quantity" error={errors[`equipment.${index}.quantity`]}>
                 <Input
-                  inputMode="numeric"
+                  type="number"
+                  min="1"
+                  step="1"
                   value={item.quantity}
                   onChange={(event) => setEquipment(index, "quantity", event.target.value)}
                   disabled={equipmentLocked}
                 />
               </Field>
-              <Field label="Technical notes" error={errors[`equipment.${index}.notes`]}>
+              <Field label="Requirements or notes" error={errors[`equipment.${index}.notes`]}>
                 <Input
                   value={item.notes}
                   onChange={(event) => setEquipment(index, "notes", event.target.value)}
@@ -393,7 +400,7 @@ export function EventRequestForm({
       <FormSection
         number="05"
         title="Registration needs"
-        description="Record early registration intentions. Submitting checks that every optional requirement is provided or marked not required."
+        description="Only indicate whether attendees need to register. Registration setup happens later."
       >
         <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 has-disabled:cursor-not-allowed has-disabled:opacity-50">
           <input
@@ -408,74 +415,8 @@ export function EventRequestForm({
               Attendee registration is required
             </span>
             <span className="mt-1 block text-sm text-slate-500">
-              Dates and capacity may still be left incomplete while this is a draft.
+              Leave unchecked when attendees do not need to register.
             </span>
-          </span>
-        </label>
-        {values.registration.required && (
-          <>
-            <Field label="Registration opens" error={errors["registration.opensAt"]}>
-              <Input
-                type="datetime-local"
-                value={values.registration.opensAt}
-                onChange={(event) => setRegistration("opensAt", event.target.value)}
-                disabled={registrationLocked}
-              />
-            </Field>
-            <Field label="Registration closes" error={errors["registration.closesAt"]}>
-              <Input
-                type="datetime-local"
-                value={values.registration.closesAt}
-                onChange={(event) => setRegistration("closesAt", event.target.value)}
-                aria-invalid={Boolean(errors["registration.closesAt"])}
-                disabled={registrationLocked}
-              />
-            </Field>
-            <Field label="Registration capacity" error={errors["registration.capacity"]}>
-              <Input
-                inputMode="numeric"
-                value={values.registration.capacity}
-                onChange={(event) => setRegistration("capacity", event.target.value)}
-                placeholder="Leave blank if unknown"
-                disabled={registrationLocked}
-              />
-            </Field>
-            <label className="flex items-center gap-3 self-end pb-2 text-sm font-medium text-slate-800 has-disabled:cursor-not-allowed has-disabled:opacity-50">
-              <input
-                type="checkbox"
-                className="size-4 accent-blue-600"
-                checked={values.registration.waitlistEnabled}
-                onChange={(event) =>
-                  setRegistration("waitlistEnabled", event.target.checked)
-                }
-                disabled={registrationLocked}
-              />
-              Enable waiting list
-            </label>
-          </>
-        )}
-        <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4">
-          <input
-            type="checkbox"
-            className="mt-0.5 size-4 accent-blue-600"
-            checked={values.requirementsAcknowledged}
-            onChange={(event) =>
-              setRoot("requirementsAcknowledged", event.target.checked)
-            }
-            aria-invalid={Boolean(errors.requirementsAcknowledged)}
-          />
-          <span>
-            <span className="block text-sm font-semibold text-slate-900">
-              Each optional requirement above is provided, or not required
-            </span>
-            <span className="mt-1 block text-sm text-slate-500">
-              Required before this request can be submitted for review.
-            </span>
-            {errors.requirementsAcknowledged && (
-              <span role="alert" className="mt-1.5 block text-sm text-red-700">
-                {errors.requirementsAcknowledged}
-              </span>
-            )}
           </span>
         </label>
       </FormSection>
@@ -563,7 +504,7 @@ function Field({
   children,
 }: {
   label: string;
-  required?: boolean;
+  required?: boolean | string;
   error?: string;
   className?: string;
   children: React.ReactNode;
@@ -572,7 +513,11 @@ function Field({
     <label className={cn("block", className)}>
       <span className="mb-2 flex items-center gap-2 text-sm font-medium leading-none text-slate-900">
         <span>{label}</span>
-        {required && <span className="text-xs font-semibold text-blue-600">Required</span>}
+        {required && (
+          <span aria-hidden="true" className="text-xs font-semibold text-blue-600">
+            {typeof required === "string" ? required : "Required"}
+          </span>
+        )}
       </span>
       {children}
       {error && (

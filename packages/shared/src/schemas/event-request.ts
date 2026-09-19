@@ -173,10 +173,6 @@ export const eventSubmissionSchema = eventRequestObject
         (value) => !Number.isNaN(Date.parse(value)),
         "Enter a valid date and time",
       ),
-    requirementsAcknowledged: z.literal(true, {
-      message:
-        "Confirm that each optional requirement is provided or not required",
-    }),
   })
   .superRefine((values, context) => {
     addSharedCrossFieldIssues(values, context);
@@ -189,9 +185,6 @@ export const eventSubmissionSchema = eventRequestObject
       });
     }
 
-    // AC02. Venue requirements are what the coordinator needs in order to start
-    // planning, so at least one must be stated. Equipment and registration stay
-    // genuinely optional under the acknowledgement above.
     const { preferredLocation, minimumCapacity, accessibilityNotes, layoutNotes } =
       values.venue;
     if (
@@ -203,16 +196,7 @@ export const eventSubmissionSchema = eventRequestObject
       context.addIssue({
         code: "custom",
         path: ["venue", "preferredLocation"],
-        message:
-          "Record at least one venue requirement, or state that none is required",
-      });
-    }
-
-    if (values.registration.required && !values.registration.capacity) {
-      context.addIssue({
-        code: "custom",
-        path: ["registration", "capacity"],
-        message: "Enter a registration capacity when registration is required",
+        message: "Add at least one venue requirement before submitting",
       });
     }
   });
@@ -278,11 +262,23 @@ export function toEventDraftPayload(
     })),
     registration: {
       required: values.registration.required,
-      opensAt: optionalDateValue(values.registration.opensAt),
-      closesAt: optionalDateValue(values.registration.closesAt),
-      capacity: optionalValue(values.registration.capacity),
-      waitlistEnabled: values.registration.waitlistEnabled,
+      opensAt: values.registration.required
+        ? optionalDateValue(values.registration.opensAt)
+        : null,
+      closesAt: values.registration.required
+        ? optionalDateValue(values.registration.closesAt)
+        : null,
+      capacity:
+        values.registration.required && !values.registration.capacity
+          ? optionalValue(values.expectedAttendance)
+          : values.registration.required
+            ? optionalValue(values.registration.capacity)
+            : null,
+      waitlistEnabled:
+        values.registration.required && values.registration.waitlistEnabled,
     },
-    requirementsAcknowledged: values.requirementsAcknowledged,
+    // Kept for compatibility with the existing submission function. The
+    // simplified form treats blank optional sections as "not required".
+    requirementsAcknowledged: true,
   };
 }
