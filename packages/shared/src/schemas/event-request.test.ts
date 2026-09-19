@@ -87,9 +87,26 @@ describe("event draft validation", () => {
     expect(payload.startsAt).toMatch(/^2026-09-25T/);
   });
 
-  it("defaults the requirements acknowledgement to false on a draft", () => {
+  it("automatically acknowledges blank optional sections for compatibility", () => {
     const parsed = eventDraftSchema.parse(draft());
-    expect(toEventDraftPayload(parsed).requirementsAcknowledged).toBe(false);
+    expect(toEventDraftPayload(parsed).requirementsAcknowledged).toBe(true);
+  });
+
+  it("derives registration capacity from expected attendance", () => {
+    const parsed = eventDraftSchema.parse(
+      draft({
+        expectedAttendance: "80",
+        registration: {
+          ...emptyEventRequestFormValues.registration,
+          required: true,
+        },
+      }),
+    );
+
+    expect(toEventDraftPayload(parsed)).toMatchObject({
+      registration: { required: true, capacity: "80" },
+      requirementsAcknowledged: true,
+    });
   });
 });
 
@@ -112,7 +129,6 @@ function submission(overrides: Record<string, unknown> = {}) {
       ...emptyEventRequestFormValues.venue,
       preferredLocation: "School of Computing",
     },
-    requirementsAcknowledged: true,
     ...overrides,
   });
 }
@@ -169,47 +185,41 @@ describe("event submission validation (PB-03)", () => {
   });
 
   it.each([
-    [{ ...emptyEventRequestFormValues.venue, minimumCapacity: "50" }],
-    [{ ...emptyEventRequestFormValues.venue, accessibilityNotes: "Step free" }],
-    [{ ...emptyEventRequestFormValues.venue, layoutNotes: "Theatre" }],
+    [
+      {
+        ...emptyEventRequestFormValues.venue,
+        preferredLocation: "City centre",
+      },
+    ],
+    [
+      {
+        ...emptyEventRequestFormValues.venue,
+        layoutNotes: "Theatre",
+      },
+    ],
+    [
+      {
+        ...emptyEventRequestFormValues.venue,
+        accessibilityNotes: "Step-free access",
+      },
+    ],
   ])("accepts any single venue requirement", (venue) => {
     expect(eventSubmissionSchema.safeParse(submission({ venue })).success).toBe(
       true,
     );
   });
 
-  it("requires a capacity only when registration is required", () => {
-    const withRegistration = (required: boolean, capacity: string) =>
+  it("accepts registration without asking for setup details", () => {
+    const result = eventSubmissionSchema.safeParse(
       submission({
         registration: {
           ...emptyEventRequestFormValues.registration,
-          required,
-          capacity,
+          required: true,
         },
-      });
-
-    expect(
-      eventSubmissionSchema.safeParse(withRegistration(true, "")).success,
-    ).toBe(false);
-    expect(
-      eventSubmissionSchema.safeParse(withRegistration(true, "100")).success,
-    ).toBe(true);
-    expect(
-      eventSubmissionSchema.safeParse(withRegistration(false, "")).success,
-    ).toBe(true);
-  });
-
-  it("requires the optional-requirements acknowledgement", () => {
-    const result = eventSubmissionSchema.safeParse(
-      submission({ requirementsAcknowledged: false }),
+      }),
     );
 
-    expect(result.success).toBe(false);
-    expect(
-      result.error?.issues.some(
-        (issue) => issue.path[0] === "requirementsAcknowledged",
-      ),
-    ).toBe(true);
+    expect(result.success).toBe(true);
   });
 
   // AC06: the organiser sees every problem at once, not one at a time.
@@ -219,7 +229,7 @@ describe("event submission validation (PB-03)", () => {
         purpose: "",
         description: "",
         expectedAttendance: "",
-        requirementsAcknowledged: false,
+        venue: { ...emptyEventRequestFormValues.venue },
       }),
     );
 
@@ -231,7 +241,7 @@ describe("event submission validation (PB-03)", () => {
         "purpose",
         "description",
         "expectedAttendance",
-        "requirementsAcknowledged",
+        "venue.preferredLocation",
       ]),
     );
   });

@@ -32,6 +32,14 @@ const values = {
   ...emptyEventRequestFormValues,
   title: "Student Leadership Summit 2",
   expectedAttendance: "120",
+  venue: {
+    ...emptyEventRequestFormValues.venue,
+    preferredLocation: "City centre",
+  },
+  registration: {
+    ...emptyEventRequestFormValues.registration,
+    required: true,
+  },
 };
 
 function renderPage() {
@@ -77,15 +85,13 @@ describe("CoordinatorEventEditPage", () => {
     await screen.findByDisplayValue("Student Leadership Summit 2");
 
     expect(screen.getByLabelText(/Event name/)).toBeDisabled();
-    expect(screen.getByLabelText("Purpose")).toBeDisabled();
-    expect(screen.getByLabelText("Expected attendance")).toBeDisabled();
-    expect(screen.getByLabelText("Starts")).toBeDisabled();
-    expect(screen.getByLabelText("Ends")).toBeDisabled();
-    expect(
-      screen.getByLabelText(/Attendee registration is required/),
-    ).toBeDisabled();
+    expect(screen.getByLabelText(/Purpose/)).toBeDisabled();
+    expect(screen.getByLabelText(/Expected attendance/)).toBeDisabled();
+    expect(screen.getByLabelText(/Starts/)).toBeDisabled();
+    expect(screen.getByLabelText(/Ends/)).toBeDisabled();
+    expect(screen.getByLabelText(/Attendee registration is required/)).toBeDisabled();
 
-    expect(screen.getByLabelText("Preferred location")).toBeEnabled();
+    expect(screen.getByLabelText(/Preferred location/)).toBeEnabled();
     expect(screen.getByRole("button", { name: "Add equipment" })).toBeEnabled();
   });
 
