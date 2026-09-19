@@ -43,6 +43,36 @@ describe("EventRequestForm draft mode", () => {
     );
   });
 
+  it("offers save and submit actions while drafting and validates each action separately", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const onSubmitRequest = vi.fn().mockResolvedValue(undefined);
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Incomplete request" })}
+        onSave={onSave}
+        onSubmitRequest={onSubmitRequest}
+        onCancel={vi.fn()}
+        submissionSchema={eventSubmissionSchema}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Submit request" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Submit request" }));
+
+    expect(
+      await screen.findByText("Describe the purpose of the event before submitting"),
+    ).toBeInTheDocument();
+    expect(onSubmitRequest).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+  });
+
   it.each([
     ["ab", "Event name must contain at least 3 characters"],
     ["a".repeat(161), "Event name must contain at most 160 characters"],

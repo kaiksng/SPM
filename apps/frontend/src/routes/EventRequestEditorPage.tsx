@@ -40,6 +40,10 @@ export function EventRequestEditorPage({
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [initialValues, setInitialValues] = useState<EventRequestFormValues>();
+  const [currentEventId, setCurrentEventId] = useState(eventId);
+  const [requestStatus, setRequestStatus] = useState<string>(
+    eventId ? "" : "draft",
+  );
   const [loading, setLoading] = useState(Boolean(eventId));
   const [error, setError] = useState<string>();
   const [openClarification, setOpenClarification] = useState<{
@@ -61,15 +65,21 @@ export function EventRequestEditorPage({
 
   useEffect(() => {
     if (!eventId || profile?.role !== "event_organiser") {
+      setCurrentEventId(undefined);
+      setRequestStatus("draft");
       setInitialValues(structuredClone(emptyEventRequestFormValues));
       setLoading(false);
       return;
     }
 
+    setCurrentEventId(eventId);
     let active = true;
     loadEventDraft(eventId)
       .then((draft) => {
-        if (active) setInitialValues(draft);
+        if (active) {
+          setInitialValues(draft.values);
+          setRequestStatus(draft.status);
+        }
       })
       .catch((loadError: unknown) => {
         if (active) {
@@ -141,8 +151,8 @@ export function EventRequestEditorPage({
   }
 
   async function handleSave(values: EventRequestFormValues) {
-    if (submitting && eventId) {
-      await submitEventRequest(eventId, values);
+    if (submitting && currentEventId) {
+      await submitEventRequest(currentEventId, values);
       navigate("/events", {
         replace: true,
         state: { notice: "Event request submitted." },
@@ -150,7 +160,7 @@ export function EventRequestEditorPage({
       return;
     }
 
-    await saveEventDraft(values, eventId);
+    await saveEventDraft(values, currentEventId);
 
     // Saving permitted edits while a clarification is open is itself how the
     // organiser responds — no separate typed message required (AC04 is
@@ -170,6 +180,24 @@ export function EventRequestEditorPage({
     }
 
     navigate("/events", { replace: true, state: { notice } });
+  }
+
+  async function handleSubmitRequest(values: EventRequestFormValues) {
+    let targetEventId = currentEventId;
+
+    // The submission endpoint operates on a stored Draft. When the organiser
+    // submits directly from a brand-new form, create that Draft first and keep
+    // its id so a failed submission retry cannot create a duplicate event.
+    if (!targetEventId) {
+      targetEventId = await saveEventDraft(values);
+      setCurrentEventId(targetEventId);
+    }
+
+    await submitEventRequest(targetEventId, values);
+    navigate("/events", {
+      replace: true,
+      state: { notice: "Event request submitted." },
+    });
   }
 
   return (
@@ -203,7 +231,7 @@ export function EventRequestEditorPage({
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
               {submitting
                 ? "Complete every mandatory field below. Submitting assigns a coordinator and starts the review."
-                : "Start with an event name. You can save now and return to complete the remaining requirements later."}
+                : "Start with an event name to save a Draft. When every mandatory field is complete, you can submit directly from this form."}
             </p>
           </header>
 
@@ -246,8 +274,14 @@ export function EventRequestEditorPage({
                 key={eventId ?? "new"}
                 initialValues={initialValues}
                 onSave={handleSave}
+                onSubmitRequest={
+                  !submitting && requestStatus === "draft"
+                    ? handleSubmitRequest
+                    : undefined
+                }
                 onCancel={() => navigate("/events")}
                 validationSchema={submitting ? eventSubmissionSchema : undefined}
+                submissionSchema={eventSubmissionSchema}
                 submitLabel={submitting ? "Submit request" : undefined}
                 permittedFields={openClarification?.permittedFields}
               />
