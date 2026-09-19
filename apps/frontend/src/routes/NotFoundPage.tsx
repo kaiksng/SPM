@@ -1,3 +1,4 @@
+import { getRoleDestination } from "@spm/shared";
 import { MapPinOff } from "lucide-react";
 import { Link } from "react-router";
 
@@ -6,7 +7,8 @@ import { useAuth } from "@/context/auth-context";
 
 /** Catch-all for any URL that doesn't match a route, signed in or not. */
 export function NotFoundPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const destination = profile ? getRoleDestination(profile.role) : "/home";
 
   return (
     <div className="grid min-h-screen place-items-center bg-slate-50 px-6 text-center">
@@ -22,7 +24,7 @@ export function NotFoundPage() {
           moved.
         </p>
         <Link
-          to={user ? "/home" : "/"}
+          to={user ? destination : "/"}
           className={buttonVariants({ variant: "default", className: "mt-6" })}
         >
           {user ? "Go to dashboard" : "Go to home"}

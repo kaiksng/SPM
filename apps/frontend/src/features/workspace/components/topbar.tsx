@@ -1,4 +1,4 @@
-import type { UserRole } from "@spm/shared";
+import { getRoleDestination, type UserRole } from "@spm/shared";
 import { Menu as MenuIcon } from "lucide-react";
 import { Link } from "react-router";
 
@@ -32,7 +32,10 @@ export function Topbar({
         <MenuIcon />
       </Button>
 
-      <Link to="/home" className="flex items-center gap-2.5">
+      <Link
+        to={getRoleDestination(role)}
+        className="flex items-center gap-2.5"
+      >
         <span className="bg-primary text-primary-foreground grid size-8 shrink-0 place-items-center rounded-lg text-sm font-bold">
           CS
         </span>

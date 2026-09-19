@@ -1,3 +1,4 @@
+import { getRoleDestination } from "@spm/shared";
 import {
   ArrowRight,
   CalendarCheck,
@@ -34,7 +35,8 @@ const foundations = [
 
 export function PublicPage() {
   usePageTitle("ConnectSphere");
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const destination = profile ? getRoleDestination(profile.role) : "/home";
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#f7f8fb] text-slate-950">
@@ -57,7 +59,7 @@ export function PublicPage() {
               Foundation ready
             </span>
             <Link
-              to={user ? "/home" : "/login"}
+              to={user ? destination : "/login"}
               className="rounded-full bg-slate-950 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             >
               {user ? "Go to dashboard" : "Sign in"}

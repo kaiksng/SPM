@@ -1,4 +1,4 @@
-import { isPathAllowedForRole } from "@spm/shared";
+import { getRoleDestination, isPathAllowedForRole } from "@spm/shared";
 import { Lock } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router";
@@ -26,7 +26,7 @@ export function RoleGate({ children }: { children: ReactNode }) {
             You don&apos;t have access to this page
           </h1>
           <Link
-            to="/home"
+            to={getRoleDestination(profile.role)}
             className={buttonVariants({
               variant: "default",
               className: "mt-6",
