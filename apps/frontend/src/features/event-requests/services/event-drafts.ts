@@ -115,7 +115,7 @@ export async function loadEventDraft(eventId: string) {
   const venue = data.event_venue_requirements;
   const registration = data.event_registration_requirements;
 
-  return {
+  const values = {
     ...structuredClone(emptyEventRequestFormValues),
     title: data.title,
     purpose: data.purpose ?? "",
@@ -147,6 +147,8 @@ export async function loadEventDraft(eventId: string) {
     },
     requirementsAcknowledged: data.requirements_acknowledged,
   } satisfies EventRequestFormValues;
+
+  return { values, status: data.status };
 }
 
 export async function saveEventDraft(

@@ -3,7 +3,7 @@ import {
   eventDraftSchema,
   type EventRequestFormValues,
 } from "@spm/shared";
-import { CirclePlus, Save, Trash2 } from "lucide-react";
+import { CirclePlus, Save, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { ZodType } from "zod";
 
@@ -16,15 +16,19 @@ type FieldErrors = Record<string, string>;
 export function EventRequestForm({
   initialValues,
   onSave,
+  onSubmitRequest,
   onCancel,
   validationSchema = eventDraftSchema,
+  submissionSchema,
   submitLabel = "Save draft",
   permittedFields,
 }: {
   initialValues: EventRequestFormValues;
   onSave: (values: EventRequestFormValues) => Promise<void>;
+  onSubmitRequest?: (values: EventRequestFormValues) => Promise<void>;
   onCancel: () => void;
   validationSchema?: ZodType<EventRequestFormValues>;
+  submissionSchema?: ZodType<EventRequestFormValues>;
   submitLabel?: string;
   /**
    * The bucket keys a coordinator's open clarification permits editing
@@ -38,7 +42,7 @@ export function EventRequestForm({
   const [values, setValues] = useState(() => structuredClone(initialValues));
   const [errors, setErrors] = useState<FieldErrors>({});
   const [message, setMessage] = useState<string>();
-  const [saving, setSaving] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"save" | "submit">();
   // Required facilities is typed as free text and only turned into a list on
   // save — keeping the input's displayed value as whatever was actually
   // typed, rather than re-deriving it from values.venue.facilities.join(", ")
@@ -104,11 +108,14 @@ export function EventRequestForm({
       ),
     }));
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function runAction(action: "save" | "submit") {
     setMessage(undefined);
 
-    const result = validationSchema.safeParse(values);
+    const schema = action === "submit" ? submissionSchema : validationSchema;
+    const handler = action === "submit" ? onSubmitRequest : onSave;
+    if (!schema || !handler) return;
+
+    const result = schema.safeParse(values);
     if (!result.success) {
       const nextErrors: FieldErrors = {};
       for (const issue of result.error.issues) {
@@ -121,9 +128,9 @@ export function EventRequestForm({
     }
 
     setErrors({});
-    setSaving(true);
+    setPendingAction(action);
     try {
-      await onSave(result.data);
+      await handler(result.data);
     } catch (error) {
       // AC06: a server-side rejection (e.g. submission) highlights every
       // affected field the same way a local validation failure does.
@@ -133,11 +140,18 @@ export function EventRequestForm({
       setMessage(
         error instanceof Error
           ? error.message
-          : "Your draft could not be saved. Try again.",
+          : action === "submit"
+            ? "Your event request could not be submitted. Try again."
+            : "Your draft could not be saved. Try again.",
       );
     } finally {
-      setSaving(false);
+      setPendingAction(undefined);
     }
+  }
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await runAction("save");
   }
 
   return (
@@ -467,17 +481,41 @@ export function EventRequestForm({
       </FormSection>
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-12px_32px_-24px_rgba(15,23,42,0.45)] backdrop-blur lg:left-64">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
+        <div className="mx-auto flex max-w-5xl flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
           <p aria-live="polite" className={cn("text-sm", message ? "text-red-700" : "text-slate-500")}>
-            {message ?? "Only the event name is required to save this draft."}
+            {message ??
+              (onSubmitRequest
+                ? "Save with only an event name, or complete every required field to submit."
+                : "Only the event name is required to save this draft.")}
           </p>
-          <div className="flex shrink-0 gap-2">
-            <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onCancel}
+              disabled={Boolean(pendingAction)}
+            >
               Cancel
             </Button>
-            <Button type="submit" size="lg" disabled={saving}>
-              <Save /> {saving ? "Saving…" : submitLabel}
+            <Button
+              type="submit"
+              size="lg"
+              variant={onSubmitRequest ? "outline" : "default"}
+              disabled={Boolean(pendingAction)}
+            >
+              <Save /> {pendingAction === "save" ? "Saving…" : submitLabel}
             </Button>
+            {onSubmitRequest && (
+              <Button
+                type="button"
+                size="lg"
+                disabled={Boolean(pendingAction)}
+                onClick={() => void runAction("submit")}
+              >
+                <Send />
+                {pendingAction === "submit" ? "Submitting…" : "Submit request"}
+              </Button>
+            )}
           </div>
         </div>
       </div>
