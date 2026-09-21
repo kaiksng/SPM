@@ -10,7 +10,6 @@ import { EventDetailPage } from "@/routes/EventDetailPage";
 import { EventHistoryPage } from "@/routes/EventHistoryPage";
 import { EventRequestEditorPage } from "@/routes/EventRequestEditorPage";
 import { EventsPage } from "@/routes/EventsPage";
-import { HomePage } from "@/routes/HomePage";
 import { LoginPage } from "@/routes/LoginPage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
 import { PublicPage } from "@/routes/PublicPage";
@@ -32,7 +31,6 @@ export function App() {
 
           <Route element={<RequireSession />}>
             <Route element={<WorkspaceLayout />}>
-              <Route path="home" element={<HomePage />} />
               <Route path="events" element={<EventsPage />} />
               <Route path="events/new" element={<EventRequestEditorPage />} />
               <Route path="events/:eventId" element={<EventDetailPage />} />

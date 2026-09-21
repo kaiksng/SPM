@@ -81,6 +81,6 @@ describe("login action", () => {
       formDataWith({ email: "person@example.com", password: "correct-password" }),
     );
 
-    expect(state?.redirectTo).toBe("/home");
+    expect(state?.redirectTo).toBe("/browse-events");
   });
 });

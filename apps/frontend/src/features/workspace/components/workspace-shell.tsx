@@ -47,12 +47,6 @@ export function WorkspaceShell({
       />
 
       <div className="flex min-h-0 flex-1">
-        <aside className="border-sidebar-border bg-sidebar hidden w-64 shrink-0 border-r lg:block">
-          <div className="fixed h-[calc(100vh-3.5rem)] w-64">
-            <SidebarContent role={role} />
-          </div>
-        </aside>
-
         {isMobileNavOpen && (
           <div className="fixed inset-0 z-40 lg:hidden">
             <button
@@ -62,7 +56,7 @@ export function WorkspaceShell({
               className="absolute inset-0 bg-black/40"
               onClick={() => setIsMobileNavOpen(false)}
             />
-            <div className="bg-sidebar relative z-50 flex h-full w-72 max-w-[85vw] flex-col shadow-xl">
+            <div className="bg-background relative z-50 flex h-full w-72 max-w-[85vw] flex-col shadow-xl">
               <SidebarContent
                 role={role}
                 onNavigate={() => setIsMobileNavOpen(false)}
@@ -73,7 +67,7 @@ export function WorkspaceShell({
                 size="icon"
                 aria-label="Close menu"
                 onClick={() => setIsMobileNavOpen(false)}
-                className="text-sidebar-foreground absolute top-2.5 right-2.5"
+                className="text-foreground absolute top-2.5 right-2.5"
               >
                 <X />
               </Button>

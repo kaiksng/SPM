@@ -1,4 +1,4 @@
-import type { EventRequestFormValues } from "@spm/shared";
+import { getRoleDestination, type EventRequestFormValues } from "@spm/shared";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -71,10 +71,10 @@ export function CoordinatorEventEditPage() {
               Event Coordinator access is required
             </h1>
             <Link
-              to="/home"
+              to={profile ? getRoleDestination(profile.role) : "/login"}
               className={buttonVariants({ variant: "outline", className: "mt-6" })}
             >
-              Return to dashboard
+              Return to your workspace
             </Link>
           </div>
         </div>

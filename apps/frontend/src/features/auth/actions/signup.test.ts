@@ -69,7 +69,7 @@ describe("signup action", () => {
         },
       },
     });
-    expect(state?.redirectTo).toBe("/home");
+    expect(state?.redirectTo).toBe("/events");
   });
 
   it("returns the submitted role's destination", async () => {
@@ -83,7 +83,7 @@ describe("signup action", () => {
       formDataWith({ ...validForm, role: "attendee" }),
     );
 
-    expect(state?.redirectTo).toBe("/home");
+    expect(state?.redirectTo).toBe("/browse-events");
   });
 
   it("maps a duplicate-email error without leaking whether the email exists", async () => {

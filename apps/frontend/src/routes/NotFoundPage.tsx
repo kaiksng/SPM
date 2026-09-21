@@ -8,7 +8,7 @@ import { useAuth } from "@/context/auth-context";
 /** Catch-all for any URL that doesn't match a route, signed in or not. */
 export function NotFoundPage() {
   const { user, profile } = useAuth();
-  const destination = profile ? getRoleDestination(profile.role) : "/home";
+  const destination = profile ? getRoleDestination(profile.role) : "/login";
 
   return (
     <div className="grid min-h-screen place-items-center bg-slate-50 px-6 text-center">

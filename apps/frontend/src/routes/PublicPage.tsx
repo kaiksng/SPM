@@ -36,7 +36,7 @@ const foundations = [
 export function PublicPage() {
   usePageTitle("ConnectSphere");
   const { user, profile } = useAuth();
-  const destination = profile ? getRoleDestination(profile.role) : "/home";
+  const destination = profile ? getRoleDestination(profile.role) : "/login";
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#f7f8fb] text-slate-950">

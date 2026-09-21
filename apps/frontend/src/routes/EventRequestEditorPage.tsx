@@ -2,6 +2,7 @@ import {
   clarificationPermittedFieldLabels,
   emptyEventRequestFormValues,
   eventSubmissionSchema,
+  getRoleDestination,
   isUnresolvedClarificationStatus,
   type ClarificationPermittedField,
   type EventRequestFormValues,
@@ -139,10 +140,10 @@ export function EventRequestEditorPage({
               Event Organiser access is required
             </h1>
             <Link
-              to="/home"
+              to={profile ? getRoleDestination(profile.role) : "/login"}
               className={buttonVariants({ variant: "outline", className: "mt-6" })}
             >
-              Return to dashboard
+              Return to your workspace
             </Link>
           </div>
         </div>

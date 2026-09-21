@@ -106,6 +106,42 @@ describe("EventsPage draft controls", () => {
     );
   });
 
+  it("filters the list by title as the organiser types in the search box", async () => {
+    listEventRequestsMock.mockResolvedValue([draft, requested]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Kai Test Draft")).toBeInTheDocument();
+    expect(screen.getByText("Shernice Test Submission")).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText("Search events"), "shernice");
+
+    expect(screen.queryByText("Kai Test Draft")).not.toBeInTheDocument();
+    expect(screen.getByText("Shernice Test Submission")).toBeInTheDocument();
+  });
+
+  it("shows a no-results message when the search matches nothing", async () => {
+    listEventRequestsMock.mockResolvedValue([draft]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Kai Test Draft");
+    await user.type(screen.getByPlaceholderText("Search events"), "no such event");
+
+    expect(await screen.findByText("No matching events")).toBeInTheDocument();
+    expect(screen.queryByText("Kai Test Draft")).not.toBeInTheDocument();
+  });
+
   // PB-03 AC04 and AC07.
   it("shows the submission time and a permitted edit action for a Requested event", async () => {
     listEventRequestsMock.mockResolvedValue([requested]);

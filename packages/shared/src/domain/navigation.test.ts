@@ -3,29 +3,28 @@ import { describe, expect, it } from "vitest";
 import { getNavItemsForRole, isPathAllowedForRole } from "./navigation";
 
 describe("workspace navigation", () => {
-  it("gives organisers the dashboard and events sections", () => {
+  it("gives organisers the events section", () => {
     expect(
       getNavItemsForRole("event_organiser").map((item) => item.id),
-    ).toEqual(["dashboard", "events"]);
+    ).toEqual(["events"]);
   });
 
   it("gives coordinators every staff-facing section", () => {
     expect(
       getNavItemsForRole("event_coordinator").map((item) => item.id),
-    ).toEqual(["dashboard", "events", "venues", "equipment"]);
+    ).toEqual(["events", "venues", "equipment"]);
   });
 
-  it("gives venue staff the dashboard and venues sections", () => {
+  it("gives venue staff the venues section", () => {
     expect(getNavItemsForRole("venue_staff").map((item) => item.id)).toEqual([
-      "dashboard",
       "venues",
     ]);
   });
 
-  it("gives technical support staff the dashboard and equipment sections", () => {
+  it("gives technical support staff the equipment section", () => {
     expect(
       getNavItemsForRole("technical_support_staff").map((item) => item.id),
-    ).toEqual(["dashboard", "equipment"]);
+    ).toEqual(["equipment"]);
   });
 
   it("gives attendees only the browse events section", () => {
@@ -36,7 +35,6 @@ describe("workspace navigation", () => {
 
   it("gives administrators every staff-facing section", () => {
     expect(getNavItemsForRole("administrator").map((item) => item.id)).toEqual([
-      "dashboard",
       "events",
       "venues",
       "equipment",
@@ -59,11 +57,5 @@ describe("workspace navigation", () => {
 
   it("blocks a role from a path outside its nav", () => {
     expect(isPathAllowedForRole("/venues", "event_organiser")).toBe(false);
-  });
-
-  it("blocks a role from the dashboard when it has no dashboard nav item", () => {
-    // Attendees still land on /home after login (see role-destination.ts) even
-    // though it isn't in their menu, so pages must not gate /home with this.
-    expect(isPathAllowedForRole("/home", "attendee")).toBe(false);
   });
 });

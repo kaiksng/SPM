@@ -1,7 +1,6 @@
 import type { UserRole } from "../types/role";
 
-export type NavItemId =
-  "dashboard" | "events" | "venues" | "equipment" | "browse-events";
+export type NavItemId = "events" | "venues" | "equipment" | "browse-events";
 
 export interface NavItem {
   id: NavItemId;
@@ -10,7 +9,6 @@ export interface NavItem {
 }
 
 const NAV_ITEMS: Record<NavItemId, NavItem> = {
-  dashboard: { id: "dashboard", label: "Dashboard", href: "/home" },
   events: { id: "events", label: "Events", href: "/events" },
   venues: { id: "venues", label: "Venues", href: "/venues" },
   equipment: { id: "equipment", label: "Equipment", href: "/equipment" },
@@ -22,12 +20,12 @@ const NAV_ITEMS: Record<NavItemId, NavItem> = {
 };
 
 const ROLE_NAV_ITEM_IDS = {
-  event_organiser: ["dashboard", "events"],
-  event_coordinator: ["dashboard", "events", "venues", "equipment"],
-  venue_staff: ["dashboard", "venues"],
-  technical_support_staff: ["dashboard", "equipment"],
+  event_organiser: ["events"],
+  event_coordinator: ["events", "venues", "equipment"],
+  venue_staff: ["venues"],
+  technical_support_staff: ["equipment"],
   attendee: ["browse-events"],
-  administrator: ["dashboard", "events", "venues", "equipment"],
+  administrator: ["events", "venues", "equipment"],
 } as const satisfies Record<UserRole, readonly NavItemId[]>;
 
 /** Ordered nav items a given role sees in the workspace side menu. */

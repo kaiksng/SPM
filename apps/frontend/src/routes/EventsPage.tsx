@@ -3,11 +3,12 @@ import {
   isDirectEditBlocked,
   type ClarificationPermittedField,
 } from "@spm/shared";
-import { CalendarDays, FilePlus2, Pencil, Send, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronDown, FilePlus2, Pencil, Search, Send, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/auth-context";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
 import { EventHistoryButton } from "@/features/event-requests/components/event-history-link";
@@ -52,6 +53,7 @@ function OrganiserEventsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [draftToDelete, setDraftToDelete] = useState<EventDraftSummary>();
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (!user) {
@@ -102,28 +104,30 @@ function OrganiserEventsView() {
   }
 
   const notice = (state as LocationState)?.notice;
+  const filteredEvents = filterEventsByTitle(events, searchQuery);
 
   return (
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-6xl">
-          <header className="flex flex-col gap-5 border-b border-slate-200 pb-7 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold tracking-[0.16em] text-blue-600 uppercase">
-                Organiser workspace
-              </p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-slate-950">
-                Event requests
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                Prepare requests at your own pace. Drafts stay private and do not
-                enter review until you submit them.
-              </p>
-            </div>
-            <Link to="/events/new" className={buttonVariants({ size: "lg" })}>
-              <FilePlus2 /> Create event request
-            </Link>
+          <header className="border-b border-slate-200 pb-7">
+            <p className="text-xs font-semibold tracking-[0.16em] text-blue-600 uppercase">
+              Organiser workspace
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-slate-950">
+              Event requests
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Prepare requests at your own pace. Drafts stay private and do not
+              enter review until you submit them.
+            </p>
           </header>
+
+          <EventsToolbar
+            createHref="/events/new"
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+          />
 
           {notice && (
             <p
@@ -146,9 +150,11 @@ function OrganiserEventsView() {
             <LoadingList />
           ) : events.length === 0 ? (
             <EmptyState />
+          ) : filteredEvents.length === 0 ? (
+            <NoSearchResults />
           ) : (
             <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {events.map((event) => (
+              {filteredEvents.map((event) => (
                 <EventCard
                   key={event.id}
                   event={event}
@@ -177,6 +183,7 @@ function CoordinatorEventsView() {
   const [events, setEvents] = useState<AssignedEventSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (!user) {
@@ -208,6 +215,7 @@ function CoordinatorEventsView() {
   }, [user]);
 
   const notice = (state as LocationState)?.notice;
+  const filteredEvents = filterEventsByTitle(events, searchQuery);
 
   return (
     <RoleGate>
@@ -225,6 +233,8 @@ function CoordinatorEventsView() {
               organiser submits their request.
             </p>
           </header>
+
+          <EventsToolbar searchValue={searchQuery} onSearchChange={setSearchQuery} />
 
           {notice && (
             <p
@@ -247,9 +257,11 @@ function CoordinatorEventsView() {
             <LoadingList />
           ) : events.length === 0 ? (
             <CoordinatorEmptyState />
+          ) : filteredEvents.length === 0 ? (
+            <NoSearchResults />
           ) : (
             <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {events.map((event) => (
+              {filteredEvents.map((event) => (
                 <AssignedEventCard key={event.id} event={event} />
               ))}
             </div>
@@ -257,6 +269,76 @@ function CoordinatorEventsView() {
         </div>
       </div>
     </RoleGate>
+  );
+}
+
+/** Case-insensitive substring match on title — the only field the search box filters by for now. */
+function filterEventsByTitle<T extends { title: string }>(
+  events: T[],
+  query: string,
+): T[] {
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed) return events;
+  return events.filter((event) => event.title.toLowerCase().includes(trimmed));
+}
+
+function NoSearchResults() {
+  return (
+    <section className="mt-7 grid min-h-80 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 text-center">
+      <div className="max-w-sm py-12">
+        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-blue-50 text-blue-600">
+          <Search aria-hidden="true" />
+        </span>
+        <h2 className="mt-5 text-lg font-semibold text-slate-950">No matching events</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          Try a different search term.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Search filters the events already loaded, by title, client-side only — no
+ * new backend query. Filters is still a placeholder: it isn't wired to
+ * anything until the product decides what it should filter by.
+ */
+function EventsToolbar({
+  createHref,
+  searchValue,
+  onSearchChange,
+}: {
+  createHref?: string;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+}) {
+  return (
+    <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-1 flex-wrap items-center gap-2">
+        <div className="relative w-full max-w-xs">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400"
+          />
+          <Input
+            type="search"
+            placeholder="Search events"
+            aria-label="Search events"
+            value={searchValue}
+            onChange={(event) => onSearchChange(event.target.value)}
+            className="h-9 pl-8"
+          />
+        </div>
+        <Button type="button" variant="outline" size="sm">
+          Filters <ChevronDown className="size-4" aria-hidden="true" />
+        </Button>
+      </div>
+      {createHref && (
+        <Link to={createHref} className={buttonVariants({ size: "sm" })}>
+          <FilePlus2 /> New event
+        </Link>
+      )}
+    </div>
   );
 }
 

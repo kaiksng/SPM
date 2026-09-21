@@ -1,14 +1,7 @@
 import type { NavItemId } from "@spm/shared";
-import {
-  Building2,
-  CalendarDays,
-  Compass,
-  LayoutDashboard,
-  Wrench,
-} from "lucide-react";
+import { Building2, CalendarDays, Compass, Wrench } from "lucide-react";
 
 const NAV_ICONS = {
-  dashboard: LayoutDashboard,
   events: CalendarDays,
   venues: Building2,
   equipment: Wrench,
