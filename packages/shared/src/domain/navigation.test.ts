@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { getNavItemsForRole, isPathAllowedForRole } from "./navigation";
 
 describe("workspace navigation", () => {
-  it("gives organisers the events section", () => {
+  it("gives organisers events, venues, and equipment — view-only for the latter two", () => {
     expect(
       getNavItemsForRole("event_organiser").map((item) => item.id),
-    ).toEqual(["events"]);
+    ).toEqual(["events", "venues", "equipment"]);
   });
 
   it("gives coordinators every staff-facing section", () => {
@@ -56,6 +56,6 @@ describe("workspace navigation", () => {
   });
 
   it("blocks a role from a path outside its nav", () => {
-    expect(isPathAllowedForRole("/venues", "event_organiser")).toBe(false);
+    expect(isPathAllowedForRole("/equipment", "venue_staff")).toBe(false);
   });
 });

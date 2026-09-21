@@ -20,7 +20,7 @@ const NAV_ITEMS: Record<NavItemId, NavItem> = {
 };
 
 const ROLE_NAV_ITEM_IDS = {
-  event_organiser: ["events"],
+  event_organiser: ["events", "venues", "equipment"],
   event_coordinator: ["events", "venues", "equipment"],
   venue_staff: ["venues"],
   technical_support_staff: ["equipment"],

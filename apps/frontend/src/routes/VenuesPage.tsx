@@ -1,10 +1,21 @@
-import { Building2 } from "lucide-react";
+import { Building2, FilePlus2 } from "lucide-react";
+import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/auth-context";
+import { ListToolbar } from "@/features/workspace/components/list-toolbar";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
+/** Only a coordinator (or administrator) can request a venue booking — an organiser can view but not book. */
+function canRequestVenue(role: string | undefined) {
+  return role === "event_coordinator" || role === "administrator";
+}
+
 export function VenuesPage() {
   usePageTitle("Venues");
+  const { profile } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
 
   return (
     <RoleGate>
@@ -21,6 +32,19 @@ export function VenuesPage() {
               Manage venue availability and bookings here.
             </p>
           </header>
+
+          <ListToolbar
+            searchPlaceholder="Search venues"
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            action={
+              canRequestVenue(profile?.role) ? (
+                <Button type="button" size="sm">
+                  <FilePlus2 /> Venue request
+                </Button>
+              ) : undefined
+            }
+          />
 
           <EmptyState />
         </div>

@@ -1,10 +1,21 @@
-import { Wrench } from "lucide-react";
+import { FilePlus2, Wrench } from "lucide-react";
+import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/auth-context";
+import { ListToolbar } from "@/features/workspace/components/list-toolbar";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
+/** Only a coordinator (or administrator) can request equipment — an organiser can view but not book. */
+function canRequestEquipment(role: string | undefined) {
+  return role === "event_coordinator" || role === "administrator";
+}
+
 export function EquipmentPage() {
   usePageTitle("Equipment");
+  const { profile } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
 
   return (
     <RoleGate>
@@ -21,6 +32,19 @@ export function EquipmentPage() {
               Reserve and track technical equipment here.
             </p>
           </header>
+
+          <ListToolbar
+            searchPlaceholder="Search equipment"
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            action={
+              canRequestEquipment(profile?.role) ? (
+                <Button type="button" size="sm">
+                  <FilePlus2 /> Equipment request
+                </Button>
+              ) : undefined
+            }
+          />
 
           <EmptyState />
         </div>
