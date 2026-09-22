@@ -14,6 +14,8 @@ import { LoginPage } from "@/routes/LoginPage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
 import { PublicPage } from "@/routes/PublicPage";
 import { SignupPage } from "@/routes/SignupPage";
+import { VenueDetailPage } from "@/routes/VenueDetailPage";
+import { VenueEditorPage } from "@/routes/VenueEditorPage";
 import { VenuesPage } from "@/routes/VenuesPage";
 import { WorkspaceLayout } from "@/routes/WorkspaceLayout";
 
@@ -48,6 +50,9 @@ export function App() {
                 element={<CoordinatorEventEditPage />}
               />
               <Route path="venues" element={<VenuesPage />} />
+              <Route path="venues/new" element={<VenueEditorPage />} />
+              <Route path="venues/:venueId" element={<VenueDetailPage />} />
+              <Route path="venues/:venueId/edit" element={<VenueEditorPage />} />
               <Route path="equipment" element={<EquipmentPage />} />
               <Route path="browse-events" element={<BrowseEventsPage />} />
             </Route>

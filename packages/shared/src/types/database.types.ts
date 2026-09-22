@@ -781,6 +781,8 @@ export type Database = {
           ends_at: string
           event_id: string
           id: string
+          needs_review: boolean
+          needs_review_reason: string | null
           requested_at: string
           requested_by: string
           starts_at: string
@@ -794,6 +796,8 @@ export type Database = {
           ends_at: string
           event_id: string
           id?: string
+          needs_review?: boolean
+          needs_review_reason?: string | null
           requested_at?: string
           requested_by: string
           starts_at: string
@@ -807,6 +811,8 @@ export type Database = {
           ends_at?: string
           event_id?: string
           id?: string
+          needs_review?: boolean
+          needs_review_reason?: string | null
           requested_at?: string
           requested_by?: string
           starts_at?: string
@@ -934,38 +940,49 @@ export type Database = {
       venues: {
         Row: {
           accessibility_notes: string | null
-          capacity: number | null
+          capacity: number
           created_at: string
           description: string | null
           id: string
-          location: string | null
+          location: string
           name: string
-          operating_hours: string | null
+          operating_hours: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           accessibility_notes?: string | null
-          capacity?: number | null
+          capacity: number
           created_at?: string
           description?: string | null
           id?: string
-          location?: string | null
+          location: string
           name: string
-          operating_hours?: string | null
+          operating_hours: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           accessibility_notes?: string | null
-          capacity?: number | null
+          capacity?: number
           created_at?: string
           description?: string | null
           id?: string
-          location?: string | null
+          location?: string
           name?: string
-          operating_hours?: string | null
+          operating_hours?: string
           updated_at?: string
+          updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "venues_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -978,6 +995,10 @@ export type Database = {
       }
       can_view_event: { Args: { target_event_id: string }; Returns: boolean }
       complete_event: { Args: { p_event_id: string }; Returns: Json }
+      create_venue: {
+        Args: { p_actor_id?: string; p_venue: Json }
+        Returns: Json
+      }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
@@ -1036,6 +1057,10 @@ export type Database = {
         Args: { p_event_id: string; updates: Json }
         Returns: string
       }
+      update_venue: {
+        Args: { p_actor_id?: string; p_venue: Json; p_venue_id: string }
+        Returns: Json
+      }
     }
     Enums: {
       clarification_status: "open" | "answered" | "resolved"
@@ -1062,6 +1087,7 @@ export type Database = {
         | "registration_update"
         | "confirmation"
         | "cancellation"
+        | "venue_capacity_review"
       request_status: "pending" | "approved" | "rejected" | "cancelled"
       user_role:
         | "event_organiser"
@@ -1225,6 +1251,7 @@ export const Constants = {
         "registration_update",
         "confirmation",
         "cancellation",
+        "venue_capacity_review",
       ],
       request_status: ["pending", "approved", "rejected", "cancelled"],
       user_role: [

@@ -1,10 +1,12 @@
 export * from "./types/database.types";
 export * from "./types/role";
 export * from "./types/event";
+export * from "./types/venue";
 
 export * from "./schemas/login";
 export * from "./schemas/signup";
 export * from "./schemas/event-request";
+export * from "./schemas/venue";
 
 export * from "./domain/role-destination";
 export * from "./domain/role-label";
