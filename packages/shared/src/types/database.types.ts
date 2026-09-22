@@ -151,6 +151,159 @@ export type Database = {
           },
         ]
       }
+      equipment_items: {
+        Row: {
+          category: string | null
+          id: string
+          name: string
+          notes: string | null
+          total_quantity: number
+        }
+        Insert: {
+          category?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          total_quantity: number
+        }
+        Update: {
+          category?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          total_quantity?: number
+        }
+        Relationships: []
+      }
+      equipment_reservations: {
+        Row: {
+          decided_at: string | null
+          decided_by: string | null
+          ends_at: string
+          equipment_item_id: string
+          event_id: string
+          id: string
+          quantity: number
+          requested_at: string
+          requested_by: string
+          starts_at: string
+          status: Database["public"]["Enums"]["request_status"]
+        }
+        Insert: {
+          decided_at?: string | null
+          decided_by?: string | null
+          ends_at: string
+          equipment_item_id: string
+          event_id: string
+          id?: string
+          quantity: number
+          requested_at?: string
+          requested_by: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["request_status"]
+        }
+        Update: {
+          decided_at?: string | null
+          decided_by?: string | null
+          ends_at?: string
+          equipment_item_id?: string
+          event_id?: string
+          id?: string
+          quantity?: number
+          requested_at?: string
+          requested_by?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["request_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_reservations_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_reservations_equipment_item_id_fkey"
+            columns: ["equipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_reservations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_reservations_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_change_requests: {
+        Row: {
+          event_id: string
+          id: string
+          requested_at: string
+          requested_by: string
+          requested_changes: Json
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          event_id: string
+          id?: string
+          requested_at?: string
+          requested_by: string
+          requested_changes: Json
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          event_id?: string
+          id?: string
+          requested_at?: string
+          requested_by?: string
+          requested_changes?: Json
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_change_requests_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_change_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_change_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_decisions: {
         Row: {
           decided_at: string
@@ -305,6 +458,48 @@ export type Database = {
           },
         ]
       }
+      event_registrations: {
+        Row: {
+          attendee_id: string
+          event_id: string
+          id: string
+          registered_at: string
+          status: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          attendee_id: string
+          event_id: string
+          id?: string
+          registered_at?: string
+          status?: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          attendee_id?: string
+          event_id?: string
+          id?: string
+          registered_at?: string
+          status?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registrations_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_required_facilities: {
         Row: {
           event_id: string
@@ -432,6 +627,7 @@ export type Database = {
           submitted_by: string | null
           title: string
           updated_at: string
+          venue_id: string | null
         }
         Insert: {
           assigned_coordinator_id?: string | null
@@ -450,6 +646,7 @@ export type Database = {
           submitted_by?: string | null
           title: string
           updated_at?: string
+          venue_id?: string | null
         }
         Update: {
           assigned_coordinator_id?: string | null
@@ -468,6 +665,7 @@ export type Database = {
           submitted_by?: string | null
           title?: string
           updated_at?: string
+          venue_id?: string | null
         }
         Relationships: [
           {
@@ -489,6 +687,13 @@ export type Database = {
             columns: ["submitted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
             referencedColumns: ["id"]
           },
         ]
@@ -544,6 +749,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          email: string | null
           full_name: string
           id: string
           role: Database["public"]["Enums"]["user_role"]
@@ -551,6 +757,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email?: string | null
           full_name: string
           id: string
           role?: Database["public"]["Enums"]["user_role"]
@@ -558,9 +765,204 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email?: string | null
           full_name?: string
           id?: string
           role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      venue_bookings: {
+        Row: {
+          decided_at: string | null
+          decided_by: string | null
+          decision_notes: string | null
+          ends_at: string
+          event_id: string
+          id: string
+          requested_at: string
+          requested_by: string
+          starts_at: string
+          status: Database["public"]["Enums"]["request_status"]
+          venue_id: string
+        }
+        Insert: {
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_notes?: string | null
+          ends_at: string
+          event_id: string
+          id?: string
+          requested_at?: string
+          requested_by: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["request_status"]
+          venue_id: string
+        }
+        Update: {
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_notes?: string | null
+          ends_at?: string
+          event_id?: string
+          id?: string
+          requested_at?: string
+          requested_by?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["request_status"]
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_bookings_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_bookings_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_bookings_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_bookings_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venue_facilities: {
+        Row: {
+          facility_name: string
+          id: string
+          venue_id: string
+        }
+        Insert: {
+          facility_name: string
+          id?: string
+          venue_id: string
+        }
+        Update: {
+          facility_name?: string
+          id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_facilities_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venue_layouts: {
+        Row: {
+          id: string
+          layout_name: string
+          max_capacity: number | null
+          venue_id: string
+        }
+        Insert: {
+          id?: string
+          layout_name: string
+          max_capacity?: number | null
+          venue_id: string
+        }
+        Update: {
+          id?: string
+          layout_name?: string
+          max_capacity?: number | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_layouts_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venue_unavailability: {
+        Row: {
+          ends_at: string
+          id: string
+          reason: string | null
+          starts_at: string
+          venue_id: string
+        }
+        Insert: {
+          ends_at: string
+          id?: string
+          reason?: string | null
+          starts_at: string
+          venue_id: string
+        }
+        Update: {
+          ends_at?: string
+          id?: string
+          reason?: string | null
+          starts_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_unavailability_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venues: {
+        Row: {
+          accessibility_notes: string | null
+          capacity: number | null
+          created_at: string
+          description: string | null
+          id: string
+          location: string | null
+          name: string
+          operating_hours: string | null
+          updated_at: string
+        }
+        Insert: {
+          accessibility_notes?: string | null
+          capacity?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          location?: string | null
+          name: string
+          operating_hours?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accessibility_notes?: string | null
+          capacity?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          location?: string | null
+          name?: string
+          operating_hours?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -655,6 +1057,12 @@ export type Database = {
         | "clarification"
         | "decision"
         | "status_change"
+        | "venue_decision"
+        | "event_change"
+        | "registration_update"
+        | "confirmation"
+        | "cancellation"
+      request_status: "pending" | "approved" | "rejected" | "cancelled"
       user_role:
         | "event_organiser"
         | "event_coordinator"
@@ -812,7 +1220,13 @@ export const Constants = {
         "clarification",
         "decision",
         "status_change",
+        "venue_decision",
+        "event_change",
+        "registration_update",
+        "confirmation",
+        "cancellation",
       ],
+      request_status: ["pending", "approved", "rejected", "cancelled"],
       user_role: [
         "event_organiser",
         "event_coordinator",
