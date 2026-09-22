@@ -9,6 +9,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { OperatingHoursEditor } from "@/features/venues/components/operating-hours-editor";
 import { cn } from "@/lib/utils";
 
 type FieldErrors = Record<string, string>;
@@ -61,7 +62,10 @@ export function VenueForm({
     if (!result.success) {
       const nextErrors: FieldErrors = {};
       for (const issue of result.error.issues) {
-        const key = issue.path.join(".");
+        // operatingHours is a single editor, not one input per nested path
+        // (e.g. "operatingHours.0.closesAt") — collapse any issue inside it
+        // to the one Field it's rendered under.
+        const key = issue.path[0] === "operatingHours" ? "operatingHours" : issue.path.join(".");
         if (!nextErrors[key]) nextErrors[key] = issue.message;
       }
       setErrors(nextErrors);
@@ -138,12 +142,15 @@ export function VenueForm({
             aria-invalid={Boolean(errors.capacity)}
           />
         </Field>
-        <Field label="Operating hours" required error={errors.operatingHours}>
-          <Input
+        <Field
+          label="Operating hours"
+          required
+          error={errors.operatingHours}
+          className="sm:col-span-2"
+        >
+          <OperatingHoursEditor
             value={values.operatingHours}
-            onChange={(event) => setField("operatingHours", event.target.value)}
-            placeholder="Mon–Fri, 8am–6pm; Sat, 9am–1pm"
-            aria-invalid={Boolean(errors.operatingHours)}
+            onChange={(next) => setField("operatingHours", next)}
           />
         </Field>
         <Field
@@ -284,8 +291,14 @@ function Field({
   className?: string;
   children: React.ReactNode;
 }) {
+  // A plain <div>, not <label> — this wraps custom multi-control editors
+  // (OperatingHoursEditor's 7 day buttons + 2 time inputs) as well as single
+  // inputs. A bare <label> with no `for` implicitly forwards activation
+  // clicks to the FIRST labelable descendant, so wrapping several buttons in
+  // one caused every click to also phantom-toggle whichever button came
+  // first (a real bug, not a design choice).
   return (
-    <label className={cn("block", className)}>
+    <div className={cn("block", className)}>
       <span className="mb-2 flex items-center gap-2 text-sm font-medium leading-none text-slate-900">
         <span>{label}</span>
         {required && (
@@ -300,7 +313,7 @@ function Field({
           {error}
         </p>
       )}
-    </label>
+    </div>
   );
 }
 

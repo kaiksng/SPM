@@ -1,3 +1,4 @@
+import type { DayCode, OperatingHours } from "@spm/shared";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import type { DateClickArg } from "@fullcalendar/interaction";
@@ -29,8 +30,6 @@ const STATUS_COLORS = {
 // viewer's browser locale, and the day strip below needs to agree with the
 // calendar on where a day's boundary falls.
 const TIME_ZONE = "Asia/Singapore";
-const DEFAULT_BELT_START_HOUR = 8;
-const DEFAULT_BELT_END_HOUR = 20;
 
 function toEvents(periods: VenueAvailabilityPeriod[]): EventInput[] {
   return periods.map((period) => ({
@@ -79,42 +78,34 @@ function formatHour(hour: number): string {
   return `${twelveHour}${minute ? ":" + String(minute).padStart(2, "0") : ""} ${period}`;
 }
 
+/** "09:00" -> 9, "18:30" -> 18.5. */
+function timeToHour(time: string): number {
+  const [hourStr, minuteStr] = time.split(":");
+  return Number(hourStr) + Number(minuteStr) / 60;
+}
+
+/** Lowercase 3-letter weekday code (e.g. "mon") for `dateStr` in TIME_ZONE. */
+function dayCodeForDate(dateStr: string): DayCode {
+  const date = new Date(`${dateStr}T00:00:00+08:00`);
+  return new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, weekday: "short" })
+    .format(date)
+    .toLowerCase()
+    .slice(0, 3) as DayCode;
+}
+
 /**
- * Venues store operating hours as free text (e.g. "Mon-Fri, 6am to 9pm"),
- * not structured start/end fields, so this reads the first and last
- * clock-time mentions out of it rather than parsing the whole sentence.
- * Falls back to the default window for anything it can't confidently read
- * (e.g. "24 hours", "By appointment") rather than guessing.
+ * The venue's open/close hours for `dayCode`, read directly off its
+ * structured operating hours — the period whose `days` includes it, if any.
+ * No period covering that day means the venue is closed that day; there is
+ * no default window to fall back to.
  */
-function parseOperatingHours(
-  text: string,
+function hoursForDay(
+  operatingHours: OperatingHours,
+  dayCode: DayCode,
 ): { startHour: number; endHour: number } | null {
-  const toHour = (hourStr: string, minuteStr: string | undefined, meridiem: string | undefined) => {
-    let hour = Number(hourStr);
-    const minute = minuteStr ? Number(minuteStr) : 0;
-    if (meridiem) {
-      const isPm = meridiem.toLowerCase() === "pm";
-      if (isPm && hour !== 12) hour += 12;
-      if (!isPm && hour === 12) hour = 0;
-    }
-    return hour + minute / 60;
-  };
-
-  const twelveHourMatches = [...text.matchAll(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/gi)].map(
-    (match) => toHour(match[1]!, match[2], match[3]),
-  );
-  const matches =
-    twelveHourMatches.length >= 2
-      ? twelveHourMatches
-      : [...text.matchAll(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g)].map((match) =>
-          toHour(match[1]!, match[2], undefined),
-        );
-
-  if (matches.length < 2) return null;
-
-  const startHour = Math.floor(matches[0]!);
-  const endHour = Math.ceil(matches[matches.length - 1]!);
-  return endHour > startHour ? { startHour, endHour } : null;
+  const period = operatingHours.find((candidate) => candidate.days.includes(dayCode));
+  if (!period) return null;
+  return { startHour: timeToHour(period.opensAt), endHour: timeToHour(period.closesAt) };
 }
 
 type BeltPeriod = VenueAvailabilityPeriod & { startHour: number; endHour: number };
@@ -191,17 +182,15 @@ export function VenueAvailabilityPage() {
   }, [venueId]);
 
   const events = useMemo(() => toEvents(periods), [periods]);
-  const beltHours = useMemo(
-    () =>
-      (venue && parseOperatingHours(venue.operatingHours)) ?? {
-        startHour: DEFAULT_BELT_START_HOUR,
-        endHour: DEFAULT_BELT_END_HOUR,
-      },
-    [venue],
+  const selectedDayCode = useMemo(() => dayCodeForDate(selectedDate), [selectedDate]);
+  const dayHours = useMemo(
+    () => (venue ? hoursForDay(venue.operatingHours, selectedDayCode) : null),
+    [venue, selectedDayCode],
   );
   const beltPeriods = useMemo(
-    () => periodsForDate(periods, selectedDate, beltHours.startHour, beltHours.endHour),
-    [periods, selectedDate, beltHours],
+    () =>
+      dayHours ? periodsForDate(periods, selectedDate, dayHours.startHour, dayHours.endHour) : [],
+    [periods, selectedDate, dayHours],
   );
 
   function handleDateClick(arg: DateClickArg) {
@@ -276,8 +265,9 @@ export function VenueAvailabilityPage() {
               <DayTimebelt
                 date={selectedDate}
                 periods={beltPeriods}
-                startHour={beltHours.startHour}
-                endHour={beltHours.endHour}
+                startHour={dayHours?.startHour ?? 0}
+                endHour={dayHours?.endHour ?? 0}
+                closed={!dayHours}
               />
             </div>
           )}
@@ -318,11 +308,14 @@ function DayTimebelt({
   periods,
   startHour,
   endHour,
+  closed,
 }: {
   date: string;
   periods: BeltPeriod[];
   startHour: number;
   endHour: number;
+  /** True when the venue has no operating-hours period covering this day. */
+  closed: boolean;
 }) {
   const hourCount = endHour - startHour;
   const hours = Array.from({ length: hourCount }, (_, index) => startHour + index);
@@ -340,10 +333,15 @@ function DayTimebelt({
           {dateLabel}
         </h2>
         <span className="text-xs font-medium text-slate-400">
-          {formatHour(startHour)} &ndash; {formatHour(endHour)}
+          {closed ? "Closed" : <>{formatHour(startHour)} &ndash; {formatHour(endHour)}</>}
         </span>
       </div>
 
+      {closed ? (
+        <p className="mt-4 flex h-40 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-500">
+          Closed all day
+        </p>
+      ) : (
       <div className="mt-4 flex overflow-hidden rounded-xl border border-slate-200">
         <div className="w-16 shrink-0 border-r border-slate-200 bg-slate-50">
           {hours.map((hour, index) => (
@@ -398,6 +396,7 @@ function DayTimebelt({
           })}
         </div>
       </div>
+      )}
     </section>
   );
 }

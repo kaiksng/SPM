@@ -16,6 +16,7 @@ export * from "./domain/event-field-history";
 export * from "./domain/coordinator-assignment";
 export * from "./domain/permissions";
 export * from "./domain/navigation";
+export * from "./domain/operating-hours";
 
 export * from "./errors/map-auth-error";
 export * from "./errors/event-submission-error";

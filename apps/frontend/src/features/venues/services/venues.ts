@@ -2,6 +2,7 @@ import {
   EventSubmissionError,
   toVenuePayload,
   venueFormSchema,
+  type OperatingHours,
   type VenueBookingAtRisk,
   type VenueFormValues,
 } from "@spm/shared";
@@ -14,7 +15,7 @@ export type VenueSummary = {
   name: string;
   location: string;
   capacity: number;
-  operatingHours: string;
+  operatingHours: OperatingHours;
   description: string | null;
   accessibilityNotes: string | null;
   facilities: string[];
@@ -53,7 +54,7 @@ export async function listVenues(): Promise<VenueSummary[]> {
         venue_bookings (needs_review)
       `,
     )
-    .order("name", { ascending: true });
+    .order("updated_at", { ascending: false });
 
   if (error) throw operationError("We couldn't load the venue catalogue.");
 
@@ -63,7 +64,7 @@ export async function listVenues(): Promise<VenueSummary[]> {
       name: venue.name,
       location: venue.location,
       capacity: venue.capacity,
-      operatingHours: venue.operating_hours,
+      operatingHours: venue.operating_hours as unknown as OperatingHours,
       description: venue.description,
       accessibilityNotes: venue.accessibility_notes,
       facilities: venue.venue_facilities.map((facility) => facility.facility_name),
@@ -104,7 +105,7 @@ export async function getVenue(venueId: string): Promise<VenueDetail> {
     name: data.name,
     location: data.location,
     capacity: data.capacity.toString(),
-    operatingHours: data.operating_hours,
+    operatingHours: data.operating_hours as unknown as OperatingHours,
     description: data.description ?? "",
     accessibilityNotes: data.accessibility_notes ?? "",
     facilities: data.venue_facilities.map((facility) => facility.facility_name),

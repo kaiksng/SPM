@@ -1,4 +1,4 @@
-import { hasPermission } from "@spm/shared";
+import { formatOperatingHours, hasPermission } from "@spm/shared";
 import { ArrowLeft, CalendarClock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
@@ -115,7 +115,10 @@ export function VenueDetailPage() {
                 <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                   <Field label="Location" value={venue.location} />
                   <Field label="Capacity" value={venue.capacity} />
-                  <Field label="Operating hours" value={venue.operatingHours} />
+                  <Field
+                    label="Operating hours"
+                    value={formatOperatingHours(venue.operatingHours)}
+                  />
                   <div className="sm:col-span-2">
                     <dt className="text-xs font-medium text-slate-400">Facilities</dt>
                     <dd className="mt-2 flex flex-wrap gap-1.5">

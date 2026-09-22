@@ -16,3 +16,19 @@ export type VenueBookingAtRisk = {
   expectedAttendance: number;
   status: Database["public"]["Enums"]["request_status"];
 };
+
+export type DayCode = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+/**
+ * One block of a venue's operating hours: the same opensAt/closesAt applies
+ * to every day in `days`. A day absent from every period in an
+ * OperatingHours list is closed that day — there's no explicit "closed"
+ * period.
+ */
+export type OperatingHoursPeriod = {
+  days: DayCode[];
+  opensAt: string; // "HH:MM", 24-hour
+  closesAt: string; // "HH:MM", 24-hour
+};
+
+export type OperatingHours = OperatingHoursPeriod[];

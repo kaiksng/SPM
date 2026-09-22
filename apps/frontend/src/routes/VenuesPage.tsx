@@ -1,4 +1,4 @@
-import { hasPermission } from "@spm/shared";
+import { formatOperatingHours, hasPermission } from "@spm/shared";
 import { Building2, FilePlus2, MapPin, Search, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
@@ -166,7 +166,7 @@ function VenueCard({
           ))}
         </div>
       )}
-      <p className="mt-3 text-xs text-slate-500">{venue.operatingHours}</p>
+      <p className="mt-3 text-xs text-slate-500">{formatOperatingHours(venue.operatingHours)}</p>
       <span className="mt-auto pt-4 text-sm font-medium text-blue-600 group-hover:underline">
         View details
       </span>

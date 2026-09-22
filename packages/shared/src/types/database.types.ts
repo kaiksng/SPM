@@ -946,7 +946,8 @@ export type Database = {
           id: string
           location: string
           name: string
-          operating_hours: string
+          operating_hours: Json
+          operating_hours_legacy_text: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -958,7 +959,8 @@ export type Database = {
           id?: string
           location: string
           name: string
-          operating_hours: string
+          operating_hours?: Json
+          operating_hours_legacy_text?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -970,7 +972,8 @@ export type Database = {
           id?: string
           location?: string
           name?: string
-          operating_hours?: string
+          operating_hours?: Json
+          operating_hours_legacy_text?: string | null
           updated_at?: string
           updated_by?: string | null
         }

@@ -17,6 +17,69 @@
 -- before saving); this function is the authoritative server-side version of
 -- AC06/AC07 regardless of whether the frontend warning ran.
 
+-- Shared by create_venue/update_venue. operating_hours is an
+-- OperatingHoursPeriod[] ({ days: DayCode[], opensAt: "HH:MM",
+-- closesAt: "HH:MM" }); a day absent from every period is closed that day.
+-- Returns the first problem found as a message, or null when the shape is
+-- valid.
+create or replace function public.validate_operating_hours(p_operating_hours jsonb)
+returns text
+language plpgsql
+set search_path = ''
+as $$
+declare
+  period jsonb;
+  day_value text;
+  opens text;
+  closes text;
+  seen_days text[] := '{}';
+begin
+  if jsonb_typeof(p_operating_hours) is distinct from 'array'
+     or jsonb_array_length(p_operating_hours) = 0 then
+    return 'Enter the venue''s operating days and hours';
+  end if;
+
+  for period in select * from jsonb_array_elements(p_operating_hours)
+  loop
+    if jsonb_typeof(period -> 'days') is distinct from 'array'
+       or jsonb_array_length(period -> 'days') = 0 then
+      return 'Each operating hours period needs at least one day selected';
+    end if;
+
+    for day_value in select value #>> '{}' from jsonb_array_elements(period -> 'days')
+    loop
+      if day_value not in ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun') then
+        return 'Each operating hours period must use valid days';
+      end if;
+      if day_value = any(seen_days) then
+        return 'A day cannot belong to more than one operating hours period';
+      end if;
+      seen_days := array_append(seen_days, day_value);
+    end loop;
+
+    opens := period ->> 'opensAt';
+    closes := period ->> 'closesAt';
+
+    if opens is null or closes is null
+       or opens !~ '^([01]\d|2[0-3]):[0-5]\d$'
+       or closes !~ '^([01]\d|2[0-3]):[0-5]\d$' then
+      return 'Enter valid opening and closing times (HH:MM) for each period';
+    end if;
+
+    if opens >= closes then
+      return 'Each period''s opening time must be earlier than its closing time';
+    end if;
+  end loop;
+
+  return null;
+end;
+$$;
+
+revoke all on function public.validate_operating_hours(jsonb) from public;
+revoke all on function public.validate_operating_hours(jsonb) from anon;
+grant execute on function public.validate_operating_hours(jsonb) to authenticated;
+grant execute on function public.validate_operating_hours(jsonb) to service_role;
+
 create or replace function public.create_venue(
   p_venue jsonb,
   p_actor_id uuid default null
@@ -32,7 +95,8 @@ declare
   v_name text := nullif(trim(coalesce(p_venue ->> 'name', '')), '');
   v_location text := nullif(trim(coalesce(p_venue ->> 'location', '')), '');
   v_capacity integer;
-  v_operating_hours text := nullif(trim(coalesce(p_venue ->> 'operating_hours', '')), '');
+  v_operating_hours jsonb := coalesce(p_venue -> 'operating_hours', '[]'::jsonb);
+  v_operating_hours_error text;
   v_description text := nullif(trim(coalesce(p_venue ->> 'description', '')), '');
   v_accessibility_notes text := nullif(trim(coalesce(p_venue ->> 'accessibility_notes', '')), '');
   v_facilities text[];
@@ -93,10 +157,11 @@ begin
       'message', 'Enter capacity as a positive whole number');
   end if;
 
-  if v_operating_hours is null then
+  v_operating_hours_error := public.validate_operating_hours(v_operating_hours);
+  if v_operating_hours_error is not null then
     issues := issues || jsonb_build_object(
       'field', 'operatingHours',
-      'message', 'Enter the venue''s operating days and hours');
+      'message', v_operating_hours_error);
   end if;
 
   if v_facilities is null or array_length(v_facilities, 1) is null then
@@ -158,7 +223,8 @@ declare
   v_name text := nullif(trim(coalesce(p_venue ->> 'name', '')), '');
   v_location text := nullif(trim(coalesce(p_venue ->> 'location', '')), '');
   v_capacity integer;
-  v_operating_hours text := nullif(trim(coalesce(p_venue ->> 'operating_hours', '')), '');
+  v_operating_hours jsonb := coalesce(p_venue -> 'operating_hours', '[]'::jsonb);
+  v_operating_hours_error text;
   v_description text := nullif(trim(coalesce(p_venue ->> 'description', '')), '');
   v_accessibility_notes text := nullif(trim(coalesce(p_venue ->> 'accessibility_notes', '')), '');
   v_facilities text[];
@@ -232,10 +298,11 @@ begin
       'message', 'Enter capacity as a positive whole number');
   end if;
 
-  if v_operating_hours is null then
+  v_operating_hours_error := public.validate_operating_hours(v_operating_hours);
+  if v_operating_hours_error is not null then
     issues := issues || jsonb_build_object(
       'field', 'operatingHours',
-      'message', 'Enter the venue''s operating days and hours');
+      'message', v_operating_hours_error);
   end if;
 
   if v_facilities is null or array_length(v_facilities, 1) is null then
