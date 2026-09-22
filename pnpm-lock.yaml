@@ -66,6 +66,21 @@ importers:
       '@base-ui/react':
         specifier: ^1.8.0
         version: 1.8.0(@types/react@19.2.18)(date-fns@4.4.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@fullcalendar/core':
+        specifier: 6.1.21
+        version: 6.1.21
+      '@fullcalendar/daygrid':
+        specifier: 6.1.21
+        version: 6.1.21(@fullcalendar/core@6.1.21)
+      '@fullcalendar/interaction':
+        specifier: 6.1.21
+        version: 6.1.21(@fullcalendar/core@6.1.21)
+      '@fullcalendar/react':
+        specifier: 6.1.21
+        version: 6.1.21(@fullcalendar/core@6.1.21)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@fullcalendar/timegrid':
+        specifier: 6.1.21
+        version: 6.1.21(@fullcalendar/core@6.1.21)
       '@spm/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -668,6 +683,31 @@ packages:
 
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
+
+  '@fullcalendar/core@6.1.21':
+    resolution: {integrity: sha512-t3u/+sqh3Iq7TWtUnVLcGDUE6OWZh0UD3c04bI/l7lSLAgAKr3kngBmhHiQD1QXpwC8ZN5iNqG7a7gOVixhSKQ==}
+
+  '@fullcalendar/daygrid@6.1.21':
+    resolution: {integrity: sha512-QYb1y40RGYLlOxKpYWg8O+7njEnKnFG8Tt7qjnubJGR35s1phQg67E+81y2TyAbbm59p2JFOCXGDk9t6KDujIA==}
+    peerDependencies:
+      '@fullcalendar/core': ~6.1.21
+
+  '@fullcalendar/interaction@6.1.21':
+    resolution: {integrity: sha512-WPYpqtljDWmU0Xm2cOtFrLlocgxv7cgkOppj34Q6OUUat8a6Cnd6kYo2JR+irP223PE5lBYHFNp1qh7SIpJc0w==}
+    peerDependencies:
+      '@fullcalendar/core': ~6.1.21
+
+  '@fullcalendar/react@6.1.21':
+    resolution: {integrity: sha512-TLpmGUd5k/PMdCh8XbeFC9PW9wuGvMms1oCxWgXyjK3EFPXAAd0PLfcvwKdyxoAS5eK1E4RJFkjMHvsYHpimcg==}
+    peerDependencies:
+      '@fullcalendar/core': ~6.1.21
+      react: ^16.7.0 || ^17 || ^18 || ^19
+      react-dom: ^16.7.0 || ^17 || ^18 || ^19
+
+  '@fullcalendar/timegrid@6.1.21':
+    resolution: {integrity: sha512-2DnShx/jallGmb8QCkr6pAOu/zuPhJrP7+uTrAtSnbqsX7GF3lTxqSeNGkTQwsgF5g/ia8udhQ+JNYaE+TN1cQ==}
+    peerDependencies:
+      '@fullcalendar/core': ~6.1.21
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -1960,6 +2000,9 @@ packages:
     resolution: {integrity: sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A==}
     engines: {node: ^10 || ^12 || >=14}
 
+  preact@10.12.1:
+    resolution: {integrity: sha512-l8386ixSsBdbreOAkqtrwqHwdvR35ID8c3rKPa8lCWuO86dBi32QWHV4vfsZK1utLLFMvw+Z5Ad4XLkZzchscg==}
+
   pretty-format@27.5.1:
     resolution: {integrity: sha512-Qb1gy5OrP5+zDf2Bvnzdl3jsTf1qXVMazbvCoKhtKqVs4/YK4ozX4gKQJJVyNe+cajNPn0KoC0MC3FUmaHWEmQ==}
     engines: {node: ^10.13.0 || ^12.13.0 || ^14.15.0 || >=15.0.0}
@@ -2750,6 +2793,29 @@ snapshots:
 
   '@floating-ui/utils@0.2.12': {}
 
+  '@fullcalendar/core@6.1.21':
+    dependencies:
+      preact: 10.12.1
+
+  '@fullcalendar/daygrid@6.1.21(@fullcalendar/core@6.1.21)':
+    dependencies:
+      '@fullcalendar/core': 6.1.21
+
+  '@fullcalendar/interaction@6.1.21(@fullcalendar/core@6.1.21)':
+    dependencies:
+      '@fullcalendar/core': 6.1.21
+
+  '@fullcalendar/react@6.1.21(@fullcalendar/core@6.1.21)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+    dependencies:
+      '@fullcalendar/core': 6.1.21
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+
+  '@fullcalendar/timegrid@6.1.21(@fullcalendar/core@6.1.21)':
+    dependencies:
+      '@fullcalendar/core': 6.1.21
+      '@fullcalendar/daygrid': 6.1.21(@fullcalendar/core@6.1.21)
+
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
@@ -3207,7 +3273,7 @@ snapshots:
       obug: 2.1.4
       std-env: 4.2.0
       tinyrainbow: 3.1.1
-      vitest: 5.0.0(@types/node@24.13.3)(@vitest/coverage-v8@5.0.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@8.2.2(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13))
+      vitest: 5.0.0(@types/node@24.13.3)(@vitest/coverage-v8@5.0.0)(jsdom@30.0.1(@noble/hashes@1.8.0))(vite@6.4.3(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.13))
 
   '@vitest/istanbul-lib-coverage@1.0.1': {}
 
@@ -3884,6 +3950,8 @@ snapshots:
       nanoid: 3.3.18
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  preact@10.12.1: {}
 
   pretty-format@27.5.1:
     dependencies:

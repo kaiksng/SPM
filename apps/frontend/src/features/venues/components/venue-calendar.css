@@ -1,0 +1,88 @@
+/* Reskins FullCalendar toward this app's slate/blue, Inter-based content
+   pages (see EventsPage.tsx) instead of its own default theme. Per-event
+   colors (pending/confirmed/blocked) are set on the event data itself in
+   VenueAvailabilityPage.tsx, not here — only chrome lives in this file. */
+
+.venue-calendar {
+  --fc-border-color: #e2e8f0;
+  --fc-page-bg-color: #ffffff;
+  --fc-neutral-bg-color: #f8fafc;
+  --fc-today-bg-color: #eff6ff;
+  --fc-button-bg-color: #ffffff;
+  --fc-button-border-color: #e2e8f0;
+  --fc-button-text-color: #334155;
+  --fc-button-hover-bg-color: #f8fafc;
+  --fc-button-hover-border-color: #93c5fd;
+  --fc-button-active-bg-color: #eff6ff;
+  --fc-button-active-border-color: #2563eb;
+  font-family: inherit;
+  font-size: 0.8125rem;
+}
+
+.venue-calendar .fc-toolbar-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.venue-calendar .fc-button {
+  text-transform: none;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  box-shadow: none !important;
+  padding: 0.3rem 0.7rem;
+}
+
+.venue-calendar .fc-button:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25) !important;
+}
+
+.venue-calendar .fc-col-header-cell-cushion,
+.venue-calendar .fc-daygrid-day-number {
+  color: #334155;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.venue-calendar a.fc-daygrid-day-number:hover,
+.venue-calendar a.fc-col-header-cell-cushion:hover {
+  color: #2563eb;
+}
+
+/* Month-view event: a small status dot + truncated title, replacing
+   FullCalendar's default list-item rendering (set via eventContent). */
+.venue-calendar__month-event {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 2px;
+  overflow: hidden;
+}
+.venue-calendar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.venue-calendar__dot--pending {
+  background: #f59e0b;
+}
+.venue-calendar__dot--confirmed {
+  background: #10b981;
+}
+.venue-calendar__dot--blocked {
+  background: #dc2626;
+}
+.venue-calendar__month-title {
+  font-size: 0.6875rem;
+  color: #334155;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The date last clicked — the day strip below the calendar shows this date;
+   clicking never navigates the calendar itself away from month view. */
+.venue-calendar__selected-day {
+  box-shadow: inset 0 0 0 2px #2563eb;
+}

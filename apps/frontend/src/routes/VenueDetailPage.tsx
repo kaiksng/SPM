@@ -1,5 +1,5 @@
 import { hasPermission } from "@spm/shared";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CalendarClock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
@@ -78,18 +78,29 @@ export function VenueDetailPage() {
                 <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950">
                   {venue.name}
                 </h1>
-                {canManageVenues && (
+                <div className="flex flex-wrap gap-2">
+                  {/* Visible to every role that can reach this page, not just
+                      those who can manage the catalogue (canManageVenues) — the
+                      calendar is a read view any authorised internal user needs. */}
                   <Link
-                    to={`/venues/${venueId}/edit`}
-                    className={buttonVariants({
-                      variant: "outline",
-                      size: "sm",
-                      className: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
-                    })}
+                    to={`/venues/${venueId}/availability`}
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
                   >
-                    Edit venue
+                    <CalendarClock /> View availability
                   </Link>
-                )}
+                  {canManageVenues && (
+                    <Link
+                      to={`/venues/${venueId}/edit`}
+                      className={buttonVariants({
+                        variant: "outline",
+                        size: "sm",
+                        className: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
+                      })}
+                    >
+                      Edit venue
+                    </Link>
+                  )}
+                </div>
               </div>
               {/* AC09: who last updated this entry, and when. */}
               <p className="mt-2 text-sm text-slate-500">
