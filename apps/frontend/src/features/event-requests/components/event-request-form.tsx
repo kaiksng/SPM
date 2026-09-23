@@ -1,7 +1,9 @@
 import {
   EventSubmissionError,
   eventDraftSchema,
+  ROOM_LAYOUT_TYPES,
   type EventRequestFormValues,
+  type RoomLayoutType,
 } from "@spm/shared";
 import { CirclePlus, Save, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -271,12 +273,28 @@ export function EventRequestForm({
           />
         </Field>
         <Field label="Room layout" error={errors["venue.layoutNotes"]}>
-          <Input
+          <select
             value={values.venue.layoutNotes}
-            onChange={(event) => setVenue("layoutNotes", event.target.value)}
-            placeholder="Theatre, classroom, boardroom…"
+            onChange={(event) =>
+              setVenue("layoutNotes", event.target.value as RoomLayoutType | "")
+            }
             disabled={venueLocked}
-          />
+            aria-invalid={Boolean(errors["venue.layoutNotes"])}
+            className={cn(
+              "border-input flex h-8 w-full min-w-0 rounded-lg border bg-transparent px-2.5 text-sm shadow-xs transition-[color,box-shadow] outline-none",
+              "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+              "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20",
+              "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+              !values.venue.layoutNotes && "text-muted-foreground",
+            )}
+          >
+            <option value="">No preference</option>
+            {ROOM_LAYOUT_TYPES.map((layout) => (
+              <option key={layout} value={layout} className="text-foreground">
+                {layout}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field
           label="Required facilities"

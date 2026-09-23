@@ -1027,6 +1027,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      find_matching_venues: {
+        Args: { p_event_id: string }
+        Returns: {
+          accessibility_notes: string | null
+          capacity: number
+          description: string | null
+          facilities: string[] | null
+          id: string
+          location: string
+          name: string
+          operating_hours: Json
+          updated_at: string
+        }[]
+      }
       request_event_clarification: {
         Args: {
           p_actor_id?: string

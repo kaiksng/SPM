@@ -1,4 +1,5 @@
 import {
+  asRoomLayoutType,
   emptyEventRequestFormValues,
   toEventDraftPayload,
   type EventRequestFormValues,
@@ -76,7 +77,7 @@ export async function loadEventForCoordinatorEdit(eventId: string) {
       preferredLocation: venue?.preferred_location ?? "",
       minimumCapacity: venue?.minimum_capacity?.toString() ?? "",
       accessibilityNotes: venue?.accessibility_notes ?? "",
-      layoutNotes: venue?.layout_notes ?? "",
+      layoutNotes: asRoomLayoutType(venue?.layout_notes),
       facilities: data.event_required_facilities.map((facility) => facility.facility_name),
     },
     equipment: data.event_equipment_requirements.map((item) => ({

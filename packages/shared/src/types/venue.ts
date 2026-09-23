@@ -32,3 +32,33 @@ export type OperatingHoursPeriod = {
 };
 
 export type OperatingHours = OperatingHoursPeriod[];
+
+/**
+ * Standard room layout types a venue can support (seating/arrangement, not
+ * size) — mirrored by public.find_matching_venues' layout_notes match on
+ * venue_layouts.layout_name, so these values are what an event's layout
+ * requirement is actually compared against.
+ */
+export const ROOM_LAYOUT_TYPES = [
+  "Theatre",
+  "Classroom",
+  "Boardroom",
+  "Banquet",
+  "Open Floor",
+  "Auditorium",
+  "Exhibition",
+] as const;
+
+export type RoomLayoutType = (typeof ROOM_LAYOUT_TYPES)[number];
+
+/**
+ * Coerces a stored free-text value (pre-fixed-list event requirements, or
+ * anything else unexpected) into a valid RoomLayoutType, or "" if it isn't
+ * one — never throws, since old rows may hold text typed before this list
+ * existed.
+ */
+export function asRoomLayoutType(value: string | null | undefined): RoomLayoutType | "" {
+  return (ROOM_LAYOUT_TYPES as readonly string[]).includes(value ?? "")
+    ? (value as RoomLayoutType)
+    : "";
+}

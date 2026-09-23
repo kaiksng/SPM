@@ -137,7 +137,7 @@ export function EventDetailPage() {
             <div className="mt-6 lg:flex lg:items-start lg:gap-10">
               {role === "coordinator" && (
                 <div className="mb-6 lg:mb-0 lg:sticky lg:top-24">
-                  <EventPlanningTimeline status={event.status} />
+                  <EventPlanningTimeline status={event.status} eventId={event.id} />
                 </div>
               )}
               <div className="min-w-0 flex-1">
@@ -280,7 +280,7 @@ export function EventDetailPage() {
                     </div>
                   </dl>
                 </section>
-  
+
                 <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
                   <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
                     Equipment

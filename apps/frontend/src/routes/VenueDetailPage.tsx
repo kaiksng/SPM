@@ -137,6 +137,23 @@ export function VenueDetailPage() {
                     </dd>
                   </div>
                   <div className="sm:col-span-2">
+                    <dt className="text-xs font-medium text-slate-400">Supported room layout</dt>
+                    <dd className="mt-2 flex flex-wrap gap-1.5">
+                      {venue.layouts.length > 0 ? (
+                        venue.layouts.map((layout) => (
+                          <span
+                            key={layout}
+                            className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-700"
+                          >
+                            {layout}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-slate-500">None listed</span>
+                      )}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2">
                     <dt className="text-xs font-medium text-slate-400">Description</dt>
                     <dd className="mt-1 text-sm whitespace-pre-wrap text-slate-800">
                       {venue.description || "Not provided"}

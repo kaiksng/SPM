@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { OperatingHours } from "../types/venue";
+import { ROOM_LAYOUT_TYPES, type OperatingHours } from "../types/venue";
 
 const optionalText = (maximum: number) => z.string().trim().max(maximum);
 
@@ -59,6 +59,11 @@ export const venueFormSchema = z.object({
     .array(z.string().trim().min(1).max(120))
     .min(1, "Add at least one facility")
     .max(30, "Add no more than 30 facilities"),
+  // One layout per venue, not several — mirrors operatingHoursSchema's
+  // single-period cap (same design decision: pick one, not a set).
+  layouts: z
+    .array(z.enum(ROOM_LAYOUT_TYPES))
+    .length(1, "Select the venue's supported room layout"),
   description: optionalText(2_000),
   accessibilityNotes: optionalText(2_000),
 });
@@ -71,6 +76,7 @@ export const emptyVenueFormValues: VenueFormValues = {
   capacity: "",
   operatingHours: [{ days: [], opensAt: "09:00", closesAt: "18:00" }],
   facilities: [],
+  layouts: [],
   description: "",
   accessibilityNotes: "",
 };
@@ -84,6 +90,7 @@ export type VenuePayload = {
   description: string | null;
   accessibility_notes: string | null;
   facilities: string[];
+  layouts: string[];
 };
 
 export function toVenuePayload(values: VenueFormValues): VenuePayload {
@@ -95,5 +102,6 @@ export function toVenuePayload(values: VenueFormValues): VenuePayload {
     description: values.description.trim() || null,
     accessibility_notes: values.accessibilityNotes.trim() || null,
     facilities: values.facilities.map((facility) => facility.trim()),
+    layouts: values.layouts,
   };
 }

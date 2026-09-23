@@ -1,4 +1,5 @@
 import { CornerDownRight } from "lucide-react";
+import { Link } from "react-router";
 
 import { cn } from "@/lib/utils";
 
@@ -35,7 +36,13 @@ const STAGES = [
   { id: "confirmed", label: "Event Confirmed", rank: 3 },
 ] as const;
 
-export function EventPlanningTimeline({ status }: { status: string }) {
+export function EventPlanningTimeline({
+  status,
+  eventId,
+}: {
+  status: string;
+  eventId: string;
+}) {
   const currentRank = STAGE_RANK[status] ?? 0;
 
   return (
@@ -77,13 +84,24 @@ export function EventPlanningTimeline({ status }: { status: string }) {
                         aria-hidden="true"
                         className="size-3.5 shrink-0 text-slate-300"
                       />
-                      {child}
-                      {/* TODO: link to the venue/equipment booking form for this
-                          event once it's built — see VenuesPage/EquipmentPage,
-                          which are still empty-state placeholders themselves. */}
-                      <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
-                        Coming soon
-                      </span>
+                      {/* Venue has its own page (suggested venues); Equipment
+                          booking isn't built yet, see EquipmentPage's own
+                          placeholder. */}
+                      {child === "Venue" ? (
+                        <Link
+                          to={`/events/${eventId}/venue`}
+                          className="hover:text-blue-600 hover:underline"
+                        >
+                          {child}
+                        </Link>
+                      ) : (
+                        child
+                      )}
+                      {child === "Equipment" && (
+                        <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+                          Coming soon
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>

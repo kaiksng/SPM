@@ -8,6 +8,7 @@ import {
 } from "@spm/shared";
 import type { PostgrestError } from "@supabase/supabase-js";
 
+import { apiFetch } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase-client";
 
 export type VenueSummary = {
@@ -19,6 +20,7 @@ export type VenueSummary = {
   description: string | null;
   accessibilityNotes: string | null;
   facilities: string[];
+  layouts: string[];
   updatedAt: string;
   // AC09: who last updated the entry, alongside updatedAt — null for a venue
   // nobody has ever updated (created but not yet edited).
@@ -51,6 +53,7 @@ export async function listVenues(): Promise<VenueSummary[]> {
         updated_at,
         updated_by_profile:profiles!venues_updated_by_fkey (full_name),
         venue_facilities (facility_name),
+        venue_layouts (layout_name),
         venue_bookings (needs_review)
       `,
     )
@@ -68,10 +71,65 @@ export async function listVenues(): Promise<VenueSummary[]> {
       description: venue.description,
       accessibilityNotes: venue.accessibility_notes,
       facilities: venue.venue_facilities.map((facility) => facility.facility_name),
+      layouts: venue.venue_layouts.map((layout) => layout.layout_name),
       updatedAt: venue.updated_at,
       updatedByName: venue.updated_by_profile?.full_name ?? null,
       needsReviewCount: venue.venue_bookings.filter((booking) => booking.needs_review)
         .length,
+    }),
+  );
+}
+
+type SuggestedVenueRow = {
+  id: string;
+  name: string;
+  location: string;
+  capacity: number;
+  operating_hours: unknown;
+  description: string | null;
+  accessibility_notes: string | null;
+  facilities: string[] | null;
+  layouts: string[] | null;
+  updated_at: string;
+};
+
+/**
+ * "Automatically Suggest Matching Venues": venues that satisfy every
+ * mandatory requirement of the given event. Goes through apps/backend rather
+ * than calling the RPC directly — same split as event-submissions/
+ * event-clarifications/event-decisions — the route only authenticates and
+ * validates the path param; the matching rules live in
+ * public.find_matching_venues (202609230001_find_matching_venues.sql).
+ * Mapped into VenueSummary so VenueCard renders these results unmodified,
+ * same as the catalogue's own list.
+ *
+ * needsReviewCount/updatedByName aren't meaningful for a suggestion (no
+ * booking exists yet, and the RPC doesn't join profiles) — set to their
+ * "nothing to show" defaults, which is harmless since this panel never
+ * passes canManageVenues={true}.
+ */
+export async function listSuggestedVenues(eventId: string): Promise<VenueSummary[]> {
+  let data: SuggestedVenueRow[];
+  try {
+    ({ data } = await apiFetch(`/events/${eventId}/suggested-venues`));
+  } catch {
+    throw operationError("We couldn't load suggested venues for this event.");
+  }
+
+  return (data ?? []).map(
+    (venue): VenueSummary => ({
+      id: venue.id,
+      name: venue.name,
+      location: venue.location,
+      capacity: venue.capacity,
+      operatingHours: venue.operating_hours as unknown as OperatingHours,
+      description: venue.description,
+      accessibilityNotes: venue.accessibility_notes,
+      facilities: venue.facilities ?? [],
+      layouts: venue.layouts ?? [],
+      updatedAt: venue.updated_at,
+      updatedByName: null,
+      needsReviewCount: 0,
     }),
   );
 }
@@ -89,7 +147,8 @@ export async function getVenue(venueId: string): Promise<VenueDetail> {
         accessibility_notes,
         updated_at,
         updated_by_profile:profiles!venues_updated_by_fkey (full_name),
-        venue_facilities (facility_name)
+        venue_facilities (facility_name),
+        venue_layouts (layout_name)
       `,
     )
     .eq("id", venueId)
@@ -109,6 +168,7 @@ export async function getVenue(venueId: string): Promise<VenueDetail> {
     description: data.description ?? "",
     accessibilityNotes: data.accessibility_notes ?? "",
     facilities: data.venue_facilities.map((facility) => facility.facility_name),
+    layouts: data.venue_layouts.map((layout) => layout.layout_name) as VenueFormValues["layouts"],
     updatedAt: data.updated_at,
     updatedByName: data.updated_by_profile?.full_name ?? null,
   };
