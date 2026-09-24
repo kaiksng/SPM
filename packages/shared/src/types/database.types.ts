@@ -879,19 +879,19 @@ export type Database = {
       venue_layouts: {
         Row: {
           id: string
-          layout_name: string
+          layout_name: Database["public"]["Enums"]["room_layout"]
           max_capacity: number | null
           venue_id: string
         }
         Insert: {
           id?: string
-          layout_name: string
+          layout_name: Database["public"]["Enums"]["room_layout"]
           max_capacity?: number | null
           venue_id: string
         }
         Update: {
           id?: string
-          layout_name?: string
+          layout_name?: Database["public"]["Enums"]["room_layout"]
           max_capacity?: number | null
           venue_id?: string
         }
@@ -947,7 +947,6 @@ export type Database = {
           location: string
           name: string
           operating_hours: Json
-          operating_hours_legacy_text: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -960,7 +959,6 @@ export type Database = {
           location: string
           name: string
           operating_hours?: Json
-          operating_hours_legacy_text?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -973,7 +971,6 @@ export type Database = {
           location?: string
           name?: string
           operating_hours?: Json
-          operating_hours_legacy_text?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -1106,6 +1103,14 @@ export type Database = {
         | "cancellation"
         | "venue_capacity_review"
       request_status: "pending" | "approved" | "rejected" | "cancelled"
+      room_layout:
+        | "Theatre"
+        | "Classroom"
+        | "Boardroom"
+        | "Banquet"
+        | "Open Floor"
+        | "Auditorium"
+        | "Exhibition"
       user_role:
         | "event_organiser"
         | "event_coordinator"
@@ -1271,6 +1276,15 @@ export const Constants = {
         "venue_capacity_review",
       ],
       request_status: ["pending", "approved", "rejected", "cancelled"],
+      room_layout: [
+        "Theatre",
+        "Classroom",
+        "Boardroom",
+        "Banquet",
+        "Open Floor",
+        "Auditorium",
+        "Exhibition",
+      ],
       user_role: [
         "event_organiser",
         "event_coordinator",
