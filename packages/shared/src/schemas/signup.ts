@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-// Self-signup must never grant the administrator role, so it is deliberately
-// excluded from this list even though it's a valid value in `public.user_role`.
 // This dropdown is expected to be removed in a future iteration.
 export const signupRoles = [
   "event_organiser",

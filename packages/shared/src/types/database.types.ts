@@ -1027,10 +1027,10 @@ export type Database = {
       find_matching_venues: {
         Args: { p_event_id: string }
         Returns: {
-          accessibility_notes: string | null
+          accessibility_notes: string
           capacity: number
-          description: string | null
-          facilities: string[] | null
+          description: string
+          facilities: string[]
           id: string
           location: string
           name: string
@@ -1075,6 +1075,10 @@ export type Database = {
         Args: { p_actor_id?: string; p_venue: Json; p_venue_id: string }
         Returns: Json
       }
+      validate_operating_hours: {
+        Args: { p_operating_hours: Json }
+        Returns: string
+      }
     }
     Enums: {
       clarification_status: "open" | "answered" | "resolved"
@@ -1117,7 +1121,6 @@ export type Database = {
         | "venue_staff"
         | "technical_support_staff"
         | "attendee"
-        | "administrator"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1291,7 +1294,6 @@ export const Constants = {
         "venue_staff",
         "technical_support_staff",
         "attendee",
-        "administrator",
       ],
     },
   },

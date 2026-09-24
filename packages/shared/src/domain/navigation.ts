@@ -25,7 +25,6 @@ const ROLE_NAV_ITEM_IDS = {
   venue_staff: ["venues"],
   technical_support_staff: ["equipment"],
   attendee: ["browse-events"],
-  administrator: ["events", "venues", "equipment"],
 } as const satisfies Record<UserRole, readonly NavItemId[]>;
 
 /** Ordered nav items a given role sees in the workspace side menu. */

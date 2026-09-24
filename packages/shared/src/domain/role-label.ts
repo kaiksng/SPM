@@ -6,7 +6,6 @@ const ROLE_LABELS = {
   venue_staff: "Venue Staff",
   technical_support_staff: "Technical Support Staff",
   attendee: "Attendee",
-  administrator: "Administrator",
 } as const satisfies Record<UserRole, string>;
 
 /** Human-readable label for a role, e.g. for display in the workspace UI. */

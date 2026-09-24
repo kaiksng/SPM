@@ -41,16 +41,6 @@ describe("signup action", () => {
     expect(signUp).not.toHaveBeenCalled();
   });
 
-  it("rejects administrator as a submitted role before calling Supabase", async () => {
-    const state = await signup(
-      undefined,
-      formDataWith({ ...validForm, role: "administrator" }),
-    );
-
-    expect(state?.errors?.role).toBeDefined();
-    expect(signUp).not.toHaveBeenCalled();
-  });
-
   it("passes full_name and role through signUp's options.data", async () => {
     signUp.mockResolvedValue({
       data: { user: { id: "user-1" }, session: {} },

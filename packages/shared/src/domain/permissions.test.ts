@@ -10,12 +10,4 @@ describe("role permissions", () => {
   it("prevents attendees from reviewing events", () => {
     expect(hasPermission("attendee", "reviewEvent")).toBe(false);
   });
-
-  it("allows administrators to perform every defined operation", () => {
-    expect(hasPermission("administrator", "createEvent")).toBe(true);
-    expect(hasPermission("administrator", "reviewEvent")).toBe(true);
-    expect(hasPermission("administrator", "manageVenue")).toBe(true);
-    expect(hasPermission("administrator", "reserveEquipment")).toBe(true);
-    expect(hasPermission("administrator", "registerForEvent")).toBe(true);
-  });
 });

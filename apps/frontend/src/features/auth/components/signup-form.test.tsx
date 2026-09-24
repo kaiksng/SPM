@@ -35,15 +35,12 @@ describe("SignupForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("does not offer administrator as a role option", async () => {
+  it("offers the available roles as options", async () => {
     const user = userEvent.setup();
     renderSignupForm();
 
     await user.click(screen.getByRole("combobox", { name: "Role" }));
 
-    expect(
-      screen.queryByRole("option", { name: /administrator/i }),
-    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("option", { name: "Event organiser" }),
     ).toBeInTheDocument();

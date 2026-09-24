@@ -15,7 +15,6 @@ const STAFF_ROLES = new Set([
   "event_coordinator",
   "venue_staff",
   "technical_support_staff",
-  "administrator",
 ]);
 
 /**

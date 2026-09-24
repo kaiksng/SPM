@@ -6,5 +6,4 @@ export const staffRoles = [
   "event_coordinator",
   "venue_staff",
   "technical_support_staff",
-  "administrator",
 ] as const satisfies readonly UserRole[];

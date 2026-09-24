@@ -17,7 +17,7 @@ PB-07 owns the field-level previous/new value history that PB-03 (`202609130003`
 
 The story itself flags this as a recurring definition gap. It is resolved here the same way the two other coordinator-only actions in this codebase already resolved it — `decide_event_request` and `request_event_clarification` (`202609140003`, `202609150002`) — rather than inventing a third rule:
 
-- **Authorised** = the event's `assigned_coordinator_id`, or a user with the `administrator` role.
+- **Authorised** = the event's `assigned_coordinator_id`.
 - This is narrower than `can_view_event`, which lets *any* `event_coordinator`-role user see the event's own fields. An unassigned coordinator can open the event (via the broader policy) but sees no change history — they are not accountable for it.
 - The organiser, who can also view the event via `can_view_event`, is likewise not "authorised" for this specific view — they can see their own event, but not the internal review trail.
 

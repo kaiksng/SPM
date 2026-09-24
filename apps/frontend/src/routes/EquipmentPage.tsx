@@ -7,9 +7,9 @@ import { ListToolbar } from "@/features/workspace/components/list-toolbar";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
-/** Only a coordinator (or administrator) can request equipment — an organiser can view but not book. */
+/** Only a coordinator can request equipment — an organiser can view but not book. */
 function canRequestEquipment(role: string | undefined) {
-  return role === "event_coordinator" || role === "administrator";
+  return role === "event_coordinator";
 }
 
 export function EquipmentPage() {

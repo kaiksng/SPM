@@ -33,7 +33,7 @@ export function CoordinatorEventEditPage() {
 
   usePageTitle("Update event information");
 
-  const authorised = profile?.role === "event_coordinator" || profile?.role === "administrator";
+  const authorised = profile?.role === "event_coordinator";
 
   useEffect(() => {
     if (!eventId || !authorised) return;

@@ -26,7 +26,7 @@ export function VenueCard({
     <>
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
-          {/* AC06: only venue staff/administrator act on Needs Review, so
+          {/* AC06: only venue staff act on Needs Review, so
               only they see the badge here. */}
           {canManageVenues && venue.needsReviewCount > 0 && (
             <StatusBadge status="needs_review" />

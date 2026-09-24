@@ -11,7 +11,7 @@ export type EventFieldChange = {
 
 /**
  * PB-07's change history for an event's requirements. RLS scopes this to the
- * event's assigned coordinator (or an administrator) — narrower than
+ * event's assigned coordinator — narrower than
  * loadEventDetail's "anyone who can view the event" — so an unassigned
  * coordinator or the organiser gets an empty list here rather than an error:
  * Postgres RLS filters rows silently instead of raising (AC03/AC04).
