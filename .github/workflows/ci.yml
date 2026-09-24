@@ -8,22 +8,24 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch/PR cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  application:
+  # Fast feedback: typecheck, unit/component/route tests and the backend
+  # compile. Needs no secrets.
+  checks:
     runs-on: ubuntu-latest
-    env:
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-      SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+      # Reads the pnpm version from package.json's packageManager field.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 11.19.0
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck:shared
@@ -32,18 +34,51 @@ jobs:
       - run: pnpm --filter @spm/shared test
       - run: pnpm --filter @spm/backend test
       - run: pnpm --filter @spm/frontend test
-      - run: pnpm build:frontend
       - run: pnpm build:backend
+
+  # Browser journeys against the production frontend build (vite preview).
+  # Secrets are scoped to the steps that need them, never the whole job.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:frontend
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_BACKEND_URL: http://localhost:3001
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+        env:
+          # Only the backend web server reads these, and only once a route
+          # calls getServiceClient() — /health does not.
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
 
+  # Migrations and pgTAP/RLS tests on a throwaway local database — never the
+  # shared hosted project. `supabase start` applies every migration.
   database:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
       - uses: supabase/setup-cli@v1
         with:
           version: 2.116.0
       - run: supabase start
-      - run: supabase db reset
       - run: supabase test db

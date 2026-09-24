@@ -46,3 +46,6 @@ next-env.d.ts
 # local test output
 /test-results/
 /playwright-report/
+
+# local agent memory and rules
+/.claude/memory/
