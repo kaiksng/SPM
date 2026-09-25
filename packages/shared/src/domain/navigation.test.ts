@@ -33,14 +33,6 @@ describe("workspace navigation", () => {
     ]);
   });
 
-  it("gives administrators every staff-facing section", () => {
-    expect(getNavItemsForRole("administrator").map((item) => item.id)).toEqual([
-      "events",
-      "venues",
-      "equipment",
-    ]);
-  });
-
   it("allows a role to reach a path that appears in its own nav", () => {
     expect(isPathAllowedForRole("/venues", "venue_staff")).toBe(true);
   });

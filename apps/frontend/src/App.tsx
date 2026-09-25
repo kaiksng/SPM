@@ -10,11 +10,14 @@ import { EventDetailPage } from "@/routes/EventDetailPage";
 import { EventHistoryPage } from "@/routes/EventHistoryPage";
 import { EventRequestEditorPage } from "@/routes/EventRequestEditorPage";
 import { EventsPage } from "@/routes/EventsPage";
+import { EventVenuePage } from "@/routes/EventVenuePage";
 import { LoginPage } from "@/routes/LoginPage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
 import { PublicPage } from "@/routes/PublicPage";
 import { SignupPage } from "@/routes/SignupPage";
-import { VenueBookingRequestPage } from "@/routes/VenueBookingRequestPage";
+import { VenueAvailabilityPage } from "@/routes/VenueAvailabilityPage";
+import { VenueDetailPage } from "@/routes/VenueDetailPage";
+import { VenueEditorPage } from "@/routes/VenueEditorPage";
 import { VenuesPage } from "@/routes/VenuesPage";
 import { WorkspaceLayout } from "@/routes/WorkspaceLayout";
 
@@ -35,6 +38,7 @@ export function App() {
               <Route path="events" element={<EventsPage />} />
               <Route path="events/new" element={<EventRequestEditorPage />} />
               <Route path="events/:eventId" element={<EventDetailPage />} />
+              <Route path="events/:eventId/venue" element={<EventVenuePage />} />
               <Route path="events/:eventId/history" element={<EventHistoryPage />} />
               <Route
                 path="events/:eventId/edit"
@@ -48,11 +52,14 @@ export function App() {
                 path="events/:eventId/coordinator-edit"
                 element={<CoordinatorEventEditPage />}
               />
-              <Route
-                path="events/:eventId/venue-booking"
-                element={<VenueBookingRequestPage />}
-              />
               <Route path="venues" element={<VenuesPage />} />
+              <Route path="venues/new" element={<VenueEditorPage />} />
+              <Route path="venues/:venueId" element={<VenueDetailPage />} />
+              <Route path="venues/:venueId/edit" element={<VenueEditorPage />} />
+              <Route
+                path="venues/:venueId/availability"
+                element={<VenueAvailabilityPage />}
+              />
               <Route path="equipment" element={<EquipmentPage />} />
               <Route path="browse-events" element={<BrowseEventsPage />} />
             </Route>

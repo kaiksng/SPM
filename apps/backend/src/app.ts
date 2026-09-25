@@ -6,6 +6,7 @@ import { eventClarificationsRouter } from "./routes/event-clarifications.route";
 import { eventDecisionsRouter } from "./routes/event-decisions.route";
 import { eventSubmissionsRouter } from "./routes/event-submissions.route";
 import { healthRouter } from "./routes/health.route";
+import { venueSuggestionsRouter } from "./routes/venue-suggestions.route";
 
 export function createApp() {
   const app = express();
@@ -17,6 +18,7 @@ export function createApp() {
   app.use("/events", eventSubmissionsRouter);
   app.use(eventClarificationsRouter);
   app.use(eventDecisionsRouter);
+  app.use(venueSuggestionsRouter);
 
   app.use(errorHandler);
 

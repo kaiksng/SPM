@@ -24,7 +24,7 @@ test("shows a validation error for a malformed email without calling Supabase", 
 test("redirects an unauthenticated visitor away from the protected workspace", async ({
   page,
 }) => {
-  await page.goto("/home");
+  await page.goto("/events");
 
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();

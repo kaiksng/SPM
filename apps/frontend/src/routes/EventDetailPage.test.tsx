@@ -161,7 +161,7 @@ describe("EventDetailPage", () => {
     );
   });
 
-  it("shows the coordinator a lifecycle sidebar linking to the venue booking form", async () => {
+  it("shows the coordinator a lifecycle sidebar linking to the venue page", async () => {
     loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
 
     renderPage();
@@ -169,7 +169,7 @@ describe("EventDetailPage", () => {
     expect(await screen.findByRole("navigation", { name: "Event lifecycle" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Venue" })).toHaveAttribute(
       "href",
-      "/events/event-1/venue-booking",
+      "/events/event-1/venue",
     );
     // Equipment has no booking flow yet — still a plain "Coming soon" label.
     expect(screen.queryByRole("link", { name: "Equipment" })).not.toBeInTheDocument();

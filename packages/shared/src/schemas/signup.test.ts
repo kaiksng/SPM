@@ -55,13 +55,4 @@ describe("signup validation", () => {
       );
     }
   });
-
-  it("rejects administrator as a self-signup role", () => {
-    const result = signupSchema.safeParse({
-      ...validFields,
-      role: "administrator",
-    });
-
-    expect(result.success).toBe(false);
-  });
 });

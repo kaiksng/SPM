@@ -84,8 +84,7 @@ export function EventDetailPage() {
   const role = profile?.role === "event_organiser" ? "organiser" : "coordinator";
   // SPM-09 AC02: "authorised coordinator" means the one coordinator assigned
   // to this specific event — a coordinator who isn't assigned sees the same
-  // denial as an event they can't load at all. Administrators are unaffected
-  // (they have no per-event assignment and keep their existing override).
+  // denial as an event they can't load at all.
   const isUnassignedCoordinator =
     !!event && profile?.role === "event_coordinator" && event.assignedCoordinatorId !== user?.id;
 

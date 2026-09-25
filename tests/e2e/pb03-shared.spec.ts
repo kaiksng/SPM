@@ -12,7 +12,8 @@ async function startFreshSession(page: Page, email: string, password: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/home$/);
+  // Organisers land on their first nav section (getRoleDestination).
+  await expect(page).toHaveURL(/\/events$/);
 }
 
 /**

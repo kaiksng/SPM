@@ -1,3 +1,4 @@
+import { asRoomLayoutType, ROOM_LAYOUT_TYPES, type RoomLayoutType } from "@spm/shared";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import {
   updateEventAsCoordinator,
 } from "@/features/event-requests/services/coordinator-event-edit";
 import type { EventDetail } from "@/features/event-requests/services/event-details";
+import { cn } from "@/lib/utils";
 
 type Venue = EventDetail["venue"];
 
@@ -39,7 +41,7 @@ export function VenueFacilitiesSection({
   const [preferredLocation, setPreferredLocation] = useState("");
   const [minimumCapacity, setMinimumCapacity] = useState("");
   const [accessibilityNotes, setAccessibilityNotes] = useState("");
-  const [layoutNotes, setLayoutNotes] = useState("");
+  const [layoutNotes, setLayoutNotes] = useState<RoomLayoutType | "">("");
   const [facilitiesText, setFacilitiesText] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
@@ -48,7 +50,7 @@ export function VenueFacilitiesSection({
     setPreferredLocation(event.venue.preferredLocation ?? "");
     setMinimumCapacity(event.venue.minimumCapacity?.toString() ?? "");
     setAccessibilityNotes(event.venue.accessibilityNotes ?? "");
-    setLayoutNotes(event.venue.layoutNotes ?? "");
+    setLayoutNotes(asRoomLayoutType(event.venue.layoutNotes));
     setFacilitiesText(event.venue.facilities.join(", "));
     setError(undefined);
     setEditing(true);
@@ -155,13 +157,24 @@ export function VenueFacilitiesSection({
               onChange={(event) => setAccessibilityNotes(event.target.value)}
             />
           </label>
-          <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
-            <span className="text-xs font-medium text-slate-400">Layout notes</span>
-            <TextArea
-              rows={3}
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="text-xs font-medium text-slate-400">Room layout</span>
+            <select
               value={layoutNotes}
-              onChange={(event) => setLayoutNotes(event.target.value)}
-            />
+              onChange={(event) => setLayoutNotes(event.target.value as RoomLayoutType | "")}
+              className={cn(
+                "border-input flex h-8 w-full min-w-0 rounded-lg border bg-transparent px-2.5 text-sm shadow-xs outline-none",
+                "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+                !layoutNotes && "text-muted-foreground",
+              )}
+            >
+              <option value="">No preference</option>
+              {ROOM_LAYOUT_TYPES.map((layout) => (
+                <option key={layout} value={layout} className="text-foreground">
+                  {layout}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
             <span className="text-xs font-medium text-slate-400">
@@ -205,9 +218,9 @@ export function VenueFacilitiesSection({
               {event.venue.accessibilityNotes || "Not provided"}
             </dd>
           </div>
-          <div className="sm:col-span-2">
-            <dt className="text-xs font-medium text-slate-400">Layout notes</dt>
-            <dd className="mt-1 text-sm text-slate-800">{event.venue.layoutNotes || "Not provided"}</dd>
+          <div>
+            <dt className="text-xs font-medium text-slate-400">Room layout</dt>
+            <dd className="mt-1 text-sm text-slate-800">{event.venue.layoutNotes || "No preference"}</dd>
           </div>
           <div className="sm:col-span-2">
             <dt className="text-xs font-medium text-slate-400">Required facilities</dt>

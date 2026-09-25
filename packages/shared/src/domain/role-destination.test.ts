@@ -9,7 +9,6 @@ describe("role destination", () => {
     ["venue_staff", "/venues"],
     ["technical_support_staff", "/equipment"],
     ["attendee", "/browse-events"],
-    ["administrator", "/events"],
   ] as const)("routes %s to %s, the first section in their own nav", (role, destination) => {
     expect(getRoleDestination(role)).toBe(destination);
   });

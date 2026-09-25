@@ -31,12 +31,7 @@ const STAGES = [
     id: "planning",
     label: "Planning",
     rank: 2,
-    // SPM-24 built the Venue booking flow; Equipment still awaits its own
-    // story, so only Venue gets a real link here.
-    children: [
-      { id: "venue", label: "Venue", href: "venue-booking" },
-      { id: "equipment", label: "Equipment", href: undefined },
-    ],
+    children: ["Venue", "Equipment"],
   },
   { id: "confirmed", label: "Event Confirmed", rank: 3 },
 ] as const;
@@ -82,27 +77,30 @@ export function EventPlanningTimeline({
                 <ul className="mt-2 space-y-1.5">
                   {stage.children.map((child) => (
                     <li
-                      key={child.id}
+                      key={child}
                       className="flex items-center gap-1.5 text-xs text-slate-500"
                     >
                       <CornerDownRight
                         aria-hidden="true"
                         className="size-3.5 shrink-0 text-slate-300"
                       />
-                      {child.href ? (
+                      {/* Venue has its own page (suggested venues); Equipment
+                          booking isn't built yet, see EquipmentPage's own
+                          placeholder. */}
+                      {child === "Venue" ? (
                         <Link
-                          to={`/events/${eventId}/${child.href}`}
-                          className="text-blue-600 hover:underline"
+                          to={`/events/${eventId}/venue`}
+                          className="hover:text-blue-600 hover:underline"
                         >
-                          {child.label}
+                          {child}
                         </Link>
                       ) : (
-                        <>
-                          {child.label}
-                          <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
-                            Coming soon
-                          </span>
-                        </>
+                        child
+                      )}
+                      {child === "Equipment" && (
+                        <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+                          Coming soon
+                        </span>
                       )}
                     </li>
                   ))}

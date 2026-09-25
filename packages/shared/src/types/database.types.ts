@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -140,6 +145,159 @@ export type Database = {
           {
             foreignKeyName: "clarifications_responded_by_fkey"
             columns: ["responded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_items: {
+        Row: {
+          category: string | null
+          id: string
+          name: string
+          notes: string | null
+          total_quantity: number
+        }
+        Insert: {
+          category?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          total_quantity: number
+        }
+        Update: {
+          category?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          total_quantity?: number
+        }
+        Relationships: []
+      }
+      equipment_reservations: {
+        Row: {
+          decided_at: string | null
+          decided_by: string | null
+          ends_at: string
+          equipment_item_id: string
+          event_id: string
+          id: string
+          quantity: number
+          requested_at: string
+          requested_by: string
+          starts_at: string
+          status: Database["public"]["Enums"]["request_status"]
+        }
+        Insert: {
+          decided_at?: string | null
+          decided_by?: string | null
+          ends_at: string
+          equipment_item_id: string
+          event_id: string
+          id?: string
+          quantity: number
+          requested_at?: string
+          requested_by: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["request_status"]
+        }
+        Update: {
+          decided_at?: string | null
+          decided_by?: string | null
+          ends_at?: string
+          equipment_item_id?: string
+          event_id?: string
+          id?: string
+          quantity?: number
+          requested_at?: string
+          requested_by?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["request_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_reservations_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_reservations_equipment_item_id_fkey"
+            columns: ["equipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_reservations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_reservations_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_change_requests: {
+        Row: {
+          event_id: string
+          id: string
+          requested_at: string
+          requested_by: string
+          requested_changes: Json
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+        }
+        Insert: {
+          event_id: string
+          id?: string
+          requested_at?: string
+          requested_by: string
+          requested_changes: Json
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Update: {
+          event_id?: string
+          id?: string
+          requested_at?: string
+          requested_by?: string
+          requested_changes?: Json
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_change_requests_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_change_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_change_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -300,6 +458,48 @@ export type Database = {
           },
         ]
       }
+      event_registrations: {
+        Row: {
+          attendee_id: string
+          event_id: string
+          id: string
+          registered_at: string
+          status: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          attendee_id: string
+          event_id: string
+          id?: string
+          registered_at?: string
+          status?: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          attendee_id?: string
+          event_id?: string
+          id?: string
+          registered_at?: string
+          status?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registrations_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_required_facilities: {
         Row: {
           event_id: string
@@ -427,6 +627,7 @@ export type Database = {
           submitted_by: string | null
           title: string
           updated_at: string
+          venue_id: string | null
         }
         Insert: {
           assigned_coordinator_id?: string | null
@@ -445,6 +646,7 @@ export type Database = {
           submitted_by?: string | null
           title: string
           updated_at?: string
+          venue_id?: string | null
         }
         Update: {
           assigned_coordinator_id?: string | null
@@ -463,6 +665,7 @@ export type Database = {
           submitted_by?: string | null
           title?: string
           updated_at?: string
+          venue_id?: string | null
         }
         Relationships: [
           {
@@ -484,6 +687,13 @@ export type Database = {
             columns: ["submitted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
             referencedColumns: ["id"]
           },
         ]
@@ -539,6 +749,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          email: string | null
           full_name: string
           id: string
           role: Database["public"]["Enums"]["user_role"]
@@ -546,6 +757,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email?: string | null
           full_name: string
           id: string
           role?: Database["public"]["Enums"]["user_role"]
@@ -553,6 +765,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email?: string | null
           full_name?: string
           id?: string
           role?: Database["public"]["Enums"]["user_role"]
@@ -560,86 +773,50 @@ export type Database = {
         }
         Relationships: []
       }
-      venue_blocks: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          ends_at: string
-          id: string
-          reason: string | null
-          starts_at: string
-          venue_id: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          ends_at: string
-          id?: string
-          reason?: string | null
-          starts_at: string
-          venue_id: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          ends_at?: string
-          id?: string
-          reason?: string | null
-          starts_at?: string
-          venue_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "venue_blocks_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "venue_blocks_venue_id_fkey"
-            columns: ["venue_id"]
-            isOneToOne: false
-            referencedRelation: "venues"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       venue_bookings: {
         Row: {
-          created_at: string
           decided_at: string | null
           decided_by: string | null
+          decision_notes: string | null
           ends_at: string
           event_id: string
           id: string
+          needs_review: boolean
+          needs_review_reason: string | null
+          requested_at: string
           requested_by: string
           starts_at: string
-          status: Database["public"]["Enums"]["venue_booking_status"]
+          status: Database["public"]["Enums"]["request_status"]
           venue_id: string
         }
         Insert: {
-          created_at?: string
           decided_at?: string | null
           decided_by?: string | null
+          decision_notes?: string | null
           ends_at: string
           event_id: string
           id?: string
+          needs_review?: boolean
+          needs_review_reason?: string | null
+          requested_at?: string
           requested_by: string
           starts_at: string
-          status?: Database["public"]["Enums"]["venue_booking_status"]
+          status?: Database["public"]["Enums"]["request_status"]
           venue_id: string
         }
         Update: {
-          created_at?: string
           decided_at?: string | null
           decided_by?: string | null
+          decision_notes?: string | null
           ends_at?: string
           event_id?: string
           id?: string
+          needs_review?: boolean
+          needs_review_reason?: string | null
+          requested_at?: string
           requested_by?: string
           starts_at?: string
-          status?: Database["public"]["Enums"]["venue_booking_status"]
+          status?: Database["public"]["Enums"]["request_status"]
           venue_id?: string
         }
         Relationships: [
@@ -673,35 +850,139 @@ export type Database = {
           },
         ]
       }
-      venues: {
+      venue_facilities: {
         Row: {
-          capacity: number
-          created_at: string
+          facility_name: string
           id: string
-          name: string
-          operating_days: number[]
-          operating_ends_time: string
-          operating_starts_time: string
+          venue_id: string
         }
         Insert: {
-          capacity: number
-          created_at?: string
+          facility_name: string
           id?: string
-          name: string
-          operating_days: number[]
-          operating_ends_time: string
-          operating_starts_time: string
+          venue_id: string
         }
         Update: {
+          facility_name?: string
+          id?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_facilities_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venue_layouts: {
+        Row: {
+          id: string
+          layout_name: Database["public"]["Enums"]["room_layout"]
+          max_capacity: number | null
+          venue_id: string
+        }
+        Insert: {
+          id?: string
+          layout_name: Database["public"]["Enums"]["room_layout"]
+          max_capacity?: number | null
+          venue_id: string
+        }
+        Update: {
+          id?: string
+          layout_name?: Database["public"]["Enums"]["room_layout"]
+          max_capacity?: number | null
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_layouts_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venue_unavailability: {
+        Row: {
+          ends_at: string
+          id: string
+          reason: string | null
+          starts_at: string
+          venue_id: string
+        }
+        Insert: {
+          ends_at: string
+          id?: string
+          reason?: string | null
+          starts_at: string
+          venue_id: string
+        }
+        Update: {
+          ends_at?: string
+          id?: string
+          reason?: string | null
+          starts_at?: string
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_unavailability_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venues: {
+        Row: {
+          accessibility_notes: string | null
+          capacity: number
+          created_at: string
+          description: string | null
+          id: string
+          location: string
+          name: string
+          operating_hours: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          accessibility_notes?: string | null
+          capacity: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          location: string
+          name: string
+          operating_hours?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          accessibility_notes?: string | null
           capacity?: number
           created_at?: string
+          description?: string | null
           id?: string
+          location?: string
           name?: string
-          operating_days?: number[]
-          operating_ends_time?: string
-          operating_starts_time?: string
+          operating_hours?: Json
+          updated_at?: string
+          updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "venues_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -714,6 +995,10 @@ export type Database = {
       }
       can_view_event: { Args: { target_event_id: string }; Returns: boolean }
       complete_event: { Args: { p_event_id: string }; Returns: Json }
+      create_venue: {
+        Args: { p_actor_id?: string; p_venue: Json }
+        Returns: Json
+      }
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
@@ -738,6 +1023,20 @@ export type Database = {
           to_status: Database["public"]["Enums"]["event_status"]
         }
         Returns: boolean
+      }
+      find_matching_venues: {
+        Args: { p_event_id: string }
+        Returns: {
+          accessibility_notes: string
+          capacity: number
+          description: string
+          facilities: string[]
+          id: string
+          location: string
+          name: string
+          operating_hours: Json
+          updated_at: string
+        }[]
       }
       request_event_clarification: {
         Args: {
@@ -768,21 +1067,16 @@ export type Database = {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json
       }
-      submit_venue_booking_request: {
-        Args: {
-          p_ends_at: string
-          p_event_id: string
-          p_starts_at: string
-          p_venue_id: string
-        }
-        Returns: string
-      }
       update_event_as_coordinator: {
         Args: { p_event_id: string; updates: Json }
         Returns: string
       }
-      withdraw_venue_booking_request: {
-        Args: { p_booking_id: string }
+      update_venue: {
+        Args: { p_actor_id?: string; p_venue: Json; p_venue_id: string }
+        Returns: Json
+      }
+      validate_operating_hours: {
+        Args: { p_operating_hours: Json }
         Returns: string
       }
     }
@@ -806,14 +1100,27 @@ export type Database = {
         | "clarification"
         | "decision"
         | "status_change"
+        | "venue_decision"
+        | "event_change"
+        | "registration_update"
+        | "confirmation"
+        | "cancellation"
+        | "venue_capacity_review"
+      request_status: "pending" | "approved" | "rejected" | "cancelled"
+      room_layout:
+        | "Theatre"
+        | "Classroom"
+        | "Boardroom"
+        | "Banquet"
+        | "Open Floor"
+        | "Auditorium"
+        | "Exhibition"
       user_role:
         | "event_organiser"
         | "event_coordinator"
         | "venue_staff"
         | "technical_support_staff"
         | "attendee"
-        | "administrator"
-      venue_booking_status: "pending" | "confirmed" | "rejected" | "withdrawn"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -829,12 +1136,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -858,11 +1165,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -883,11 +1190,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -908,11 +1215,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -925,11 +1232,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -964,6 +1271,22 @@ export const Constants = {
         "clarification",
         "decision",
         "status_change",
+        "venue_decision",
+        "event_change",
+        "registration_update",
+        "confirmation",
+        "cancellation",
+        "venue_capacity_review",
+      ],
+      request_status: ["pending", "approved", "rejected", "cancelled"],
+      room_layout: [
+        "Theatre",
+        "Classroom",
+        "Boardroom",
+        "Banquet",
+        "Open Floor",
+        "Auditorium",
+        "Exhibition",
       ],
       user_role: [
         "event_organiser",
@@ -971,10 +1294,7 @@ export const Constants = {
         "venue_staff",
         "technical_support_staff",
         "attendee",
-        "administrator",
       ],
-      venue_booking_status: ["pending", "confirmed", "rejected", "withdrawn"],
     },
   },
 } as const
-
