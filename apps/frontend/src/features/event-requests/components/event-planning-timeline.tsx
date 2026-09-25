@@ -1,4 +1,5 @@
 import { CornerDownRight } from "lucide-react";
+import { Link } from "react-router";
 
 import { cn } from "@/lib/utils";
 
@@ -30,12 +31,23 @@ const STAGES = [
     id: "planning",
     label: "Planning",
     rank: 2,
-    children: ["Venue", "Equipment"],
+    // SPM-24 built the Venue booking flow; Equipment still awaits its own
+    // story, so only Venue gets a real link here.
+    children: [
+      { id: "venue", label: "Venue", href: "venue-booking" },
+      { id: "equipment", label: "Equipment", href: undefined },
+    ],
   },
   { id: "confirmed", label: "Event Confirmed", rank: 3 },
 ] as const;
 
-export function EventPlanningTimeline({ status }: { status: string }) {
+export function EventPlanningTimeline({
+  status,
+  eventId,
+}: {
+  status: string;
+  eventId: string;
+}) {
   const currentRank = STAGE_RANK[status] ?? 0;
 
   return (
@@ -70,20 +82,28 @@ export function EventPlanningTimeline({ status }: { status: string }) {
                 <ul className="mt-2 space-y-1.5">
                   {stage.children.map((child) => (
                     <li
-                      key={child}
+                      key={child.id}
                       className="flex items-center gap-1.5 text-xs text-slate-500"
                     >
                       <CornerDownRight
                         aria-hidden="true"
                         className="size-3.5 shrink-0 text-slate-300"
                       />
-                      {child}
-                      {/* TODO: link to the venue/equipment booking form for this
-                          event once it's built — see VenuesPage/EquipmentPage,
-                          which are still empty-state placeholders themselves. */}
-                      <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
-                        Coming soon
-                      </span>
+                      {child.href ? (
+                        <Link
+                          to={`/events/${eventId}/${child.href}`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {child.label}
+                        </Link>
+                      ) : (
+                        <>
+                          {child.label}
+                          <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+                            Coming soon
+                          </span>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ul>

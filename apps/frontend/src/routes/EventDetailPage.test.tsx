@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +9,7 @@ const listEventDecisionsMock = vi.fn();
 const loadEventFieldHistoryMock = vi.fn();
 const listEventStatusHistoryMock = vi.fn();
 const completeEventMock = vi.fn();
+const updateEventAsCoordinatorMock = vi.fn();
 const authState = {
   profile: { full_name: "Joyce Coordinator", role: "event_coordinator" },
   user: { id: "20000000-0000-0000-0000-000000000002" },
@@ -43,6 +44,14 @@ vi.mock("@/features/event-requests/services/event-lifecycle", () => ({
   listEventStatusHistory: (...args: unknown[]) => listEventStatusHistoryMock(...args),
   completeEvent: (...args: unknown[]) => completeEventMock(...args),
 }));
+
+vi.mock("@/features/event-requests/services/coordinator-event-edit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/features/event-requests/services/coordinator-event-edit")>();
+  return {
+    ...actual,
+    updateEventAsCoordinator: (...args: unknown[]) => updateEventAsCoordinatorMock(...args),
+  };
+});
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
 
@@ -92,12 +101,14 @@ function renderPage() {
 
 describe("EventDetailPage", () => {
   beforeEach(() => {
+    authState.profile.role = "event_coordinator";
     loadEventDetailMock.mockReset().mockResolvedValue(event);
     listClarificationsMock.mockReset().mockResolvedValue([]);
     listEventDecisionsMock.mockReset().mockResolvedValue([]);
     loadEventFieldHistoryMock.mockReset().mockResolvedValue([]);
     listEventStatusHistoryMock.mockReset().mockResolvedValue([]);
     completeEventMock.mockReset().mockResolvedValue({ eventId: "event-1", status: "completed" });
+    updateEventAsCoordinatorMock.mockReset().mockResolvedValue("event-1");
   });
 
   it("shows the full event detail a card cannot fit", async () => {
@@ -112,7 +123,8 @@ describe("EventDetailPage", () => {
     expect(screen.getByText("Main Auditorium")).toBeInTheDocument();
     expect(screen.getByText("Wheelchair ramp required")).toBeInTheDocument();
     expect(screen.getByText("Projector")).toBeInTheDocument();
-    expect(screen.getByText(/Laptop/)).toBeInTheDocument();
+    // Equipment moved to the dedicated /equipment page — no longer shown here.
+    expect(screen.queryByText(/Laptop/)).not.toBeInTheDocument();
     expect(screen.getByText("Organiser: jasmine")).toBeInTheDocument();
     expect(screen.getByText("Coordinator: Joyce Coordinator")).toBeInTheDocument();
   });
@@ -147,6 +159,94 @@ describe("EventDetailPage", () => {
       "href",
       "/events/event-1/coordinator-edit",
     );
+  });
+
+  it("shows the coordinator a lifecycle sidebar linking to the venue booking form", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
+
+    renderPage();
+
+    expect(await screen.findByRole("navigation", { name: "Event lifecycle" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Venue" })).toHaveAttribute(
+      "href",
+      "/events/event-1/venue-booking",
+    );
+    // Equipment has no booking flow yet — still a plain "Coming soon" label.
+    expect(screen.queryByRole("link", { name: "Equipment" })).not.toBeInTheDocument();
+    expect(screen.getByText("Coming soon")).toBeInTheDocument();
+  });
+
+  it("does not show the lifecycle sidebar to the organiser", async () => {
+    authState.profile.role = "event_organiser";
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
+
+    renderPage();
+
+    await screen.findByText("Student Leadership Summit 2");
+    expect(screen.queryByRole("link", { name: "Venue" })).not.toBeInTheDocument();
+  });
+
+  it("no longer shows an Equipment section — it lives on the dedicated /equipment page", async () => {
+    renderPage();
+
+    await screen.findByText("Student Leadership Summit 2");
+    expect(screen.queryByText("Equipment", { selector: "h2" })).not.toBeInTheDocument();
+  });
+
+  it("offers the coordinator an inline Edit control on Venue & facilities only while Planning", async () => {
+    renderPage();
+    await screen.findByText("Student Leadership Summit 2");
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
+    renderPage();
+    expect(await screen.findByRole("button", { name: "Edit" })).toBeInTheDocument();
+  });
+
+  it("edits Venue & facilities in place and saves via update_event_as_coordinator, unchanged everywhere else", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+
+    const location = screen.getByDisplayValue("Main Auditorium");
+    await user.clear(location);
+    await user.type(location, "New Wing Hall");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(updateEventAsCoordinatorMock).toHaveBeenCalledWith(
+        "event-1",
+        expect.objectContaining({
+          title: event.title,
+          expectedAttendance: event.expectedAttendance!.toString(),
+          venue: expect.objectContaining({ preferredLocation: "New Wing Hall" }),
+          equipment: [
+            { equipmentName: "Laptop", quantity: "2", notes: "For registration desk" },
+          ],
+        }),
+      );
+    });
+    expect(await screen.findByText("New Wing Hall")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+  });
+
+  it("shows the save error and keeps editing open when the update fails", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
+    updateEventAsCoordinatorMock.mockRejectedValue(
+      new Error("This event could not be updated. Your form values are still here."),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByText("This event could not be updated. Your form values are still here."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 
   it("shows a status timeline for the event's recorded history", async () => {

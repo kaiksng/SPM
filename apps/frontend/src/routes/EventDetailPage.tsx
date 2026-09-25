@@ -14,6 +14,7 @@ import { EventHistoryButton } from "@/features/event-requests/components/event-h
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
 import { EventStatusBadge } from "@/features/event-requests/components/status-badges";
 import { EventStatusTimeline } from "@/features/event-requests/components/status-timeline";
+import { VenueFacilitiesSection } from "@/features/event-requests/components/venue-facilities-section";
 import type { ClarificationSummary } from "@/features/event-requests/services/clarifications";
 import {
   loadEventDetail,
@@ -137,7 +138,7 @@ export function EventDetailPage() {
             <div className="mt-6 lg:flex lg:items-start lg:gap-10">
               {role === "coordinator" && (
                 <div className="mb-6 lg:mb-0 lg:sticky lg:top-24">
-                  <EventPlanningTimeline status={event.status} />
+                  <EventPlanningTimeline status={event.status} eventId={event.id} />
                 </div>
               )}
               <div className="min-w-0 flex-1">
@@ -239,74 +240,12 @@ export function EventDetailPage() {
                   </dl>
                 </section>
   
-                <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
-                  <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
-                    Venue &amp; facilities
-                  </h2>
-                  <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <Field label="Preferred location" value={event.venue.preferredLocation} />
-                    <Field
-                      label="Minimum capacity"
-                      value={event.venue.minimumCapacity?.toString() ?? null}
-                    />
-                    <div className="sm:col-span-2">
-                      <dt className="text-xs font-medium text-slate-400">Accessibility notes</dt>
-                      <dd className="mt-1 text-sm text-slate-800">
-                        {event.venue.accessibilityNotes || "Not provided"}
-                      </dd>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <dt className="text-xs font-medium text-slate-400">Layout notes</dt>
-                      <dd className="mt-1 text-sm text-slate-800">
-                        {event.venue.layoutNotes || "Not provided"}
-                      </dd>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <dt className="text-xs font-medium text-slate-400">Required facilities</dt>
-                      <dd className="mt-2 flex flex-wrap gap-1.5">
-                        {event.venue.facilities.length > 0 ? (
-                          event.venue.facilities.map((facility) => (
-                            <span
-                              key={facility}
-                              className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-700"
-                            >
-                              {facility}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-sm text-slate-500">None required</span>
-                        )}
-                      </dd>
-                    </div>
-                  </dl>
-                </section>
-  
-                <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
-                  <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
-                    Equipment
-                  </h2>
-                  {event.equipment.length > 0 ? (
-                    <ul className="mt-4 space-y-2">
-                      {event.equipment.map((item, index) => (
-                        <li
-                          key={`${item.equipmentName}-${index}`}
-                          className="flex items-baseline justify-between gap-3 text-sm text-slate-800"
-                        >
-                          <span>
-                            {item.equipmentName}
-                            {item.notes && (
-                              <span className="text-slate-500"> — {item.notes}</span>
-                            )}
-                          </span>
-                          <span className="shrink-0 text-slate-500">×{item.quantity}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="mt-4 text-sm text-slate-500">No equipment required</p>
-                  )}
-                </section>
-  
+                <VenueFacilitiesSection
+                  event={event}
+                  canEdit={role === "coordinator" && event.status === "planning"}
+                  onSaved={(venue) => setEvent({ ...event, venue })}
+                />
+
                 <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
                   <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
                     Registration

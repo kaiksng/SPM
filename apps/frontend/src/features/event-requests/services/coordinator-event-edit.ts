@@ -6,7 +6,8 @@ import {
 
 import { supabase } from "@/lib/supabase-client";
 
-function localDateTime(isoValue: string | null) {
+/** Shared with EventDetailPage's inline venue editor — same ISO -> datetime-local conversion. */
+export function localDateTime(isoValue: string | null) {
   if (!isoValue) return "";
   const date = new Date(isoValue);
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
