@@ -2,15 +2,26 @@ import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
 import { SuggestedVenuesPanel } from "@/features/event-requests/components/suggested-venues-panel";
 import {
   loadEventDetail,
   type EventDetail,
 } from "@/features/event-requests/services/event-details";
+import {
+  getActiveVenueBooking,
+  withdrawVenueBookingRequest,
+  type ActiveVenueBooking,
+} from "@/features/venues/services/venue-bookings";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
+
+const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Singapore",
+});
 
 /**
  * The "Venue" sub-step of an event's Planning stage — its own page rather
@@ -24,16 +35,20 @@ export function EventVenuePage() {
   const [event, setEvent] = useState<EventDetail>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [activeBooking, setActiveBooking] = useState<ActiveVenueBooking | null>();
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [withdrawError, setWithdrawError] = useState<string>();
 
   usePageTitle(event?.title ? `Venue — ${event.title}` : "Venue");
 
-  useEffect(() => {
-    if (!eventId) return;
+  function loadAll(id: string) {
     let active = true;
     setLoading(true);
-    loadEventDetail(eventId)
-      .then((detail) => {
-        if (active) setEvent(detail);
+    Promise.all([loadEventDetail(id), getActiveVenueBooking(id)])
+      .then(([detail, booking]) => {
+        if (!active) return;
+        setEvent(detail);
+        setActiveBooking(booking);
       })
       .catch((loadError: unknown) => {
         if (active) {
@@ -51,7 +66,29 @@ export function EventVenuePage() {
     return () => {
       active = false;
     };
+  }
+
+  useEffect(() => {
+    if (!eventId) return;
+    return loadAll(eventId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
+
+  async function handleWithdraw() {
+    if (!activeBooking) return;
+    setWithdrawing(true);
+    setWithdrawError(undefined);
+    try {
+      await withdrawVenueBookingRequest(activeBooking.id);
+      setActiveBooking(null);
+    } catch (err) {
+      setWithdrawError(
+        err instanceof Error ? err.message : "This venue booking request could not be withdrawn.",
+      );
+    } finally {
+      setWithdrawing(false);
+    }
+  }
 
   return (
     <RoleGate>
@@ -137,12 +174,67 @@ export function EventVenuePage() {
                   </dl>
                 </section>
 
-                <SuggestedVenuesPanel eventId={eventId} />
+                {activeBooking ? (
+                  <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
+                    <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
+                      Current request
+                    </h2>
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <VenueBookingStatusBadge status={activeBooking.status} />
+                      <span className="text-sm font-medium text-slate-800">
+                        {activeBooking.venueName}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600">
+                      {dateTimeFormatter.format(new Date(activeBooking.startsAt))}
+                      {" – "}
+                      {dateTimeFormatter.format(new Date(activeBooking.endsAt))}
+                    </p>
+                    {activeBooking.status === "pending" && (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-4"
+                          disabled={withdrawing}
+                          onClick={handleWithdraw}
+                        >
+                          {withdrawing ? "Withdrawing…" : "Withdraw request"}
+                        </Button>
+                        {withdrawError && (
+                          <p role="alert" className="mt-2 text-sm text-red-700">
+                            {withdrawError}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </section>
+                ) : (
+                  <SuggestedVenuesPanel eventId={eventId} onBooked={() => loadAll(eventId)} />
+                )}
               </div>
             </div>
           )}
         </div>
       </div>
     </RoleGate>
+  );
+}
+
+const VENUE_BOOKING_STATUS_CLASSES: Record<ActiveVenueBooking["status"], string> = {
+  pending: "border-amber-200 bg-amber-50 text-amber-800",
+  approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  rejected: "border-red-200 bg-red-50 text-red-700",
+  cancelled: "border-slate-200 bg-slate-100 text-slate-500",
+};
+
+function VenueBookingStatusBadge({ status }: { status: ActiveVenueBooking["status"] }) {
+  return (
+    <span
+      className={`rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${VENUE_BOOKING_STATUS_CLASSES[status]}`}
+    >
+      {status}
+    </span>
   );
 }

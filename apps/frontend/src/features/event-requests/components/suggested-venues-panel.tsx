@@ -2,6 +2,7 @@ import { formatOperatingHours } from "@spm/shared";
 import { Building2, LoaderCircle, MapPin, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { submitVenueBookingRequest } from "@/features/venues/services/venue-bookings";
 import { listSuggestedVenues, type VenueSummary } from "@/features/venues/services/venues";
 
 /**
@@ -15,8 +16,16 @@ import { listSuggestedVenues, type VenueSummary } from "@/features/venues/servic
  *
  * "Manual search" is a visible entry point with no functionality yet — AC7
  * for this iteration is explicit that it does nothing when clicked.
+ * "Select venue" (SPM-24) does submit a real venue booking request now.
  */
-export function SuggestedVenuesPanel({ eventId }: { eventId: string }) {
+export function SuggestedVenuesPanel({
+  eventId,
+  onBooked,
+}: {
+  eventId: string;
+  /** Called once a request is successfully submitted, so the parent page can stop showing suggestions (AC04: at most one active request per event). */
+  onBooked: () => void;
+}) {
   const [venues, setVenues] = useState<VenueSummary[]>();
   const [error, setError] = useState<string>();
 
@@ -72,7 +81,7 @@ export function SuggestedVenuesPanel({ eventId }: { eventId: string }) {
       {!error && venues && venues.length > 0 && (
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {venues.map((venue) => (
-            <SuggestedVenueCard key={venue.id} venue={venue} />
+            <SuggestedVenueCard key={venue.id} eventId={eventId} venue={venue} onBooked={onBooked} />
           ))}
         </div>
       )}
@@ -80,14 +89,34 @@ export function SuggestedVenuesPanel({ eventId }: { eventId: string }) {
   );
 }
 
-/**
- * A suggestion is acted on in place, not browsed away from — unlike the
- * venue catalogue's VenueCard (a whole-card link to the read-only detail
- * page), this never navigates. "Select venue" is a visible entry point with
- * no functionality yet, same treatment as "Manual search" above — booking a
- * venue for the event isn't built yet.
- */
-function SuggestedVenueCard({ venue }: { venue: VenueSummary }) {
+function SuggestedVenueCard({
+  eventId,
+  venue,
+  onBooked,
+}: {
+  eventId: string;
+  venue: VenueSummary;
+  onBooked: () => void;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>();
+
+  async function handleSelect() {
+    setSubmitting(true);
+    setError(undefined);
+    try {
+      await submitVenueBookingRequest(eventId, venue.id);
+      onBooked();
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "This venue booking request could not be submitted.",
+      );
+      setSubmitting(false);
+    }
+  }
+
   return (
     <article className="flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)]">
       <h3 className="text-lg font-semibold tracking-tight text-slate-950">{venue.name}</h3>
@@ -112,13 +141,18 @@ function SuggestedVenueCard({ venue }: { venue: VenueSummary }) {
         </div>
       )}
       <p className="mt-3 text-xs text-slate-500">{formatOperatingHours(venue.operatingHours)}</p>
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-red-700">
+          {error}
+        </p>
+      )}
       <button
         type="button"
-        className="mt-auto cursor-not-allowed self-start rounded-lg bg-blue-300 px-3 py-1.5 text-sm font-semibold text-white"
-        aria-disabled="true"
-        title="Selecting a venue is not available yet"
+        disabled={submitting}
+        onClick={handleSelect}
+        className="mt-auto self-start rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        Select venue
+        {submitting ? "Requesting…" : "Select venue"}
       </button>
     </article>
   );
