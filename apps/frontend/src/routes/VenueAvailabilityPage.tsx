@@ -108,6 +108,11 @@ function hoursForDay(
   return { startHour: timeToHour(period.opensAt), endHour: timeToHour(period.closesAt) };
 }
 
+/** Whether the venue has no operating-hours period covering `dateStr` at all. */
+function isClosedDate(operatingHours: OperatingHours, dateStr: string): boolean {
+  return hoursForDay(operatingHours, dayCodeForDate(dateStr)) === null;
+}
+
 type BeltPeriod = VenueAvailabilityPeriod & { startHour: number; endHour: number };
 
 /** Periods overlapping `dateStr` (a TIME_ZONE-local "YYYY-MM-DD"), clipped to [beltStartHour, beltEndHour]. */
@@ -194,6 +199,7 @@ export function VenueAvailabilityPage() {
   );
 
   function handleDateClick(arg: DateClickArg) {
+    if (venue && isClosedDate(venue.operatingHours, arg.dateStr)) return;
     setSelectedDate(arg.dateStr);
   }
 
@@ -253,11 +259,15 @@ export function VenueAvailabilityPage() {
                     events={events}
                     eventContent={renderEventContent}
                     dateClick={handleDateClick}
-                    dayCellClassNames={(arg) =>
-                      singaporeDateStr(arg.date) === selectedDate
-                        ? ["venue-calendar__selected-day"]
-                        : []
-                    }
+                    dayCellClassNames={(arg) => {
+                      const dateStr = singaporeDateStr(arg.date);
+                      const classes: string[] = [];
+                      if (dateStr === selectedDate) classes.push("venue-calendar__selected-day");
+                      if (venue && isClosedDate(venue.operatingHours, dateStr)) {
+                        classes.push("venue-calendar__closed-day");
+                      }
+                      return classes;
+                    }}
                   />
                 </div>
               </section>

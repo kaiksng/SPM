@@ -86,3 +86,17 @@
 .venue-calendar__selected-day {
   box-shadow: inset 0 0 0 2px #2563eb;
 }
+
+/* A day the venue has no operating-hours period for — greyed out and not
+   selectable (dateClick in VenueAvailabilityPage.tsx ignores clicks on it). */
+.venue-calendar__closed-day {
+  background: #f1f5f9;
+  cursor: not-allowed;
+}
+.venue-calendar__closed-day .fc-daygrid-day-number {
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+.venue-calendar__closed-day a.fc-daygrid-day-number:hover {
+  color: #cbd5e1;
+}
