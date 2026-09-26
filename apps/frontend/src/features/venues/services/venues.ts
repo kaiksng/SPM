@@ -11,6 +11,18 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import { apiFetch } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase-client";
 
+// AC08's four venue-period states — purely booking/block-derived, not
+// operating-hours fit (that's a separate concern enforced only when a
+// request is actually submitted).
+export type VenueAvailabilityStatus = "available" | "pending" | "confirmed" | "blocked";
+
+export const VENUE_AVAILABILITY_LABELS: Record<VenueAvailabilityStatus, string> = {
+  available: "Available",
+  pending: "Pending",
+  confirmed: "Confirmed",
+  blocked: "Blocked",
+};
+
 export type VenueSummary = {
   id: string;
   name: string;
@@ -27,6 +39,10 @@ export type VenueSummary = {
   updatedByName: string | null;
   // Venue Catalogue AC06: a nonzero count surfaces the "Needs Review" badge.
   needsReviewCount: number;
+  // Only meaningful for a suggestion against a specific event's schedule
+  // (listSuggestedVenues) — undefined for the plain catalogue (listVenues),
+  // which has no event to check availability against.
+  availabilityStatus?: VenueAvailabilityStatus;
 };
 
 export type VenueDetail = VenueFormValues & {
@@ -91,6 +107,7 @@ type SuggestedVenueRow = {
   facilities: string[] | null;
   layouts: string[] | null;
   updated_at: string;
+  availability_status: VenueAvailabilityStatus;
 };
 
 /**
@@ -99,9 +116,19 @@ type SuggestedVenueRow = {
  * than calling the RPC directly — same split as event-submissions/
  * event-clarifications/event-decisions — the route only authenticates and
  * validates the path param; the matching rules live in
- * public.find_matching_venues (202609230001_find_matching_venues.sql).
- * Mapped into VenueSummary so VenueCard renders these results unmodified,
- * same as the catalogue's own list.
+ * public.find_matching_venues (202609230001_find_matching_venues.sql,
+ * extended by 202609260005 to compute availabilityStatus). Mapped into
+ * VenueSummary so VenueCard renders these results unmodified, same as the
+ * catalogue's own list.
+ *
+ * A venue with a Pending/Confirmed booking or a block is still included
+ * here, not excluded — only a genuine requirement mismatch (capacity,
+ * location, layout, accessibility, facilities) drops a venue from the list
+ * entirely, so a coordinator can see "this fits, but isn't free right now"
+ * rather than the venue silently vanishing. availabilityStatus reflects
+ * AC08's four venue-period states purely from booking/block data — it does
+ * not factor in operating-hours fit, which is a separate concern enforced
+ * only when a request is actually submitted (AC07).
  *
  * needsReviewCount/updatedByName aren't meaningful for a suggestion (no
  * booking exists yet, and the RPC doesn't join profiles) — set to their
@@ -130,6 +157,7 @@ export async function listSuggestedVenues(eventId: string): Promise<VenueSummary
       updatedAt: venue.updated_at,
       updatedByName: null,
       needsReviewCount: 0,
+      availabilityStatus: venue.availability_status,
     }),
   );
 }

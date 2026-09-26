@@ -10,6 +10,7 @@ const loadEventFieldHistoryMock = vi.fn();
 const listEventStatusHistoryMock = vi.fn();
 const completeEventMock = vi.fn();
 const updateEventAsCoordinatorMock = vi.fn();
+const listSuggestedVenuesMock = vi.fn();
 const authState = {
   profile: { full_name: "Joyce Coordinator", role: "event_coordinator" },
   user: { id: "20000000-0000-0000-0000-000000000002" },
@@ -52,6 +53,10 @@ vi.mock("@/features/event-requests/services/coordinator-event-edit", async (impo
     updateEventAsCoordinator: (...args: unknown[]) => updateEventAsCoordinatorMock(...args),
   };
 });
+
+vi.mock("@/features/venues/services/venues", () => ({
+  listSuggestedVenues: (...args: unknown[]) => listSuggestedVenuesMock(...args),
+}));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
 
@@ -109,6 +114,9 @@ describe("EventDetailPage", () => {
     listEventStatusHistoryMock.mockReset().mockResolvedValue([]);
     completeEventMock.mockReset().mockResolvedValue({ eventId: "event-1", status: "completed" });
     updateEventAsCoordinatorMock.mockReset().mockResolvedValue("event-1");
+    listSuggestedVenuesMock.mockReset().mockResolvedValue([
+      { id: "venue-1", name: "Wing B Hall", location: "New Wing Hall", capacity: 200 },
+    ]);
   });
 
   it("shows the full event detail a card cannot fit", async () => {
@@ -171,9 +179,10 @@ describe("EventDetailPage", () => {
       "href",
       "/events/event-1/venue",
     );
-    // Equipment has no booking flow yet — still a plain "Coming soon" label.
-    expect(screen.queryByRole("link", { name: "Equipment" })).not.toBeInTheDocument();
+    // Equipment has no booking flow yet — shown as a label only, not a link.
+    expect(screen.getByText("Equipment")).toBeInTheDocument();
     expect(screen.getByText("Coming soon")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Equipment" })).not.toBeInTheDocument();
   });
 
   it("does not show the lifecycle sidebar to the organiser", async () => {
@@ -210,9 +219,10 @@ describe("EventDetailPage", () => {
 
     await user.click(await screen.findByRole("button", { name: "Edit" }));
 
-    const location = screen.getByDisplayValue("Main Auditorium");
-    await user.clear(location);
-    await user.type(location, "New Wing Hall");
+    await user.selectOptions(
+      await screen.findByLabelText("Preferred location"),
+      "New Wing Hall",
+    );
     await user.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {

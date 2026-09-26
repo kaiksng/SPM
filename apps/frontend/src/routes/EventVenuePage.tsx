@@ -128,6 +128,14 @@ export function EventVenuePage() {
                     Venue requirements
                   </h2>
                   <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <dt className="text-xs font-medium text-slate-400">Event schedule</dt>
+                      <dd className="mt-1 text-sm text-slate-800">
+                        {event.startsAt && event.endsAt
+                          ? `${dateTimeFormatter.format(new Date(event.startsAt))} – ${dateTimeFormatter.format(new Date(event.endsAt))}`
+                          : "Not provided"}
+                      </dd>
+                    </div>
                     <div>
                       <dt className="text-xs font-medium text-slate-400">Expected attendance</dt>
                       <dd className="mt-1 text-sm text-slate-800">
@@ -211,7 +219,7 @@ export function EventVenuePage() {
                     )}
                   </section>
                 ) : (
-                  <SuggestedVenuesPanel eventId={eventId} onBooked={() => loadAll(eventId)} />
+                  <SuggestedVenuesPanel eventId={eventId} />
                 )}
               </div>
             </div>

@@ -31,7 +31,13 @@ const STAGES = [
     id: "planning",
     label: "Planning",
     rank: 2,
-    children: ["Venue", "Equipment"],
+    // Venue links to its own page; Equipment has no booking flow yet (its
+    // own catalogue page exists at /equipment, but nothing here books
+    // equipment for a specific event) — shown as a label only.
+    children: [
+      { id: "venue", label: "Venue", href: "venue" },
+      { id: "equipment", label: "Equipment", href: undefined },
+    ],
   },
   { id: "confirmed", label: "Event Confirmed", rank: 3 },
 ] as const;
@@ -65,42 +71,51 @@ export function EventPlanningTimeline({
                   reached ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white",
                 )}
               />
-              <p
-                className={cn(
-                  "text-sm font-medium",
-                  reached ? "text-slate-900" : "text-slate-400",
-                )}
-              >
-                {stage.label}
-              </p>
+              {stage.id === "requested" ? (
+                <Link
+                  to={`/events/${eventId}`}
+                  className={cn(
+                    "text-sm font-medium hover:underline",
+                    reached ? "text-slate-900" : "text-slate-400",
+                  )}
+                >
+                  {stage.label}
+                </Link>
+              ) : (
+                <p
+                  className={cn(
+                    "text-sm font-medium",
+                    reached ? "text-slate-900" : "text-slate-400",
+                  )}
+                >
+                  {stage.label}
+                </p>
+              )}
               {"children" in stage && (
                 <ul className="mt-2 space-y-1.5">
                   {stage.children.map((child) => (
                     <li
-                      key={child}
+                      key={child.id}
                       className="flex items-center gap-1.5 text-xs text-slate-500"
                     >
                       <CornerDownRight
                         aria-hidden="true"
                         className="size-3.5 shrink-0 text-slate-300"
                       />
-                      {/* Venue has its own page (suggested venues); Equipment
-                          booking isn't built yet, see EquipmentPage's own
-                          placeholder. */}
-                      {child === "Venue" ? (
+                      {child.href ? (
                         <Link
-                          to={`/events/${eventId}/venue`}
+                          to={`/events/${eventId}/${child.href}`}
                           className="hover:text-blue-600 hover:underline"
                         >
-                          {child}
+                          {child.label}
                         </Link>
                       ) : (
-                        child
-                      )}
-                      {child === "Equipment" && (
-                        <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
-                          Coming soon
-                        </span>
+                        <>
+                          {child.label}
+                          <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
+                            Coming soon
+                          </span>
+                        </>
                       )}
                     </li>
                   ))}

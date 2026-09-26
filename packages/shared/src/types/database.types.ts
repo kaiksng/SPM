@@ -1023,6 +1023,7 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: {
           accessibility_notes: string
+          availability_status: string
           capacity: number
           description: string
           facilities: string[]

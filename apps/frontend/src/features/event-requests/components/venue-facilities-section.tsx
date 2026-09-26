@@ -8,6 +8,7 @@ import {
   updateEventAsCoordinator,
 } from "@/features/event-requests/services/coordinator-event-edit";
 import type { EventDetail } from "@/features/event-requests/services/event-details";
+import { listSuggestedVenues, type VenueSummary } from "@/features/venues/services/venues";
 import { cn } from "@/lib/utils";
 
 type Venue = EventDetail["venue"];
@@ -45,6 +46,7 @@ export function VenueFacilitiesSection({
   const [facilitiesText, setFacilitiesText] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
+  const [suggestedVenues, setSuggestedVenues] = useState<VenueSummary[]>();
 
   function startEditing() {
     setPreferredLocation(event.venue.preferredLocation ?? "");
@@ -54,6 +56,15 @@ export function VenueFacilitiesSection({
     setFacilitiesText(event.venue.facilities.join(", "));
     setError(undefined);
     setEditing(true);
+
+    // Suggested venues (find_matching_venues) already screen by this
+    // event's capacity/layout/accessibility/facilities — reused here so
+    // "Preferred location" picks a real, matching venue's location instead
+    // of free text that later gets fuzzy-matched.
+    setSuggestedVenues(undefined);
+    listSuggestedVenues(event.id)
+      .then(setSuggestedVenues)
+      .catch(() => setSuggestedVenues([]));
   }
 
   async function handleSave() {
@@ -136,10 +147,33 @@ export function VenueFacilitiesSection({
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="text-xs font-medium text-slate-400">Preferred location</span>
-            <Input
+            <select
               value={preferredLocation}
               onChange={(event) => setPreferredLocation(event.target.value)}
-            />
+              disabled={!suggestedVenues}
+              className={cn(
+                "border-input flex h-8 w-full min-w-0 rounded-lg border bg-transparent px-2.5 text-sm shadow-xs outline-none",
+                "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+                "disabled:cursor-not-allowed disabled:opacity-50",
+                !preferredLocation && "text-muted-foreground",
+              )}
+            >
+              <option value="">No preference</option>
+              {/* A location already saved but no longer among the matching
+                  suggestions (e.g. venue requirements changed since) stays
+                  selectable so saving doesn't silently drop it. */}
+              {preferredLocation &&
+                suggestedVenues?.every((venue) => venue.location !== preferredLocation) && (
+                  <option value={preferredLocation} className="text-foreground">
+                    {preferredLocation}
+                  </option>
+                )}
+              {(suggestedVenues ?? []).map((venue) => (
+                <option key={venue.id} value={venue.location} className="text-foreground">
+                  {venue.name} — {venue.location}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="text-xs font-medium text-slate-400">Minimum capacity</span>

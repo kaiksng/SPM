@@ -1,11 +1,18 @@
 import { formatOperatingHours, hasPermission } from "@spm/shared";
 import { ArrowLeft, CalendarClock } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
-import { getVenue, type VenueDetail } from "@/features/venues/services/venues";
+import { loadEventDetail, type EventDetail } from "@/features/event-requests/services/event-details";
+import { submitVenueBookingRequest } from "@/features/venues/services/venue-bookings";
+import {
+  getVenue,
+  VENUE_AVAILABILITY_LABELS,
+  type VenueAvailabilityStatus,
+  type VenueDetail,
+} from "@/features/venues/services/venues";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
@@ -15,14 +22,39 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
   timeZone: "Asia/Singapore",
 });
 
-/** Read-only view of a venue catalogue entry — the entry point from the venue list card. */
+/**
+ * Read-only view of a venue catalogue entry — the entry point from the venue
+ * list card, and also (with a ?forEvent=<eventId> query param) the "view
+ * full details before requesting" step of SuggestedVenuesPanel's flow: a
+ * coordinator lands here from "View details" on a suggested venue, reviews
+ * everything, then confirms with the "Request this venue" action below
+ * rather than that being a single click on the suggestions list itself.
+ */
 export function VenueDetailPage() {
   const { venueId } = useParams();
+  const [searchParams] = useSearchParams();
+  const forEventId = searchParams.get("forEvent");
+  // Carried over from SuggestedVenuesPanel's own availability tag — a UX
+  // convenience only, not a security boundary: submitVenueBookingRequest
+  // re-validates everything server-side regardless of what's passed here.
+  const statusParam = searchParams.get("status");
+  const availabilityStatus =
+    statusParam && statusParam in VENUE_AVAILABILITY_LABELS
+      ? (statusParam as VenueAvailabilityStatus)
+      : null;
+  const navigate = useNavigate();
   const { profile } = useAuth();
   const [venue, setVenue] = useState<VenueDetail>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [forEvent, setForEvent] = useState<EventDetail>();
+  const [requesting, setRequesting] = useState(false);
+  const [requestError, setRequestError] = useState<string>();
   const canManageVenues = hasPermission(profile?.role ?? "attendee", "manageVenue");
+  const canRequestVenue = Boolean(forEventId) && profile?.role === "event_coordinator";
+  // Missing/unrecognised status (e.g. a direct link) defaults to bookable —
+  // only a known non-available status disables the action.
+  const isBookable = availabilityStatus === null || availabilityStatus === "available";
 
   usePageTitle(venue?.name ?? "Venue details");
 
@@ -52,15 +84,50 @@ export function VenueDetailPage() {
     };
   }, [venueId]);
 
+  useEffect(() => {
+    if (!forEventId) return;
+    let active = true;
+    loadEventDetail(forEventId)
+      .then((detail) => {
+        if (active) setForEvent(detail);
+      })
+      .catch(() => {
+        // Non-fatal — the request button still works without the event's
+        // title to display, since submitVenueBookingRequest re-validates
+        // everything server-side regardless.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [forEventId]);
+
+  async function handleRequestVenue() {
+    if (!forEventId || !venueId) return;
+    setRequesting(true);
+    setRequestError(undefined);
+    try {
+      await submitVenueBookingRequest(forEventId, venueId);
+      navigate(`/events/${forEventId}/venue`);
+    } catch (submitError) {
+      setRequestError(
+        submitError instanceof Error
+          ? submitError.message
+          : "This venue booking request could not be submitted.",
+      );
+      setRequesting(false);
+    }
+  }
+
   return (
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-4xl">
           <Link
-            to="/venues"
+            to={forEventId ? `/events/${forEventId}/venue` : "/venues"}
             className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
           >
-            <ArrowLeft /> Back to venues
+            <ArrowLeft /> {forEventId ? "Back to venue suggestions" : "Back to venues"}
           </Link>
 
           {loading ? (
@@ -167,6 +234,54 @@ export function VenueDetailPage() {
                   </div>
                 </dl>
               </section>
+
+              {canRequestVenue && (
+                <section
+                  className={`mt-4 rounded-2xl border p-6 ${
+                    isBookable ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  <h2
+                    className={`text-sm font-semibold tracking-wide uppercase ${
+                      isBookable ? "text-blue-700" : "text-slate-500"
+                    }`}
+                  >
+                    Request this venue
+                  </h2>
+                  <p className={`mt-2 text-sm ${isBookable ? "text-blue-900" : "text-slate-600"}`}>
+                    {isBookable ? (
+                      forEvent
+                        ? `Review the details above, then confirm to request this venue for "${forEvent.title}".`
+                        : "Review the details above, then confirm to submit the request."
+                    ) : (
+                      <>
+                        This venue already has a {VENUE_AVAILABILITY_LABELS[availabilityStatus!]}{" "}
+                        {availabilityStatus === "blocked" ? "block" : "booking"} that overlaps this
+                        event&apos;s schedule. Shown for reference only — choose an Available venue
+                        to submit a request.
+                      </>
+                    )}
+                  </p>
+                  {requestError && (
+                    <p role="alert" className="mt-2 text-sm text-red-700">
+                      {requestError}
+                    </p>
+                  )}
+                  <div className="mt-4 flex gap-2">
+                    {isBookable && (
+                      <Button type="button" disabled={requesting} onClick={handleRequestVenue}>
+                        {requesting ? "Requesting…" : "Request venue"}
+                      </Button>
+                    )}
+                    <Link
+                      to={`/events/${forEventId}/venue`}
+                      className={buttonVariants({ variant: "outline" })}
+                    >
+                      Cancel
+                    </Link>
+                  </div>
+                </section>
+              )}
             </div>
           )}
         </div>
