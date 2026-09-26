@@ -143,7 +143,12 @@ export function VenueForm({
             aria-invalid={Boolean(errors.capacity)}
           />
         </Field>
-        <Field label="Supported room layout" required error={errors.layouts}>
+        <Field
+          label="Supported room layouts"
+          required
+          error={errors.layouts}
+          className="sm:col-span-2"
+        >
           <RoomLayoutsEditor
             value={values.layouts}
             onChange={(next) => setField("layouts", next)}
@@ -241,7 +246,7 @@ export function VenueForm({
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-12px_32px_-24px_rgba(15,23,42,0.45)] backdrop-blur lg:left-64">
         <div className="mx-auto flex max-w-5xl flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
           <p aria-live="polite" className={cn("text-sm", message ? "text-red-700" : "text-slate-500")}>
-            {message ?? "Name, location, capacity, facilities, operating hours and room layout are all required."}
+            {message ?? "Name, location, capacity, facilities, operating hours and room layouts are all required."}
           </p>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
             <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>

@@ -59,11 +59,9 @@ export const venueFormSchema = z.object({
     .array(z.string().trim().min(1).max(120))
     .min(1, "Add at least one facility")
     .max(30, "Add no more than 30 facilities"),
-  // One layout per venue, not several — mirrors operatingHoursSchema's
-  // single-period cap (same design decision: pick one, not a set).
   layouts: z
     .array(z.enum(ROOM_LAYOUT_TYPES))
-    .length(1, "Select the venue's supported room layout"),
+    .min(1, "Select at least one supported room layout"),
   description: optionalText(2_000),
   accessibilityNotes: optionalText(2_000),
 });

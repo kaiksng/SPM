@@ -204,7 +204,7 @@ export function VenueDetailPage() {
                     </dd>
                   </div>
                   <div className="sm:col-span-2">
-                    <dt className="text-xs font-medium text-slate-400">Supported room layout</dt>
+                    <dt className="text-xs font-medium text-slate-400">Supported room layouts</dt>
                     <dd className="mt-2 flex flex-wrap gap-1.5">
                       {venue.layouts.length > 0 ? (
                         venue.layouts.map((layout) => (
