@@ -7,6 +7,8 @@ export * from "./schemas/login";
 export * from "./schemas/signup";
 export * from "./schemas/event-request";
 export * from "./schemas/venue";
+export * from "./schemas/venue-block";
+export * from "./schemas/venue-search";
 
 export * from "./domain/role-destination";
 export * from "./domain/role-label";

@@ -37,7 +37,7 @@ function toDisplayStatus(period: VenueAvailabilityPeriod): VenueCalendarDisplayS
 /** Someone else's booking shows as a generic "Booked" — the same reasoning
  * that hides its real status also hides which event it belongs to. */
 function toDisplayLabel(period: VenueAvailabilityPeriod): string {
-  if (period.type === "blocked") return "";
+  if (period.type === "blocked") return period.label ?? "Reason not recorded";
   return period.isMine ? (period.label ?? "Booking") : "Booked";
 }
 
@@ -68,7 +68,7 @@ function toEvents(periods: VenueAvailabilityPeriod[]): EventInput[] {
   });
 }
 
-/** Month view gets a small status dot + truncated title (blocked has no title, just the dot). */
+/** Month view gets a small status dot and a truncated booking title or block reason. */
 function renderEventContent(arg: EventContentArg) {
   const status = arg.event.extendedProps.status as VenueCalendarDisplayStatus;
   return (
@@ -425,8 +425,15 @@ function DayTimebelt({
                 style={{ top: `calc(${top}% + 2px)`, height: `calc(${height}% - 4px)` }}
               >
                 {status === "blocked" ? (
-                  <div className="flex h-full items-center justify-center px-2 text-center text-xs font-semibold">
-                    {timeText}
+                  <div
+                    className="flex h-full flex-col items-center justify-center px-2 py-0.5 text-center leading-tight"
+                    title={`${timeText} — ${period.label}`}
+                    aria-label={`Blocked ${timeText}. ${period.label}`}
+                  >
+                    <p className="text-xs font-semibold">{timeText}</p>
+                    <p className="max-w-full truncate text-[11px] font-medium opacity-95">
+                      {period.label}
+                    </p>
                   </div>
                 ) : (
                   <div className="px-2.5 py-1.5 leading-tight">

@@ -1,12 +1,12 @@
 import { formatOperatingHours } from "@spm/shared";
-import { Building2, LoaderCircle, MapPin, Search, Users } from "lucide-react";
+import { Building2, LoaderCircle, MapPin, Users } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
-import { Input } from "@/components/ui/input";
+import type { EventDetail } from "@/features/event-requests/services/event-details";
+import { ManualVenueSearch } from "@/features/venues/components/manual-venue-search";
 import {
   listSuggestedVenues,
-  listVenues,
   VENUE_AVAILABILITY_LABELS,
   type VenueAvailabilityStatus,
   type VenueSummary,
@@ -21,21 +21,19 @@ import {
  * to a different route and back), so a requirements change while still in
  * Planning regenerates the list for free.
  *
- * "Manual search" switches this panel to the full venue catalogue (not just
- * requirement-matching ones), filtered by name/location — for when the
- * coordinator wants to override the automatic suggestions and pick a venue
- * that doesn't strictly satisfy every requirement.
+ * Manual search lets the coordinator adjust requirements and see only venues
+ * available for the chosen period. Automatic suggestions retain unavailable
+ * venues with status badges so the two views answer different questions.
  * "View details" (SPM-24) sends the coordinator to VenueDetailPage (with a
  * ?forEvent= param) to review the full venue entry before confirming the
  * actual booking request there — this panel itself never submits one.
  */
-export function SuggestedVenuesPanel({ eventId }: { eventId: string }) {
+export function SuggestedVenuesPanel({ event, hasActiveBooking }: { event: EventDetail; hasActiveBooking: boolean }) {
+  const eventId = event.id;
+  const location = useLocation();
   const [venues, setVenues] = useState<VenueSummary[]>();
   const [error, setError] = useState<string>();
-  const [manualSearch, setManualSearch] = useState(false);
-  const [allVenues, setAllVenues] = useState<VenueSummary[]>();
-  const [allVenuesError, setAllVenuesError] = useState<string>();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [manualSearch, setManualSearch] = useState(Boolean((location.state as { venueSearch?: unknown } | null)?.venueSearch));
 
   useEffect(() => {
     let active = true;
@@ -60,28 +58,6 @@ export function SuggestedVenuesPanel({ eventId }: { eventId: string }) {
     };
   }, [eventId]);
 
-  useEffect(() => {
-    if (!manualSearch || allVenues !== undefined) return;
-    let active = true;
-    listVenues()
-      .then((items) => {
-        if (active) setAllVenues(items);
-      })
-      .catch((loadError: unknown) => {
-        if (active) {
-          setAllVenuesError(
-            loadError instanceof Error ? loadError.message : "We couldn't load the venue catalogue.",
-          );
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [manualSearch, allVenues]);
-
-  const filteredVenues = filterVenues(allVenues ?? [], searchQuery);
-
   return (
     <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
       <div className="flex items-center justify-between gap-3">
@@ -93,45 +69,12 @@ export function SuggestedVenuesPanel({ eventId }: { eventId: string }) {
           className="text-sm font-medium text-blue-600 hover:underline"
           onClick={() => setManualSearch((open) => !open)}
         >
-          {manualSearch ? "Back to suggested venues" : "Manual search"}
+          {manualSearch ? "Back to suggested venues" : "Search venues"}
         </button>
       </div>
 
       {manualSearch ? (
-        <>
-          <div className="relative mt-4 max-w-xs">
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400"
-            />
-            <Input
-              type="search"
-              placeholder="Search by venue name or location"
-              aria-label="Search by venue name or location"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              className="h-9 pl-8"
-            />
-          </div>
-
-          {allVenuesError && (
-            <p role="alert" className="mt-4 text-sm text-red-700">
-              {allVenuesError}
-            </p>
-          )}
-
-          {!allVenuesError && allVenues === undefined && <LoadingGrid />}
-
-          {!allVenuesError && allVenues && filteredVenues.length === 0 && <NoMatchingVenues />}
-
-          {!allVenuesError && allVenues && filteredVenues.length > 0 && (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              {filteredVenues.map((venue) => (
-                <SuggestedVenueCard key={venue.id} eventId={eventId} venue={venue} />
-              ))}
-            </div>
-          )}
-        </>
+        <ManualVenueSearch event={event} hasActiveBooking={hasActiveBooking} />
       ) : (
         <>
           {error && (
@@ -147,23 +90,13 @@ export function SuggestedVenuesPanel({ eventId }: { eventId: string }) {
           {!error && venues && venues.length > 0 && (
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               {venues.map((venue) => (
-                <SuggestedVenueCard key={venue.id} eventId={eventId} venue={venue} />
+                <SuggestedVenueCard key={venue.id} eventId={eventId} venue={venue} exploreOnly={hasActiveBooking} />
               ))}
             </div>
           )}
         </>
       )}
     </section>
-  );
-}
-
-/** Case-insensitive substring match on name/location, same as VenuesPage's own search. */
-function filterVenues(venues: VenueSummary[], query: string) {
-  const trimmed = query.trim().toLowerCase();
-  if (!trimmed) return venues;
-  return venues.filter(
-    (venue) =>
-      venue.name.toLowerCase().includes(trimmed) || venue.location.toLowerCase().includes(trimmed),
   );
 }
 
@@ -174,7 +107,7 @@ const AVAILABILITY_CLASSES: Record<VenueAvailabilityStatus, string> = {
   blocked: "border-red-200 bg-red-50 text-red-700",
 };
 
-function SuggestedVenueCard({ eventId, venue }: { eventId: string; venue: VenueSummary }) {
+function SuggestedVenueCard({ eventId, venue, exploreOnly }: { eventId: string; venue: VenueSummary; exploreOnly: boolean }) {
   return (
     <article className="flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)]">
       <div className="flex items-start justify-between gap-2">
@@ -209,7 +142,7 @@ function SuggestedVenueCard({ eventId, venue }: { eventId: string; venue: VenueS
       )}
       <p className="mt-3 text-xs text-slate-500">{formatOperatingHours(venue.operatingHours)}</p>
       <Link
-        to={`/venues/${venue.id}?forEvent=${eventId}${venue.availabilityStatus ? `&status=${venue.availabilityStatus}` : ""}`}
+        to={`/venues/${venue.id}?forEvent=${eventId}${venue.availabilityStatus ? `&status=${venue.availabilityStatus}` : ""}${exploreOnly ? "&explore=1" : ""}`}
         className="mt-auto self-start rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
       >
         View details
