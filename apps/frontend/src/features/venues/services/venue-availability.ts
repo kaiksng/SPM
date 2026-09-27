@@ -7,8 +7,7 @@ export type VenueAvailabilityPeriod = {
   type: VenueAvailabilityStatus;
   startsAt: string;
   endsAt: string;
-  // The event title for a booking; always null for an operational block —
-  // blocked periods show only their time range, never a reason.
+  // Event title for a booking; reason for an operational block.
   label: string | null;
 };
 
@@ -32,8 +31,9 @@ export async function listVenueAvailability(
       .in("status", ["pending", "approved"]),
     supabase
       .from("venue_unavailability")
-      .select("id, starts_at, ends_at")
-      .eq("venue_id", venueId),
+      .select("id, starts_at, ends_at, reason")
+      .eq("venue_id", venueId)
+      .is("removed_at", null),
   ]);
 
   if (bookings.error || blocks.error) {
@@ -53,7 +53,7 @@ export async function listVenueAvailability(
     type: "blocked",
     startsAt: block.starts_at,
     endsAt: block.ends_at,
-    label: null,
+    label: block.reason?.trim() || "Reason not recorded",
   }));
 
   return [...bookingPeriods, ...blockedPeriods];

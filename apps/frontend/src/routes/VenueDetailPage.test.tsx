@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getVenueMock = vi.fn();
 const loadEventDetailMock = vi.fn();
 const submitVenueBookingRequestMock = vi.fn();
+const getActiveVenueBookingMock = vi.fn();
+const searchAvailableVenuesMock = vi.fn();
 const navigateMock = vi.fn();
 const authState = {
   profile: { full_name: "Joyce Coordinator", role: "event_coordinator" },
@@ -34,6 +36,10 @@ vi.mock("@/features/event-requests/services/event-details", () => ({
 
 vi.mock("@/features/venues/services/venue-bookings", () => ({
   submitVenueBookingRequest: (...args: unknown[]) => submitVenueBookingRequestMock(...args),
+  getActiveVenueBooking: (...args: unknown[]) => getActiveVenueBookingMock(...args),
+}));
+vi.mock("@/features/venues/services/venue-search", () => ({
+  searchAvailableVenues: (...args: unknown[]) => searchAvailableVenuesMock(...args),
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -98,6 +104,8 @@ beforeEach(() => {
   getVenueMock.mockReset().mockResolvedValue(venue);
   loadEventDetailMock.mockReset().mockResolvedValue(event);
   submitVenueBookingRequestMock.mockReset().mockResolvedValue("booking-1");
+  getActiveVenueBookingMock.mockReset().mockResolvedValue(null);
+  searchAvailableVenuesMock.mockReset().mockResolvedValue([{ id: "venue-1" }]);
   navigateMock.mockReset();
   authState.profile.role = "event_coordinator";
 });
@@ -165,10 +173,24 @@ describe("VenueDetailPage", () => {
   });
 
   it("disables the request action for a venue tagged as reference-only", async () => {
+    searchAvailableVenuesMock.mockResolvedValue([]);
     renderPage("/venues/venue-1?forEvent=event-1&status=confirmed");
 
     expect(await screen.findByText("Request this venue")).toBeInTheDocument();
-    expect(screen.getByText(/already has a Confirmed booking/)).toBeInTheDocument();
+    expect(await screen.findByText(/not available or suitable/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request venue" })).not.toBeInTheDocument();
+  });
+
+  it("does not trust a direct link when fresh availability fails", async () => {
+    searchAvailableVenuesMock.mockResolvedValue([]);
+    renderPage("/venues/venue-1?forEvent=event-1");
+    expect(await screen.findByText(/not available or suitable/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request venue" })).not.toBeInTheDocument();
+  });
+
+  it("keeps an exploratory result review-only", async () => {
+    renderPage("/venues/venue-1?forEvent=event-1&fromSearch=1&explore=1");
+    expect(await screen.findByText(/update the event before booking/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Request venue" })).not.toBeInTheDocument();
   });
 

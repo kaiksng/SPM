@@ -905,6 +905,8 @@ export type Database = {
           ends_at: string
           id: string
           reason: string | null
+          removed_at: string | null
+          removed_by: string | null
           starts_at: string
           venue_id: string
         }
@@ -912,6 +914,8 @@ export type Database = {
           ends_at: string
           id?: string
           reason?: string | null
+          removed_at?: string | null
+          removed_by?: string | null
           starts_at: string
           venue_id: string
         }
@@ -919,10 +923,19 @@ export type Database = {
           ends_at?: string
           id?: string
           reason?: string | null
+          removed_at?: string | null
+          removed_by?: string | null
           starts_at?: string
           venue_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "venue_unavailability_removed_by_fkey"
+            columns: ["removed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "venue_unavailability_venue_id_fkey"
             columns: ["venue_id"]
@@ -1032,6 +1045,38 @@ export type Database = {
           name: string
           operating_hours: Json
           updated_at: string
+        }[]
+      }
+      create_venue_block: {
+        Args: { p_venue_id: string; p_reason: string; p_starts_at: string; p_ends_at: string }
+        Returns: string
+      }
+      remove_venue_block: {
+        Args: { p_block_id: string }
+        Returns: string
+      }
+      search_available_venues: {
+        Args: {
+          p_event_id: string
+          p_starts_at: string
+          p_ends_at: string
+          p_min_capacity: number
+          p_location?: string | null
+          p_layout?: string | null
+          p_facilities?: string[]
+          p_accessibility?: string | null
+        }
+        Returns: {
+          id: string
+          name: string
+          location: string
+          capacity: number
+          operating_hours: Json
+          description: string | null
+          accessibility_notes: string | null
+          updated_at: string
+          facilities: string[]
+          layouts: string[]
         }[]
       }
       request_event_clarification: {
@@ -1306,4 +1351,3 @@ export const Constants = {
     },
   },
 } as const
-

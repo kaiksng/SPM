@@ -182,7 +182,7 @@ export function EventVenuePage() {
                   </dl>
                 </section>
 
-                {activeBooking ? (
+                {activeBooking && (
                   <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
                     <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
                       Current request
@@ -218,9 +218,8 @@ export function EventVenuePage() {
                       </>
                     )}
                   </section>
-                ) : (
-                  <SuggestedVenuesPanel eventId={eventId} />
                 )}
+                <SuggestedVenuesPanel event={event} hasActiveBooking={Boolean(activeBooking)} />
               </div>
             </div>
           )}

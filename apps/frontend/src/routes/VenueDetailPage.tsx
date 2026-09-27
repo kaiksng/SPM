@@ -1,12 +1,14 @@
 import { formatOperatingHours, hasPermission } from "@spm/shared";
-import { ArrowLeft, CalendarClock } from "lucide-react";
+import { ArrowLeft, CalendarClock, Ban } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { loadEventDetail, type EventDetail } from "@/features/event-requests/services/event-details";
-import { submitVenueBookingRequest } from "@/features/venues/services/venue-bookings";
+import { getActiveVenueBooking, submitVenueBookingRequest } from "@/features/venues/services/venue-bookings";
+import { searchAvailableVenues } from "@/features/venues/services/venue-search";
+import { eventSearchDefaults } from "@/features/venues/components/manual-venue-search";
 import {
   getVenue,
   VENUE_AVAILABILITY_LABELS,
@@ -34,6 +36,8 @@ export function VenueDetailPage() {
   const { venueId } = useParams();
   const [searchParams] = useSearchParams();
   const forEventId = searchParams.get("forEvent");
+  const exploreOnly = searchParams.get("explore") === "1";
+  const fromSearch = searchParams.get("fromSearch") === "1";
   // Carried over from SuggestedVenuesPanel's own availability tag — a UX
   // convenience only, not a security boundary: submitVenueBookingRequest
   // re-validates everything server-side regardless of what's passed here.
@@ -43,18 +47,21 @@ export function VenueDetailPage() {
       ? (statusParam as VenueAvailabilityStatus)
       : null;
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const location = useLocation();
+  const { profile, user } = useAuth();
   const [venue, setVenue] = useState<VenueDetail>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [forEvent, setForEvent] = useState<EventDetail>();
   const [requesting, setRequesting] = useState(false);
   const [requestError, setRequestError] = useState<string>();
+  const [availabilityChecked, setAvailabilityChecked] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState("");
+  const [activeBooking, setActiveBooking] = useState(false);
   const canManageVenues = hasPermission(profile?.role ?? "attendee", "manageVenue");
-  const canRequestVenue = Boolean(forEventId) && profile?.role === "event_coordinator";
-  // Missing/unrecognised status (e.g. a direct link) defaults to bookable —
-  // only a known non-available status disables the action.
-  const isBookable = availabilityStatus === null || availabilityStatus === "available";
+  const canRequestVenue = Boolean(forEventId) && profile?.role === "event_coordinator"
+    && forEvent?.assignedCoordinatorId === user?.id;
+  const isBookable = availabilityChecked && !availabilityError && !exploreOnly && !activeBooking;
 
   usePageTitle(venue?.name ?? "Venue details");
 
@@ -85,22 +92,36 @@ export function VenueDetailPage() {
   }, [venueId]);
 
   useEffect(() => {
-    if (!forEventId) return;
+    if (!forEventId || !venueId) return;
     let active = true;
-    loadEventDetail(forEventId)
-      .then((detail) => {
-        if (active) setForEvent(detail);
+    setAvailabilityChecked(false);
+    Promise.all([loadEventDetail(forEventId), getActiveVenueBooking(forEventId)])
+      .then(async ([detail, booking]) => {
+        if (!active) return;
+        setForEvent(detail);
+        setActiveBooking(Boolean(booking));
+        if (detail.status !== "planning" || !detail.startsAt || !detail.endsAt) {
+          setAvailabilityError("This event is not ready for a venue request.");
+          return;
+        }
+        const defaults = eventSearchDefaults(detail);
+        const available = await searchAvailableVenues(forEventId, {
+          ...defaults, location: "", layout: "", facilities: [], accessibility: "",
+        });
+        if (active) {
+          setAvailabilityChecked(available.some((candidate) => candidate.id === venueId));
+          setAvailabilityError(available.some((candidate) => candidate.id === venueId)
+            ? "" : "This venue is not available or suitable for the event's saved schedule.");
+        }
       })
       .catch(() => {
-        // Non-fatal — the request button still works without the event's
-        // title to display, since submitVenueBookingRequest re-validates
-        // everything server-side regardless.
+        if (active) setAvailabilityError("Availability could not be verified. Return to the event and try again.");
       });
 
     return () => {
       active = false;
     };
-  }, [forEventId]);
+  }, [forEventId, venueId]);
 
   async function handleRequestVenue() {
     if (!forEventId || !venueId) return;
@@ -125,9 +146,10 @@ export function VenueDetailPage() {
         <div className="mx-auto max-w-4xl">
           <Link
             to={forEventId ? `/events/${forEventId}/venue` : "/venues"}
+            state={location.state}
             className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
           >
-            <ArrowLeft /> {forEventId ? "Back to venue suggestions" : "Back to venues"}
+            <ArrowLeft /> {forEventId ? (fromSearch ? "Back to venue search" : "Back to venue suggestions") : "Back to venues"}
           </Link>
 
           {loading ? (
@@ -155,6 +177,11 @@ export function VenueDetailPage() {
                   >
                     <CalendarClock /> View availability
                   </Link>
+                  {canManageVenues && (
+                    <Link to={`/venues/${venueId}/blocks`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                      <Ban /> Manage blocks
+                    </Link>
+                  )}
                   {canManageVenues && (
                     <Link
                       to={`/venues/${venueId}/edit`}
@@ -253,14 +280,7 @@ export function VenueDetailPage() {
                       forEvent
                         ? `Review the details above, then confirm to request this venue for "${forEvent.title}".`
                         : "Review the details above, then confirm to submit the request."
-                    ) : (
-                      <>
-                        This venue already has a {VENUE_AVAILABILITY_LABELS[availabilityStatus!]}{" "}
-                        {availabilityStatus === "blocked" ? "block" : "booking"} that overlaps this
-                        event&apos;s schedule. Shown for reference only — choose an Available venue
-                        to submit a request.
-                      </>
-                    )}
+                    ) : exploreOnly ? "This search used dates different from the event schedule, or the event already has an active request. Review this venue here; update the event before booking a different slot." : activeBooking ? "This event already has an active venue request." : availabilityError || (availabilityStatus && availabilityStatus !== "available" ? `This venue was marked ${VENUE_AVAILABILITY_LABELS[availabilityStatus]}.` : "Checking current availability…")}
                   </p>
                   {requestError && (
                     <p role="alert" className="mt-2 text-sm text-red-700">
@@ -275,6 +295,7 @@ export function VenueDetailPage() {
                     )}
                     <Link
                       to={`/events/${forEventId}/venue`}
+                      state={location.state}
                       className={buttonVariants({ variant: "outline" })}
                     >
                       Cancel

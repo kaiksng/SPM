@@ -86,7 +86,7 @@ describe("EventVenuePage", () => {
     expect(screen.queryByText("Current request")).not.toBeInTheDocument();
   });
 
-  it("shows the active request instead of suggestions when one exists", async () => {
+  it("shows the active request and keeps venue browsing available", async () => {
     getActiveVenueBookingMock.mockResolvedValue({
       id: "booking-1",
       venueId: "venue-1",
@@ -102,7 +102,7 @@ describe("EventVenuePage", () => {
     expect(screen.getByText("pending")).toBeInTheDocument();
     expect(screen.getByText("Conference Room A")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Withdraw request" })).toBeInTheDocument();
-    expect(screen.queryByText("Suggested venues")).not.toBeInTheDocument();
+    expect(screen.getByText("Suggested venues")).toBeInTheDocument();
   });
 
   it("does not offer a Withdraw action for an Approved request", async () => {
