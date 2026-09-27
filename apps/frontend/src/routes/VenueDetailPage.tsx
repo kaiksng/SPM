@@ -62,6 +62,9 @@ export function VenueDetailPage() {
   const canRequestVenue = Boolean(forEventId) && profile?.role === "event_coordinator"
     && forEvent?.assignedCoordinatorId === user?.id;
   const isBookable = availabilityChecked && !availabilityError && !exploreOnly && !activeBooking;
+  const preferredLocation = forEvent?.venue.preferredLocation?.trim();
+  const differsFromPreferredLocation = Boolean(preferredLocation && venue
+    && !venue.location.toLocaleLowerCase().includes(preferredLocation.toLocaleLowerCase()));
 
   usePageTitle(venue?.name ?? "Venue details");
 
@@ -280,8 +283,13 @@ export function VenueDetailPage() {
                       forEvent
                         ? `Review the details above, then confirm to request this venue for "${forEvent.title}".`
                         : "Review the details above, then confirm to submit the request."
-                    ) : exploreOnly ? "This search used dates different from the event schedule, or the event already has an active request. Review this venue here; update the event before booking a different slot." : activeBooking ? "This event already has an active venue request." : availabilityError || (availabilityStatus && availabilityStatus !== "available" ? `This venue was marked ${VENUE_AVAILABILITY_LABELS[availabilityStatus]}.` : "Checking current availability…")}
+                    ) : activeBooking ? "This event already has an active venue request. You can review venues, but cannot submit another request while it remains active." : exploreOnly ? "This result is for review only. If you searched another time, discuss a schedule change with the organiser before requesting a venue for that time." : availabilityError || (availabilityStatus && availabilityStatus !== "available" ? `This venue was marked ${VENUE_AVAILABILITY_LABELS[availabilityStatus]}.` : "Checking current availability…")}
                   </p>
+                  {differsFromPreferredLocation && (
+                    <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                      The organiser requested {preferredLocation}, but this venue is in {venue.location}. Check the alternative with the organiser before requesting it. If agreed, <Link to={`/events/${forEventId}/coordinator-edit`} className="font-semibold underline underline-offset-2 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">update the event’s venue requirements</Link>.
+                    </p>
+                  )}
                   {requestError && (
                     <p role="alert" className="mt-2 text-sm text-red-700">
                       {requestError}

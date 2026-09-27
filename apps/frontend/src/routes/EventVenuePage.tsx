@@ -120,7 +120,7 @@ export function EventVenuePage() {
                   Venue
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                  Venues that satisfy every requirement for this event.
+                  Review venues matching the event, or search for alternatives. Check a different location with the organiser before requesting it.
                 </p>
 
                 <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">

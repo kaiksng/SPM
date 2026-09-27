@@ -66,7 +66,7 @@ export function ManualVenueSearch({ event, hasActiveBooking }: { event: EventDet
     <div><label htmlFor={`venue-search-${key}`} className="mb-1 block text-sm font-medium text-slate-700">{label}</label><Input id={`venue-search-${key}`} type={type} value={values[key]} aria-invalid={!!errors[key]} aria-describedby={errors[key] ? `${key}-error` : undefined} onChange={(e) => update(key, e.target.value)} />{errors[key] && <p id={`${key}-error`} className="mt-1 text-sm text-red-700">{errors[key]}</p>}</div>;
 
   return <div className="mt-5">
-    <p className="text-sm text-slate-600">Adjust requirements to find available venues. Search does not change the event.</p>
+    <p className="text-sm text-slate-600">Adjust filters to explore available venues. This search does not change the event or its agreed requirements.</p>
     <form onSubmit={search} noValidate className="mt-5 grid gap-4 sm:grid-cols-2">
       {field("startsAt", "Start date and time *", "datetime-local")}
       {field("endsAt", "End date and time *", "datetime-local")}
@@ -77,7 +77,7 @@ export function ManualVenueSearch({ event, hasActiveBooking }: { event: EventDet
       <div className="sm:col-span-2">{field("accessibility", "Accessibility keywords")}</div>
       <div className="flex flex-wrap gap-2 sm:col-span-2"><Button type="submit" disabled={loading}><Search /> {loading ? "Searching…" : "Search venues"}</Button><Button type="button" variant="outline" onClick={reset}>Reset to event requirements</Button></div>
     </form>
-    {!eventDatesMatch && <p role="status" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">These dates differ from the event schedule. Results are for exploration only; update the event before requesting a venue for this slot.</p>}
+    {!eventDatesMatch && <p role="status" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">These dates differ from the event schedule. Results are for exploration only. Discuss a schedule change with the organiser before requesting a venue for another time.</p>}
     {hasActiveBooking && <p className="mt-4 text-sm text-slate-600">This event already has an active venue request. You can browse results but cannot submit another request.</p>}
     {message && <p role="alert" className="mt-5 text-sm text-red-700">{message}</p>}
     {loading && <p role="status" className="mt-6 text-sm text-slate-500">Checking venue availability…</p>}

@@ -190,8 +190,20 @@ describe("VenueDetailPage", () => {
 
   it("keeps an exploratory result review-only", async () => {
     renderPage("/venues/venue-1?forEvent=event-1&fromSearch=1&explore=1");
-    expect(await screen.findByText(/update the event before booking/)).toBeInTheDocument();
+    expect(await screen.findByText(/discuss a schedule change with the organiser/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Request venue" })).not.toBeInTheDocument();
+  });
+
+  it("explains the next step when a venue is outside the organiser's preferred location", async () => {
+    getVenueMock.mockResolvedValue({ ...venue, location: "West Wing" });
+    renderPage("/venues/venue-1?forEvent=event-1&fromSearch=1");
+
+    expect(await screen.findByText(/The organiser requested Campus, but this venue is in West Wing/)).toBeInTheDocument();
+    expect(screen.getByText(/Check the alternative with the organiser before requesting it/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "update the event’s venue requirements" })).toHaveAttribute(
+      "href", "/events/event-1/coordinator-edit",
+    );
+    expect(await screen.findByRole("button", { name: "Request venue" })).toBeInTheDocument();
   });
 
   it("still allows requesting a venue tagged as available", async () => {
