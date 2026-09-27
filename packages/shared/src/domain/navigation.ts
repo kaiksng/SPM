@@ -1,6 +1,6 @@
 import type { UserRole } from "../types/role";
 
-export type NavItemId = "events" | "venues" | "equipment" | "browse-events";
+export type NavItemId = "events" | "venues" | "requests" | "equipment" | "browse-events";
 
 export interface NavItem {
   id: NavItemId;
@@ -11,6 +11,7 @@ export interface NavItem {
 const NAV_ITEMS: Record<NavItemId, NavItem> = {
   events: { id: "events", label: "Events", href: "/events" },
   venues: { id: "venues", label: "Venues", href: "/venues" },
+  requests: { id: "requests", label: "Requests", href: "/venue-requests" },
   equipment: { id: "equipment", label: "Equipment", href: "/equipment" },
   "browse-events": {
     id: "browse-events",
@@ -22,7 +23,7 @@ const NAV_ITEMS: Record<NavItemId, NavItem> = {
 const ROLE_NAV_ITEM_IDS = {
   event_organiser: ["events", "venues", "equipment"],
   event_coordinator: ["events", "venues", "equipment"],
-  venue_staff: ["venues"],
+  venue_staff: ["venues", "requests"],
   technical_support_staff: ["equipment"],
   attendee: ["browse-events"],
 } as const satisfies Record<UserRole, readonly NavItemId[]>;

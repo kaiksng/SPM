@@ -19,6 +19,7 @@ import { VenueAvailabilityPage } from "@/routes/VenueAvailabilityPage";
 import { VenueBlocksPage } from "@/routes/VenueBlocksPage";
 import { VenueDetailPage } from "@/routes/VenueDetailPage";
 import { VenueEditorPage } from "@/routes/VenueEditorPage";
+import { VenueRequestsPage } from "@/routes/VenueRequestsPage";
 import { VenuesPage } from "@/routes/VenuesPage";
 import { WorkspaceLayout } from "@/routes/WorkspaceLayout";
 
@@ -62,6 +63,7 @@ export function App() {
                 path="venues/:venueId/availability"
                 element={<VenueAvailabilityPage />}
               />
+              <Route path="venue-requests" element={<VenueRequestsPage />} />
               <Route path="equipment" element={<EquipmentPage />} />
               <Route path="browse-events" element={<BrowseEventsPage />} />
             </Route>

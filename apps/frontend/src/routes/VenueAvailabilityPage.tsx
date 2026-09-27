@@ -8,22 +8,45 @@ import { ArrowLeft } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 
+import { useAuth } from "@/context/auth-context";
 import { buttonVariants } from "@/components/ui/button";
 import "@/features/venues/components/venue-calendar.css";
 import {
   listVenueAvailability,
   type VenueAvailabilityPeriod,
-  type VenueAvailabilityStatus,
 } from "@/features/venues/services/venue-availability";
 import { getVenue, type VenueDetail } from "@/features/venues/services/venues";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
+/**
+ * What the calendar actually renders, one level removed from the raw
+ * booking status: "reserved" collapses pending-or-confirmed into a single
+ * "you can't book this" signal for anyone other than the coordinator who
+ * owns it — a fellow coordinator or Venue Staff has no reason to know
+ * whether someone else's hold on a slot is merely Pending or already
+ * Approved, only that it's unavailable to them.
+ */
+type VenueCalendarDisplayStatus = "pending" | "confirmed" | "reserved" | "blocked";
+
+function toDisplayStatus(period: VenueAvailabilityPeriod): VenueCalendarDisplayStatus {
+  if (period.type === "blocked") return "blocked";
+  return period.isMine ? period.type : "reserved";
+}
+
+/** Someone else's booking shows as a generic "Booked" — the same reasoning
+ * that hides its real status also hides which event it belongs to. */
+function toDisplayLabel(period: VenueAvailabilityPeriod): string {
+  if (period.type === "blocked") return period.label ?? "Reason not recorded";
+  return period.isMine ? (period.label ?? "Booking") : "Booked";
+}
+
 const STATUS_COLORS = {
   pending: { backgroundColor: "#fffbeb", borderColor: "#fde68a", textColor: "#b45309" },
   confirmed: { backgroundColor: "#ecfdf5", borderColor: "#a7f3d0", textColor: "#047857" },
+  reserved: { backgroundColor: "#fef2f2", borderColor: "#fecaca", textColor: "#b91c1c" },
   blocked: { backgroundColor: "#dc2626", borderColor: "#dc2626", textColor: "#ffffff" },
-} as const satisfies Record<VenueAvailabilityStatus, object>;
+} as const satisfies Record<VenueCalendarDisplayStatus, object>;
 
 // The venue's home timezone — every other date/time display in this app
 // (VenueDetailPage, EventsPage) hardcodes this rather than trusting the
@@ -32,22 +55,25 @@ const STATUS_COLORS = {
 const TIME_ZONE = "Asia/Singapore";
 
 function toEvents(periods: VenueAvailabilityPeriod[]): EventInput[] {
-  return periods.map((period) => ({
-    id: period.id,
-    title: period.label ?? "",
-    start: period.startsAt,
-    end: period.endsAt,
-    ...STATUS_COLORS[period.type],
-    extendedProps: { type: period.type },
-  }));
+  return periods.map((period) => {
+    const status = toDisplayStatus(period);
+    return {
+      id: period.id,
+      title: toDisplayLabel(period),
+      start: period.startsAt,
+      end: period.endsAt,
+      ...STATUS_COLORS[status],
+      extendedProps: { status },
+    };
+  });
 }
 
 /** Month view gets a small status dot and a truncated booking title or block reason. */
 function renderEventContent(arg: EventContentArg) {
-  const type = arg.event.extendedProps.type as VenueAvailabilityStatus;
+  const status = arg.event.extendedProps.status as VenueCalendarDisplayStatus;
   return (
     <div className="venue-calendar__month-event">
-      <span className={`venue-calendar__dot venue-calendar__dot--${type}`} />
+      <span className={`venue-calendar__dot venue-calendar__dot--${status}`} />
       <span className="venue-calendar__month-title">{arg.event.title}</span>
     </div>
   );
@@ -150,6 +176,7 @@ function periodsForDate(
 
 export function VenueAvailabilityPage() {
   const { venueId } = useParams();
+  const { user } = useAuth();
   const [venue, setVenue] = useState<VenueDetail>();
   const [periods, setPeriods] = useState<VenueAvailabilityPeriod[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,7 +189,7 @@ export function VenueAvailabilityPage() {
     if (!venueId) return;
     let active = true;
     setLoading(true);
-    Promise.all([getVenue(venueId), listVenueAvailability(venueId)])
+    Promise.all([getVenue(venueId), listVenueAvailability(venueId, user?.id ?? null)])
       .then(([venueDetail, venuePeriods]) => {
         if (!active) return;
         setVenue(venueDetail);
@@ -184,7 +211,7 @@ export function VenueAvailabilityPage() {
     return () => {
       active = false;
     };
-  }, [venueId]);
+  }, [venueId, user?.id]);
 
   const events = useMemo(() => toEvents(periods), [periods]);
   const selectedDayCode = useMemo(() => dayCodeForDate(selectedDate), [selectedDate]);
@@ -239,11 +266,15 @@ export function VenueAvailabilityPage() {
                 <Legend swatchClassName="border border-slate-200 bg-white" label="Available" />
                 <Legend
                   swatchClassName="border border-amber-200 bg-amber-50"
-                  label="Pending booking"
+                  label="Your pending request"
                 />
                 <Legend
                   swatchClassName="border border-emerald-200 bg-emerald-50"
-                  label="Confirmed booking"
+                  label="Your confirmed booking"
+                />
+                <Legend
+                  swatchClassName="border border-red-200 bg-red-50"
+                  label="Booked (unavailable to you)"
                 />
                 <Legend swatchClassName="bg-red-600" label="Blocked" />
               </div>
@@ -305,8 +336,9 @@ function Legend({
 const BELT_STATUS_STYLES = {
   pending: "border-amber-200 bg-amber-50 text-amber-700",
   confirmed: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  reserved: "border-red-200 bg-red-50 text-red-700",
   blocked: "border-red-600 bg-red-600 text-white",
-} as const satisfies Record<VenueAvailabilityStatus, string>;
+} as const satisfies Record<VenueCalendarDisplayStatus, string>;
 
 /**
  * A single selected day's hour-by-hour breakdown, updated by clicking a date
@@ -384,14 +416,15 @@ function DayTimebelt({
             const top = ((period.startHour - startHour) / hourCount) * 100;
             const height = ((period.endHour - period.startHour) / hourCount) * 100;
             const timeText = `${formatHour(period.startHour)} – ${formatHour(period.endHour)}`;
+            const status = toDisplayStatus(period);
 
             return (
               <div
                 key={period.id}
-                className={`absolute inset-x-2 overflow-hidden rounded-lg border ${BELT_STATUS_STYLES[period.type]}`}
+                className={`absolute inset-x-2 overflow-hidden rounded-lg border ${BELT_STATUS_STYLES[status]}`}
                 style={{ top: `calc(${top}% + 2px)`, height: `calc(${height}% - 4px)` }}
               >
-                {period.type === "blocked" ? (
+                {status === "blocked" ? (
                   <div
                     className="flex h-full flex-col items-center justify-center px-2 py-0.5 text-center leading-tight"
                     title={`${timeText} — ${period.label}`}
@@ -405,7 +438,7 @@ function DayTimebelt({
                 ) : (
                   <div className="px-2.5 py-1.5 leading-tight">
                     <p className="text-xs font-semibold">{timeText}</p>
-                    <p className="truncate text-xs opacity-85">{period.label}</p>
+                    <p className="truncate text-xs opacity-85">{toDisplayLabel(period)}</p>
                   </div>
                 )}
               </div>

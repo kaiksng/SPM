@@ -19,6 +19,7 @@ import {
 } from "@/features/event-requests/services/assigned-events";
 import { getClarificationReviewState } from "@/features/event-requests/services/clarifications";
 import {
+  cancelEventRequest,
   deleteEventDraft,
   listEventRequests,
   type EventDraftSummary,
@@ -53,6 +54,7 @@ function OrganiserEventsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [draftToDelete, setDraftToDelete] = useState<EventDraftSummary>();
+  const [requestToCancel, setRequestToCancel] = useState<EventDraftSummary>();
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -99,6 +101,25 @@ function OrganiserEventsView() {
         deleteError instanceof Error
           ? deleteError.message
           : "This draft could not be deleted.",
+      );
+    }
+  }
+
+  async function confirmCancel() {
+    if (!requestToCancel) return;
+    setError(undefined);
+    try {
+      await cancelEventRequest(requestToCancel.id);
+      setEvents((current) =>
+        current.filter((event) => event.id !== requestToCancel.id),
+      );
+      setRequestToCancel(undefined);
+    } catch (cancelError) {
+      setRequestToCancel(undefined);
+      setError(
+        cancelError instanceof Error
+          ? cancelError.message
+          : "This event request could not be cancelled.",
       );
     }
   }
@@ -159,6 +180,7 @@ function OrganiserEventsView() {
                   key={event.id}
                   event={event}
                   onDelete={() => setDraftToDelete(event)}
+                  onCancel={() => setRequestToCancel(event)}
                 />
               ))}
             </div>
@@ -171,6 +193,14 @@ function OrganiserEventsView() {
           draft={draftToDelete}
           onCancel={() => setDraftToDelete(undefined)}
           onConfirm={confirmDelete}
+        />
+      )}
+
+      {requestToCancel && (
+        <CancelRequestDialog
+          request={requestToCancel}
+          onCancel={() => setRequestToCancel(undefined)}
+          onConfirm={confirmCancel}
         />
       )}
     </RoleGate>
@@ -345,9 +375,11 @@ function EventsToolbar({
 function EventCard({
   event,
   onDelete,
+  onCancel,
 }: {
   event: EventDraftSummary;
   onDelete: () => void;
+  onCancel: () => void;
 }) {
   const isDraft = event.status === "draft";
   // PB-03 AC07: a requested event may still be edited by its organiser
@@ -428,12 +460,30 @@ function EventCard({
             </Button>
           </>
         ) : isRequested ? (
-          <Link
-            to={`/events/${event.id}/edit`}
-            className={buttonVariants({ variant: "outline" })}
-          >
-            <Pencil /> Edit request
-          </Link>
+          <>
+            <Link
+              to={`/events/${event.id}/edit`}
+              className={buttonVariants({ variant: "outline" })}
+            >
+              <Pencil /> Edit request
+            </Link>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={`Cancel ${event.title}`}
+              title={
+                reviewState !== undefined
+                  ? "Resolve the open clarification before cancelling"
+                  : undefined
+              }
+              disabled={reviewState !== undefined}
+              onClick={onCancel}
+              className="ml-auto text-red-700 hover:bg-red-50 hover:text-red-800 disabled:pointer-events-none disabled:opacity-40"
+            >
+              <Trash2 />
+            </Button>
+          </>
         ) : (
           <>
             <Link
@@ -631,6 +681,54 @@ function DeleteDraftDialog({
           </Button>
           <Button type="button" variant="destructive" onClick={onConfirm}>
             Delete draft
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CancelRequestDialog({
+  request,
+  onCancel,
+  onConfirm,
+}: {
+  request: EventDraftSummary;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const cancelButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    cancelButton.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onCancel]);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4 backdrop-blur-sm">
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="cancel-request-title"
+        aria-describedby="cancel-request-description"
+        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+      >
+        <h2 id="cancel-request-title" className="text-lg font-semibold text-slate-950">
+          Cancel this request?
+        </h2>
+        <p id="cancel-request-description" className="mt-2 text-sm leading-6 text-slate-600">
+          “{request.title}” will be withdrawn before the coordinator decides on it. This cannot be
+          undone.
+        </p>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button ref={cancelButton} type="button" variant="outline" onClick={onCancel}>
+            Keep request
+          </Button>
+          <Button type="button" variant="destructive" onClick={onConfirm}>
+            Cancel request
           </Button>
         </div>
       </div>

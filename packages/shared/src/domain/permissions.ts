@@ -7,6 +7,7 @@ const permissions = {
   createEvent: ["event_organiser"],
   reviewEvent: ["event_coordinator"],
   manageVenue: ["venue_staff"],
+  decideVenueBooking: ["venue_staff"],
   reserveEquipment: ["technical_support_staff"],
   registerForEvent: ["attendee"],
 } as const satisfies Record<string, readonly UserRole[]>;

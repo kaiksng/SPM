@@ -182,3 +182,20 @@ export async function deleteEventDraft(eventId: string) {
     throw operationError("This draft could not be deleted.");
   }
 }
+
+/**
+ * Unlike deleteEventDraft, this doesn't remove the row — a Requested event
+ * has already been assigned to a coordinator, so cancel_event_request marks
+ * it Cancelled instead, preserving that history. Surfaces the database's own
+ * exception text (e.g. an unresolved clarification) rather than a generic
+ * fallback, same reasoning as submitVenueBookingRequest.
+ */
+export async function cancelEventRequest(eventId: string): Promise<void> {
+  const { error } = await supabase.rpc("cancel_event_request", {
+    p_event_id: eventId,
+  });
+
+  if (error) {
+    throw operationError(error.message || "This event request could not be cancelled.");
+  }
+}

@@ -1002,6 +1002,10 @@ export type Database = {
         Returns: string
       }
       can_view_event: { Args: { target_event_id: string }; Returns: boolean }
+      cancel_event_request: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: Json
+      }
       complete_event: { Args: { p_event_id: string }; Returns: Json }
       create_venue: {
         Args: { p_actor_id?: string; p_venue: Json }
@@ -1017,6 +1021,15 @@ export type Database = {
           p_decision: Database["public"]["Enums"]["event_decision_type"]
           p_event_id: string
           p_rationale: string
+        }
+        Returns: Json
+      }
+      decide_venue_booking_request: {
+        Args: {
+          p_actor_id?: string
+          p_booking_id: string
+          p_decision: Database["public"]["Enums"]["venue_booking_decision_type"]
+          p_reason?: string
         }
         Returns: Json
       }
@@ -1174,6 +1187,7 @@ export type Database = {
         | "venue_staff"
         | "technical_support_staff"
         | "attendee"
+      venue_booking_decision_type: "approved" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1348,6 +1362,7 @@ export const Constants = {
         "technical_support_staff",
         "attendee",
       ],
+      venue_booking_decision_type: ["approved", "rejected"],
     },
   },
 } as const

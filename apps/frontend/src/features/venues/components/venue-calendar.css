@@ -1,7 +1,8 @@
 /* Reskins FullCalendar toward this app's slate/blue, Inter-based content
    pages (see EventsPage.tsx) instead of its own default theme. Per-event
-   colors (pending/confirmed/blocked) are set on the event data itself in
-   VenueAvailabilityPage.tsx, not here — only chrome lives in this file. */
+   colors (pending/confirmed/reserved/blocked) are set on the event data
+   itself in VenueAvailabilityPage.tsx, not here — only chrome lives in this
+   file. */
 
 .venue-calendar {
   --fc-border-color: #e2e8f0;
@@ -69,6 +70,9 @@
 }
 .venue-calendar__dot--confirmed {
   background: #10b981;
+}
+.venue-calendar__dot--reserved {
+  background: #b91c1c;
 }
 .venue-calendar__dot--blocked {
   background: #dc2626;

@@ -15,9 +15,10 @@ describe("workspace navigation", () => {
     ).toEqual(["events", "venues", "equipment"]);
   });
 
-  it("gives venue staff the venues section", () => {
+  it("gives venue staff the venues and booking requests sections", () => {
     expect(getNavItemsForRole("venue_staff").map((item) => item.id)).toEqual([
       "venues",
+      "requests",
     ]);
   });
 

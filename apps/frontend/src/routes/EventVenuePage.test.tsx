@@ -99,7 +99,7 @@ describe("EventVenuePage", () => {
     renderPage();
 
     expect(await screen.findByText("Current request")).toBeInTheDocument();
-    expect(screen.getByText("pending")).toBeInTheDocument();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
     expect(screen.getByText("Conference Room A")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Withdraw request" })).toBeInTheDocument();
     expect(screen.getByText("Suggested venues")).toBeInTheDocument();
@@ -117,7 +117,7 @@ describe("EventVenuePage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("approved")).toBeInTheDocument();
+    expect(await screen.findByText("Confirmed Booking")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Withdraw request" })).not.toBeInTheDocument();
   });
 

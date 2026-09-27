@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listEventRequestsMock = vi.fn();
 const deleteEventDraftMock = vi.fn();
+const cancelEventRequestMock = vi.fn();
 const listAssignedEventsMock = vi.fn();
 const listClarificationsMock = vi.fn();
 const getClarificationReviewStateMock = vi.fn();
@@ -24,6 +25,7 @@ vi.mock("@/context/auth-context", () => ({
 vi.mock("@/features/event-requests/services/event-drafts", () => ({
   listEventRequests: (...args: unknown[]) => listEventRequestsMock(...args),
   deleteEventDraft: (...args: unknown[]) => deleteEventDraftMock(...args),
+  cancelEventRequest: (...args: unknown[]) => cancelEventRequestMock(...args),
 }));
 
 vi.mock("@/features/event-requests/services/assigned-events", () => ({
@@ -81,6 +83,7 @@ describe("EventsPage draft controls", () => {
     authState.profile.role = "event_organiser";
     listEventRequestsMock.mockReset().mockResolvedValue([draft]);
     deleteEventDraftMock.mockReset().mockResolvedValue(undefined);
+    cancelEventRequestMock.mockReset().mockResolvedValue(undefined);
     listClarificationsMock.mockReset().mockResolvedValue([]);
     listEventDecisionsMock.mockReset().mockResolvedValue([]);
     loadEventFieldHistoryMock.mockReset().mockResolvedValue([]);
@@ -167,6 +170,80 @@ describe("EventsPage draft controls", () => {
     // No open clarification: no "Clarification Required" pill.
     await waitFor(() => expect(listClarificationsMock).toHaveBeenCalledWith("requested-1"));
     expect(screen.queryByText("Clarification Required")).not.toBeInTheDocument();
+    // The organiser may cancel a Requested event before it's decided, same
+    // as they can still edit it.
+    expect(
+      await screen.findByRole("button", { name: `Cancel ${requested.title}` }),
+    ).toBeEnabled();
+  });
+
+  it("keeps the Requested event when cancellation is dismissed", async () => {
+    listEventRequestsMock.mockResolvedValue([requested]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: `Cancel ${requested.title}` }),
+    );
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Keep request" }));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByText(requested.title)).toBeInTheDocument();
+    expect(cancelEventRequestMock).not.toHaveBeenCalled();
+  });
+
+  it("removes the Requested event after confirmed cancellation", async () => {
+    listEventRequestsMock.mockResolvedValue([requested]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: `Cancel ${requested.title}` }),
+    );
+    await user.click(screen.getByRole("button", { name: "Cancel request" }));
+
+    await waitFor(() => expect(cancelEventRequestMock).toHaveBeenCalledWith("requested-1"));
+    await waitFor(() =>
+      expect(screen.queryByText(requested.title)).not.toBeInTheDocument(),
+    );
+  });
+
+  it("disables cancelling a Requested event while a clarification is unresolved", async () => {
+    listEventRequestsMock.mockResolvedValue([requested]);
+    listClarificationsMock.mockResolvedValue([
+      {
+        id: "clarification-1",
+        question: "Can you confirm the headcount?",
+        response: null,
+        status: "open",
+        permittedFields: ["expectedAttendance"],
+        requestedAt: "2026-09-14T08:00:00.000Z",
+        respondedAt: null,
+        resolvedAt: null,
+      },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    const cancelButton = await screen.findByRole("button", {
+      name: `Cancel ${requested.title}`,
+    });
+    await waitFor(() => expect(cancelButton).toBeDisabled());
   });
 
   it.each(["confirmed", "completed", "rejected", "cancelled"])(

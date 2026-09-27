@@ -1,9 +1,10 @@
 import type { NavItemId } from "@spm/shared";
-import { Building2, CalendarDays, Compass, Wrench } from "lucide-react";
+import { Building2, CalendarDays, ClipboardCheck, Compass, Wrench } from "lucide-react";
 
 const NAV_ICONS = {
   events: CalendarDays,
   venues: Building2,
+  requests: ClipboardCheck,
   equipment: Wrench,
   "browse-events": Compass,
 } as const satisfies Record<
