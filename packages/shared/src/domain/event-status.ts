@@ -50,9 +50,11 @@ export function canTransitionEventStatus(from: EventStatus, to: EventStatus) {
 }
 
 /**
- * Statuses an event reaches only after it has been submitted for review. The
- * organiser may no longer delete such a request, and the list view labels it
- * differently from a draft (PB-02 AC03, PB-03 AC05).
+ * Statuses an event reaches only after it has been submitted for review —
+ * the list view labels it differently from a draft (PB-02 AC03, PB-03 AC05).
+ * A Requested event may still be cancelled by its organiser (see
+ * public.cancel_event_request), just no longer deleted outright the way a
+ * draft can be.
  */
 export const submittedEventStatuses = eventStatuses.filter(
   (status) => status !== "draft",

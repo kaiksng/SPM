@@ -10,6 +10,12 @@ export type VenueAvailabilityPeriod = {
   // The event title for a booking; always null for an operational block —
   // blocked periods show only their time range, never a reason.
   label: string | null;
+  // Whether the signed-in viewer is the coordinator who requested this
+  // booking. Always false for an operational block (it has no requester) and
+  // for Venue Staff/other coordinators viewing someone else's booking — the
+  // page uses this to decide whether to show the real status/title or a
+  // generic "booked, not available to you" treatment.
+  isMine: boolean;
 };
 
 function operationError(message: string) {
@@ -20,14 +26,20 @@ function operationError(message: string) {
  * All periods that make a venue unavailable: pending/approved bookings
  * (venue_bookings) and operational blocks (venue_unavailability). Anything
  * not covered by one of these is implicitly Available.
+ *
+ * `viewerId` is the signed-in user's id (auth.uid()) — only the assigned
+ * coordinator can ever be a booking's requested_by (submit_venue_booking_request
+ * enforces this), so comparing against it is exactly "is this my event's
+ * booking" with no separate events.assigned_coordinator_id lookup needed.
  */
 export async function listVenueAvailability(
   venueId: string,
+  viewerId: string | null,
 ): Promise<VenueAvailabilityPeriod[]> {
   const [bookings, blocks] = await Promise.all([
     supabase
       .from("venue_bookings")
-      .select("id, starts_at, ends_at, status, events (title)")
+      .select("id, starts_at, ends_at, status, requested_by, events (title)")
       .eq("venue_id", venueId)
       .in("status", ["pending", "approved"]),
     supabase
@@ -46,6 +58,7 @@ export async function listVenueAvailability(
     startsAt: booking.starts_at,
     endsAt: booking.ends_at,
     label: booking.events?.title ?? "Booking",
+    isMine: viewerId !== null && booking.requested_by === viewerId,
   }));
 
   const blockedPeriods: VenueAvailabilityPeriod[] = blocks.data.map((block) => ({
@@ -54,6 +67,7 @@ export async function listVenueAvailability(
     startsAt: block.starts_at,
     endsAt: block.ends_at,
     label: null,
+    isMine: false,
   }));
 
   return [...bookingPeriods, ...blockedPeriods];

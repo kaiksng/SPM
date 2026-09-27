@@ -6,6 +6,7 @@ import { eventClarificationsRouter } from "./routes/event-clarifications.route";
 import { eventDecisionsRouter } from "./routes/event-decisions.route";
 import { eventSubmissionsRouter } from "./routes/event-submissions.route";
 import { healthRouter } from "./routes/health.route";
+import { venueBookingDecisionsRouter } from "./routes/venue-booking-decisions.route";
 import { venueSuggestionsRouter } from "./routes/venue-suggestions.route";
 
 export function createApp() {
@@ -18,6 +19,7 @@ export function createApp() {
   app.use("/events", eventSubmissionsRouter);
   app.use(eventClarificationsRouter);
   app.use(eventDecisionsRouter);
+  app.use(venueBookingDecisionsRouter);
   app.use(venueSuggestionsRouter);
 
   app.use(errorHandler);

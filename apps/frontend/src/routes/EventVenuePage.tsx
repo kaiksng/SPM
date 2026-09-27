@@ -9,6 +9,7 @@ import {
   loadEventDetail,
   type EventDetail,
 } from "@/features/event-requests/services/event-details";
+import { VenueBookingStatusBadge } from "@/features/venues/components/venue-booking-status-badge";
 import {
   getActiveVenueBooking,
   withdrawVenueBookingRequest,
@@ -227,22 +228,5 @@ export function EventVenuePage() {
         </div>
       </div>
     </RoleGate>
-  );
-}
-
-const VENUE_BOOKING_STATUS_CLASSES: Record<ActiveVenueBooking["status"], string> = {
-  pending: "border-amber-200 bg-amber-50 text-amber-800",
-  approved: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  rejected: "border-red-200 bg-red-50 text-red-700",
-  cancelled: "border-slate-200 bg-slate-100 text-slate-500",
-};
-
-function VenueBookingStatusBadge({ status }: { status: ActiveVenueBooking["status"] }) {
-  return (
-    <span
-      className={`rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${VENUE_BOOKING_STATUS_CLASSES[status]}`}
-    >
-      {status}
-    </span>
   );
 }
