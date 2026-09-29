@@ -72,7 +72,20 @@
   background: #10b981;
 }
 .venue-calendar__dot--reserved {
-  background: #b91c1c;
+  /* Same recipe as the legend swatch and day-strip card: pink-100 fill,
+     pink-300 border, pink-700 hatching — not a separate solid-pink
+     treatment. The border is what keeps it visible at 6px against a white
+     cell now that the fill itself is pale, the same job border-pink-300
+     does on the (larger, but still pale) legend swatch. */
+  background-color: #fce7f3;
+  border: 1px solid #f9a8d4;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(190, 24, 93, 0.28) 0,
+    rgba(190, 24, 93, 0.28) 3px,
+    transparent 3px,
+    transparent 7px
+  );
 }
 .venue-calendar__dot--blocked {
   background: #dc2626;
@@ -89,6 +102,19 @@
    clicking never navigates the calendar itself away from month view. */
 .venue-calendar__selected-day {
   box-shadow: inset 0 0 0 2px #2563eb;
+}
+
+/* Diagonal hatching layered over Booked's pink fill (day-belt card + legend
+   swatch) — gives "reserved by someone else" its own texture, not just a
+   flat color, on top of the pink/red hue split from Blocked. */
+.venue-calendar__striped {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(190, 24, 93, 0.28) 0,
+    rgba(190, 24, 93, 0.28) 3px,
+    transparent 3px,
+    transparent 7px
+  );
 }
 
 /* A day the venue has no operating-hours period for — greyed out and not

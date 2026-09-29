@@ -44,7 +44,9 @@ function toDisplayLabel(period: VenueAvailabilityPeriod): string {
 const STATUS_COLORS = {
   pending: { backgroundColor: "#fffbeb", borderColor: "#fde68a", textColor: "#b45309" },
   confirmed: { backgroundColor: "#ecfdf5", borderColor: "#a7f3d0", textColor: "#047857" },
-  reserved: { backgroundColor: "#fef2f2", borderColor: "#fecaca", textColor: "#b91c1c" },
+  // Pink, not a paler red — otherwise this reads as a faint variant of
+  // Blocked instead of its own distinct status.
+  reserved: { backgroundColor: "#fce7f3", borderColor: "#f9a8d4", textColor: "#be185d" },
   blocked: { backgroundColor: "#dc2626", borderColor: "#dc2626", textColor: "#ffffff" },
 } as const satisfies Record<VenueCalendarDisplayStatus, object>;
 
@@ -263,7 +265,7 @@ export function VenueAvailabilityPage() {
               <p className="mt-2 text-sm text-slate-600">{venue.location}</p>
 
               <div className="mt-6 flex flex-wrap gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-medium text-slate-600">
-                <Legend swatchClassName="border border-slate-200 bg-white" label="Available" />
+                <Legend swatchClassName="border border-slate-200 bg-white" label="Available" square />
                 <Legend
                   swatchClassName="border border-amber-200 bg-amber-50"
                   label="Your pending request"
@@ -273,7 +275,7 @@ export function VenueAvailabilityPage() {
                   label="Your confirmed booking"
                 />
                 <Legend
-                  swatchClassName="border border-red-200 bg-red-50"
+                  swatchClassName="venue-calendar__striped border border-pink-300 bg-pink-100"
                   label="Booked (unavailable to you)"
                 />
                 <Legend swatchClassName="bg-red-600" label="Blocked" />
@@ -321,13 +323,21 @@ export function VenueAvailabilityPage() {
 function Legend({
   swatchClassName,
   label,
+  square,
 }: {
   swatchClassName: string;
   label: string;
+  /** Available is a square (it's an outline, not a filled dot, so the
+   * default rounding read as a circle); every other status stays a circle,
+   * matching the dot shown on the calendar itself. */
+  square?: boolean;
 }) {
   return (
     <span className="flex items-center gap-2">
-      <span className={`size-2.5 rounded-sm ${swatchClassName}`} aria-hidden="true" />
+      <span
+        className={`size-2.5 ${square ? "" : "rounded-full"} ${swatchClassName}`}
+        aria-hidden="true"
+      />
       {label}
     </span>
   );
@@ -336,7 +346,9 @@ function Legend({
 const BELT_STATUS_STYLES = {
   pending: "border-amber-200 bg-amber-50 text-amber-700",
   confirmed: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  reserved: "border-red-200 bg-red-50 text-red-700",
+  // Pink with diagonal hatching, not a flat paler red — the hatching gives
+  // it its own texture on top of the hue split from Blocked.
+  reserved: "venue-calendar__striped border-pink-300 bg-pink-100 text-pink-700",
   blocked: "border-red-600 bg-red-600 text-white",
 } as const satisfies Record<VenueCalendarDisplayStatus, string>;
 
