@@ -110,10 +110,10 @@ export function EventHistoryPage() {
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-3xl">
           <Link
-            to={eventId ? `/events/${eventId}` : "/events"}
+            to="/events"
             className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
           >
-            <ArrowLeft /> Back to event
+            <ArrowLeft /> Back to events
           </Link>
 
           <header className="mt-6 border-b border-slate-200 pb-7">

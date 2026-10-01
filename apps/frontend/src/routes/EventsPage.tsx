@@ -132,7 +132,7 @@ function OrganiserEventsView() {
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-6xl">
           <header className="border-b border-slate-200 pb-7">
-            <p className="text-xs font-semibold tracking-[0.16em] text-blue-600 uppercase">
+            <p className="text-xs font-semibold tracking-[0.16em] text-primary uppercase">
               Organiser workspace
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-slate-950">
@@ -252,7 +252,7 @@ function CoordinatorEventsView() {
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-6xl">
           <header className="border-b border-slate-200 pb-7">
-            <p className="text-xs font-semibold tracking-[0.16em] text-blue-600 uppercase">
+            <p className="text-xs font-semibold tracking-[0.16em] text-primary uppercase">
               Coordinator workspace
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-slate-950">
@@ -316,7 +316,7 @@ function NoSearchResults() {
   return (
     <section className="mt-7 grid min-h-80 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 text-center">
       <div className="max-w-sm py-12">
-        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-blue-50 text-blue-600">
+        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-accent text-primary">
           <Search aria-hidden="true" />
         </span>
         <h2 className="mt-5 text-lg font-semibold text-slate-950">No matching events</h2>
@@ -387,7 +387,7 @@ function EventCard({
   const isRequested = event.status === "requested";
   const [reviewState, setReviewState] = useState<"open" | "answered">();
   return (
-    <article className="group flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_22px_50px_-34px_rgba(37,99,235,0.35)] motion-reduce:transform-none">
+    <article className="group flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_22px_50px_-34px_rgba(126,87,194,0.35)] motion-reduce:transform-none">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <EventStatusBadge
@@ -433,74 +433,79 @@ function EventCard({
           Coordinator: {event.assignedCoordinatorName}
         </p>
       )}
-      <div className="mt-auto flex flex-wrap gap-2 border-t border-slate-100 pt-4">
-        {isDraft ? (
-          <>
-            <Link
-              to={`/events/${event.id}/edit`}
-              className={buttonVariants({ variant: "outline" })}
-            >
-              <Pencil /> Continue editing
-            </Link>
-            <Link
-              to={`/events/${event.id}/submit`}
-              className={buttonVariants({ variant: "default" })}
-            >
-              <Send /> Submit request
-            </Link>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={`Delete ${event.title}`}
-              onClick={onDelete}
-              className="ml-auto text-red-700 hover:bg-red-50 hover:text-red-800"
-            >
-              <Trash2 />
-            </Button>
-          </>
-        ) : isRequested ? (
-          <>
-            <Link
-              to={`/events/${event.id}/edit`}
-              className={buttonVariants({ variant: "outline" })}
-            >
-              <Pencil /> Edit request
-            </Link>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label={`Cancel ${event.title}`}
-              title={
-                reviewState !== undefined
-                  ? "Resolve the open clarification before cancelling"
-                  : undefined
-              }
-              disabled={reviewState !== undefined}
-              onClick={onCancel}
-              className="ml-auto text-red-700 hover:bg-red-50 hover:text-red-800 disabled:pointer-events-none disabled:opacity-40"
-            >
-              <Trash2 />
-            </Button>
-          </>
-        ) : (
-          <>
-            <Link
-              to={`/events/${event.id}`}
-              className={buttonVariants({ variant: "outline" })}
-            >
-              View details
-            </Link>
-            <span className="self-center text-sm text-slate-500">
-              {isDirectEditBlocked(event.status)
-                ? "This event is finalised. Direct edits are locked — submit a change request instead."
-                : "Editing is unavailable in this workflow."}
-            </span>
-          </>
-        )}
+      <div className="mt-auto flex flex-col gap-2">
+        <EventHistoryButton eventId={event.id} />
+        <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+          {isDraft ? (
+            <>
+              <Link
+                to={`/events/${event.id}/edit`}
+                className={buttonVariants({ variant: "outline" })}
+              >
+                <Pencil /> Continue editing
+              </Link>
+              <Link
+                to={`/events/${event.id}/submit`}
+                className={buttonVariants({ variant: "default" })}
+              >
+                <Send /> Submit request
+              </Link>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Delete ${event.title}`}
+                onClick={onDelete}
+                className="ml-auto text-red-700 hover:bg-red-50 hover:text-red-800"
+              >
+                <Trash2 />
+              </Button>
+            </>
+          ) : isRequested ? (
+            <>
+              <Link
+                to={`/events/${event.id}/edit`}
+                className={buttonVariants({ variant: "outline" })}
+              >
+                <Pencil /> Edit request
+              </Link>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Cancel ${event.title}`}
+                title={
+                  reviewState !== undefined
+                    ? "Resolve the open clarification before cancelling"
+                    : undefined
+                }
+                disabled={reviewState !== undefined}
+                onClick={onCancel}
+                className="ml-auto text-red-700 hover:bg-red-50 hover:text-red-800 disabled:pointer-events-none disabled:opacity-40"
+              >
+                <Trash2 />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link
+                to={`/events/${event.id}`}
+                className={buttonVariants({
+                  size: "lg",
+                  className: "w-full justify-center",
+                })}
+              >
+                View details
+              </Link>
+              <span className="self-center text-sm text-slate-500">
+                {isDirectEditBlocked(event.status)
+                  ? "This event is finalised. Direct edits are locked — submit a change request instead."
+                  : "Editing is unavailable in this workflow."}
+              </span>
+            </>
+          )}
+        </div>
       </div>
-      <EventHistoryButton eventId={event.id} />
       <ClarificationPanel
         eventId={event.id}
         eventStatus={event.status}
@@ -531,7 +536,7 @@ function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
   return (
     <Link
       to={`/events/${event.id}`}
-      className="group flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_22px_50px_-34px_rgba(37,99,235,0.35)] motion-reduce:transform-none"
+      className="group flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_22px_50px_-34px_rgba(126,87,194,0.35)] motion-reduce:transform-none"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -545,7 +550,7 @@ function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
           Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeZone: "Asia/Singapore" }).format(new Date(event.updatedAt))}
         </span>
       </div>
-      <h2 className="mt-5 text-lg font-semibold tracking-tight text-slate-950 group-hover:text-blue-700">
+      <h2 className="mt-5 text-lg font-semibold tracking-tight text-slate-950 group-hover:text-primary">
         {event.title}
       </h2>
       <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
@@ -589,7 +594,7 @@ function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
           ))}
         </div>
       )}
-      <span className="mt-auto pt-4 text-sm font-medium text-blue-600 group-hover:underline">
+      <span className="mt-auto pt-4 text-sm font-medium text-primary group-hover:underline">
         View details
       </span>
     </Link>
@@ -600,7 +605,7 @@ function CoordinatorEmptyState() {
   return (
     <section className="mt-7 grid min-h-80 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 text-center">
       <div className="max-w-sm py-12">
-        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-blue-50 text-blue-600">
+        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-accent text-primary">
           <CalendarDays aria-hidden="true" />
         </span>
         <h2 className="mt-5 text-lg font-semibold text-slate-950">No events assigned yet</h2>
@@ -616,7 +621,7 @@ function EmptyState() {
   return (
     <section className="mt-7 grid min-h-80 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 text-center">
       <div className="max-w-sm py-12">
-        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-blue-50 text-blue-600">
+        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-accent text-primary">
           <FilePlus2 aria-hidden="true" />
         </span>
         <h2 className="mt-5 text-lg font-semibold text-slate-950">No event requests yet</h2>

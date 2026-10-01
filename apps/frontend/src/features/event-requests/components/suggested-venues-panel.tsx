@@ -66,7 +66,7 @@ export function SuggestedVenuesPanel({ event, hasActiveBooking }: { event: Event
         </h2>
         <button
           type="button"
-          className="text-sm font-medium text-blue-600 hover:underline"
+          className="text-sm font-medium text-primary hover:underline"
           onClick={() => setManualSearch((open) => !open)}
         >
           {manualSearch ? "Back to suggested venues" : "Search venues"}
@@ -143,7 +143,7 @@ function SuggestedVenueCard({ eventId, venue, exploreOnly }: { eventId: string; 
       <p className="mt-3 text-xs text-slate-500">{formatOperatingHours(venue.operatingHours)}</p>
       <Link
         to={`/venues/${venue.id}?forEvent=${eventId}${venue.availabilityStatus ? `&status=${venue.availabilityStatus}` : ""}${exploreOnly ? "&explore=1" : ""}`}
-        className="mt-auto self-start rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700"
+        className="mt-auto self-start rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
       >
         View details
       </Link>
@@ -154,7 +154,7 @@ function SuggestedVenueCard({ eventId, venue, exploreOnly }: { eventId: string; 
 function NoMatchingVenues() {
   return (
     <div className="mt-4 grid place-items-center rounded-xl border border-dashed border-slate-300 px-6 py-10 text-center">
-      <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-blue-50 text-blue-600">
+      <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-accent text-primary">
         <Building2 aria-hidden="true" />
       </span>
       <h3 className="mt-4 text-sm font-semibold text-slate-950">No matching venues</h3>
@@ -173,7 +173,7 @@ function LoadingGrid() {
     >
       <LoaderCircle
         aria-hidden="true"
-        className="size-6 animate-spin text-blue-600 motion-reduce:animate-none"
+        className="size-6 animate-spin text-primary motion-reduce:animate-none"
       />
     </div>
   );

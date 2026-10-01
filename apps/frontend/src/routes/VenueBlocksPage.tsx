@@ -115,7 +115,7 @@ export function VenueBlocksPage() {
           ) : (
             <>
               <header className="mt-6 border-b border-slate-200 pb-7">
-                <p className="text-xs font-semibold tracking-[0.16em] text-blue-600 uppercase">Venue operations</p>
+                <p className="text-xs font-semibold tracking-[0.16em] text-primary uppercase">Venue operations</p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Manage blocks</h1>
                 <p className="mt-2 text-sm text-slate-600">{venueName} · Maintenance, renovation and safety closures</p>
                 <Link to={`/venues/${venueId}/availability`} className={buttonVariants({ variant: "outline", size: "sm", className: "mt-4" })}>

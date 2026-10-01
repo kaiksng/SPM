@@ -191,7 +191,7 @@ export function VenueDetailPage() {
                       className={buttonVariants({
                         variant: "outline",
                         size: "sm",
-                        className: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
+                        className: "border-primary/30 bg-accent text-primary hover:bg-accent/80",
                       })}
                     >
                       Edit venue
@@ -268,17 +268,17 @@ export function VenueDetailPage() {
               {canRequestVenue && (
                 <section
                   className={`mt-4 rounded-2xl border p-6 ${
-                    isBookable ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"
+                    isBookable ? "border-primary/30 bg-accent" : "border-slate-200 bg-slate-50"
                   }`}
                 >
                   <h2
                     className={`text-sm font-semibold tracking-wide uppercase ${
-                      isBookable ? "text-blue-700" : "text-slate-500"
+                      isBookable ? "text-primary" : "text-slate-500"
                     }`}
                   >
                     Request this venue
                   </h2>
-                  <p className={`mt-2 text-sm ${isBookable ? "text-blue-900" : "text-slate-600"}`}>
+                  <p className={`mt-2 text-sm ${isBookable ? "text-primary" : "text-slate-600"}`}>
                     {isBookable ? (
                       forEvent
                         ? `Review the details above, then confirm to request this venue for "${forEvent.title}".`
@@ -287,7 +287,7 @@ export function VenueDetailPage() {
                   </p>
                   {differsFromPreferredLocation && (
                     <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                      The organiser requested {preferredLocation}, but this venue is in {venue.location}. Check the alternative with the organiser before requesting it. If agreed, <Link to={`/events/${forEventId}/coordinator-edit`} className="font-semibold underline underline-offset-2 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">update the event’s venue requirements</Link>.
+                      The organiser requested {preferredLocation}, but this venue is in {venue.location}. Check the alternative with the organiser before requesting it. If agreed, <Link to={`/events/${forEventId}/coordinator-edit`} className="font-semibold underline underline-offset-2 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">update the event’s venue requirements</Link>.
                     </p>
                   )}
                   {requestError && (

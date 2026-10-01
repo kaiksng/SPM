@@ -46,8 +46,8 @@ export function RoomLayoutsEditor({
               className={cn(
                 "rounded-[10px] border px-3.5 py-2 text-xs font-semibold transition",
                 selected
-                  ? "border-blue-600 bg-blue-600 text-white shadow-sm"
-                  : "border-slate-200 bg-white text-slate-500 hover:border-blue-300 hover:text-blue-600",
+                  ? "border-primary bg-primary text-white shadow-sm"
+                  : "border-slate-200 bg-white text-slate-500 hover:border-primary/50 hover:text-primary",
               )}
             >
               {layout}

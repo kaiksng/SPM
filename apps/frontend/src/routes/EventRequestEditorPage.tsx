@@ -213,7 +213,7 @@ export function EventRequestEditorPage({
           </Link>
           <header className="mt-6 border-b border-slate-200 pb-7">
             <div className="flex items-center gap-3">
-              <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+              <span className="rounded-full border border-primary/30 bg-accent px-2.5 py-1 text-xs font-semibold text-primary">
                 {submitting ? "Ready to submit" : "Draft"}
               </span>
               <span className="text-xs text-slate-500">

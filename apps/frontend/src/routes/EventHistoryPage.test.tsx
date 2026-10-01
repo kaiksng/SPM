@@ -75,12 +75,12 @@ beforeEach(() => {
 });
 
 describe("EventHistoryPage", () => {
-  it("links back to the event detail page", async () => {
+  it("links back to the main events page", async () => {
     renderPage();
 
-    expect(await screen.findByRole("link", { name: /Back to event/ })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: /Back to events/ })).toHaveAttribute(
       "href",
-      "/events/event-1",
+      "/events",
     );
   });
 

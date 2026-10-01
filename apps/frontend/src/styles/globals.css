@@ -47,38 +47,38 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.457 0.24 264.052);
+  --background: oklch(0.97 0.014 295);
+  --foreground: oklch(0.28 0.03 295);
+  --card: oklch(0.995 0.008 295);
+  --card-foreground: oklch(0.28 0.03 295);
+  --popover: oklch(0.995 0.008 295);
+  --popover-foreground: oklch(0.28 0.03 295);
+  --primary: oklch(0.64 0.21 295);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.93 0.025 295);
+  --secondary-foreground: oklch(0.28 0.03 295);
+  --muted: oklch(0.93 0.02 295);
+  --muted-foreground: oklch(0.52 0.03 295);
+  --accent: oklch(0.89 0.05 295);
+  --accent-foreground: oklch(0.28 0.03 295);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.87 0 0);
-  --input: oklch(0.87 0 0);
-  --ring: oklch(0.585 0.233 264.376);
+  --border: oklch(0.86 0.035 295);
+  --input: oklch(0.86 0.035 295);
+  --ring: oklch(0.64 0.21 295);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.97 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar: oklch(0.94 0.025 295);
+  --sidebar-foreground: oklch(0.28 0.03 295);
+  --sidebar-primary: oklch(0.64 0.21 295);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.93 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.87 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-accent: oklch(0.89 0.04 295);
+  --sidebar-accent-foreground: oklch(0.28 0.03 295);
+  --sidebar-border: oklch(0.86 0.035 295);
+  --sidebar-ring: oklch(0.64 0.21 295);
 }
 
 .dark {
@@ -124,5 +124,14 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+@keyframes hero-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
   }
 }

@@ -94,7 +94,7 @@ export function VenueRequestsPage() {
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-5xl">
           <header className="border-b border-slate-200 pb-7">
-            <p className="text-xs font-semibold tracking-[0.16em] text-blue-600 uppercase">
+            <p className="text-xs font-semibold tracking-[0.16em] text-primary uppercase">
               Venue workspace
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-slate-950">
@@ -165,7 +165,7 @@ function RequestCard({
         <div>
           <Link
             to={`/events/${request.eventId}`}
-            className="text-base font-semibold text-slate-950 hover:text-blue-700"
+            className="text-base font-semibold text-slate-950 hover:text-primary"
           >
             {request.eventTitle}
           </Link>
@@ -258,7 +258,7 @@ function EmptyState() {
   return (
     <section className="mt-7 grid min-h-64 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 text-center">
       <div className="max-w-sm py-12">
-        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-blue-50 text-blue-600">
+        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-accent text-primary">
           <ClipboardList aria-hidden="true" />
         </span>
         <h2 className="mt-5 text-lg font-semibold text-slate-950">No venue booking requests</h2>

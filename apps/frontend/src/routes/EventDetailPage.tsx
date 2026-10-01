@@ -158,7 +158,7 @@ export function EventDetailPage() {
                       className={buttonVariants({
                         variant: "outline",
                         size: "sm",
-                        className: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
+                        className: "border-primary/30 bg-accent text-primary hover:bg-accent/80",
                       })}
                     >
                       Edit event

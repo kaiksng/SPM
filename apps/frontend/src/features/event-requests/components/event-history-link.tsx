@@ -12,7 +12,7 @@ export function EventHistoryButton({ eventId }: { eventId: string }) {
   return (
     <Link
       to={`/events/${eventId}/history`}
-      className={buttonVariants({ size: "sm", variant: "outline", className: "mt-3" })}
+      className={buttonVariants({ size: "sm", variant: "outline", className: "mt-3 w-fit" })}
     >
       View change history
     </Link>

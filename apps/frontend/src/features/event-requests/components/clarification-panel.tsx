@@ -318,7 +318,7 @@ function RequestClarificationDialog({
             rows={3}
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus-visible:border-blue-400 focus-visible:ring-3 focus-visible:ring-blue-100"
+            className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
         </div>
         <fieldset>
@@ -403,7 +403,7 @@ function DecisionDialog({
             rows={4}
             value={rationale}
             onChange={(event) => setRationale(event.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus-visible:border-blue-400 focus-visible:ring-3 focus-visible:ring-blue-100"
+            className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
           />
         </div>
         {error && <p role="alert" className="text-sm text-red-700">{error}</p>}

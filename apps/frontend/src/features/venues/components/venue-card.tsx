@@ -20,7 +20,7 @@ export function VenueCard({
   canManageVenues: boolean;
 }) {
   const cardClassName =
-    "group flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-[0_22px_50px_-34px_rgba(37,99,235,0.35)] motion-reduce:transform-none";
+    "group flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_22px_50px_-34px_rgba(126,87,194,0.35)] motion-reduce:transform-none";
 
   const content = (
     <>
@@ -41,7 +41,7 @@ export function VenueCard({
           {venue.updatedByName && ` by ${venue.updatedByName}`}
         </span>
       </div>
-      <h2 className="mt-5 text-lg font-semibold tracking-tight text-slate-950 group-hover:text-blue-700">
+      <h2 className="mt-5 text-lg font-semibold tracking-tight text-slate-950 group-hover:text-primary">
         {venue.name}
       </h2>
       <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
@@ -65,7 +65,7 @@ export function VenueCard({
         </div>
       )}
       <p className="mt-3 text-xs text-slate-500">{formatOperatingHours(venue.operatingHours)}</p>
-      <span className="mt-auto pt-4 text-sm font-medium text-blue-600 group-hover:underline">
+      <span className="mt-auto pt-4 text-sm font-medium text-primary group-hover:underline">
         View details
       </span>
     </>

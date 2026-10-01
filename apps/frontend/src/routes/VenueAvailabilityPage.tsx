@@ -256,7 +256,7 @@ export function VenueAvailabilityPage() {
             </section>
           ) : (
             <div className="mt-6">
-              <p className="text-xs font-semibold tracking-[0.16em] text-blue-600 uppercase">
+              <p className="text-xs font-semibold tracking-[0.16em] text-primary uppercase">
                 Venue availability
               </p>
               <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-slate-950">

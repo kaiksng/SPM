@@ -68,7 +68,7 @@ export function EventPlanningTimeline({
                 aria-hidden="true"
                 className={cn(
                   "absolute top-0.5 left-0 size-3.5 rounded-full border-2",
-                  reached ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white",
+                  reached ? "border-primary bg-primary" : "border-slate-300 bg-white",
                 )}
               />
               {stage.id === "requested" ? (
@@ -105,7 +105,7 @@ export function EventPlanningTimeline({
                       {child.href ? (
                         <Link
                           to={`/events/${eventId}/${child.href}`}
-                          className="hover:text-blue-600 hover:underline"
+                          className="hover:text-primary hover:underline"
                         >
                           {child.label}
                         </Link>

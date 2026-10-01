@@ -277,7 +277,7 @@ function FormSection({
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_16px_45px_-38px_rgba(15,23,42,0.45)]">
       <div className="flex flex-col gap-4 border-b border-slate-100 bg-slate-50/70 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
         <div className="flex gap-4">
-          <span className="font-mono text-xs font-semibold tracking-wider text-blue-600">
+          <span className="font-mono text-xs font-semibold tracking-wider text-primary">
             {number}
           </span>
           <div>
@@ -315,7 +315,7 @@ function Field({
       <span className="mb-2 flex items-center gap-2 text-sm font-medium leading-none text-slate-900">
         <span>{label}</span>
         {required && (
-          <span aria-hidden="true" className="text-xs font-semibold text-blue-600">
+          <span aria-hidden="true" className="text-xs font-semibold text-primary">
             Required
           </span>
         )}
