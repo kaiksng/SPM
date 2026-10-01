@@ -41,7 +41,7 @@ describe("EventRequestForm draft mode", () => {
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
     expect(screen.getByLabelText(/Preferred location/)).toBeInTheDocument();
     expect(screen.getByLabelText("Room layout")).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Required facilities/)).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Required facilities" })).toBeInTheDocument();
     expect(screen.getByLabelText("Accessibility needs")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add equipment" })).toBeInTheDocument();
     expect(screen.getByLabelText(/Attendee registration is required/)).toBeInTheDocument();
@@ -65,6 +65,32 @@ describe("EventRequestForm draft mode", () => {
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ title: "ABC", expectedAttendance: "" }),
     );
+  });
+
+  it("keeps previously saved free-text choices available when a draft reopens", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <EventRequestForm
+        initialValues={values({
+          title: "Legacy draft",
+          purpose: "Welcome new students",
+          venue: { ...emptyEventRequestFormValues.venue, preferredLocation: "Old Campus", facilities: ["Projector"] },
+        })}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/^Purpose/)).toHaveValue("Welcome new students");
+    expect(screen.getByLabelText(/^Preferred location/)).toHaveValue("Old Campus");
+    await user.click(screen.getByText("Select facilities (1 selected)"));
+    expect(screen.getByRole("checkbox", { name: "Projector (previously saved)" })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      purpose: "Welcome new students",
+      venue: expect.objectContaining({ preferredLocation: "Old Campus", facilities: ["Projector"] }),
+    })));
   });
 
   it("offers save and submit actions while drafting and validates each action separately", async () => {
@@ -175,7 +201,7 @@ describe("EventRequestForm draft mode", () => {
     expect(title).toHaveValue("Kai Test Preserved");
   });
 
-  it("lets a comma actually be typed into the required facilities field", async () => {
+  it("allows several amenities to be selected", async () => {
     const user = userEvent.setup();
     render(
       <EventRequestForm
@@ -185,20 +211,14 @@ describe("EventRequestForm draft mode", () => {
       />,
     );
 
-    const facilities = screen.getByLabelText(/^Required facilities/);
-    await user.type(facilities, "Projector,Stage");
-
-    // Regression: re-deriving the displayed value from
-    // values.venue.facilities.join(", ") on every keystroke used to erase a
-    // trailing comma outright (splitting "Projector," produces
-    // ["Projector", ""], and dropping that empty entry snapped the field back
-    // to "Projector") and, even once that was fixed, silently inserted a
-    // space after every comma the user hadn't typed. The field now shows
-    // exactly what was typed — no re-formatting at all while typing.
-    expect(facilities).toHaveValue("Projector,Stage");
+    await user.click(screen.getByText("Select facilities (0 selected)"));
+    await user.click(screen.getByRole("checkbox", { name: "Pantry" }));
+    await user.click(screen.getByRole("checkbox", { name: "Parking" }));
+    expect(screen.getByRole("checkbox", { name: "Pantry" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Parking" })).toBeChecked();
   });
 
-  it("submits a completed comma-separated facilities list", async () => {
+  it("saves the selected amenities", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
@@ -209,13 +229,15 @@ describe("EventRequestForm draft mode", () => {
       />,
     );
 
-    await user.type(screen.getByLabelText(/^Required facilities/), "Projector, Stage");
+    await user.click(screen.getByText("Select facilities (0 selected)"));
+    await user.click(screen.getByRole("checkbox", { name: "Pantry" }));
+    await user.click(screen.getByRole("checkbox", { name: "Parking" }));
     await user.click(screen.getByRole("button", { name: "Save draft" }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
-        venue: expect.objectContaining({ facilities: ["Projector", "Stage"] }),
+        venue: expect.objectContaining({ facilities: ["Pantry", "Parking"] }),
       }),
     );
   });

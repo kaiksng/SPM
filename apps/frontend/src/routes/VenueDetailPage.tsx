@@ -1,4 +1,4 @@
-import { formatOperatingHours, hasPermission } from "@spm/shared";
+import { formatOperatingHours, hasPermission, isLocationArea } from "@spm/shared";
 import { ArrowLeft, Ban, Building2, CalendarClock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
@@ -65,7 +65,10 @@ export function VenueDetailPage() {
   const isBookable = availabilityChecked && !availabilityError && !exploreOnly && !activeBooking;
   const preferredLocation = forEvent?.venue.preferredLocation?.trim();
   const differsFromPreferredLocation = Boolean(preferredLocation && venue
-    && !venue.location.toLocaleLowerCase().includes(preferredLocation.toLocaleLowerCase()));
+    && (isLocationArea(preferredLocation)
+      ? !(venue.areaTags?.includes(preferredLocation) ||
+          (!venue.areaTags?.length && venue.location.toLocaleLowerCase().includes(preferredLocation.toLocaleLowerCase())))
+      : !venue.location.toLocaleLowerCase().includes(preferredLocation.toLocaleLowerCase())));
 
   usePageTitle(venue?.name ?? "Venue details");
 
@@ -226,7 +229,10 @@ export function VenueDetailPage() {
                   Overview
                 </h2>
                 <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <Field label="Location" value={venue.location} />
+                  <Field label="Location" value={venue.areaTags?.[0] ?? venue.location} />
+                  {venue.areaTags?.[0] && venue.location && venue.location !== venue.areaTags[0] && (
+                    <Field label="Address" value={venue.location} />
+                  )}
                   <Field label="Capacity" value={venue.capacity} />
                   <Field
                     label="Operating hours"
@@ -303,7 +309,7 @@ export function VenueDetailPage() {
                   </p>
                   {differsFromPreferredLocation && (
                     <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                      The organiser requested {preferredLocation}, but this venue is in {venue.location}. Check the alternative with the organiser before requesting it. If agreed, <Link to={`/events/${forEventId}/coordinator-edit`} className="font-semibold underline underline-offset-2 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">update the event’s venue requirements</Link>.
+                      The organiser requested {preferredLocation}, but this venue is in {venue.areaTags?.[0] ?? venue.location}. Check the alternative with the organiser before requesting it. If agreed, <Link to={`/events/${forEventId}/coordinator-edit`} className="font-semibold underline underline-offset-2 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">update the event’s venue requirements</Link>.
                     </p>
                   )}
                   {requestError && (

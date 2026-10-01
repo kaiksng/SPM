@@ -23,7 +23,7 @@ export async function searchAvailableVenues(
   });
   if (error) throw new Error(error.message);
   return data.map((row) => ({
-    id: row.id, name: row.name, location: row.location,
+    id: row.id, name: row.name, location: row.location, areaTags: [],
     capacity: row.capacity, operatingHours: row.operating_hours as unknown as OperatingHours,
     description: row.description, accessibilityNotes: row.accessibility_notes,
     facilities: row.facilities, layouts: row.layouts, updatedAt: row.updated_at,

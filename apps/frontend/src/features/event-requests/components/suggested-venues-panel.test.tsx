@@ -127,9 +127,9 @@ describe("SuggestedVenuesPanel", () => {
     renderPanel();
 
     await user.click(await screen.findByRole("button", { name: "Search venues" }));
-    await user.type(screen.getByLabelText("Location"), "Building 2");
+    await user.selectOptions(screen.getByLabelText("Location"), "Bugis");
     await user.click(screen.getByRole("button", { name: "Search venues" }));
-    expect(searchAvailableVenuesMock).toHaveBeenCalledWith("event-1", expect.objectContaining({ location: "Building 2", minimumCapacity: "30" }));
+    expect(searchAvailableVenuesMock).toHaveBeenCalledWith("event-1", expect.objectContaining({ location: "Bugis", minimumCapacity: "30" }));
     expect(await screen.findByRole("heading", { name: "Auditorium" })).toBeInTheDocument();
   });
 

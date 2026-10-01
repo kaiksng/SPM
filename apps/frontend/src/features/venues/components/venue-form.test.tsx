@@ -17,6 +17,7 @@ function validValues(overrides: Partial<VenueFormValues> = {}): VenueFormValues 
   return {
     name: "Innovation Hall",
     location: "Block A",
+    areaTags: ["Central Area"],
     capacity: "120",
     operatingHours: [{ days: ["mon"], opensAt: "09:00", closesAt: "18:00" }],
     facilities: ["Projector", "Stage"],
@@ -52,9 +53,8 @@ function renderForm(props: Partial<Parameters<typeof VenueForm>[0]> = {}) {
 
 const fields = {
   name: () => screen.getByPlaceholderText("e.g. Innovation Hall"),
-  location: () => screen.getByPlaceholderText("Building, campus area or address"),
+  location: () => screen.getByPlaceholderText("Optional building or street address"),
   capacity: () => screen.getByRole("spinbutton"),
-  facilities: () => screen.getByPlaceholderText("Stage, projector, writable wall"),
   description: () => screen.getByPlaceholderText("Notes coordinators should know before booking."),
   accessibility: () =>
     screen.getByPlaceholderText("Describe accessibility features, or leave blank if none."),
@@ -71,7 +71,7 @@ describe("VenueForm", () => {
 
     expect(screen.getByRole("button", { name: "Save venue" })).toBeEnabled();
     expect(
-      screen.getByText(/Name, location, capacity, facilities, operating hours and room layouts/),
+      screen.getByText(/Name, location, capacity, operating hours and room layouts/),
     ).toBeInTheDocument();
   });
 
@@ -86,7 +86,9 @@ describe("VenueForm", () => {
     expect(fields.name()).toHaveValue("Innovation Hall");
     expect(fields.location()).toHaveValue("Block A");
     expect(fields.capacity()).toHaveValue(120);
-    expect(fields.facilities()).toHaveValue("Projector, Stage");
+    expect(screen.getByRole("combobox", { name: "Location" })).toHaveValue("Central Area");
+    expect(screen.queryByText("Venue areas")).not.toBeInTheDocument();
+    expect(screen.getByText("Projector (previously saved)")).toBeInTheDocument();
     expect(fields.description()).toHaveValue("Big room");
     expect(fields.accessibility()).toHaveValue("Ramp");
     expect(screen.getByRole("button", { name: "Mon" })).toHaveAttribute("aria-pressed", "true");
@@ -106,11 +108,10 @@ describe("VenueForm", () => {
     expect(alerts).toEqual(
       expect.arrayContaining([
         "Venue name must contain between 2 and 160 characters",
-        "Enter the venue location",
+        "Select a location",
         "Enter capacity as a positive whole number",
         "Select at least one supported room layout",
         "Each operating hours period needs at least one day selected",
-        "Add at least one facility",
       ]),
     );
     expect(fields.name()).toHaveAttribute("aria-invalid", "true");
@@ -144,7 +145,9 @@ describe("VenueForm", () => {
     await user.click(screen.getByRole("button", { name: "Tue" }));
     fireEvent.change(screen.getByLabelText("Opens"), { target: { value: "08:30" } });
     fireEvent.change(screen.getByLabelText("Closes"), { target: { value: "17:00" } });
-    await user.type(fields.facilities(), "Projector, , Stage ");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Location" }), "Bugis");
+    await user.click(screen.getByText("Select facilities (0 selected)"));
+    await user.click(screen.getByRole("checkbox", { name: "Pantry" }));
     await user.type(fields.description(), "Bright room");
     await user.type(fields.accessibility(), "Lift access");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
@@ -152,9 +155,10 @@ describe("VenueForm", () => {
     expect(onSave).toHaveBeenCalledWith({
       name: "Innovation Hall",
       location: "Block A",
+      areaTags: ["Bugis"],
       capacity: "80",
       operatingHours: [{ days: ["mon", "tue"], opensAt: "08:30", closesAt: "17:00" }],
-      facilities: ["Projector", "Stage"],
+      facilities: ["Pantry"],
       layouts: ["Theatre"],
       description: "Bright room",
       accessibilityNotes: "Lift access",

@@ -49,16 +49,11 @@ export const ROOM_LAYOUT_TYPES = [
   "Exhibition",
 ] as const;
 
-export type RoomLayoutType = (typeof ROOM_LAYOUT_TYPES)[number];
+export type RoomLayoutType = string;
 
 /**
- * Coerces a stored free-text value (pre-fixed-list event requirements, or
- * anything else unexpected) into a valid RoomLayoutType, or "" if it isn't
- * one — never throws, since old rows may hold text typed before this list
- * existed.
+ * Preserves saved standard and custom room layouts when an event reopens.
  */
 export function asRoomLayoutType(value: string | null | undefined): RoomLayoutType | "" {
-  return (ROOM_LAYOUT_TYPES as readonly string[]).includes(value ?? "")
-    ? (value as RoomLayoutType)
-    : "";
+  return value?.trim() ?? "";
 }

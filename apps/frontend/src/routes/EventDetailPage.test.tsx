@@ -3,6 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/features/venues/hooks/use-room-layout-options", () => ({
+  useRoomLayoutOptions: () => ["Theatre", "Classroom", "Boardroom", "Banquet", "Open Floor", "Auditorium", "Exhibition"],
+}));
+
 const loadEventDetailMock = vi.fn();
 const listClarificationsMock = vi.fn();
 const listEventDecisionsMock = vi.fn();
@@ -134,6 +138,7 @@ describe("EventDetailPage", () => {
       screen.getByText("A full day of workshops for student leaders."),
     ).toBeInTheDocument();
     expect(screen.getByText("Main Auditorium")).toBeInTheDocument();
+    expect(screen.queryByText("Minimum capacity")).not.toBeInTheDocument();
     expect(screen.getByText("Wheelchair ramp required")).toBeInTheDocument();
     expect(screen.getByText("Projector")).toBeInTheDocument();
     // Equipment moved to the dedicated /equipment page — no longer shown here.
@@ -226,7 +231,7 @@ describe("EventDetailPage", () => {
 
     await user.selectOptions(
       await screen.findByLabelText("Preferred location"),
-      "New Wing Hall",
+      "City Hall",
     );
     await user.click(screen.getByRole("button", { name: "Save" }));
 
@@ -236,14 +241,14 @@ describe("EventDetailPage", () => {
         expect.objectContaining({
           title: event.title,
           expectedAttendance: event.expectedAttendance!.toString(),
-          venue: expect.objectContaining({ preferredLocation: "New Wing Hall" }),
+          venue: expect.objectContaining({ preferredLocation: "City Hall" }),
           equipment: [
             { equipmentName: "Laptop", quantity: "2", notes: "For registration desk" },
           ],
         }),
       );
     });
-    expect(await screen.findByText("New Wing Hall")).toBeInTheDocument();
+    expect(await screen.findByText("City Hall")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
   });
 

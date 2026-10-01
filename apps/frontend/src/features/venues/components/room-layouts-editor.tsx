@@ -1,30 +1,37 @@
-import { ROOM_LAYOUT_TYPES, type RoomLayoutType } from "@spm/shared";
+import { useState } from "react";
 
+import { useRoomLayoutOptions } from "@/features/venues/hooks/use-room-layout-options";
 import { cn } from "@/lib/utils";
 
 /**
- * A venue's supported room layouts: a fixed list (not free text like
- * Facilities) so find_matching_venues' layout_notes match against
- * venue_layouts.layout_name is reliable. A venue can support more than one
- * — a hall set up as a Theatre for one event may work as a Banquet for
- * another — so this is a toggle-button picker (like OperatingHoursEditor's
- * day picker) rather than a single-choice dropdown.
+ * A venue can support several existing layouts and add a new named layout.
  */
 export function RoomLayoutsEditor({
   value,
   onChange,
   invalid,
 }: {
-  value: RoomLayoutType[];
-  onChange: (next: RoomLayoutType[]) => void;
+  value: string[];
+  onChange: (next: string[]) => void;
   invalid?: boolean;
 }) {
-  function toggleLayout(layout: RoomLayoutType) {
+  const options = useRoomLayoutOptions();
+  const [newLayout, setNewLayout] = useState("");
+  const visibleOptions = [...new Set([...options, ...value])];
+
+  function toggleLayout(layout: string) {
     onChange(
       value.includes(layout)
         ? value.filter((selected) => selected !== layout)
         : [...value, layout],
     );
+  }
+
+  function addLayout() {
+    const label = newLayout.trim();
+    if (!label || value.some((item) => item.toLowerCase() === label.toLowerCase())) return;
+    onChange([...value, label]);
+    setNewLayout("");
   }
 
   return (
@@ -35,7 +42,7 @@ export function RoomLayoutsEditor({
       )}
     >
       <div className="flex flex-wrap gap-1.5">
-        {ROOM_LAYOUT_TYPES.map((layout) => {
+        {visibleOptions.map((layout) => {
           const selected = value.includes(layout);
           return (
             <button
@@ -54,6 +61,17 @@ export function RoomLayoutsEditor({
             </button>
           );
         })}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <input
+          aria-label="New room layout"
+          value={newLayout}
+          maxLength={120}
+          onChange={(event) => setNewLayout(event.target.value)}
+          className="border-input min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm"
+          placeholder="e.g. U-shape"
+        />
+        <button type="button" onClick={addLayout} disabled={!newLayout.trim()} className="rounded-lg border border-primary px-3 py-2 text-sm font-medium text-primary disabled:opacity-50">Add layout</button>
       </div>
       <p className="mt-3 text-xs text-slate-500">
         {value.length === 0 ? "Select at least one." : value.join(", ")}

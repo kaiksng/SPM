@@ -1,14 +1,14 @@
-import { asRoomLayoutType, ROOM_LAYOUT_TYPES, type RoomLayoutType } from "@spm/shared";
+import { asRoomLayoutType, LOCATION_AREAS, type RoomLayoutType } from "@spm/shared";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { AmenityPicker } from "@/components/ui/amenity-picker";
 import {
   localDateTime,
   updateEventAsCoordinator,
 } from "@/features/event-requests/services/coordinator-event-edit";
 import type { EventDetail } from "@/features/event-requests/services/event-details";
-import { listSuggestedVenues, type VenueSummary } from "@/features/venues/services/venues";
+import { useRoomLayoutOptions } from "@/features/venues/hooks/use-room-layout-options";
 import { cn } from "@/lib/utils";
 
 type Venue = EventDetail["venue"];
@@ -40,45 +40,25 @@ export function VenueFacilitiesSection({
 }) {
   const [editing, setEditing] = useState(false);
   const [preferredLocation, setPreferredLocation] = useState("");
-  const [minimumCapacity, setMinimumCapacity] = useState("");
   const [accessibilityNotes, setAccessibilityNotes] = useState("");
   const [layoutNotes, setLayoutNotes] = useState<RoomLayoutType | "">("");
-  const [facilitiesText, setFacilitiesText] = useState("");
+  const [facilities, setFacilities] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
-  const [suggestedVenues, setSuggestedVenues] = useState<VenueSummary[]>();
+  const roomLayouts = useRoomLayoutOptions();
 
   function startEditing() {
     setPreferredLocation(event.venue.preferredLocation ?? "");
-    setMinimumCapacity(event.venue.minimumCapacity?.toString() ?? "");
     setAccessibilityNotes(event.venue.accessibilityNotes ?? "");
     setLayoutNotes(asRoomLayoutType(event.venue.layoutNotes));
-    setFacilitiesText(event.venue.facilities.join(", "));
+    setFacilities(event.venue.facilities);
     setError(undefined);
     setEditing(true);
-
-    // Suggested venues (find_matching_venues) already screen by this
-    // event's capacity/layout/accessibility/facilities — reused here so
-    // "Preferred location" picks a real, matching venue's location instead
-    // of free text that later gets fuzzy-matched.
-    setSuggestedVenues(undefined);
-    listSuggestedVenues(event.id)
-      .then(setSuggestedVenues)
-      .catch(() => setSuggestedVenues([]));
   }
 
   async function handleSave() {
-    if (minimumCapacity && !/^[1-9]\d*$/.test(minimumCapacity)) {
-      setError("Minimum capacity must be a positive whole number");
-      return;
-    }
-
     setSaving(true);
     setError(undefined);
-    const facilities = facilitiesText
-      .split(",")
-      .map((facility) => facility.trim())
-      .filter(Boolean);
 
     try {
       await updateEventAsCoordinator(event.id, {
@@ -91,7 +71,7 @@ export function VenueFacilitiesSection({
         endsAt: localDateTime(event.endsAt),
         venue: {
           preferredLocation,
-          minimumCapacity,
+          minimumCapacity: event.venue.minimumCapacity?.toString() ?? "",
           accessibilityNotes,
           layoutNotes,
           facilities,
@@ -113,7 +93,7 @@ export function VenueFacilitiesSection({
 
       onSaved({
         preferredLocation: preferredLocation || null,
-        minimumCapacity: minimumCapacity ? Number(minimumCapacity) : null,
+        minimumCapacity: event.venue.minimumCapacity,
         accessibilityNotes: accessibilityNotes || null,
         layoutNotes: layoutNotes || null,
         facilities,
@@ -150,7 +130,6 @@ export function VenueFacilitiesSection({
             <select
               value={preferredLocation}
               onChange={(event) => setPreferredLocation(event.target.value)}
-              disabled={!suggestedVenues}
               className={cn(
                 "border-input flex h-8 w-full min-w-0 rounded-lg border bg-transparent px-2.5 text-sm shadow-xs outline-none",
                 "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
@@ -159,29 +138,18 @@ export function VenueFacilitiesSection({
               )}
             >
               <option value="">No preference</option>
-              {/* A location already saved but no longer among the matching
-                  suggestions (e.g. venue requirements changed since) stays
-                  selectable so saving doesn't silently drop it. */}
               {preferredLocation &&
-                suggestedVenues?.every((venue) => venue.location !== preferredLocation) && (
+                !LOCATION_AREAS.includes(preferredLocation as typeof LOCATION_AREAS[number]) && (
                   <option value={preferredLocation} className="text-foreground">
-                    {preferredLocation}
+                    {preferredLocation} (previously saved)
                   </option>
                 )}
-              {(suggestedVenues ?? []).map((venue) => (
-                <option key={venue.id} value={venue.location} className="text-foreground">
-                  {venue.name} — {venue.location}
+              {LOCATION_AREAS.map((area) => (
+                <option key={area} value={area} className="text-foreground">
+                  {area}
                 </option>
               ))}
             </select>
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="text-xs font-medium text-slate-400">Minimum capacity</span>
-            <Input
-              inputMode="numeric"
-              value={minimumCapacity}
-              onChange={(event) => setMinimumCapacity(event.target.value)}
-            />
           </label>
           <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
             <span className="text-xs font-medium text-slate-400">Accessibility notes</span>
@@ -203,19 +171,15 @@ export function VenueFacilitiesSection({
               )}
             >
               <option value="">No preference</option>
-              {ROOM_LAYOUT_TYPES.map((layout) => (
+              {layoutNotes && !roomLayouts.includes(layoutNotes) && <option value={layoutNotes}>{layoutNotes}</option>}
+              {roomLayouts.map((layout) => (
                 <option key={layout} value={layout} className="text-foreground">
                   {layout}
                 </option>
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
-            <span className="text-xs font-medium text-slate-400">
-              Required facilities — separate with commas
-            </span>
-            <Input value={facilitiesText} onChange={(event) => setFacilitiesText(event.target.value)} />
-          </label>
+          <AmenityPicker value={facilities} onChange={setFacilities} />
 
           {error && (
             <p role="alert" className="text-sm text-red-700 sm:col-span-2">
@@ -238,12 +202,6 @@ export function VenueFacilitiesSection({
             <dt className="text-xs font-medium text-slate-400">Preferred location</dt>
             <dd className="mt-1 text-sm text-slate-800">
               {event.venue.preferredLocation || "Not provided"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-slate-400">Minimum capacity</dt>
-            <dd className="mt-1 text-sm text-slate-800">
-              {event.venue.minimumCapacity?.toString() || "Not provided"}
             </dd>
           </div>
           <div className="sm:col-span-2">

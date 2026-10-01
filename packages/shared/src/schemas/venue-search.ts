@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { ROOM_LAYOUT_TYPES } from "../types/venue";
 import { isValidSingaporeLocal } from "./venue-block";
 
 export const venueSearchSchema = z.object({
@@ -9,7 +8,7 @@ export const venueSearchSchema = z.object({
   minimumCapacity: z.string().regex(/^[1-9]\d*$/, "Enter a positive minimum capacity")
     .refine((value) => Number(value) <= 2147483647, "Capacity is too large"),
   location: z.string(),
-  layout: z.union([z.enum(ROOM_LAYOUT_TYPES), z.literal("")]),
+  layout: z.string().trim().max(120),
   facilities: z.array(z.string().trim().min(1)),
   accessibility: z.string(),
 }).superRefine((value, context) => {

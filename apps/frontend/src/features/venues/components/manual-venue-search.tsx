@@ -1,5 +1,5 @@
 import {
-  asRoomLayoutType, formatOperatingHours, isoToSingaporeLocal, ROOM_LAYOUT_TYPES,
+  asRoomLayoutType, formatOperatingHours, isoToSingaporeLocal, LOCATION_AREAS,
   venueSearchSchema, type VenueSearchValues,
 } from "@spm/shared";
 import { Building2, MapPin, Search, Users } from "lucide-react";
@@ -7,10 +7,12 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router";
 
 import { Button } from "@/components/ui/button";
+import { AmenityPicker } from "@/components/ui/amenity-picker";
 import { Input } from "@/components/ui/input";
 import type { EventDetail } from "@/features/event-requests/services/event-details";
 import { searchAvailableVenues } from "@/features/venues/services/venue-search";
 import type { VenueSummary } from "@/features/venues/services/venues";
+import { useRoomLayoutOptions } from "@/features/venues/hooks/use-room-layout-options";
 
 export function eventSearchDefaults(event: EventDetail): VenueSearchValues {
   return {
@@ -28,11 +30,11 @@ export function ManualVenueSearch({ event, hasActiveBooking }: { event: EventDet
   const location = useLocation();
   const saved = (location.state as { venueSearch?: VenueSearchValues } | null)?.venueSearch;
   const [values, setValues] = useState<VenueSearchValues>(() => saved ?? eventSearchDefaults(event));
-  const [facilitiesText, setFacilitiesText] = useState(() => values.facilities.join(", "));
   const [results, setResults] = useState<VenueSummary[]>();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const roomLayouts = useRoomLayoutOptions();
   const eventDatesMatch = values.startsAt === (event.startsAt ? isoToSingaporeLocal(event.startsAt) : "")
     && values.endsAt === (event.endsAt ? isoToSingaporeLocal(event.endsAt) : "");
 
@@ -58,11 +60,11 @@ export function ManualVenueSearch({ event, hasActiveBooking }: { event: EventDet
 
   function reset() {
     const defaults = eventSearchDefaults(event);
-    setValues(defaults); setFacilitiesText(defaults.facilities.join(", "));
+    setValues(defaults);
     setResults(undefined); setErrors({}); setMessage("");
   }
 
-  const field = (key: "startsAt" | "endsAt" | "minimumCapacity" | "location" | "accessibility", label: string, type = "text") =>
+  const field = (key: "startsAt" | "endsAt" | "minimumCapacity" | "accessibility", label: string, type = "text") =>
     <div><label htmlFor={`venue-search-${key}`} className="mb-1 block text-sm font-medium text-slate-700">{label}</label><Input id={`venue-search-${key}`} type={type} value={values[key]} aria-invalid={!!errors[key]} aria-describedby={errors[key] ? `${key}-error` : undefined} onChange={(e) => update(key, e.target.value)} />{errors[key] && <p id={`${key}-error`} className="mt-1 text-sm text-red-700">{errors[key]}</p>}</div>;
 
   return <div className="mt-5">
@@ -71,9 +73,9 @@ export function ManualVenueSearch({ event, hasActiveBooking }: { event: EventDet
       {field("startsAt", "Start date and time *", "datetime-local")}
       {field("endsAt", "End date and time *", "datetime-local")}
       {field("minimumCapacity", "Minimum capacity *", "number")}
-      {field("location", "Location")}
-      <div><label htmlFor="venue-search-layout" className="mb-1 block text-sm font-medium text-slate-700">Room layout</label><select id="venue-search-layout" value={values.layout} onChange={(e) => update("layout", e.target.value as VenueSearchValues["layout"])} className="border-input h-8 w-full rounded-lg border bg-white px-2.5 text-sm focus-visible:ring-3 focus-visible:ring-ring/50"><option value="">Any layout</option>{ROOM_LAYOUT_TYPES.map((layout) => <option key={layout} value={layout}>{layout}</option>)}</select></div>
-      <div><label htmlFor="venue-search-facilities" className="mb-1 block text-sm font-medium text-slate-700">Required facilities</label><Input id="venue-search-facilities" value={facilitiesText} placeholder="Comma-separated, e.g. Projector, Wi-Fi" onChange={(e) => { setFacilitiesText(e.target.value); update("facilities", e.target.value.split(",").map((part) => part.trim()).filter(Boolean)); }} /></div>
+      <div><label htmlFor="venue-search-location" className="mb-1 block text-sm font-medium text-slate-700">Location</label><select id="venue-search-location" value={values.location} onChange={(e) => update("location", e.target.value)} className="border-input h-8 w-full rounded-lg border bg-white px-2.5 text-sm"><option value="">Any area</option>{values.location && !LOCATION_AREAS.includes(values.location as typeof LOCATION_AREAS[number]) && <option value={values.location}>{values.location} (previously saved)</option>}{LOCATION_AREAS.map((area) => <option key={area} value={area}>{area}</option>)}</select></div>
+      <div><label htmlFor="venue-search-layout" className="mb-1 block text-sm font-medium text-slate-700">Room layout</label><select id="venue-search-layout" value={values.layout} onChange={(e) => update("layout", e.target.value as VenueSearchValues["layout"])} className="border-input h-8 w-full rounded-lg border bg-white px-2.5 text-sm focus-visible:ring-3 focus-visible:ring-ring/50"><option value="">Any layout</option>{values.layout && !roomLayouts.includes(values.layout) && <option value={values.layout}>{values.layout}</option>}{roomLayouts.map((layout) => <option key={layout} value={layout}>{layout}</option>)}</select></div>
+      <AmenityPicker value={values.facilities} onChange={(facilities) => update("facilities", facilities)} />
       <div className="sm:col-span-2">{field("accessibility", "Accessibility keywords")}</div>
       <div className="flex flex-wrap gap-2 sm:col-span-2"><Button type="submit" disabled={loading}><Search /> {loading ? "Searching…" : "Search venues"}</Button><Button type="button" variant="outline" onClick={reset}>Reset to event requirements</Button></div>
     </form>

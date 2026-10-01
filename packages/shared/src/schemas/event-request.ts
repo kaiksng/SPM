@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { ROOM_LAYOUT_TYPES } from "../types/venue";
 
 const optionalText = (maximum: number) => z.string().trim().max(maximum);
 
@@ -45,11 +44,9 @@ const eventRequestObject = z.object({
     preferredLocation: optionalText(240),
     minimumCapacity: optionalPositiveWholeNumber,
     accessibilityNotes: optionalText(2_000),
-    // Same fixed list venues pick a layout from (packages/shared's
-    // ROOM_LAYOUT_TYPES) — not free text, so find_matching_venues' layout
-    // match is exact instead of a fuzzy substring guess against whatever an
-    // organiser happened to type.
-    layoutNotes: z.union([z.enum(ROOM_LAYOUT_TYPES), z.literal("")]),
+    // The UI offers layouts supported by catalogue venues; saved custom
+    // values remain valid after a venue staff member creates a new layout.
+    layoutNotes: optionalText(120),
     facilities: z
       .array(z.string().trim().min(1).max(120))
       .max(20, "Add no more than 20 facilities"),

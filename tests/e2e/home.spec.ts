@@ -1,11 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-test("shows the ConnectSphere foundation", async ({ page }) => {
+test("shows the ConnectSphere homepage", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "event request",
-  );
-  await expect(page.getByText("Foundation ready")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("FIND YOUR");
+  await expect(page.getByRole("link", { name: "Browse events" })).toBeVisible();
 });
 
 test("reports application health from the backend", async ({ request }) => {

@@ -1,5 +1,6 @@
 import {
   EventSubmissionError,
+  LOCATION_AREAS,
   venueFormSchema,
   type VenueBookingAtRisk,
   type VenueFormValues,
@@ -8,6 +9,7 @@ import { AlertTriangle, Save } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { AmenityPicker } from "@/components/ui/amenity-picker";
 import { Input } from "@/components/ui/input";
 import { OperatingHoursEditor } from "@/features/venues/components/operating-hours-editor";
 import { RoomLayoutsEditor } from "@/features/venues/components/room-layouts-editor";
@@ -43,9 +45,6 @@ export function VenueForm({
   // proceeds — the same "acknowledge, then confirm" shape the rest of this
   // app uses for a destructive/consequential action.
   const [capacityWarning, setCapacityWarning] = useState<VenueBookingAtRisk[]>();
-  const [facilitiesText, setFacilitiesText] = useState(() =>
-    initialValues.facilities.join(", "),
-  );
 
   const setField = <Key extends keyof VenueFormValues>(
     key: Key,
@@ -114,7 +113,7 @@ export function VenueForm({
       <FormSection
         number="01"
         title="Venue details"
-        description="A unique name, location and capacity are required so coordinators can search and book this venue."
+        description="Choose the same location area organisers use, then add an address if useful."
       >
         <Field label="Venue name" required error={errors.name}>
           <Input
@@ -125,11 +124,24 @@ export function VenueForm({
             aria-invalid={Boolean(errors.name)}
           />
         </Field>
-        <Field label="Location" required error={errors.location}>
+        <Field label="Location" required error={errors.areaTags}>
+          <select
+            aria-label="Location"
+            value={values.areaTags[0] ?? ""}
+            onChange={(event) => setField("areaTags", event.target.value ? [event.target.value] : [])}
+            aria-invalid={Boolean(errors.areaTags)}
+            className="border-input h-9 w-full rounded-lg border bg-white px-2.5 text-sm"
+          >
+            <option value="">Select a location</option>
+            {LOCATION_AREAS.map((area) => <option key={area} value={area}>{area}</option>)}
+          </select>
+        </Field>
+        <Field label="Address" error={errors.location}>
           <Input
             value={values.location}
             onChange={(event) => setField("location", event.target.value)}
-            placeholder="Building, campus area or address"
+            placeholder="Optional building or street address"
+            aria-label="Address"
             aria-invalid={Boolean(errors.location)}
           />
         </Field>
@@ -166,30 +178,13 @@ export function VenueForm({
             onChange={(next) => setField("operatingHours", next)}
           />
         </Field>
-        <Field
+        <AmenityPicker
           label="Facilities"
-          required
+          value={values.facilities}
+          onChange={(facilities) => setField("facilities", facilities)}
           error={errors.facilities}
           className="sm:col-span-2"
-        >
-          <Input
-            value={facilitiesText}
-            onChange={(event) => {
-              const text = event.target.value;
-              setFacilitiesText(text);
-              setField(
-                "facilities",
-                text
-                  .split(",")
-                  .map((facility) => facility.trim())
-                  .filter(Boolean),
-              );
-            }}
-            placeholder="Stage, projector, writable wall"
-            aria-invalid={Boolean(errors.facilities)}
-          />
-          <p className="mt-1 text-xs text-slate-500">Separate facilities with commas.</p>
-        </Field>
+        />
         <Field
           label="Description"
           error={errors.description}
@@ -246,7 +241,7 @@ export function VenueForm({
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-12px_32px_-24px_rgba(15,23,42,0.45)] backdrop-blur lg:left-64">
         <div className="mx-auto flex max-w-5xl flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
           <p aria-live="polite" className={cn("text-sm", message ? "text-red-700" : "text-slate-500")}>
-            {message ?? "Name, location, capacity, facilities, operating hours and room layouts are all required."}
+            {message ?? "Name, location, capacity, operating hours and room layouts are required."}
           </p>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
             <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>

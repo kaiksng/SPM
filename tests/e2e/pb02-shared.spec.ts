@@ -43,26 +43,22 @@ test("PB-02 shared draft journey", async ({ page }) => {
     await draftCard.getByRole("link", { name: "Continue editing" }).click();
     const editUrl = page.url();
 
-    await page.getByLabel("Purpose").fill("Verify PB-02 shared persistence");
-    await page.getByLabel("Description").fill("Created by the PB-02 execution case.");
-    await page.getByLabel("Event category").fill("Briefing");
-    await page.getByLabel("Expected attendance").fill("120");
-    await page.getByLabel("Starts").fill("2026-09-25T10:00");
-    await page.getByLabel("Ends").fill("2026-09-25T12:00");
-    await page.getByLabel("Preferred location").fill("Seminar Room");
-    await page.getByLabel("Minimum capacity").fill("120");
-    await page.getByLabel("Room layout").fill("Classroom");
-    await page.getByLabel("Required facilities").fill("Projector, Microphone");
+    await page.getByLabel(/^Purpose/).selectOption("Meeting");
+    await page.getByLabel(/^Description/).fill("Created by the PB-02 execution case.");
+    await page.getByLabel(/^Expected attendance/).fill("120");
+    await page.getByLabel(/^Starts/).fill("2026-10-25T10:00");
+    await page.getByLabel(/^Ends/).fill("2026-10-25T12:00");
+    await page.getByLabel(/^Preferred location/).selectOption("Bugis");
+    await page.getByLabel("Room layout").selectOption("Classroom");
+    await page.getByText("Select facilities (0 selected)").click();
+    await page.getByRole("checkbox", { name: "Pantry" }).check();
+    await page.getByRole("checkbox", { name: "Parking" }).check();
     await page.getByLabel("Accessibility needs").fill("Step-free access");
     await page.getByRole("button", { name: "Add equipment" }).click();
     await page.getByLabel("Equipment", { exact: true }).fill("Laptop");
     await page.getByLabel("Quantity", { exact: true }).fill("2");
     await page.getByLabel("Technical notes", { exact: true }).fill("HDMI capable");
     await page.getByLabel("Attendee registration is required").check();
-    await page.getByLabel("Registration opens").fill("2026-09-14T09:00");
-    await page.getByLabel("Registration closes").fill("2026-09-24T18:00");
-    await page.getByLabel("Registration capacity").fill("120");
-    await page.getByLabel("Enable waiting list").check();
     await page.getByRole("button", { name: "Save draft" }).click();
     await expect(page.getByText("Draft updated.")).toBeVisible();
 
@@ -70,12 +66,15 @@ test("PB-02 shared draft journey", async ({ page }) => {
       "link",
       { name: "Continue editing" },
     ).click();
-    await expect(page.getByLabel("Purpose")).toHaveValue(
-      "Verify PB-02 shared persistence",
+    await expect(page.getByLabel(/^Purpose/)).toHaveValue(
+      "Meeting",
     );
-    await expect(page.getByLabel("Expected attendance")).toHaveValue("120");
+    await expect(page.getByLabel(/^Expected attendance/)).toHaveValue("120");
     await expect(page.getByLabel("Equipment", { exact: true })).toHaveValue("Laptop");
-    await expect(page.getByLabel("Enable waiting list")).toBeChecked();
+    await expect(page.getByLabel(/^Preferred location/)).toHaveValue("Bugis");
+    await page.getByText("Select facilities (2 selected)").click();
+    await expect(page.getByRole("checkbox", { name: "Pantry" })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "Parking" })).toBeChecked();
 
     if (evidenceDirectory) {
       await page.screenshot({
