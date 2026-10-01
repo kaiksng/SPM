@@ -46,6 +46,11 @@ vi.mock("@/features/event-requests/services/event-lifecycle", () => ({
   completeEvent: (...args: unknown[]) => completeEventMock(...args),
 }));
 
+// importOriginal below loads the real coordinator-event-edit module (for
+// localDateTime), which imports the Supabase client. Stub the client so the
+// test never needs VITE_SUPABASE_URL — CI's checks job doesn't set it.
+vi.mock("@/lib/supabase-client", () => ({ supabase: {} }));
+
 vi.mock("@/features/event-requests/services/coordinator-event-edit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/features/event-requests/services/coordinator-event-edit")>();
   return {
