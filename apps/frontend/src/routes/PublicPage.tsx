@@ -7,8 +7,6 @@ import {
   Gift,
   MapPin,
   Music,
-  PauseCircle,
-  PlayCircle,
   Search,
   Sparkles,
   Ticket,
@@ -17,35 +15,35 @@ import {
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
+import findEventsImage from "@/assets/hero/find-events.jpg";
+import rsvpFastImage from "@/assets/hero/rsvp-fast.jpg";
+import stayInTheLoopImage from "@/assets/hero/stay-in-the-loop.avif";
 import { useAuth } from "@/context/auth-context";
 import { usePageTitle } from "@/hooks/use-page-title";
 
-const SLIDE_DURATION_MS = 6000;
+const SLIDE_DURATION_MS = 4000;
 
 const heroSlides = [
   {
-    label: "Find events",
     eyebrow: "Welcome to ConnectSphere",
     headlineTop: "FIND YOUR",
     headlineBottom: "NEXT EVENT",
     tagline: "// browse it. book it. show up.",
-    gradient: "from-[#1e3a5f] via-[#2563eb] to-[#93c5fd]",
+    image: findEventsImage,
   },
   {
-    label: "RSVP fast",
     eyebrow: "Never miss out",
     headlineTop: "RSVP IN",
     headlineBottom: "SECONDS",
     tagline: "// one click, you're on the list.",
-    gradient: "from-[#0f2744] via-[#1e40af] to-[#60a5fa]",
+    image: rsvpFastImage,
   },
   {
-    label: "Stay in the loop",
     eyebrow: "All in one place",
     headlineTop: "EVERY EVENT",
     headlineBottom: "ON CAMPUS",
     tagline: "// one place to see what's on.",
-    gradient: "from-[#14325c] via-[#3b82f6] to-[#bfdbfe]",
+    image: stayInTheLoopImage,
   },
 ];
 
@@ -66,15 +64,13 @@ export function PublicPage() {
   const destination = profile ? getRoleDestination(profile.role) : "/login";
 
   const [activeSlide, setActiveSlide] = useState(0);
-  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
-    if (paused) return;
     const timer = setTimeout(() => {
       setActiveSlide((current) => (current + 1) % heroSlides.length);
     }, SLIDE_DURATION_MS);
     return () => clearTimeout(timer);
-  }, [paused, activeSlide]);
+  }, [activeSlide]);
 
   const slide = heroSlides[activeSlide]!;
 
@@ -145,10 +141,17 @@ export function PublicPage() {
         </div>
       </header>
 
-      <section
-        className={`relative isolate overflow-hidden bg-gradient-to-br ${slide.gradient} text-white transition-colors duration-700`}
-      >
-        <div className="mx-auto max-w-6xl px-6 py-20 sm:px-10 sm:py-28">
+      <section className="relative isolate overflow-hidden text-white">
+        <img
+          key={activeSlide}
+          src={slide.image}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ animation: "hero-fade-in 700ms ease-out" }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/55 to-black/25" />
+        <div className="relative mx-auto max-w-6xl px-6 py-20 sm:px-10 sm:py-28">
           <p className="text-xs font-semibold tracking-[0.2em] text-white/70 uppercase">
             {slide.eyebrow}
           </p>
@@ -172,56 +175,6 @@ export function PublicPage() {
             >
               Create an account
             </Link>
-          </div>
-        </div>
-
-        <div className="relative z-10 border-t border-white/15 bg-black/20 backdrop-blur-sm">
-          <div className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-3 sm:px-10">
-            <button
-              type="button"
-              onClick={() => setPaused((current) => !current)}
-              className="shrink-0 text-white/80 transition hover:text-white"
-              aria-label={paused ? "Resume rotation" : "Pause rotation"}
-            >
-              {paused ? (
-                <PlayCircle className="size-5" aria-hidden="true" />
-              ) : (
-                <PauseCircle className="size-5" aria-hidden="true" />
-              )}
-            </button>
-            <div className="flex flex-1 gap-4 overflow-x-auto">
-              {heroSlides.map((item, index) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => setActiveSlide(index)}
-                  className="flex-1 pb-2 text-left whitespace-nowrap"
-                >
-                  <span
-                    className={`text-xs font-medium ${
-                      index === activeSlide ? "text-white" : "text-white/50"
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                  <span className="mt-2 block h-0.5 w-full overflow-hidden rounded-full bg-white/20">
-                    {index === activeSlide ? (
-                      <span
-                        key={activeSlide + (paused ? "-paused" : "-playing")}
-                        className="block h-full w-full origin-left bg-white"
-                        style={
-                          paused
-                            ? undefined
-                            : {
-                                animation: `hero-progress ${SLIDE_DURATION_MS}ms linear forwards`,
-                              }
-                        }
-                      />
-                    ) : null}
-                  </span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       </section>

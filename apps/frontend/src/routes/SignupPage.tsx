@@ -8,10 +8,7 @@ export function SignupPage() {
   usePageTitle("Create account");
 
   return (
-    <AuthSplitScreen
-      headline="Bring your team into one workspace."
-      subcopy="Give organisers, coordinators, and venue staff one shared source of truth for every event."
-    >
+    <AuthSplitScreen>
       <div className="flex flex-col gap-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">

@@ -8,10 +8,7 @@ export function LoginPage() {
   usePageTitle("Sign in");
 
   return (
-    <AuthSplitScreen
-      headline="Coordinate every event, in one place."
-      subcopy="Spend less time chasing approvals over email, and more time running great events."
-    >
+    <AuthSplitScreen>
       <div className="flex flex-col gap-6">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Sign in</h1>
