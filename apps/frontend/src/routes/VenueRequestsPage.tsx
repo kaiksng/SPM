@@ -1,4 +1,4 @@
-import { ClipboardList } from "lucide-react";
+import { Building2, ClipboardList } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
@@ -11,6 +11,7 @@ import {
   type VenueBookingDecision,
   type VenueBookingRequestSummary,
 } from "@/features/venues/services/venue-bookings";
+import { getVenueLayoutImage } from "@/features/venues/utils/venue-layout-image";
 import { ListToolbar } from "@/features/workspace/components/list-toolbar";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
@@ -159,74 +160,90 @@ function RequestCard({
   request: VenueBookingRequestSummary;
   onDecide: (decision: VenueBookingDecision) => void;
 }) {
+  const layoutImage = getVenueLayoutImage(request.venueLayouts);
+
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link
-            to={`/events/${request.eventId}`}
-            className="text-base font-semibold text-slate-950 hover:text-primary"
-          >
-            {request.eventTitle}
-          </Link>
-          <p className="mt-1 text-sm text-slate-600">{request.venueName}</p>
-        </div>
-        <VenueBookingStatusBadge status={request.status} />
-      </div>
-
-      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div>
-          <dt className="text-xs font-medium text-slate-400">Requested period</dt>
-          <dd className="mt-1 text-sm text-slate-800">
-            {dateTimeFormatter.format(new Date(request.startsAt))}
-            {" – "}
-            {dateTimeFormatter.format(new Date(request.endsAt))}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium text-slate-400">Expected attendance</dt>
-          <dd className="mt-1 text-sm text-slate-800">
-            {request.eventExpectedAttendance != null
-              ? `${request.eventExpectedAttendance} attendees`
-              : "Not provided"}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium text-slate-400">Requested by</dt>
-          <dd className="mt-1 text-sm text-slate-800">
-            {request.requestedByName ?? "Unknown coordinator"} ·{" "}
-            {dateTimeFormatter.format(new Date(request.requestedAt))}
-          </dd>
-        </div>
-        {request.status !== "pending" && (
-          <div>
-            <dt className="text-xs font-medium text-slate-400">Decided by</dt>
-            <dd className="mt-1 text-sm text-slate-800">
-              {request.decidedByName ?? "—"}
-              {request.decidedAt && ` · ${dateTimeFormatter.format(new Date(request.decidedAt))}`}
-            </dd>
-          </div>
-        )}
-        {request.decisionNotes && (
-          <div className="sm:col-span-2">
-            <dt className="text-xs font-medium text-slate-400">
-              {request.status === "rejected" ? "Reason for rejection" : "Notes"}
-            </dt>
-            <dd className="mt-1 text-sm text-slate-800">{request.decisionNotes}</dd>
-          </div>
-        )}
-      </dl>
-
-      {request.status === "pending" && (
-        <div className="mt-5 flex justify-end gap-2">
-          <Button size="sm" variant="destructive" onClick={() => onDecide("rejected")}>
-            Reject
-          </Button>
-          <Button size="sm" onClick={() => onDecide("approved")}>
-            Approve
-          </Button>
+    <article className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-6">
+      {layoutImage ? (
+        <img
+          src={layoutImage}
+          alt=""
+          aria-hidden="true"
+          className="hidden size-24 shrink-0 rounded-xl object-cover sm:block"
+        />
+      ) : (
+        <div className="hidden size-24 shrink-0 place-items-center rounded-xl bg-accent sm:grid">
+          <Building2 className="size-6 text-primary" aria-hidden="true" />
         </div>
       )}
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <Link
+              to={`/events/${request.eventId}`}
+              className="text-base font-semibold text-slate-950 hover:text-primary"
+            >
+              {request.eventTitle}
+            </Link>
+            <p className="mt-1 text-sm text-slate-600">{request.venueName}</p>
+          </div>
+          <VenueBookingStatusBadge status={request.status} />
+        </div>
+
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div>
+            <dt className="text-xs font-medium text-slate-400">Requested period</dt>
+            <dd className="mt-1 text-sm text-slate-800">
+              {dateTimeFormatter.format(new Date(request.startsAt))}
+              {" – "}
+              {dateTimeFormatter.format(new Date(request.endsAt))}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-slate-400">Expected attendance</dt>
+            <dd className="mt-1 text-sm text-slate-800">
+              {request.eventExpectedAttendance != null
+                ? `${request.eventExpectedAttendance} attendees`
+                : "Not provided"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs font-medium text-slate-400">Requested by</dt>
+            <dd className="mt-1 text-sm text-slate-800">
+              {request.requestedByName ?? "Unknown coordinator"} ·{" "}
+              {dateTimeFormatter.format(new Date(request.requestedAt))}
+            </dd>
+          </div>
+          {request.status !== "pending" && (
+            <div>
+              <dt className="text-xs font-medium text-slate-400">Decided by</dt>
+              <dd className="mt-1 text-sm text-slate-800">
+                {request.decidedByName ?? "—"}
+                {request.decidedAt && ` · ${dateTimeFormatter.format(new Date(request.decidedAt))}`}
+              </dd>
+            </div>
+          )}
+          {request.decisionNotes && (
+            <div className="sm:col-span-2">
+              <dt className="text-xs font-medium text-slate-400">
+                {request.status === "rejected" ? "Reason for rejection" : "Notes"}
+              </dt>
+              <dd className="mt-1 text-sm text-slate-800">{request.decisionNotes}</dd>
+            </div>
+          )}
+        </dl>
+
+        {request.status === "pending" && (
+          <div className="mt-5 flex justify-end gap-2">
+            <Button size="sm" variant="destructive" onClick={() => onDecide("rejected")}>
+              Reject
+            </Button>
+            <Button size="sm" onClick={() => onDecide("approved")}>
+              Approve
+            </Button>
+          </div>
+        )}
+      </div>
     </article>
   );
 }

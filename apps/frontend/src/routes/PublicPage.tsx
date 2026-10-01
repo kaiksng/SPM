@@ -29,7 +29,7 @@ const heroSlides = [
     headlineTop: "FIND YOUR",
     headlineBottom: "NEXT EVENT",
     tagline: "// browse it. book it. show up.",
-    gradient: "from-[#4a2f6b] via-[#7e57c2] to-[#b39ddb]",
+    gradient: "from-[#1e3a5f] via-[#2563eb] to-[#93c5fd]",
   },
   {
     label: "RSVP fast",
@@ -37,7 +37,7 @@ const heroSlides = [
     headlineTop: "RSVP IN",
     headlineBottom: "SECONDS",
     tagline: "// one click, you're on the list.",
-    gradient: "from-[#2e1a47] via-[#5e3b8c] to-[#9575cd]",
+    gradient: "from-[#0f2744] via-[#1e40af] to-[#60a5fa]",
   },
   {
     label: "Stay in the loop",
@@ -45,7 +45,7 @@ const heroSlides = [
     headlineTop: "EVERY EVENT",
     headlineBottom: "ON CAMPUS",
     tagline: "// one place to see what's on.",
-    gradient: "from-[#3d2a5c] via-[#8667b8] to-[#c9b6e4]",
+    gradient: "from-[#14325c] via-[#3b82f6] to-[#bfdbfe]",
   },
 ];
 
