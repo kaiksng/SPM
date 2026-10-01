@@ -103,14 +103,15 @@ export function VenuesPage() {
   );
 }
 
-/** Case-insensitive substring match on name/location — the search box filters by. */
+/** Case-insensitive substring match on name, address, or tagged area. */
 function filterVenues(venues: VenueSummary[], query: string) {
   const trimmed = query.trim().toLowerCase();
   if (!trimmed) return venues;
   return venues.filter(
     (venue) =>
       venue.name.toLowerCase().includes(trimmed) ||
-      venue.location.toLowerCase().includes(trimmed),
+      venue.location.toLowerCase().includes(trimmed) ||
+      venue.areaTags.some((area) => area.toLowerCase().includes(trimmed)),
   );
 }
 

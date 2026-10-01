@@ -118,7 +118,7 @@ export function VenueEditorPage() {
               {editing ? "Edit venue" : "Add a venue"}
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              Name, location, capacity, facilities and operating hours are required so
+              Name, location, capacity, room layout and operating hours are required so
               coordinators can find and book this venue.
             </p>
           </header>

@@ -33,6 +33,7 @@ function validValues(overrides: Partial<VenueFormValues> = {}): VenueFormValues 
   return {
     name: " Innovation Hall ",
     location: "Block A",
+    areaTags: ["Central Area"],
     capacity: "120",
     operatingHours: [{ days: ["mon", "tue"], opensAt: "09:00", closesAt: "18:00" }],
     facilities: ["Projector"],
@@ -46,6 +47,7 @@ function validValues(overrides: Partial<VenueFormValues> = {}): VenueFormValues 
 const EXPECTED_PAYLOAD = {
   name: "Innovation Hall",
   location: "Block A",
+  area_tags: ["Central Area"],
   capacity: 120,
   operating_hours: HOURS,
   description: null,
@@ -56,6 +58,7 @@ const EXPECTED_PAYLOAD = {
 
 beforeEach(() => {
   fromMock.mockReset();
+  fromMock.mockReturnValue(queryBuilder({ data: [], error: null }));
   rpcMock.mockReset();
   apiFetchMock.mockReset();
 });
@@ -70,6 +73,13 @@ describe("createVenue", () => {
 
   it("rejects invalid values before calling the database", async () => {
     await expect(createVenue(validValues({ capacity: "0" }))).rejects.toThrow();
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("does not claim a venue area was saved before the migration exists", async () => {
+    fromMock.mockReturnValue(queryBuilder({ data: null, error: { code: "42703", message: "column venues.area_tags does not exist" } }));
+
+    await expect(createVenue(validValues())).rejects.toThrow("Venue area tags are not available yet");
     expect(rpcMock).not.toHaveBeenCalled();
   });
 });
@@ -185,12 +195,18 @@ describe.each([
 
     expect(error.message).toBe(GENERIC);
   });
+
+  it("explains when custom layouts need the database migration", async () => {
+    const error = await saveWithError({ code: "22P02", message: 'invalid input value for enum room_layout: "U-shape"' });
+    expect(error.message).toContain("Custom room layouts are not available yet");
+  });
 });
 
 describe("getVenue", () => {
   const row = {
     name: "Innovation Hall",
     location: "Block A",
+    area_tags: ["Central Area"],
     capacity: 120,
     operating_hours: HOURS,
     description: "Big room",
@@ -208,6 +224,7 @@ describe("getVenue", () => {
     await expect(getVenue("venue-1")).resolves.toEqual({
       name: "Innovation Hall",
       location: "Block A",
+      areaTags: ["Central Area"],
       capacity: "120",
       operatingHours: HOURS,
       description: "Big room",
@@ -219,6 +236,15 @@ describe("getVenue", () => {
     });
     expect(fromMock).toHaveBeenCalledWith("venues");
     expect(query.eq).toHaveBeenCalledWith("id", "venue-1");
+  });
+
+  it("opens a venue before the area-tag migration is applied", async () => {
+    fromMock
+      .mockReturnValueOnce(queryBuilder({ data: null, error: { code: "42703", message: "column venues.area_tags does not exist" } }))
+      .mockReturnValueOnce(queryBuilder({ data: (({ area_tags: _tags, ...legacy }) => legacy)(row), error: null }));
+
+    await expect(getVenue("venue-1")).resolves.toMatchObject({ areaTags: [], name: "Innovation Hall" });
+    expect(fromMock).toHaveBeenCalledTimes(2);
   });
 
   it("turns null optional text into empty strings and a missing updater into null", async () => {
@@ -298,6 +324,7 @@ describe("listVenues", () => {
     id: "venue-1",
     name: "Innovation Hall",
     location: "Block A",
+    area_tags: ["Central Area"],
     capacity: 120,
     operating_hours: HOURS,
     description: null,
@@ -318,6 +345,7 @@ describe("listVenues", () => {
         id: "venue-1",
         name: "Innovation Hall",
         location: "Block A",
+        areaTags: ["Central Area"],
         capacity: 120,
         operatingHours: HOURS,
         description: null,
@@ -330,6 +358,15 @@ describe("listVenues", () => {
       },
     ]);
     expect(query.order).toHaveBeenCalledWith("updated_at", { ascending: false });
+  });
+
+  it("loads the catalogue before the area-tag migration is applied", async () => {
+    fromMock
+      .mockReturnValueOnce(queryBuilder({ data: null, error: { code: "42703", message: "column venues.area_tags does not exist" } }))
+      .mockReturnValueOnce(queryBuilder({ data: [(({ area_tags: _tags, ...legacy }) => legacy)(row)], error: null }));
+
+    await expect(listVenues()).resolves.toMatchObject([{ areaTags: [], name: "Innovation Hall" }]);
+    expect(fromMock).toHaveBeenCalledTimes(2);
   });
 
   it("reports no updater for a venue nobody has edited", async () => {
@@ -372,6 +409,7 @@ describe("listSuggestedVenues", () => {
         id: "venue-1",
         name: "Innovation Hall",
         location: "Block A",
+        areaTags: [],
         capacity: 120,
         operatingHours: HOURS,
         description: "Big room",

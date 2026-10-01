@@ -42,6 +42,16 @@ describe("RoomLayoutsEditor", () => {
     expect(onChange).toHaveBeenCalledWith(["Banquet"]);
   });
 
+  it("lets Venue Staff add a new named layout", async () => {
+    const user = userEvent.setup();
+    render(<RoomLayoutsEditor value={["Theatre"]} onChange={onChange} />);
+
+    await user.type(screen.getByRole("textbox", { name: "New room layout" }), "U-shape");
+    await user.click(screen.getByRole("button", { name: "Add layout" }));
+
+    expect(onChange).toHaveBeenCalledWith(["Theatre", "U-shape"]);
+  });
+
   it.each([
     [true, "border-red-600"],
     [false, "border-slate-200"],

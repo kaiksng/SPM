@@ -61,12 +61,12 @@ test("PB-03 shared submission journey", async ({ page }) => {
     ).toBeVisible();
 
     // Complete every mandatory field, then submit successfully.
-    await page.getByLabel("Purpose").fill("Verify PB-03 shared submission");
-    await page.getByLabel("Description").fill("Created by the PB-03 execution case.");
-    await page.getByLabel("Expected attendance").fill("120");
-    await page.getByLabel("Starts").fill("2099-01-01T10:00");
-    await page.getByLabel("Ends").fill("2099-01-01T12:00");
-    await page.getByLabel("Preferred location").fill("Seminar Room");
+    await page.getByLabel(/^Purpose/).selectOption("Meeting");
+    await page.getByLabel(/^Description/).fill("Created by the PB-03 execution case.");
+    await page.getByLabel(/^Expected attendance/).fill("120");
+    await page.getByLabel(/^Starts/).fill("2099-01-01T10:00");
+    await page.getByLabel(/^Ends/).fill("2099-01-01T12:00");
+    await page.getByLabel(/^Preferred location/).selectOption("Bugis");
     await page
       .getByLabel(/Each optional requirement above is provided/)
       .check();
@@ -97,7 +97,7 @@ test("PB-03 shared submission journey", async ({ page }) => {
 
     // AC07: the organiser can still correct a Requested event before approval.
     await requestCard.getByRole("link", { name: "Edit request" }).click();
-    await page.getByLabel("Expected attendance").fill("130");
+    await page.getByLabel(/^Expected attendance/).fill("130");
     await page.getByRole("button", { name: "Save draft" }).click();
     await expect(page.getByText("Draft updated.")).toBeVisible();
     await expect(

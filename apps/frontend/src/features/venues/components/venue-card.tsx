@@ -62,8 +62,14 @@ export function VenueCard({
         </h2>
         <div className="mt-2 flex items-center gap-2 text-sm text-slate-500">
           <MapPin className="size-4 shrink-0" aria-hidden="true" />
-          {venue.location}
+          {venue.areaTags?.[0] ?? venue.location}
         </div>
+        {venue.areaTags?.[0] && venue.location !== venue.areaTags[0] && (
+          <p className="mt-1 text-xs text-slate-500">
+            Address: {venue.location}
+          </p>
+        )}
+        {canManageVenues && !venue.areaTags?.length && <p className="mt-1 text-xs text-amber-700">Location not selected yet</p>}
         <div className="mt-1 flex items-center gap-2 text-sm text-slate-500">
           <Users className="size-4 shrink-0" aria-hidden="true" />
           Capacity: {venue.capacity}

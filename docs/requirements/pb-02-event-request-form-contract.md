@@ -37,3 +37,9 @@ The canonical TypeScript contract is `EventRequestFormValues` in `packages/share
 | Submit (PB-03) | Reuses the fields and draft rules, requires the Week 4 core event details and at least one venue requirement, and changes the request from `draft` to `requested`. Optional requirement sections may remain blank. See `docs/requirements/pb-03-submit-event-request-contract.md`. |
 
 Blank optional number fields remain empty strings in the form and become database `null` values. Dates become ISO timestamps only at the persistence boundary. The browser never receives or uses a Supabase service-role key.
+
+## Dropdown update (1 October 2026)
+
+Purpose uses 20 shared choices, Preferred Location uses 67 shared Singapore areas, and Required Facilities is a multi-select of 11 venue amenities. Equipment remains its own section. Draft saving remains permissive: a new draft needs only an event name. Existing free-text purpose, location, and facility values are shown when a saved draft reopens, so the organiser can retain or replace them without losing data. The shared choice definitions are in `packages/shared/src/types/event-choices.ts`.
+
+Room layout choices include the standard set and additional layouts saved by Venue Staff in the venue catalogue. A saved custom layout remains selectable when the draft reopens.

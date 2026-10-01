@@ -1,7 +1,8 @@
 import {
   EventSubmissionError,
+  EVENT_PURPOSE_OPTIONS,
+  LOCATION_AREAS,
   eventDraftSchema,
-  ROOM_LAYOUT_TYPES,
   type EventRequestFormValues,
   type RoomLayoutType,
 } from "@spm/shared";
@@ -10,7 +11,9 @@ import { useState } from "react";
 import type { ZodType } from "zod";
 
 import { Button } from "@/components/ui/button";
+import { AmenityPicker } from "@/components/ui/amenity-picker";
 import { Input } from "@/components/ui/input";
+import { useRoomLayoutOptions } from "@/features/venues/hooks/use-room-layout-options";
 import { cn } from "@/lib/utils";
 
 type FieldErrors = Record<string, string>;
@@ -45,14 +48,7 @@ export function EventRequestForm({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [message, setMessage] = useState<string>();
   const [pendingAction, setPendingAction] = useState<"save" | "submit">();
-  // Required facilities is typed as free text and only turned into a list on
-  // save — keeping the input's displayed value as whatever was actually
-  // typed, rather than re-deriving it from values.venue.facilities.join(", ")
-  // on every keystroke, which used to insert a space after each comma the
-  // user hadn't typed themselves.
-  const [facilitiesText, setFacilitiesText] = useState(() =>
-    initialValues.venue.facilities.join(", "),
-  );
+  const roomLayouts = useRoomLayoutOptions();
 
   const isLocked = (field: string) => {
     if (permittedFields === undefined) return false;
@@ -202,14 +198,20 @@ export function EventRequestForm({
           error={errors.purpose}
           className="sm:col-span-2"
         >
-          <TextArea
+          <select
             name="purpose"
             value={values.purpose}
             onChange={(event) => setRoot("purpose", event.target.value)}
-            placeholder="What should this event achieve?"
-            rows={3}
+            aria-invalid={Boolean(errors.purpose)}
             disabled={isLocked("purpose")}
-          />
+            className="border-input h-9 w-full rounded-lg border bg-white px-2.5 text-sm focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <option value="">Select a purpose</option>
+            {values.purpose && !EVENT_PURPOSE_OPTIONS.includes(values.purpose as typeof EVENT_PURPOSE_OPTIONS[number]) && (
+              <option value={values.purpose}>{values.purpose} (previously saved)</option>
+            )}
+            {EVENT_PURPOSE_OPTIONS.map((purpose) => <option key={purpose} value={purpose}>{purpose}</option>)}
+          </select>
         </Field>
         <Field
           label="Description"
@@ -265,12 +267,19 @@ export function EventRequestForm({
           required="At least one venue detail is required"
           error={errors["venue.preferredLocation"]}
         >
-          <Input
+          <select
             value={values.venue.preferredLocation}
             onChange={(event) => setVenue("preferredLocation", event.target.value)}
-            placeholder="Building, campus area or neighbourhood"
+            aria-invalid={Boolean(errors["venue.preferredLocation"])}
             disabled={venueLocked}
-          />
+            className="border-input h-9 w-full rounded-lg border bg-white px-2.5 text-sm focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <option value="">No preference</option>
+            {values.venue.preferredLocation && !LOCATION_AREAS.includes(values.venue.preferredLocation as typeof LOCATION_AREAS[number]) && (
+              <option value={values.venue.preferredLocation}>{values.venue.preferredLocation} (previously saved)</option>
+            )}
+            {LOCATION_AREAS.map((area) => <option key={area} value={area}>{area}</option>)}
+          </select>
         </Field>
         <Field label="Room layout" error={errors["venue.layoutNotes"]}>
           <select
@@ -289,37 +298,24 @@ export function EventRequestForm({
             )}
           >
             <option value="">No preference</option>
-            {ROOM_LAYOUT_TYPES.map((layout) => (
+            {values.venue.layoutNotes && !roomLayouts.includes(values.venue.layoutNotes) && (
+              <option value={values.venue.layoutNotes}>{values.venue.layoutNotes}</option>
+            )}
+            {roomLayouts.map((layout) => (
               <option key={layout} value={layout} className="text-foreground">
                 {layout}
               </option>
             ))}
           </select>
         </Field>
-        <Field
+        <AmenityPicker
           label="Required facilities"
+          value={values.venue.facilities}
+          onChange={(facilities) => setVenue("facilities", facilities)}
+          disabled={venueLocked}
           error={errors["venue.facilities"]}
           className="sm:col-span-2"
-        >
-          <Input
-            value={facilitiesText}
-            onChange={(event) => {
-              const text = event.target.value;
-              setFacilitiesText(text);
-              setVenue(
-                "facilities",
-                text
-                  .split(",")
-                  .map((facility) => facility.trim())
-                  .filter(Boolean),
-              );
-            }}
-            placeholder="Stage, pantry, writable wall"
-            aria-invalid={Boolean(errors["venue.facilities"])}
-            disabled={venueLocked}
-          />
-          <p className="mt-1 text-xs text-slate-500">Separate facilities with commas.</p>
-        </Field>
+        />
         <Field
           label="Accessibility needs"
           error={errors["venue.accessibilityNotes"]}

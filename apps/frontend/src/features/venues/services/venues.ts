@@ -27,6 +27,7 @@ export type VenueSummary = {
   id: string;
   name: string;
   location: string;
+  areaTags: string[];
   capacity: number;
   operatingHours: OperatingHours;
   description: string | null;
@@ -54,14 +55,19 @@ function operationError(message: string) {
   return new Error(message);
 }
 
+function isMissingAreaTags(error: PostgrestError | null): boolean {
+  return error?.code === "42703" && error.message.includes("venues.area_tags");
+}
+
 export async function listVenues(): Promise<VenueSummary[]> {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("venues")
     .select(
       `
         id,
         name,
         location,
+        area_tags,
         capacity,
         operating_hours,
         description,
@@ -75,13 +81,31 @@ export async function listVenues(): Promise<VenueSummary[]> {
     )
     .order("updated_at", { ascending: false });
 
-  if (error) throw operationError("We couldn't load the venue catalogue.");
+  // Keep the catalogue readable while the database owner applies the area
+  // migration. Only this known missing-column error gets a legacy retry.
+  if (isMissingAreaTags(error)) {
+    const legacy = await supabase
+      .from("venues")
+      .select(`
+        id, name, location, capacity, operating_hours, description,
+        accessibility_notes, updated_at,
+        updated_by_profile:profiles!venues_updated_by_fkey (full_name),
+        venue_facilities (facility_name), venue_layouts (layout_name),
+        venue_bookings (needs_review)
+      `)
+      .order("updated_at", { ascending: false });
+    data = legacy.data?.map((venue) => ({ ...venue, area_tags: [] })) ?? null;
+    error = legacy.error;
+  }
+
+  if (error || !data) throw operationError("We couldn't load the venue catalogue.");
 
   return data.map(
     (venue): VenueSummary => ({
       id: venue.id,
       name: venue.name,
       location: venue.location,
+      areaTags: venue.area_tags,
       capacity: venue.capacity,
       operatingHours: venue.operating_hours as unknown as OperatingHours,
       description: venue.description,
@@ -148,6 +172,7 @@ export async function listSuggestedVenues(eventId: string): Promise<VenueSummary
       id: venue.id,
       name: venue.name,
       location: venue.location,
+      areaTags: [],
       capacity: venue.capacity,
       operatingHours: venue.operating_hours as unknown as OperatingHours,
       description: venue.description,
@@ -163,12 +188,13 @@ export async function listSuggestedVenues(eventId: string): Promise<VenueSummary
 }
 
 export async function getVenue(venueId: string): Promise<VenueDetail> {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("venues")
     .select(
       `
         name,
         location,
+        area_tags,
         capacity,
         operating_hours,
         description,
@@ -182,6 +208,21 @@ export async function getVenue(venueId: string): Promise<VenueDetail> {
     .eq("id", venueId)
     .maybeSingle();
 
+  if (isMissingAreaTags(error)) {
+    const legacy = await supabase
+      .from("venues")
+      .select(`
+        name, location, capacity, operating_hours, description,
+        accessibility_notes, updated_at,
+        updated_by_profile:profiles!venues_updated_by_fkey (full_name),
+        venue_facilities (facility_name), venue_layouts (layout_name)
+      `)
+      .eq("id", venueId)
+      .maybeSingle();
+    data = legacy.data ? { ...legacy.data, area_tags: [] } : null;
+    error = legacy.error;
+  }
+
   if (error || !data) {
     throw operationError(
       "This venue is unavailable or you do not have access to it.",
@@ -190,7 +231,8 @@ export async function getVenue(venueId: string): Promise<VenueDetail> {
 
   return {
     name: data.name,
-    location: data.location,
+    location: data.area_tags.includes(data.location) ? "" : data.location,
+    areaTags: data.area_tags.slice(0, 1),
     capacity: data.capacity.toString(),
     operatingHours: data.operating_hours as unknown as OperatingHours,
     description: data.description ?? "",
@@ -239,6 +281,7 @@ export async function listAtRiskBookings(
 
 export async function createVenue(values: VenueFormValues) {
   const parsed = venueFormSchema.parse(values);
+  await ensureAreaTagsAvailable();
   const { data, error } = await supabase.rpc("create_venue", {
     p_venue: toVenuePayload(parsed),
   });
@@ -249,6 +292,7 @@ export async function createVenue(values: VenueFormValues) {
 
 export async function updateVenue(venueId: string, values: VenueFormValues) {
   const parsed = venueFormSchema.parse(values);
+  await ensureAreaTagsAvailable();
   const { data, error } = await supabase.rpc("update_venue", {
     p_venue_id: venueId,
     p_venue: toVenuePayload(parsed),
@@ -256,6 +300,18 @@ export async function updateVenue(venueId: string, values: VenueFormValues) {
 
   if (error) throw mapVenueRpcError(error);
   return data as { venueId: string; flaggedBookingsCount: number };
+}
+
+async function ensureAreaTagsAvailable() {
+  const { error } = await supabase.from("venues").select("area_tags").limit(0);
+  if (isMissingAreaTags(error)) {
+    throw new EventSubmissionError(
+      "Venue area tags are not available yet. Ask the database owner to apply the venue-area migration before saving.",
+    );
+  }
+  if (error) {
+    throw new EventSubmissionError("Could not check venue area tags. Try again.");
+  }
 }
 
 /**
@@ -294,6 +350,12 @@ function mapVenueRpcError(error: PostgrestError): EventSubmissionError {
 
   if (error.code === "42501") {
     return new EventSubmissionError(error.message);
+  }
+
+  if (error.code === "22P02" && error.message.includes("room_layout")) {
+    return new EventSubmissionError(
+      "Custom room layouts are not available yet. Ask the database owner to apply the custom-layout migration before saving.",
+    );
   }
 
   return new EventSubmissionError(

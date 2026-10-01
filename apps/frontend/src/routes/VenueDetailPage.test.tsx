@@ -122,6 +122,14 @@ describe("VenueDetailPage", () => {
     expect(screen.getByText("Open Floor")).toBeInTheDocument();
   });
 
+  it("shows the selected location and a separate saved address", async () => {
+    getVenueMock.mockResolvedValue({ ...venue, areaTags: ["Bugis"], location: "1 Beach Road" });
+    renderPage("/venues/venue-1");
+
+    expect(await screen.findByText("Bugis")).toBeInTheDocument();
+    expect(screen.getByText("1 Beach Road")).toBeInTheDocument();
+  });
+
   it("does not offer to request a venue without a forEvent param", async () => {
     renderPage("/venues/venue-1");
 

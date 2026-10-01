@@ -39,6 +39,10 @@ but are not requested from organisers in this workflow.
 
 `public.submit_event_request` re-validates the same rules against the stored row and raises `check_violation` (`23514`) with a `detail` payload of `{field, message}[]` covering every failing field, matching the zod issue paths so the frontend highlights fields identically whether the failure was local or server-side.
 
+## Dropdown update (1 October 2026)
+
+The submission form presents Purpose and Preferred Location as single-select choices and Required Facilities as a multi-select of venue amenities. These retain the existing `purpose`, `preferredLocation`, and `facilities` storage fields. A blank facilities selection remains valid where other venue requirements are supplied. Previously saved free-text values remain selectable when a request is reopened; submission validation and history keep the stored values rather than silently rewriting them.
+
 ## Validation responsibility
 
 | Layer | Responsibility |

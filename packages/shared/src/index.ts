@@ -2,6 +2,7 @@ export * from "./types/database.types";
 export * from "./types/role";
 export * from "./types/event";
 export * from "./types/venue";
+export * from "./types/event-choices";
 
 export * from "./schemas/login";
 export * from "./schemas/signup";

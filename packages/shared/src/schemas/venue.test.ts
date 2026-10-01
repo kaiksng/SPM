@@ -11,6 +11,7 @@ function validValues(overrides: Partial<VenueFormValues> = {}): VenueFormValues 
   return {
     name: "Innovation Hall",
     location: "Block A, Level 2",
+    areaTags: ["Central Area"],
     capacity: "120",
     operatingHours: [{ days: ["mon", "tue", "wed"], opensAt: "09:00", closesAt: "18:00" }],
     facilities: ["Projector", "Stage"],
@@ -42,10 +43,9 @@ describe("venueFormSchema", () => {
     expect(Object.keys(errors)).toEqual(
       expect.arrayContaining([
         "name",
-        "location",
         "capacity",
         "operatingHours.0.days",
-        "facilities",
+        "areaTags",
         "layouts",
       ]),
     );
@@ -73,10 +73,10 @@ describe("venueFormSchema", () => {
     });
   });
 
-  describe("location", () => {
+  describe("optional address", () => {
     it.each([
-      ["blank", "", false],
-      ["only spaces", "   ", false],
+      ["blank", "", true],
+      ["only spaces", "   ", true],
       ["1 character", "A", true],
       ["240 characters", "a".repeat(240), true],
       ["241 characters", "a".repeat(241), false],
@@ -84,10 +84,9 @@ describe("venueFormSchema", () => {
       expect(fieldErrors(validValues({ location })).location === undefined).toBe(valid);
     });
 
-    it("explains a missing location", () => {
-      expect(fieldErrors(validValues({ location: "" })).location).toBe(
-        "Enter the venue location",
-      );
+    it("requires one standard location choice", () => {
+      expect(fieldErrors(validValues({ areaTags: [] })).areaTags).toBe("Select a location");
+      expect(fieldErrors(validValues({ areaTags: ["Old Campus"] })).areaTags).toBeDefined();
     });
   });
 
@@ -186,7 +185,6 @@ describe("venueFormSchema", () => {
 
   describe("facilities", () => {
     it.each([
-      ["none", [], "Add at least one facility"],
       ["31 facilities", Array.from({ length: 31 }, (_, i) => `F${i}`), "Add no more than 30 facilities"],
     ])("rejects %s", (_label, facilities, message) => {
       expect(fieldErrors(validValues({ facilities })).facilities).toBe(message);
@@ -198,6 +196,10 @@ describe("venueFormSchema", () => {
       ["a 120-character facility", ["a".repeat(120)]],
     ])("accepts %s", (_label, facilities) => {
       expect(fieldErrors(validValues({ facilities }))).toEqual({});
+    });
+
+    it("allows a venue without listed amenities", () => {
+      expect(fieldErrors(validValues({ facilities: [] }))).toEqual({});
     });
 
     it.each([
@@ -222,10 +224,9 @@ describe("venueFormSchema", () => {
       ).toEqual({});
     });
 
-    it("rejects a layout outside the fixed list", () => {
-      expect(
-        fieldErrors(validValues({ layouts: ["Cabaret"] as never }))["layouts.0"],
-      ).toBeDefined();
+    it("accepts a custom layout and rejects an empty name", () => {
+      expect(fieldErrors(validValues({ layouts: ["Cabaret"] }))).toEqual({});
+      expect(fieldErrors(validValues({ layouts: ["   "] }))["layouts.0"]).toBeDefined();
     });
   });
 
@@ -265,6 +266,7 @@ describe("toVenuePayload", () => {
     ).toEqual({
       name: "Innovation Hall",
       location: "Block A",
+      area_tags: ["Central Area"],
       capacity: 120,
       operating_hours: [{ days: ["mon", "tue", "wed"], opensAt: "09:00", closesAt: "18:00" }],
       description: "Big room",
@@ -283,5 +285,9 @@ describe("toVenuePayload", () => {
 
   it("converts capacity to a number", () => {
     expect(toVenuePayload(validValues({ capacity: "45" })).capacity).toBe(45);
+  });
+
+  it("uses the selected location when no separate address is entered", () => {
+    expect(toVenuePayload(validValues({ location: "", areaTags: ["Bugis"] })).location).toBe("Bugis");
   });
 });

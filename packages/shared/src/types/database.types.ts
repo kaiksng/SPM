@@ -874,19 +874,19 @@ export type Database = {
       venue_layouts: {
         Row: {
           id: string
-          layout_name: Database["public"]["Enums"]["room_layout"]
+          layout_name: string
           max_capacity: number | null
           venue_id: string
         }
         Insert: {
           id?: string
-          layout_name: Database["public"]["Enums"]["room_layout"]
+          layout_name: string
           max_capacity?: number | null
           venue_id: string
         }
         Update: {
           id?: string
-          layout_name?: Database["public"]["Enums"]["room_layout"]
+          layout_name?: string
           max_capacity?: number | null
           venue_id?: string
         }
@@ -948,6 +948,7 @@ export type Database = {
       venues: {
         Row: {
           accessibility_notes: string | null
+          area_tags: string[]
           capacity: number
           created_at: string
           description: string | null
@@ -960,6 +961,7 @@ export type Database = {
         }
         Insert: {
           accessibility_notes?: string | null
+          area_tags?: string[]
           capacity: number
           created_at?: string
           description?: string | null
@@ -972,6 +974,7 @@ export type Database = {
         }
         Update: {
           accessibility_notes?: string | null
+          area_tags?: string[]
           capacity?: number
           created_at?: string
           description?: string | null
