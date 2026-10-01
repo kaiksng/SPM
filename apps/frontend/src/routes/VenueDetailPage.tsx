@@ -1,5 +1,5 @@
 import { formatOperatingHours, hasPermission } from "@spm/shared";
-import { ArrowLeft, CalendarClock, Ban } from "lucide-react";
+import { ArrowLeft, Ban, Building2, CalendarClock } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 
@@ -9,6 +9,7 @@ import { loadEventDetail, type EventDetail } from "@/features/event-requests/ser
 import { getActiveVenueBooking, submitVenueBookingRequest } from "@/features/venues/services/venue-bookings";
 import { searchAvailableVenues } from "@/features/venues/services/venue-search";
 import { eventSearchDefaults } from "@/features/venues/components/manual-venue-search";
+import { getVenueLayoutImage } from "@/features/venues/utils/venue-layout-image";
 import {
   getVenue,
   VENUE_AVAILABILITY_LABELS,
@@ -166,7 +167,22 @@ export function VenueDetailPage() {
             </section>
           ) : (
             <div className="mt-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              {(() => {
+                const layoutImage = getVenueLayoutImage(venue.layouts);
+                return layoutImage ? (
+                  <img
+                    src={layoutImage}
+                    alt=""
+                    aria-hidden="true"
+                    className="h-56 w-full rounded-2xl object-cover sm:h-64"
+                  />
+                ) : (
+                  <div className="grid h-56 w-full place-items-center rounded-2xl bg-accent sm:h-64">
+                    <Building2 className="size-10 text-primary" aria-hidden="true" />
+                  </div>
+                );
+              })()}
+              <div className="mt-6 flex flex-wrap items-start justify-between gap-3">
                 <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950">
                   {venue.name}
                 </h1>

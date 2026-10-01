@@ -90,6 +90,7 @@ export type VenueBookingRequestSummary = {
   decisionNotes: string | null;
   venueId: string;
   venueName: string;
+  venueLayouts: string[];
   eventId: string;
   eventTitle: string;
   eventExpectedAttendance: number | null;
@@ -106,7 +107,7 @@ const VENUE_BOOKING_REQUEST_SELECT = `
   decided_at,
   decision_notes,
   venue_id,
-  venues (name),
+  venues (name, venue_layouts (layout_name)),
   event_id,
   events (title, expected_attendance),
   requested_by:profiles!venue_bookings_requested_by_fkey (full_name),
@@ -123,7 +124,7 @@ function toVenueBookingRequestSummary(
     decided_at: string | null;
     decision_notes: string | null;
     venue_id: string;
-    venues: { name: string } | null;
+    venues: { name: string; venue_layouts: { layout_name: string }[] } | null;
     event_id: string;
     events: { title: string; expected_attendance: number | null } | null;
     requested_by: { full_name: string } | null;
@@ -140,6 +141,7 @@ function toVenueBookingRequestSummary(
     decisionNotes: row.decision_notes,
     venueId: row.venue_id,
     venueName: row.venues?.name ?? "Unknown venue",
+    venueLayouts: (row.venues?.venue_layouts ?? []).map((layout) => layout.layout_name),
     eventId: row.event_id,
     eventTitle: row.events?.title ?? "Unknown event",
     eventExpectedAttendance: row.events?.expected_attendance ?? null,
