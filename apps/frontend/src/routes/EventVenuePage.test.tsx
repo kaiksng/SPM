@@ -31,6 +31,12 @@ vi.mock("@/features/venues/services/venues", () => ({
   listSuggestedVenues: (...args: unknown[]) => listSuggestedVenuesMock(...args),
 }));
 
+// Imported by ManualVenueSearch inside SuggestedVenuesPanel. Unmocked, it
+// loads the real Supabase client, which throws without VITE_SUPABASE_URL.
+vi.mock("@/features/venues/services/venue-search", () => ({
+  searchAvailableVenues: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
 
 import { EventVenuePage } from "./EventVenuePage";

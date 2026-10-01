@@ -41,8 +41,11 @@ describe("SignupForm", () => {
 
     await user.click(screen.getByRole("combobox", { name: "Role" }));
 
+    // Base UI's Select mounts its options in a portal after positioning, a
+    // frame or more after the click — findByRole waits for them, getByRole
+    // checked once and failed intermittently on a loaded CI runner.
     expect(
-      screen.getByRole("option", { name: "Event organiser" }),
+      await screen.findByRole("option", { name: "Event organiser" }, { timeout: 3000 }),
     ).toBeInTheDocument();
   });
 
