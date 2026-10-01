@@ -498,6 +498,125 @@ export type Database = {
         }
         Returns: boolean
       }
+<<<<<<< Updated upstream
+=======
+      auto_reassign_event_coordinator: {
+        Args: { p_actor_id?: string; p_event_id: string; p_reason: string }
+        Returns: Json
+      }
+      list_auto_event_coordinator_reassignments: {
+        Args: { p_event_id: string }
+        Returns: {
+          changed_at: string
+          id: number
+          new_coordinator_id: string
+          new_coordinator_name: string | null
+          previous_coordinator_id: string
+          previous_coordinator_name: string | null
+          reason: string | null
+        }[]
+      }
+      find_matching_venues: {
+        Args: { p_event_id: string }
+        Returns: {
+          accessibility_notes: string
+          availability_status: string
+          capacity: number
+          description: string
+          facilities: string[]
+          id: string
+          location: string
+          name: string
+          operating_hours: Json
+          updated_at: string
+        }[]
+      }
+      create_venue_block: {
+        Args: { p_venue_id: string; p_reason: string; p_starts_at: string; p_ends_at: string }
+        Returns: string
+      }
+      remove_venue_block: {
+        Args: { p_block_id: string }
+        Returns: string
+      }
+      search_available_venues: {
+        Args: {
+          p_event_id: string
+          p_starts_at: string
+          p_ends_at: string
+          p_min_capacity: number
+          p_location?: string | null
+          p_layout?: string | null
+          p_facilities?: string[]
+          p_accessibility?: string | null
+        }
+        Returns: {
+          id: string
+          name: string
+          location: string
+          capacity: number
+          operating_hours: Json
+          description: string | null
+          accessibility_notes: string | null
+          updated_at: string
+          facilities: string[]
+          layouts: string[]
+        }[]
+      }
+      request_event_clarification: {
+        Args: {
+          p_actor_id?: string
+          p_event_id: string
+          p_permitted_fields?: string[]
+          p_question: string
+        }
+        Returns: Json
+      }
+      resolve_event_clarification: {
+        Args: { p_actor_id?: string; p_clarification_id: string }
+        Returns: Json
+      }
+      respond_event_clarification: {
+        Args: {
+          p_actor_id?: string
+          p_clarification_id: string
+          p_response: string
+        }
+        Returns: Json
+      }
+      save_event_draft: {
+        Args: { draft: Json; target_event_id?: string }
+        Returns: string
+      }
+      submit_event_request: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: Json
+      }
+      submit_venue_booking_request: {
+        Args: { p_event_id: string; p_venue_id: string }
+        Returns: string
+      }
+      update_event_as_coordinator: {
+        Args: { p_event_id: string; updates: Json }
+        Returns: string
+      }
+      update_venue: {
+        Args: { p_actor_id?: string; p_venue: Json; p_venue_id: string }
+        Returns: Json
+      }
+      validate_operating_hours: {
+        Args: { p_operating_hours: Json }
+        Returns: string
+      }
+      venue_booking_fits_operating_hours: {
+        Args: { p_ends_at: string; p_starts_at: string; p_venue_id: string }
+        Returns: boolean
+      }
+      withdraw_venue_booking_request: {
+        Args: { p_booking_id: string }
+        Returns: string
+      }
+>>>>>>> Stashed changes
     }
     Enums: {
       clarification_status: "open" | "answered" | "resolved"
