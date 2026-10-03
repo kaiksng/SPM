@@ -1148,6 +1148,22 @@ export type Database = {
         Args: { p_booking_id: string }
         Returns: string
       }
+      auto_reassign_event_coordinator: {
+        Args: { p_actor_id?: string; p_event_id: string; p_reason: string }
+        Returns: Json
+      }
+      list_auto_event_coordinator_reassignments: {
+        Args: { p_event_id: string }
+        Returns: {
+          changed_at: string
+          id: number
+          new_coordinator_id: string
+          new_coordinator_name: string | null
+          previous_coordinator_id: string
+          previous_coordinator_name: string | null
+          reason: string | null
+        }[]
+      }
     }
     Enums: {
       clarification_status: "open" | "answered" | "resolved"
