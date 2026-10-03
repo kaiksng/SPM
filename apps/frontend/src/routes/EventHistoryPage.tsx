@@ -20,6 +20,10 @@ import {
   type EventStatusChange,
 } from "@/features/event-requests/services/event-lifecycle";
 import {
+  listEventCoordinatorReassignments,
+  type EventCoordinatorReassignment,
+} from "@/features/event-requests/services/event-reassignment";
+import {
   loadEventFieldHistory,
   type EventFieldChange,
 } from "@/features/event-requests/services/field-history";
@@ -48,6 +52,7 @@ export function EventHistoryPage() {
   const [clarifications, setClarifications] = useState<ClarificationSummary[]>([]);
   const [fieldChanges, setFieldChanges] = useState<EventFieldChange[]>([]);
   const [statusHistory, setStatusHistory] = useState<EventStatusChange[]>([]);
+  const [reassignments, setReassignments] = useState<EventCoordinatorReassignment[]>([]);
   const [approvedAt, setApprovedAt] = useState<string>();
   const [event, setEvent] = useState<EventDetail>();
   const [error, setError] = useState<string>();
@@ -65,14 +70,18 @@ export function EventHistoryPage() {
       loadEventFieldHistory(eventId).catch(() => [] as EventFieldChange[]),
       listEventDecisions(eventId).catch(() => []),
       listEventStatusHistory(eventId).catch(() => [] as EventStatusChange[]),
+      listEventCoordinatorReassignments(eventId).catch(
+        () => [] as EventCoordinatorReassignment[],
+      ),
     ])
-      .then(([eventDetail, clarificationRows, fieldChangeRows, decisions, statusRows]) => {
+      .then(([eventDetail, clarificationRows, fieldChangeRows, decisions, statusRows, reassignmentRows]) => {
         if (!active) return;
         setEvent(eventDetail);
         setClarifications(clarificationRows);
         setFieldChanges(fieldChangeRows);
         setApprovedAt(decisions.find((d) => d.decision === "approved")?.decidedAt);
         setStatusHistory(statusRows);
+        setReassignments(reassignmentRows);
       })
       .catch((loadError: unknown) => {
         if (active) {
@@ -144,6 +153,16 @@ export function EventHistoryPage() {
                   </ol>
                 )}
               </HistorySection>
+
+              {reassignments.length > 0 && (
+                <HistorySection title="Reassignments">
+                  <ol className="space-y-2">
+                    {reassignments.map((reassignment) => (
+                      <ReassignmentItem key={reassignment.id} reassignment={reassignment} />
+                    ))}
+                  </ol>
+                </HistorySection>
+              )}
 
               <HistorySection title="Pre-Approved">
                 {clarifications.length === 0 ? (
@@ -284,6 +303,27 @@ function FieldChangeItem({ change }: { change: EventFieldChange }) {
           {formatEventFieldChangeValue(change.fieldName, change.newValue)}
         </span>
       </p>
+    </li>
+  );
+}
+
+function ReassignmentItem({ reassignment }: { reassignment: EventCoordinatorReassignment }) {
+  return (
+    <li className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span className="font-medium text-slate-800">
+          Reassigned to {reassignment.newCoordinatorName ?? "an Event Coordinator"}
+        </span>
+        <span className="text-xs text-slate-500">
+          {dateFormatter.format(new Date(reassignment.changedAt))}
+        </span>
+      </div>
+      {reassignment.previousCoordinatorName && (
+        <p className="mt-1 text-slate-500">From {reassignment.previousCoordinatorName}</p>
+      )}
+      {reassignment.reason && (
+        <p className="mt-1 text-slate-600">Reason: "{reassignment.reason}"</p>
+      )}
     </li>
   );
 }
