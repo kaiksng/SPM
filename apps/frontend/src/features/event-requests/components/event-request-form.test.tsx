@@ -10,6 +10,16 @@ import { describe, expect, it, vi } from "vitest";
 
 import { EventRequestForm } from "./event-request-form";
 
+const MICROPHONE_ID = "a0000000-0000-0000-0000-000000000001";
+const PROJECTOR_ID = "a0000000-0000-0000-0000-000000000002";
+
+vi.mock("@/features/event-requests/services/equipment", () => ({
+  loadEquipmentCatalogue: vi.fn().mockResolvedValue([
+    { id: "a0000000-0000-0000-0000-000000000001", name: "Wireless microphone", category: "Audio" },
+    { id: "a0000000-0000-0000-0000-000000000002", name: "Projector", category: "Visual" },
+  ]),
+}));
+
 function values(
   overrides: Partial<EventRequestFormValues> = {},
 ): EventRequestFormValues {
@@ -253,14 +263,168 @@ describe("EventRequestForm draft mode", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Add equipment" }));
-    await user.type(screen.getByLabelText("Equipment"), "Microphone");
-    expect(screen.getByLabelText("Equipment")).toHaveValue("Microphone");
+    await screen.findByRole("option", { name: "Wireless microphone" });
+    await user.selectOptions(screen.getByLabelText(/^Equipment/), MICROPHONE_ID);
+    expect(screen.getByLabelText(/^Equipment/)).toHaveValue(MICROPHONE_ID);
 
     await user.click(
       screen.getByRole("button", { name: "Remove equipment item 1" }),
     );
-    expect(screen.queryByLabelText("Equipment")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Equipment/)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Event name/)).toHaveValue("Equipment draft");
+  });
+});
+
+describe("EventRequestForm equipment requirements", () => {
+  it("offers only catalogue equipment, grouped by category (AC02)", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventRequestForm initialValues={values({ title: "Catalogue" })} onSave={vi.fn()} onCancel={vi.fn()} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add equipment" }));
+    await screen.findByRole("option", { name: "Wireless microphone" });
+
+    const select = screen.getByLabelText(/^Equipment/);
+    expect(select.tagName).toBe("SELECT");
+    expect(select.querySelector('optgroup[label="Audio"]')).toHaveTextContent("Wireless microphone");
+    expect(select.querySelector('optgroup[label="Visual"]')).toHaveTextContent("Projector");
+  });
+
+  it("starts a new row's required period from the event schedule", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventRequestForm
+        initialValues={values({
+          title: "Scheduled",
+          startsAt: "2099-04-01T10:00",
+          endsAt: "2099-04-01T12:00",
+        })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add equipment" }));
+    expect(screen.getByLabelText(/^Required from/)).toHaveValue("2099-04-01T10:00");
+    expect(screen.getByLabelText(/^Required until/)).toHaveValue("2099-04-01T12:00");
+  });
+
+  it("identifies every missing mandatory equipment field and does not save (AC06)", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <EventRequestForm initialValues={values({ title: "Incomplete" })} onSave={onSave} onCancel={vi.fn()} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add equipment" }));
+    await user.clear(screen.getByLabelText(/^Quantity/));
+    await user.click(screen.getByRole("button", { name: /Save draft/ }));
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(await screen.findByText("Choose equipment from the catalogue")).toBeInTheDocument();
+    expect(screen.getByText("Enter a quantity")).toBeInTheDocument();
+    expect(screen.getByText("Enter when it is required from")).toBeInTheDocument();
+    expect(screen.getByText("Enter when it is required until")).toBeInTheDocument();
+  });
+
+  it("saves a complete catalogue requirement", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <EventRequestForm initialValues={values({ title: "Complete" })} onSave={onSave} onCancel={vi.fn()} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add equipment" }));
+    await screen.findByRole("option", { name: "Wireless microphone" });
+    await user.selectOptions(screen.getByLabelText(/^Equipment/), MICROPHONE_ID);
+    await user.clear(screen.getByLabelText(/^Quantity/));
+    await user.type(screen.getByLabelText(/^Quantity/), "3");
+    await user.type(screen.getByLabelText(/^Required from/), "2099-04-01T08:00");
+    await user.type(screen.getByLabelText(/^Required until/), "2099-04-01T14:00");
+    await user.type(screen.getByLabelText("Technical requirements"), "XLR to the mixer");
+    await user.click(screen.getByRole("button", { name: /Save draft/ }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          equipment: [
+            expect.objectContaining({
+              equipmentItemId: MICROPHONE_ID,
+              quantity: "3",
+              requiredFrom: "2099-04-01T08:00",
+              requiredUntil: "2099-04-01T14:00",
+              notes: "XLR to the mixer",
+            }),
+          ],
+        }),
+      ),
+    );
+  });
+
+  it("keeps a legacy free-text entry or replaces it with catalogue equipment (AC13)", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventRequestForm
+        initialValues={values({
+          title: "Legacy",
+          startsAt: "2099-04-01T10:00",
+          endsAt: "2099-04-01T12:00",
+          equipment: [
+            {
+              id: "legacy-row",
+              equipmentItemId: "",
+              legacyName: "Old projector",
+              quantity: "1",
+              requiredFrom: "",
+              requiredUntil: "",
+              notes: "",
+            },
+          ],
+        })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Old projector × 1/)).toBeInTheDocument();
+    expect(screen.getByText(/not in the equipment catalogue/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Quantity/)).not.toBeInTheDocument();
+
+    await screen.findByRole("option", { name: "Projector" });
+    await user.selectOptions(screen.getByLabelText("Replace with catalogue equipment"), PROJECTOR_ID);
+
+    expect(screen.queryByText(/Old projector/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^Equipment/)).toHaveValue(PROJECTOR_ID);
+    expect(screen.getByLabelText(/^Required from/)).toHaveValue("2099-04-01T10:00");
+  });
+
+  it("locks equipment rows while a clarification does not permit equipment", async () => {
+    render(
+      <EventRequestForm
+        initialValues={values({
+          title: "Locked equipment",
+          equipment: [
+            {
+              id: "row-1",
+              equipmentItemId: MICROPHONE_ID,
+              legacyName: "",
+              quantity: "2",
+              requiredFrom: "2099-04-01T08:00",
+              requiredUntil: "2099-04-01T14:00",
+              notes: "",
+            },
+          ],
+        })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        permittedFields={["venue"]}
+      />,
+    );
+
+    expect(screen.getByLabelText(/^Equipment/)).toBeDisabled();
+    expect(screen.getByLabelText(/^Required from/)).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add equipment" })).toBeDisabled();
   });
 });
 

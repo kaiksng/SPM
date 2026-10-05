@@ -7,6 +7,7 @@ import {
   localDateTime,
   updateEventAsCoordinator,
 } from "@/features/event-requests/services/coordinator-event-edit";
+import { toEquipmentFormValues } from "@/features/event-requests/services/equipment";
 import type { EventDetail } from "@/features/event-requests/services/event-details";
 import { useRoomLayoutOptions } from "@/features/venues/hooks/use-room-layout-options";
 import { cn } from "@/lib/utils";
@@ -76,11 +77,8 @@ export function VenueFacilitiesSection({
           layoutNotes,
           facilities,
         },
-        equipment: event.equipment.map((item) => ({
-          equipmentName: item.equipmentName,
-          quantity: item.quantity.toString(),
-          notes: item.notes ?? "",
-        })),
+        // Resent with each row's id, so the database sees no equipment change.
+        equipment: toEquipmentFormValues(event.equipment),
         registration: {
           required: event.registration.required,
           opensAt: localDateTime(event.registration.opensAt),

@@ -5,6 +5,7 @@ import { Link, useParams } from "react-router";
 
 import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { EquipmentHistoryList } from "@/features/event-requests/components/equipment-history-list";
 import { StatusBadge } from "@/features/event-requests/components/status-badges";
 import {
   listClarifications,
@@ -15,6 +16,10 @@ import {
   loadEventDetail,
   type EventDetail,
 } from "@/features/event-requests/services/event-details";
+import {
+  loadEquipmentHistory,
+  type EquipmentChange,
+} from "@/features/event-requests/services/equipment";
 import {
   listEventStatusHistory,
   type EventStatusChange,
@@ -51,6 +56,7 @@ export function EventHistoryPage() {
   const { profile, user } = useAuth();
   const [clarifications, setClarifications] = useState<ClarificationSummary[]>([]);
   const [fieldChanges, setFieldChanges] = useState<EventFieldChange[]>([]);
+  const [equipmentChanges, setEquipmentChanges] = useState<EquipmentChange[]>([]);
   const [statusHistory, setStatusHistory] = useState<EventStatusChange[]>([]);
   const [reassignments, setReassignments] = useState<EventCoordinatorReassignment[]>([]);
   const [approvedAt, setApprovedAt] = useState<string>();
@@ -73,12 +79,14 @@ export function EventHistoryPage() {
       listEventCoordinatorReassignments(eventId).catch(
         () => [] as EventCoordinatorReassignment[],
       ),
+      loadEquipmentHistory(eventId).catch(() => [] as EquipmentChange[]),
     ])
-      .then(([eventDetail, clarificationRows, fieldChangeRows, decisions, statusRows, reassignmentRows]) => {
+      .then(([eventDetail, clarificationRows, fieldChangeRows, decisions, statusRows, reassignmentRows, equipmentRows]) => {
         if (!active) return;
         setEvent(eventDetail);
         setClarifications(clarificationRows);
         setFieldChanges(fieldChangeRows);
+        setEquipmentChanges(equipmentRows);
         setApprovedAt(decisions.find((d) => d.decision === "approved")?.decidedAt);
         setStatusHistory(statusRows);
         setReassignments(reassignmentRows);
@@ -197,6 +205,14 @@ export function EventHistoryPage() {
                       ))}
                     </ol>
                   )}
+                </HistorySection>
+              )}
+
+              {/* AC08: the organiser is not shown equipment history (RLS
+                  would return nothing for them anyway). */}
+              {profile?.role !== "event_organiser" && (
+                <HistorySection title="Equipment">
+                  <EquipmentHistoryList changes={equipmentChanges} />
                 </HistorySection>
               )}
             </div>

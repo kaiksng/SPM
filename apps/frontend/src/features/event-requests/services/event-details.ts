@@ -1,3 +1,7 @@
+import {
+  toEquipmentRequirements,
+  type EquipmentRequirement,
+} from "@/features/event-requests/services/equipment";
 import { supabase } from "@/lib/supabase-client";
 
 export type EventDetail = {
@@ -22,7 +26,7 @@ export type EventDetail = {
     layoutNotes: string | null;
     facilities: string[];
   };
-  equipment: Array<{ equipmentName: string; quantity: number; notes: string | null }>;
+  equipment: EquipmentRequirement[];
   registration: {
     required: boolean;
     opensAt: string | null;
@@ -65,7 +69,16 @@ export async function loadEventDetail(eventId: string) {
           layout_notes
         ),
         event_required_facilities (facility_name),
-        event_equipment_requirements (equipment_name, quantity, notes),
+        event_equipment_requirements (
+          id,
+          equipment_item_id,
+          equipment_name,
+          quantity,
+          required_from,
+          required_until,
+          notes,
+          equipment_item:equipment_items (category)
+        ),
         event_registration_requirements (
           registration_required,
           registration_opens_at,
@@ -107,11 +120,7 @@ export async function loadEventDetail(eventId: string) {
       layoutNotes: venue?.layout_notes ?? null,
       facilities: data.event_required_facilities.map((f) => f.facility_name),
     },
-    equipment: data.event_equipment_requirements.map((e) => ({
-      equipmentName: e.equipment_name,
-      quantity: e.quantity,
-      notes: e.notes,
-    })),
+    equipment: toEquipmentRequirements(data.event_equipment_requirements),
     registration: {
       required: registration?.registration_required ?? false,
       opensAt: registration?.registration_opens_at ?? null,

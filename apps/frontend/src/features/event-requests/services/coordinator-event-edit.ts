@@ -5,15 +5,15 @@ import {
   type EventRequestFormValues,
 } from "@spm/shared";
 
+import {
+  toEquipmentFormValues,
+  toEquipmentRequirements,
+} from "@/features/event-requests/services/equipment";
+import { localDateTime } from "@/features/event-requests/utils/local-date-time";
 import { supabase } from "@/lib/supabase-client";
 
 /** Shared with EventDetailPage's inline venue editor — same ISO -> datetime-local conversion. */
-export function localDateTime(isoValue: string | null) {
-  if (!isoValue) return "";
-  const date = new Date(isoValue);
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return localDate.toISOString().slice(0, 16);
-}
+export { localDateTime };
 
 /**
  * Loads a Planning event's current requirements in the same
@@ -44,7 +44,16 @@ export async function loadEventForCoordinatorEdit(eventId: string) {
           layout_notes
         ),
         event_required_facilities (facility_name),
-        event_equipment_requirements (equipment_name, quantity, notes),
+        event_equipment_requirements (
+          id,
+          equipment_item_id,
+          equipment_name,
+          quantity,
+          required_from,
+          required_until,
+          notes,
+          equipment_item:equipment_items (category)
+        ),
         event_registration_requirements (
           registration_required,
           registration_opens_at,
@@ -81,11 +90,9 @@ export async function loadEventForCoordinatorEdit(eventId: string) {
       layoutNotes: asRoomLayoutType(venue?.layout_notes),
       facilities: data.event_required_facilities.map((facility) => facility.facility_name),
     },
-    equipment: data.event_equipment_requirements.map((item) => ({
-      equipmentName: item.equipment_name,
-      quantity: item.quantity.toString(),
-      notes: item.notes ?? "",
-    })),
+    equipment: toEquipmentFormValues(
+      toEquipmentRequirements(data.event_equipment_requirements),
+    ),
     registration: {
       required: registration?.registration_required ?? false,
       opensAt: localDateTime(registration?.registration_opens_at ?? null),
@@ -116,7 +123,13 @@ export async function updateEventAsCoordinator(
   });
 
   if (error || !data) {
-    throw new Error("This event could not be updated. Your form values are still here.");
+    // check_violation messages are written for the user and name the
+    // affected field or equipment item (AC06).
+    throw new Error(
+      error?.code === "23514"
+        ? error.message
+        : "This event could not be updated. Your form values are still here.",
+    );
   }
 
   return data;

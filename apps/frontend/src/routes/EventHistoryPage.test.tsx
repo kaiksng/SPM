@@ -1,12 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listClarificationsMock = vi.fn();
 const loadEventFieldHistoryMock = vi.fn();
 const listEventDecisionsMock = vi.fn();
 const listEventStatusHistoryMock = vi.fn();
 const loadEventDetailMock = vi.fn();
+const loadEquipmentHistoryMock = vi.fn();
 const authState = {
   profile: { full_name: "Joyce Coordinator", role: "event_coordinator" },
   user: { id: "20000000-0000-0000-0000-000000000002" },
@@ -36,6 +37,16 @@ vi.mock("@/features/event-requests/services/decisions", () => ({
 
 vi.mock("@/features/event-requests/services/event-lifecycle", () => ({
   listEventStatusHistory: (...args: unknown[]) => listEventStatusHistoryMock(...args),
+}));
+
+// Without this the page made a real network call, so every test here passed
+// or timed out depending on connectivity.
+vi.mock("@/features/event-requests/services/event-reassignment", () => ({
+  listEventCoordinatorReassignments: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("@/features/event-requests/services/equipment", () => ({
+  loadEquipmentHistory: (...args: unknown[]) => loadEquipmentHistoryMock(...args),
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -69,6 +80,7 @@ beforeEach(() => {
   loadEventFieldHistoryMock.mockReset().mockResolvedValue([]);
   listEventDecisionsMock.mockReset().mockResolvedValue([]);
   listEventStatusHistoryMock.mockReset().mockResolvedValue([]);
+  loadEquipmentHistoryMock.mockReset().mockResolvedValue([]);
   loadEventDetailMock.mockReset().mockResolvedValue({
     assignedCoordinatorId: "20000000-0000-0000-0000-000000000002",
   });
@@ -277,5 +289,75 @@ describe("EventHistoryPage", () => {
       await screen.findByText("This event is unavailable or you do not have access to it."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Lifecycle")).not.toBeInTheDocument();
+  });
+
+  describe("equipment history", () => {
+    const microphone = {
+      equipmentItemId: "item-1",
+      equipmentName: "Wireless microphone",
+      category: "Audio",
+      quantity: 2,
+      requiredFrom: "2026-10-01T01:00:00Z",
+      requiredUntil: "2026-10-01T06:00:00Z",
+      technicalRequirements: null,
+    };
+
+    afterEach(() => {
+      authState.profile = { full_name: "Joyce Coordinator", role: "event_coordinator" };
+    });
+
+    it("lists each addition, change and removal with actor and time (AC07)", async () => {
+      loadEquipmentHistoryMock.mockResolvedValue([
+        {
+          id: 1,
+          changeType: "added",
+          previous: null,
+          next: microphone,
+          changedByName: "Jasmine",
+          changedAt: "2026-09-20T02:00:00.000Z",
+        },
+        {
+          id: 2,
+          changeType: "changed",
+          previous: microphone,
+          next: { ...microphone, quantity: 3, requiredUntil: "2026-10-01T07:00:00Z" },
+          changedByName: "Joyce Coordinator",
+          changedAt: "2026-09-25T02:00:00.000Z",
+        },
+        {
+          id: 3,
+          changeType: "removed",
+          previous: { ...microphone, quantity: 3 },
+          next: null,
+          changedByName: "Joyce Coordinator",
+          changedAt: "2026-09-26T02:00:00.000Z",
+        },
+      ]);
+
+      renderPage();
+
+      expect(await screen.findByText("Added · Wireless microphone")).toBeInTheDocument();
+      expect(screen.getByText("20 Sept 2026, 10:00 am · Jasmine")).toBeInTheDocument();
+      expect(screen.getByText("Changed · Wireless microphone")).toBeInTheDocument();
+      expect(screen.getByText("Quantity:")).toBeInTheDocument();
+      expect(screen.getByText("Required until:")).toBeInTheDocument();
+      expect(screen.queryByText("Required from:")).not.toBeInTheDocument();
+      expect(screen.getByText("Removed · Wireless microphone")).toBeInTheDocument();
+    });
+
+    it("shows an empty state to the coordinator before any equipment is recorded", async () => {
+      renderPage();
+
+      expect(await screen.findByText("No equipment changes recorded yet.")).toBeInTheDocument();
+    });
+
+    it("is not shown to the organiser (AC08)", async () => {
+      authState.profile = { full_name: "Jasmine", role: "event_organiser" };
+
+      renderPage();
+
+      expect(await screen.findByText("No status changes recorded yet.")).toBeInTheDocument();
+      expect(screen.queryByText("Equipment")).not.toBeInTheDocument();
+    });
   });
 });

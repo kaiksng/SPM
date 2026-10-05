@@ -93,7 +93,18 @@ const event = {
     layoutNotes: "Theatre style seating",
     facilities: ["Projector", "Microphones"],
   },
-  equipment: [{ equipmentName: "Laptop", quantity: 2, notes: "For registration desk" }],
+  equipment: [
+    {
+      id: "30000000-0000-0000-0000-000000000003",
+      equipmentItemId: "40000000-0000-0000-0000-000000000004",
+      equipmentName: "Laptop",
+      category: "Computing",
+      quantity: 2,
+      requiredFrom: "2026-09-30T01:00:00.000Z",
+      requiredUntil: "2026-09-30T06:00:00.000Z",
+      technicalRequirements: "For registration desk",
+    },
+  ],
   registration: {
     required: true,
     opensAt: "2026-09-15T00:00:00.000Z",
@@ -242,8 +253,14 @@ describe("EventDetailPage", () => {
           title: event.title,
           expectedAttendance: event.expectedAttendance!.toString(),
           venue: expect.objectContaining({ preferredLocation: "City Hall" }),
+          // Resent with its id, so the database records no equipment change.
           equipment: [
-            { equipmentName: "Laptop", quantity: "2", notes: "For registration desk" },
+            expect.objectContaining({
+              id: "30000000-0000-0000-0000-000000000003",
+              equipmentItemId: "40000000-0000-0000-0000-000000000004",
+              quantity: "2",
+              notes: "For registration desk",
+            }),
           ],
         }),
       );

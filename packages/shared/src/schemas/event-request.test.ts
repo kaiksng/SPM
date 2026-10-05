@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  emptyEquipmentRequirement,
   emptyEventRequestFormValues,
   eventDraftSchema,
+  isLegacyEquipmentRequirement,
   eventSubmissionSchema,
   toEventDraftPayload,
 } from "./event-request";
@@ -66,7 +68,7 @@ describe("event draft validation", () => {
           ...emptyEventRequestFormValues.venue,
           facilities: ["Projector", "projector"],
         },
-        equipment: [{ equipmentName: "", quantity: "0", notes: "" }],
+        equipment: [emptyEquipmentRequirement({ requiredFrom: "", requiredUntil: "" })],
       }),
     );
 
@@ -107,6 +109,121 @@ describe("event draft validation", () => {
       registration: { required: true, capacity: "80" },
       requirementsAcknowledged: true,
     });
+  });
+});
+
+describe("equipment requirement validation", () => {
+  const validItem = {
+    ...emptyEquipmentRequirement(),
+    equipmentItemId: "11111111-1111-1111-1111-111111111111",
+    quantity: "2",
+    requiredFrom: "2099-04-01T08:00",
+    requiredUntil: "2099-04-01T13:00",
+  };
+
+  function equipmentErrors(item: Record<string, string>) {
+    const result = eventDraftSchema.safeParse(draft({ equipment: [{ ...validItem, ...item }] }));
+    const errors: Record<string, string> = {};
+    if (!result.success) {
+      for (const issue of result.error.issues) errors[issue.path.join(".")] = issue.message;
+    }
+    return errors;
+  }
+
+  it("accepts a catalogue item with a quantity and required period", () => {
+    expect(equipmentErrors({})).toEqual({});
+  });
+
+  it("identifies each missing mandatory field (AC03/AC06)", () => {
+    expect(
+      equipmentErrors({ equipmentItemId: "", quantity: "", requiredFrom: "", requiredUntil: "" }),
+    ).toEqual({
+      "equipment.0.equipmentItemId": "Choose equipment from the catalogue",
+      "equipment.0.quantity": "Enter a quantity",
+      "equipment.0.requiredFrom": "Enter when it is required from",
+      "equipment.0.requiredUntil": "Enter when it is required until",
+    });
+  });
+
+  it.each(["0", "-1", "1.5", "two"])("rejects quantity %s (AC04)", (quantity) => {
+    expect(equipmentErrors({ quantity })).toEqual({
+      "equipment.0.quantity": "Enter a positive whole number",
+    });
+  });
+
+  it.each(["2099-04-01T08:00", "2099-04-01T07:59"])(
+    "rejects a period that ends at or before it starts (%s)",
+    (requiredUntil) => {
+      expect(equipmentErrors({ requiredUntil })).toEqual({
+        "equipment.0.requiredUntil": "Required until must be after required from",
+      });
+    },
+  );
+
+  it("allows the period to extend beyond the event for setup and cleanup (AC05)", () => {
+    const result = eventDraftSchema.safeParse(
+      draft({
+        startsAt: "2099-04-01T10:00",
+        endsAt: "2099-04-01T12:00",
+        equipment: [validItem],
+      }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("leaves technical requirements optional but caps them at 1,000 characters", () => {
+    expect(equipmentErrors({ notes: "" })).toEqual({});
+    expect(Object.keys(equipmentErrors({ notes: "a".repeat(1_001) }))).toEqual([
+      "equipment.0.notes",
+    ]);
+  });
+
+  it("accepts the same catalogue item more than once (AC10)", () => {
+    expect(
+      eventDraftSchema.safeParse(draft({ equipment: [validItem, { ...validItem }] })).success,
+    ).toBe(true);
+  });
+
+  it("keeps a legacy free-text entry without catalogue rules (AC13)", () => {
+    const legacy = {
+      ...emptyEquipmentRequirement(),
+      id: "22222222-2222-2222-2222-222222222222",
+      legacyName: "Old projector",
+    };
+    const parsed = eventDraftSchema.parse(draft({ equipment: [legacy] }));
+
+    expect(isLegacyEquipmentRequirement(parsed.equipment[0]!)).toBe(true);
+    expect(toEventDraftPayload(parsed).equipment).toEqual([
+      {
+        id: legacy.id,
+        equipmentItemId: null,
+        quantity: "",
+        requiredFrom: null,
+        requiredUntil: null,
+        notes: null,
+      },
+    ]);
+  });
+
+  it("sends a catalogue row with its id, item and ISO period", () => {
+    const parsed = eventDraftSchema.parse(
+      draft({ equipment: [{ ...validItem, id: "33333333-3333-3333-3333-333333333333", notes: "  XLR  " }] }),
+    );
+    const [item] = toEventDraftPayload(parsed).equipment;
+
+    expect(item).toMatchObject({
+      id: "33333333-3333-3333-3333-333333333333",
+      equipmentItemId: validItem.equipmentItemId,
+      quantity: "2",
+      notes: "XLR",
+    });
+    expect(item!.requiredFrom).toMatch(/^2099-04-01T/);
+    expect(item!.requiredUntil).toMatch(/^2099-04-01T/);
+  });
+
+  it("sends a new row without an id", () => {
+    const parsed = eventDraftSchema.parse(draft({ equipment: [validItem] }));
+    expect(toEventDraftPayload(parsed).equipment[0]!.id).toBeNull();
   });
 });
 

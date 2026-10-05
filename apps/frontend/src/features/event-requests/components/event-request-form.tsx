@@ -2,7 +2,10 @@ import {
   EventSubmissionError,
   EVENT_PURPOSE_OPTIONS,
   LOCATION_AREAS,
+  emptyEquipmentRequirement,
   eventDraftSchema,
+  isLegacyEquipmentRequirement,
+  type EquipmentRequirementFormValues,
   type EventRequestFormValues,
   type RoomLayoutType,
 } from "@spm/shared";
@@ -13,6 +16,8 @@ import type { ZodType } from "zod";
 import { Button } from "@/components/ui/button";
 import { AmenityPicker } from "@/components/ui/amenity-picker";
 import { Input } from "@/components/ui/input";
+import { useEquipmentCatalogue } from "@/features/event-requests/hooks/use-equipment-catalogue";
+import type { EquipmentCatalogueItem } from "@/features/event-requests/services/equipment";
 import { useRoomLayoutOptions } from "@/features/venues/hooks/use-room-layout-options";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +54,7 @@ export function EventRequestForm({
   const [message, setMessage] = useState<string>();
   const [pendingAction, setPendingAction] = useState<"save" | "submit">();
   const roomLayouts = useRoomLayoutOptions();
+  const catalogue = useEquipmentCatalogue();
 
   const isLocked = (field: string) => {
     if (permittedFields === undefined) return false;
@@ -96,13 +102,21 @@ export function EventRequestForm({
 
   const setEquipment = (
     index: number,
-    key: keyof EventRequestFormValues["equipment"][number],
+    key: keyof EquipmentRequirementFormValues,
     value: string,
   ) =>
     setValues((current) => ({
       ...current,
       equipment: current.equipment.map((item, itemIndex) =>
         itemIndex === index ? { ...item, [key]: value } : item,
+      ),
+    }));
+
+  const replaceEquipment = (index: number, replacement: EquipmentRequirementFormValues) =>
+    setValues((current) => ({
+      ...current,
+      equipment: current.equipment.map((item, itemIndex) =>
+        itemIndex === index ? replacement : item,
       ),
     }));
 
@@ -334,7 +348,7 @@ export function EventRequestForm({
       <FormSection
         number="04"
         title="Equipment requirements"
-        description="Add only the equipment needed for the event. Leave this section empty if none is required."
+        description="Choose each item from the equipment catalogue. The required period should cover setup through cleanup. Leave this section empty if no equipment is needed."
         action={
           <Button
             type="button"
@@ -343,7 +357,12 @@ export function EventRequestForm({
             onClick={() =>
               setRoot("equipment", [
                 ...values.equipment,
-                { equipmentName: "", quantity: "1", notes: "" },
+                // Starts from the event's own schedule; widen it for setup
+                // and cleanup as needed.
+                emptyEquipmentRequirement({
+                  requiredFrom: values.startsAt,
+                  requiredUntil: values.endsAt,
+                }),
               ])
             }
           >
@@ -351,63 +370,156 @@ export function EventRequestForm({
           </Button>
         }
       >
+        {catalogue.error && (
+          <p role="alert" className="sm:col-span-2 text-sm text-red-700">
+            {catalogue.error}
+          </p>
+        )}
         {values.equipment.length === 0 ? (
           <div className="sm:col-span-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
             No equipment requirements added.
           </div>
         ) : (
-          values.equipment.map((item, index) => (
-            <div
-              key={index}
-              className="sm:col-span-2 grid gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-[1fr_9rem_1.5fr_auto]"
-            >
-              <Field label="Equipment" error={errors[`equipment.${index}.equipmentName`]}>
-                <Input
-                  value={item.equipmentName}
-                  onChange={(event) =>
-                    setEquipment(index, "equipmentName", event.target.value)
-                  }
-                  placeholder="Wireless microphone"
-                  disabled={equipmentLocked}
-                />
-              </Field>
-              <Field label="Quantity" error={errors[`equipment.${index}.quantity`]}>
-                <Input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={item.quantity}
-                  onChange={(event) => setEquipment(index, "quantity", event.target.value)}
-                  disabled={equipmentLocked}
-                />
-              </Field>
-              <Field label="Requirements or notes" error={errors[`equipment.${index}.notes`]}>
-                <Input
-                  value={item.notes}
-                  onChange={(event) => setEquipment(index, "notes", event.target.value)}
-                  placeholder="Setup or compatibility details"
-                  disabled={equipmentLocked}
-                />
-              </Field>
-              <div className="flex items-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Remove equipment item ${index + 1}`}
-                  disabled={equipmentLocked}
-                  onClick={() =>
-                    setRoot(
-                      "equipment",
-                      values.equipment.filter((_, itemIndex) => itemIndex !== index),
-                    )
-                  }
+          values.equipment.map((item, index) => {
+            const removeButton = (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Remove equipment item ${index + 1}`}
+                disabled={equipmentLocked}
+                onClick={() =>
+                  setRoot(
+                    "equipment",
+                    values.equipment.filter((_, itemIndex) => itemIndex !== index),
+                  )
+                }
+              >
+                <Trash2 />
+              </Button>
+            );
+
+            // AC13: saved before the catalogue existed — keep it as it is,
+            // or replace it by choosing a catalogue item.
+            if (isLegacyEquipmentRequirement(item)) {
+              return (
+                <div
+                  key={index}
+                  className="sm:col-span-2 grid gap-4 rounded-xl border border-amber-200 bg-amber-50/60 p-4 sm:grid-cols-[1fr_1fr_auto]"
                 >
-                  <Trash2 />
-                </Button>
+                  <div className="text-sm">
+                    <p className="font-medium text-slate-900">
+                      {item.legacyName} × {item.quantity}
+                    </p>
+                    <p className="mt-1 text-slate-600">
+                      Previously saved — not in the equipment catalogue.
+                      {item.notes ? ` Notes: ${item.notes}` : ""}
+                    </p>
+                  </div>
+                  <Field label="Replace with catalogue equipment">
+                    <EquipmentSelect
+                      value=""
+                      groups={catalogue.groups}
+                      placeholder="Keep as it is"
+                      disabled={equipmentLocked}
+                      onChange={(equipmentItemId) =>
+                        replaceEquipment(index, {
+                          ...item,
+                          equipmentItemId,
+                          legacyName: "",
+                          requiredFrom: values.startsAt,
+                          requiredUntil: values.endsAt,
+                        })
+                      }
+                    />
+                  </Field>
+                  <div className="flex items-end">{removeButton}</div>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={index}
+                className="sm:col-span-2 grid gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-[1.5fr_8rem_auto]"
+              >
+                <Field
+                  label="Equipment"
+                  required
+                  error={errors[`equipment.${index}.equipmentItemId`]}
+                >
+                  <EquipmentSelect
+                    value={item.equipmentItemId}
+                    groups={catalogue.groups}
+                    placeholder="Select equipment"
+                    disabled={equipmentLocked}
+                    invalid={Boolean(errors[`equipment.${index}.equipmentItemId`])}
+                    onChange={(equipmentItemId) =>
+                      setEquipment(index, "equipmentItemId", equipmentItemId)
+                    }
+                  />
+                </Field>
+                <Field label="Quantity" required error={errors[`equipment.${index}.quantity`]}>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={item.quantity}
+                    onChange={(event) => setEquipment(index, "quantity", event.target.value)}
+                    aria-invalid={Boolean(errors[`equipment.${index}.quantity`])}
+                    disabled={equipmentLocked}
+                  />
+                </Field>
+                <div className="flex items-end">{removeButton}</div>
+                <div className="grid gap-4 sm:col-span-3 sm:grid-cols-2">
+                  <Field
+                    label="Required from"
+                    required
+                    error={errors[`equipment.${index}.requiredFrom`]}
+                  >
+                    <Input
+                      type="datetime-local"
+                      value={item.requiredFrom}
+                      onChange={(event) =>
+                        setEquipment(index, "requiredFrom", event.target.value)
+                      }
+                      aria-invalid={Boolean(errors[`equipment.${index}.requiredFrom`])}
+                      disabled={equipmentLocked}
+                    />
+                  </Field>
+                  <Field
+                    label="Required until"
+                    required
+                    error={errors[`equipment.${index}.requiredUntil`]}
+                  >
+                    <Input
+                      type="datetime-local"
+                      value={item.requiredUntil}
+                      onChange={(event) =>
+                        setEquipment(index, "requiredUntil", event.target.value)
+                      }
+                      aria-invalid={Boolean(errors[`equipment.${index}.requiredUntil`])}
+                      disabled={equipmentLocked}
+                    />
+                  </Field>
+                  <Field
+                    label="Technical requirements"
+                    error={errors[`equipment.${index}.notes`]}
+                    className="sm:col-span-2"
+                  >
+                    <Input
+                      value={item.notes}
+                      onChange={(event) => setEquipment(index, "notes", event.target.value)}
+                      placeholder="e.g. XLR connection, HDMI input, power near the stage"
+                      maxLength={1_000}
+                      aria-invalid={Boolean(errors[`equipment.${index}.notes`])}
+                      disabled={equipmentLocked}
+                    />
+                  </Field>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </FormSection>
 
@@ -540,6 +652,44 @@ function Field({
         </p>
       )}
     </label>
+  );
+}
+
+/** Catalogue items grouped by category (AC02) — no free-text entry. */
+function EquipmentSelect({
+  value,
+  groups,
+  placeholder,
+  disabled,
+  invalid,
+  onChange,
+}: {
+  value: string;
+  groups: Array<{ category: string; items: EquipmentCatalogueItem[] }>;
+  placeholder: string;
+  disabled?: boolean;
+  invalid?: boolean;
+  onChange: (equipmentItemId: string) => void;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      disabled={disabled}
+      aria-invalid={invalid}
+      className="border-input h-9 w-full rounded-lg border bg-white px-2.5 text-sm focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <option value="">{placeholder}</option>
+      {groups.map((group) => (
+        <optgroup key={group.category} label={group.category}>
+          {group.items.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
   );
 }
 

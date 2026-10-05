@@ -25,7 +25,8 @@ select set_config(
 create temporary table pbb_event_ids (id uuid);
 
 select lives_ok(
-  $$insert into pbb_event_ids
+  format(
+    $$insert into pbb_event_ids
     select public.save_event_draft(
       '{
         "title":"Buckets Test Event",
@@ -35,11 +36,13 @@ select lives_ok(
         "startsAt":"2099-04-01T10:00:00+08:00",
         "endsAt":"2099-04-01T12:00:00+08:00",
         "venue":{"preferredLocation":"Main Hall","facilities":[]},
-        "equipment":[{"equipmentName":"Projector","quantity":"1","notes":null}],
+        "equipment":[{"equipmentItemId":"%s","quantity":"1","requiredFrom":"2099-04-01T09:00:00+08:00","requiredUntil":"2099-04-01T13:00:00+08:00","notes":null}],
         "registration":{"required":false,"waitlistEnabled":false},
         "requirementsAcknowledged":true
       }'::jsonb
     )$$,
+    (select id from public.equipment_items where name = 'Projector')
+  ),
   'the organiser can save a complete draft'
 );
 select lives_ok(
@@ -92,12 +95,14 @@ select throws_ok(
         "startsAt":"2099-04-01T10:00:00+08:00",
         "endsAt":"2099-04-01T12:00:00+08:00",
         "venue":{"preferredLocation":"Main Hall","facilities":[]},
-        "equipment":[{"equipmentName":"Projector","quantity":"2","notes":null}],
+        "equipment":[{"id":"%s","equipmentItemId":"%s","quantity":"2","requiredFrom":"2099-04-01T09:00:00+08:00","requiredUntil":"2099-04-01T13:00:00+08:00","notes":null}],
         "registration":{"required":false,"waitlistEnabled":false},
         "requirementsAcknowledged":true
       }'::jsonb,
       %L::uuid
     )$$,
+    (select id from public.event_equipment_requirements where event_id = (select id from pbb_event_ids)),
+    (select id from public.equipment_items where name = 'Projector'),
     (select id from pbb_event_ids)
   ),
   '23514',
@@ -115,12 +120,14 @@ select throws_ok(
         "startsAt":"2099-04-01T10:00:00+08:00",
         "endsAt":"2099-04-01T12:00:00+08:00",
         "venue":{"preferredLocation":"Auditorium","facilities":[]},
-        "equipment":[{"equipmentName":"Projector","quantity":"1","notes":null}],
+        "equipment":[{"id":"%s","equipmentItemId":"%s","quantity":"1","requiredFrom":"2099-04-01T09:00:00+08:00","requiredUntil":"2099-04-01T13:00:00+08:00","notes":null}],
         "registration":{"required":false,"waitlistEnabled":false},
         "requirementsAcknowledged":true
       }'::jsonb,
       %L::uuid
     )$$,
+    (select id from public.event_equipment_requirements where event_id = (select id from pbb_event_ids)),
+    (select id from public.equipment_items where name = 'Projector'),
     (select id from pbb_event_ids)
   ),
   '23514',
@@ -140,12 +147,14 @@ select lives_ok(
         "startsAt":"2099-04-01T10:00:00+08:00",
         "endsAt":"2099-04-01T12:00:00+08:00",
         "venue":{"preferredLocation":"Main Hall","facilities":[]},
-        "equipment":[{"equipmentName":"Projector","quantity":"1","notes":null}],
+        "equipment":[{"id":"%s","equipmentItemId":"%s","quantity":"1","requiredFrom":"2099-04-01T09:00:00+08:00","requiredUntil":"2099-04-01T13:00:00+08:00","notes":null}],
         "registration":{"required":true,"capacity":"50","waitlistEnabled":false},
         "requirementsAcknowledged":true
       }'::jsonb,
       %L::uuid
     )$$,
+    (select id from public.event_equipment_requirements where event_id = (select id from pbb_event_ids)),
+    (select id from public.equipment_items where name = 'Projector'),
     (select id from pbb_event_ids)
   ),
   'registration, the granted bucket, can be edited'
@@ -203,12 +212,14 @@ select lives_ok(
         "startsAt":"2099-04-01T10:00:00+08:00",
         "endsAt":"2099-04-01T12:00:00+08:00",
         "venue":{"preferredLocation":"Auditorium","facilities":[]},
-        "equipment":[{"equipmentName":"Projector","quantity":"3","notes":null}],
+        "equipment":[{"id":"%s","equipmentItemId":"%s","quantity":"3","requiredFrom":"2099-04-01T09:00:00+08:00","requiredUntil":"2099-04-01T13:00:00+08:00","notes":null}],
         "registration":{"required":true,"capacity":"50","waitlistEnabled":false},
         "requirementsAcknowledged":true
       }'::jsonb,
       %L::uuid
     )$$,
+    (select id from public.event_equipment_requirements where event_id = (select id from pbb_event_ids)),
+    (select id from public.equipment_items where name = 'Projector'),
     (select id from pbb_event_ids)
   ),
   'a legacy "requirements" grant still unlocks venue and equipment together'

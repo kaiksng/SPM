@@ -39,6 +39,8 @@ Non-obvious detail: `now()` is fixed for the whole transaction in Postgres, so s
 
 ## Scope exclusion: facilities and equipment
 
+> **Update:** equipment is now tracked. See `record-event-equipment-requirements-contract.md`. Equipment rows keep stable ids, and changes are logged to their own table, `event_equipment_changes`. Facilities remain excluded for the reason below.
+
 `event_required_facilities` and `event_equipment_requirements` are not tracked. `save_event_draft` rewrites both by deleting every row for the event and re-inserting the submitted list on **every** save (`202609120001`), regardless of whether the list actually changed. A naive insert/delete trigger on those tables would log a spurious "removed X / added X" pair on every single save, which is noise, not history. Diffing them meaningfully needs a set comparison (what was actually added vs. removed) that this story does not ask for; left to whichever future story needs it.
 
 ## Where it's read

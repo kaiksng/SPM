@@ -19,14 +19,96 @@ const optionalDateTime = z
     "Enter a valid date and time",
   );
 
-export const equipmentRequirementSchema = z.object({
-  equipmentName: z.string().trim().min(1, "Enter an equipment name").max(120),
-  quantity: optionalPositiveWholeNumber.refine(
-    (value) => value !== "",
-    "Enter a quantity",
-  ),
+/**
+ * One equipment requirement as the form holds it. Mirrors
+ * public.save_event_equipment_requirements, which is authoritative.
+ */
+const equipmentRequirementObject = z.object({
+  /** The saved requirement's id; "" for a row added in this edit. */
+  id: z.string(),
+  /** The catalogue item (equipment_items.id); "" until one is chosen. */
+  equipmentItemId: z.string(),
+  /** A legacy free-text entry's name — shown, never sent (AC13). */
+  legacyName: z.string(),
+  quantity: z.string().trim(),
+  requiredFrom: z.string().trim(),
+  requiredUntil: z.string().trim(),
+  /** Technical requirements. */
   notes: optionalText(1_000),
 });
+
+export type EquipmentRequirementFormValues = z.infer<typeof equipmentRequirementObject>;
+
+/**
+ * A row saved before the catalogue existed that has not been replaced yet.
+ * It may only be kept as it is or replaced with a catalogue item, so none of
+ * the catalogue rules below apply to it.
+ */
+export function isLegacyEquipmentRequirement(item: EquipmentRequirementFormValues) {
+  return item.id !== "" && item.equipmentItemId === "";
+}
+
+export const equipmentRequirementSchema = equipmentRequirementObject.superRefine(
+  (item, context) => {
+    if (isLegacyEquipmentRequirement(item)) return;
+
+    if (!item.equipmentItemId) {
+      context.addIssue({
+        code: "custom",
+        path: ["equipmentItemId"],
+        message: "Choose equipment from the catalogue",
+      });
+    }
+
+    if (!/^[1-9]\d*$/.test(item.quantity)) {
+      context.addIssue({
+        code: "custom",
+        path: ["quantity"],
+        message: item.quantity ? "Enter a positive whole number" : "Enter a quantity",
+      });
+    }
+
+    const from = Date.parse(item.requiredFrom);
+    const until = Date.parse(item.requiredUntil);
+
+    if (Number.isNaN(from)) {
+      context.addIssue({
+        code: "custom",
+        path: ["requiredFrom"],
+        message: item.requiredFrom ? "Enter a valid date and time" : "Enter when it is required from",
+      });
+    }
+
+    if (Number.isNaN(until)) {
+      context.addIssue({
+        code: "custom",
+        path: ["requiredUntil"],
+        message: item.requiredUntil ? "Enter a valid date and time" : "Enter when it is required until",
+      });
+    } else if (!Number.isNaN(from) && until <= from) {
+      context.addIssue({
+        code: "custom",
+        path: ["requiredUntil"],
+        message: "Required until must be after required from",
+      });
+    }
+  },
+);
+
+/** A blank row for "Add equipment". The period covers setup through cleanup. */
+export function emptyEquipmentRequirement(
+  period: { requiredFrom?: string; requiredUntil?: string } = {},
+): EquipmentRequirementFormValues {
+  return {
+    id: "",
+    equipmentItemId: "",
+    legacyName: "",
+    quantity: "1",
+    requiredFrom: period.requiredFrom ?? "",
+    requiredUntil: period.requiredUntil ?? "",
+    notes: "",
+  };
+}
 
 const eventRequestObject = z.object({
   title: z
@@ -222,8 +304,11 @@ export type EventDraftPayload = {
     facilities: string[];
   };
   equipment: Array<{
-    equipmentName: string;
+    id: string | null;
+    equipmentItemId: string | null;
     quantity: string;
+    requiredFrom: string | null;
+    requiredUntil: string | null;
     notes: string | null;
   }>;
   registration: {
@@ -258,11 +343,26 @@ export function toEventDraftPayload(
       layoutNotes: optionalValue(values.venue.layoutNotes),
       facilities: values.venue.facilities.map((facility) => facility.trim()),
     },
-    equipment: values.equipment.map((item) => ({
-      equipmentName: item.equipmentName.trim(),
-      quantity: item.quantity.trim(),
-      notes: optionalValue(item.notes),
-    })),
+    // A kept legacy row is sent by id alone; the database leaves it as is.
+    equipment: values.equipment.map((item) =>
+      isLegacyEquipmentRequirement(item)
+        ? {
+            id: item.id,
+            equipmentItemId: null,
+            quantity: "",
+            requiredFrom: null,
+            requiredUntil: null,
+            notes: null,
+          }
+        : {
+            id: item.id || null,
+            equipmentItemId: item.equipmentItemId,
+            quantity: item.quantity.trim(),
+            requiredFrom: optionalDateValue(item.requiredFrom),
+            requiredUntil: optionalDateValue(item.requiredUntil),
+            notes: optionalValue(item.notes),
+          },
+    ),
     registration: {
       required: values.registration.required,
       opensAt: values.registration.required

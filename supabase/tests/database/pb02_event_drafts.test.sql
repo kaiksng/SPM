@@ -30,7 +30,8 @@ select set_config(
 create temporary table pb02_saved_ids (id uuid primary key);
 
 select lives_ok(
-  $$insert into pb02_saved_ids
+  format(
+    $$insert into pb02_saved_ids
     select public.save_event_draft(
       '{
         "title":"[Kai Test] ABC",
@@ -48,7 +49,13 @@ select lives_ok(
           "facilities":["Projector","Microphone"]
         },
         "equipment":[
-          {"equipmentName":"Laptop","quantity":"2","notes":"HDMI capable"}
+          {
+            "equipmentItemId":"%s",
+            "quantity":"2",
+            "requiredFrom":"2026-09-25T09:00:00+08:00",
+            "requiredUntil":"2026-09-25T13:00:00+08:00",
+            "notes":"HDMI capable"
+          }
         ],
         "registration":{
           "required":true,
@@ -59,6 +66,8 @@ select lives_ok(
         }
       }'::jsonb
     )$$,
+    (select id from public.equipment_items where name = 'Laptop')
+  ),
   'an Event Organiser can save a complete draft atomically'
 );
 
@@ -117,13 +126,13 @@ select is(
 select throws_ok(
   format(
     $$select public.save_event_draft(
-      '{"title":"[Kai Test] Partial write","venue":{"facilities":["Projector"]},"equipment":[{"equipmentName":"","quantity":"0"}],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb,
+      '{"title":"[Kai Test] Partial write","venue":{"facilities":["Projector"]},"equipment":[{"equipmentItemId":"","quantity":"0"}],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb,
       %L::uuid
     )$$,
     (select id from pb02_saved_ids)
   ),
   '23514',
-  'Equipment name is required for each equipment item',
+  'Choose equipment from the catalogue for equipment item 1',
   'a failed requirement write rejects the save'
 );
 select is(

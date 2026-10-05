@@ -25,7 +25,7 @@ On the frontend, `CoordinatorEventEditPage` locks the same sections by passing a
 - Restricted to the event's **assigned coordinator** — the same rule already established for `decide_event_request` and `request_event_clarification`.
 - Only reachable while the event is in **Planning** status; a `check_violation` is raised otherwise. This is a coordinator write path for planning-stage adjustments, not a substitute for `save_event_draft`'s draft/requested editing flow.
 - Field-level validation mirrors `save_event_draft` exactly (title length, attendance/capacity format, date ordering, equipment shape) — it is `security definer` (needed since a coordinator has no RLS write access to the requirement tables otherwise) with its own internal authorisation checks in place of relying on RLS.
-- Facilities and equipment are written via the same delete-then-reinsert approach `save_event_draft` already uses, and are **not** field-level audited — the same scope exclusion PB-07 already made, for the same reason (no stable per-item identity to diff against; a naive trigger would just log churn on every save).
+- *(Equipment superseded by `record-event-equipment-requirements-contract.md`: it is now written in place by id through `save_event_equipment_requirements`, and audited in `event_equipment_changes`.)* Facilities and equipment are written via the same delete-then-reinsert approach `save_event_draft` already uses, and are **not** field-level audited — the same scope exclusion PB-07 already made, for the same reason (no stable per-item identity to diff against; a naive trigger would just log churn on every save).
 
 ## Where it's used
 
