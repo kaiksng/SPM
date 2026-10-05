@@ -1,0 +1,19 @@
+-- Retire the coordinator self-service reassignment feature.
+--
+-- Reassignment is now Event Coordinator Lead-only (see
+-- 202610050003_lead_assigns_coordinator.sql /
+-- 202610050005_reassign_coordinator_history_and_handoff.sql's
+-- reassign_event_coordinator). auto_reassign_event_coordinator let any
+-- assigned coordinator hand their own event off to another coordinator
+-- themselves — that directly contradicts "only the Event Coordinator Lead
+-- can reassign," so the capability is removed outright rather than merely
+-- hidden in the UI.
+--
+-- list_auto_event_coordinator_reassignments (the read-only history function)
+-- is deliberately kept: real reassignments already happened through this
+-- path before it was retired, and that history should stay visible on the
+-- events it touched (apps/frontend still renders it in EventHistoryPage's
+-- "Reassignments" section, alongside the Lead-driven
+-- "Coordinator assignments" section). Nothing can add a new row to it going
+-- forward now that the only function that wrote to it is gone.
+drop function if exists public.auto_reassign_event_coordinator(uuid, text, uuid);

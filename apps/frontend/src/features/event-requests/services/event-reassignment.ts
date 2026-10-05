@@ -1,4 +1,3 @@
-import { apiFetch } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase-client";
 
 export type EventCoordinatorReassignment = {
@@ -12,22 +11,12 @@ export type EventCoordinatorReassignment = {
 };
 
 /**
- * Hands an event off from the currently assigned coordinator to another
- * coordinator, chosen by the same least-loaded rule as initial assignment.
- * Inserts an `audit_logs` row and a `notifications` row, neither of which
- * has an INSERT policy for regular users, so this goes through apps/backend's
- * service client — same reasoning as decisions.ts and clarifications.ts.
- */
-export async function reassignEventCoordinator(eventId: string, reason: string) {
-  return apiFetch(`/events/${eventId}/auto-reassign-coordinator`, {
-    method: "POST",
-    body: JSON.stringify({ reason }),
-  });
-}
-
-/**
- * Read-only history of auto_reassign_event_coordinator calls for this event,
- * oldest first. audit_logs itself has no SELECT policy, so this goes through
+ * Read-only history of a now-retired feature: coordinators used to be able
+ * to hand their own event off to another coordinator (least-loaded rule).
+ * Reassignment is now Event Coordinator Lead-only (see
+ * listEventCoordinatorAssignmentHistory below) — this stays only to show
+ * whatever history already exists from when that feature was live.
+ * audit_logs itself has no SELECT policy, so this goes through
  * list_auto_event_coordinator_reassignments (security definer, granted to
  * authenticated, gated on can_view_event) rather than a direct table read.
  */

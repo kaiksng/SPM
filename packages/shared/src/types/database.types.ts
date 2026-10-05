@@ -246,6 +246,80 @@ export type Database = {
           },
         ]
       }
+      equipment_unavailability: {
+        Row: {
+          ended_at: string | null
+          ended_by: string | null
+          ends_at: string
+          equipment_item_id: string
+          id: string
+          quantity: number
+          reason: string
+          recorded_at: string
+          recorded_by: string
+          removed_at: string | null
+          removed_by: string | null
+          starts_at: string
+        }
+        Insert: {
+          ended_at?: string | null
+          ended_by?: string | null
+          ends_at: string
+          equipment_item_id: string
+          id?: string
+          quantity: number
+          reason: string
+          recorded_at?: string
+          recorded_by: string
+          removed_at?: string | null
+          removed_by?: string | null
+          starts_at: string
+        }
+        Update: {
+          ended_at?: string | null
+          ended_by?: string | null
+          ends_at?: string
+          equipment_item_id?: string
+          id?: string
+          quantity?: number
+          reason?: string
+          recorded_at?: string
+          recorded_by?: string
+          removed_at?: string | null
+          removed_by?: string | null
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_unavailability_ended_by_fkey"
+            columns: ["ended_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_unavailability_equipment_item_id_fkey"
+            columns: ["equipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_unavailability_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_unavailability_removed_by_fkey"
+            columns: ["removed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_change_requests: {
         Row: {
           event_id: string
@@ -404,80 +478,6 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      equipment_unavailability: {
-        Row: {
-          ended_at: string | null
-          ended_by: string | null
-          ends_at: string
-          equipment_item_id: string
-          id: string
-          quantity: number
-          reason: string
-          recorded_at: string
-          recorded_by: string
-          removed_at: string | null
-          removed_by: string | null
-          starts_at: string
-        }
-        Insert: {
-          ended_at?: string | null
-          ended_by?: string | null
-          ends_at: string
-          equipment_item_id: string
-          id?: string
-          quantity: number
-          reason: string
-          recorded_at?: string
-          recorded_by: string
-          removed_at?: string | null
-          removed_by?: string | null
-          starts_at: string
-        }
-        Update: {
-          ended_at?: string | null
-          ended_by?: string | null
-          ends_at?: string
-          equipment_item_id?: string
-          id?: string
-          quantity?: number
-          reason?: string
-          recorded_at?: string
-          recorded_by?: string
-          removed_at?: string | null
-          removed_by?: string | null
-          starts_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "equipment_unavailability_ended_by_fkey"
-            columns: ["ended_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_unavailability_equipment_item_id_fkey"
-            columns: ["equipment_item_id"]
-            isOneToOne: false
-            referencedRelation: "equipment_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_unavailability_recorded_by_fkey"
-            columns: ["recorded_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_unavailability_removed_by_fkey"
-            columns: ["removed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1217,10 +1217,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      auto_reassign_event_coordinator: {
-        Args: { p_actor_id?: string; p_event_id: string; p_reason: string }
-        Returns: Json
-      }
       can_view_event: { Args: { target_event_id: string }; Returns: boolean }
       cancel_event_request: {
         Args: { p_actor_id?: string; p_event_id: string }
@@ -1261,6 +1257,10 @@ export type Database = {
           p_reason?: string
         }
         Returns: Json
+      }
+      end_equipment_unavailability: {
+        Args: { p_unavailability_id: string }
+        Returns: string
       }
       event_equipment_snapshot: {
         Args: {
@@ -1331,6 +1331,20 @@ export type Database = {
         }
         Returns: Json
       }
+      record_equipment_unavailability: {
+        Args: {
+          p_ends_at: string
+          p_equipment_item_id: string
+          p_quantity: number
+          p_reason: string
+          p_starts_at: string
+        }
+        Returns: string
+      }
+      remove_equipment_unavailability: {
+        Args: { p_unavailability_id: string }
+        Returns: string
+      }
       remove_venue_block: { Args: { p_block_id: string }; Returns: string }
       request_event_clarification: {
         Args: {
@@ -1357,50 +1371,32 @@ export type Database = {
         Args: { draft: Json; target_event_id?: string }
         Returns: string
       }
-      end_equipment_unavailability: {
-        Args: { p_unavailability_id: string }
-        Returns: string
-      }
-      record_equipment_unavailability: {
-        Args: {
-          p_ends_at: string
-          p_equipment_item_id: string
-          p_quantity: number
-          p_reason: string
-          p_starts_at: string
-        }
-        Returns: string
-      }
-      remove_equipment_unavailability: {
-        Args: { p_unavailability_id: string }
-        Returns: string
-      }
       save_event_equipment_requirements: {
         Args: { p_equipment: Json; p_event_id: string }
         Returns: number
       }
       search_available_venues: {
         Args: {
-          p_event_id: string
-          p_starts_at: string
+          p_accessibility?: string
           p_ends_at: string
-          p_min_capacity: number
-          p_location?: string | null
-          p_layout?: string | null
+          p_event_id: string
           p_facilities?: string[]
-          p_accessibility?: string | null
+          p_layout?: string
+          p_location?: string
+          p_min_capacity: number
+          p_starts_at: string
         }
         Returns: {
-          id: string
-          name: string
-          location: string
+          accessibility_notes: string
           capacity: number
-          operating_hours: Json
-          description: string | null
-          accessibility_notes: string | null
-          updated_at: string
+          description: string
           facilities: string[]
+          id: string
           layouts: string[]
+          location: string
+          name: string
+          operating_hours: Json
+          updated_at: string
         }[]
       }
       submit_event_request: {
