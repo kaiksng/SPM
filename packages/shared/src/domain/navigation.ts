@@ -26,6 +26,10 @@ const ROLE_NAV_ITEM_IDS = {
   venue_staff: ["venues", "requests"],
   technical_support_staff: ["equipment"],
   attendee: ["browse-events"],
+  // View-only for now: the Lead's dashboard is the shared "events" section,
+  // just showing every event instead of one organiser's or coordinator's
+  // own. See EventsPage's LeadEventsView.
+  event_coordinator_lead: ["events"],
 } as const satisfies Record<UserRole, readonly NavItemId[]>;
 
 /** Ordered nav items a given role sees in the workspace side menu. */

@@ -4,6 +4,7 @@ import { z } from "zod";
 export const signupRoles = [
   "event_organiser",
   "event_coordinator",
+  "event_coordinator_lead",
   "venue_staff",
   "technical_support_staff",
   "attendee",

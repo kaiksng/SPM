@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -293,6 +298,65 @@ export type Database = {
           {
             foreignKeyName: "event_change_requests_reviewed_by_fkey"
             columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_coordinator_assignments: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          event_id: string
+          id: number
+          new_coordinator_id: string
+          previous_coordinator_id: string | null
+          reason: string | null
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          event_id: string
+          id?: never
+          new_coordinator_id: string
+          previous_coordinator_id?: string | null
+          reason?: string | null
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          event_id?: string
+          id?: never
+          new_coordinator_id?: string
+          previous_coordinator_id?: string | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_coordinator_assignments_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_coordinator_assignments_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_coordinator_assignments_new_coordinator_id_fkey"
+            columns: ["new_coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_coordinator_assignments_previous_coordinator_id_fkey"
+            columns: ["previous_coordinator_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -768,6 +832,18 @@ export type Database = {
         }
         Relationships: []
       }
+      venue_area_options: {
+        Row: {
+          name: string
+        }
+        Insert: {
+          name: string
+        }
+        Update: {
+          name?: string
+        }
+        Relationships: []
+      }
       venue_bookings: {
         Row: {
           decided_at: string | null
@@ -1000,9 +1076,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      assign_event_coordinator: {
-        Args: { p_event_id: string }
-        Returns: string
+      auto_reassign_event_coordinator: {
+        Args: { p_actor_id?: string; p_event_id: string; p_reason: string }
+        Returns: Json
       }
       can_view_event: { Args: { target_event_id: string }; Returns: boolean }
       cancel_event_request: {
@@ -1013,6 +1089,15 @@ export type Database = {
       create_venue: {
         Args: { p_actor_id?: string; p_venue: Json }
         Returns: Json
+      }
+      create_venue_block: {
+        Args: {
+          p_ends_at: string
+          p_reason: string
+          p_starts_at: string
+          p_venue_id: string
+        }
+        Returns: string
       }
       current_user_role: {
         Args: never
@@ -1063,38 +1148,42 @@ export type Database = {
           updated_at: string
         }[]
       }
-      create_venue_block: {
-        Args: { p_venue_id: string; p_reason: string; p_starts_at: string; p_ends_at: string }
-        Returns: string
-      }
-      remove_venue_block: {
-        Args: { p_block_id: string }
-        Returns: string
-      }
-      search_available_venues: {
-        Args: {
-          p_event_id: string
-          p_starts_at: string
-          p_ends_at: string
-          p_min_capacity: number
-          p_location?: string | null
-          p_layout?: string | null
-          p_facilities?: string[]
-          p_accessibility?: string | null
-        }
+      list_auto_event_coordinator_reassignments: {
+        Args: { p_event_id: string }
         Returns: {
-          id: string
-          name: string
-          location: string
-          capacity: number
-          operating_hours: Json
-          description: string | null
-          accessibility_notes: string | null
-          updated_at: string
-          facilities: string[]
-          layouts: string[]
+          changed_at: string
+          id: number
+          new_coordinator_id: string
+          new_coordinator_name: string
+          previous_coordinator_id: string
+          previous_coordinator_name: string
+          reason: string
         }[]
       }
+      list_event_coordinator_history: {
+        Args: { p_event_id: string }
+        Returns: {
+          changed_at: string
+          changed_by_id: string
+          changed_by_name: string
+          id: number
+          new_coordinator_id: string
+          new_coordinator_name: string
+          previous_coordinator_id: string
+          previous_coordinator_name: string
+          reason: string
+        }[]
+      }
+      reassign_event_coordinator: {
+        Args: {
+          p_actor_id?: string
+          p_event_id: string
+          p_new_coordinator_id: string
+          p_reason: string
+        }
+        Returns: Json
+      }
+      remove_venue_block: { Args: { p_block_id: string }; Returns: string }
       request_event_clarification: {
         Args: {
           p_actor_id?: string
@@ -1120,6 +1209,30 @@ export type Database = {
         Args: { draft: Json; target_event_id?: string }
         Returns: string
       }
+      search_available_venues: {
+        Args: {
+          p_accessibility?: string
+          p_ends_at: string
+          p_event_id: string
+          p_facilities?: string[]
+          p_layout?: string
+          p_location?: string
+          p_min_capacity: number
+          p_starts_at: string
+        }
+        Returns: {
+          accessibility_notes: string
+          capacity: number
+          description: string
+          facilities: string[]
+          id: string
+          layouts: string[]
+          location: string
+          name: string
+          operating_hours: Json
+          updated_at: string
+        }[]
+      }
       submit_event_request: {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json
@@ -1144,25 +1257,13 @@ export type Database = {
         Args: { p_ends_at: string; p_starts_at: string; p_venue_id: string }
         Returns: boolean
       }
+      venue_matches_area: {
+        Args: { p_address: string; p_requested: string; p_tags: string[] }
+        Returns: boolean
+      }
       withdraw_venue_booking_request: {
         Args: { p_booking_id: string }
         Returns: string
-      }
-      auto_reassign_event_coordinator: {
-        Args: { p_actor_id?: string; p_event_id: string; p_reason: string }
-        Returns: Json
-      }
-      list_auto_event_coordinator_reassignments: {
-        Args: { p_event_id: string }
-        Returns: {
-          changed_at: string
-          id: number
-          new_coordinator_id: string
-          new_coordinator_name: string | null
-          previous_coordinator_id: string
-          previous_coordinator_name: string | null
-          reason: string | null
-        }[]
       }
     }
     Enums: {
@@ -1206,6 +1307,7 @@ export type Database = {
         | "venue_staff"
         | "technical_support_staff"
         | "attendee"
+        | "event_coordinator_lead"
       venue_booking_decision_type: "approved" | "rejected"
     }
     CompositeTypes: {
@@ -1222,12 +1324,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1251,11 +1353,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1276,11 +1378,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1301,11 +1403,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1318,11 +1420,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1380,6 +1482,7 @@ export const Constants = {
         "venue_staff",
         "technical_support_staff",
         "attendee",
+        "event_coordinator_lead",
       ],
       venue_booking_decision_type: ["approved", "rejected"],
     },
