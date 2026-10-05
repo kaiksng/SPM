@@ -795,6 +795,11 @@ function LeadEventCard({
   onAssign: () => void;
 }) {
   const isAssigned = Boolean(event.assignedCoordinatorId);
+  // Mirrors reassign_event_coordinator's own block list — showing a button
+  // that the database would always refuse is worse than not showing one.
+  const isReassignmentBlocked = ["draft", "rejected", "cancelled", "completed"].includes(
+    event.status,
+  );
   return (
     <article className="flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)]">
       <div className="flex items-start justify-between gap-3">
@@ -834,9 +839,12 @@ function LeadEventCard({
           <span>Organiser: {event.organiserName ?? "Unknown"}</span>
           <span>Coordinator: {event.assignedCoordinatorName ?? "Unassigned"}</span>
         </div>
-        <Button type="button" variant={isAssigned ? "outline" : "default"} onClick={onAssign}>
-          {isAssigned ? "Reassign" : "Assign coordinator"}
-        </Button>
+        <EventHistoryButton eventId={event.id} />
+        {!isReassignmentBlocked && (
+          <Button type="button" variant={isAssigned ? "outline" : "default"} onClick={onAssign}>
+            {isAssigned ? "Reassign" : "Assign coordinator"}
+          </Button>
+        )}
       </div>
     </article>
   );

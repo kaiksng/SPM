@@ -308,6 +308,7 @@ export type Database = {
         Row: {
           changed_at: string
           changed_by: string | null
+          ended_at: string | null
           event_id: string
           id: number
           new_coordinator_id: string
@@ -317,6 +318,7 @@ export type Database = {
         Insert: {
           changed_at?: string
           changed_by?: string | null
+          ended_at?: string | null
           event_id: string
           id?: never
           new_coordinator_id: string
@@ -326,6 +328,7 @@ export type Database = {
         Update: {
           changed_at?: string
           changed_by?: string | null
+          ended_at?: string | null
           event_id?: string
           id?: never
           new_coordinator_id?: string
@@ -405,29 +408,93 @@ export type Database = {
           },
         ]
       }
+      event_equipment_changes: {
+        Row: {
+          change_type: string
+          changed_at: string
+          changed_by: string | null
+          event_id: string
+          id: number
+          new_value: Json | null
+          previous_value: Json | null
+          requirement_id: string
+        }
+        Insert: {
+          change_type: string
+          changed_at?: string
+          changed_by?: string | null
+          event_id: string
+          id?: never
+          new_value?: Json | null
+          previous_value?: Json | null
+          requirement_id: string
+        }
+        Update: {
+          change_type?: string
+          changed_at?: string
+          changed_by?: string | null
+          event_id?: string
+          id?: never
+          new_value?: Json | null
+          previous_value?: Json | null
+          requirement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_equipment_changes_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_equipment_changes_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_equipment_requirements: {
         Row: {
+          equipment_item_id: string | null
           equipment_name: string
           event_id: string
           id: string
           notes: string | null
           quantity: number
+          required_from: string | null
+          required_until: string | null
         }
         Insert: {
+          equipment_item_id?: string | null
           equipment_name: string
           event_id: string
           id?: string
           notes?: string | null
           quantity?: number
+          required_from?: string | null
+          required_until?: string | null
         }
         Update: {
+          equipment_item_id?: string | null
           equipment_name?: string
           event_id?: string
           id?: string
           notes?: string | null
           quantity?: number
+          required_from?: string | null
+          required_until?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "event_equipment_requirements_equipment_item_id_fkey"
+            columns: ["equipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "event_equipment_requirements_event_id_fkey"
             columns: ["event_id"]
@@ -1121,6 +1188,12 @@ export type Database = {
         }
         Returns: Json
       }
+      event_equipment_snapshot: {
+        Args: {
+          requirement: Database["public"]["Tables"]["event_equipment_requirements"]["Row"]
+        }
+        Returns: Json
+      }
       event_has_unresolved_clarification: {
         Args: { p_event_id: string }
         Returns: boolean
@@ -1166,6 +1239,7 @@ export type Database = {
           changed_at: string
           changed_by_id: string
           changed_by_name: string
+          ended_at: string
           id: number
           new_coordinator_id: string
           new_coordinator_name: string
@@ -1208,6 +1282,10 @@ export type Database = {
       save_event_draft: {
         Args: { draft: Json; target_event_id?: string }
         Returns: string
+      }
+      save_event_equipment_requirements: {
+        Args: { p_equipment: Json; p_event_id: string }
+        Returns: number
       }
       search_available_venues: {
         Args: {
