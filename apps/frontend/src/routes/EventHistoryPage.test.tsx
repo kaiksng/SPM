@@ -43,6 +43,7 @@ vi.mock("@/features/event-requests/services/event-lifecycle", () => ({
 // or timed out depending on connectivity.
 vi.mock("@/features/event-requests/services/event-reassignment", () => ({
   listEventCoordinatorReassignments: vi.fn().mockResolvedValue([]),
+  listEventCoordinatorAssignmentHistory: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/features/event-requests/services/equipment", () => ({

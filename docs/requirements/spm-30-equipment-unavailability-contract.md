@@ -11,7 +11,7 @@
 - AC05 — Technical Support Staff can end or remove an unavailability record when the equipment returns to service.
 - AC06 — Current and past unavailability records retain the actor, reason, and time.
 
-## Database (`202610050005_spm30_equipment_unavailability.sql`)
+## Database (`202610060001_spm30_equipment_unavailability.sql`)
 
 - **Table.** `equipment_unavailability` stores a catalogue item, quantity (> 0), reason (1–500 characters), `starts_at`/`ends_at` (end after start), and `recorded_by`/`recorded_at`. Two optional pairs record later actions: `ended_by`/`ended_at` and `removed_by`/`removed_at`.
 - **Who can read and write.** Only Technical Support Staff can read the table. There are no write policies, so every write goes through the three security-definer functions below, which check the role themselves. This follows SPM-19's venue blocks. Nothing is ever edited in place or deleted (AC06).

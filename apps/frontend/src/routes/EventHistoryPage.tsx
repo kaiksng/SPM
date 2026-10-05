@@ -25,7 +25,9 @@ import {
   type EventStatusChange,
 } from "@/features/event-requests/services/event-lifecycle";
 import {
+  listEventCoordinatorAssignmentHistory,
   listEventCoordinatorReassignments,
+  type EventCoordinatorAssignmentRecord,
   type EventCoordinatorReassignment,
 } from "@/features/event-requests/services/event-reassignment";
 import {
@@ -59,6 +61,9 @@ export function EventHistoryPage() {
   const [equipmentChanges, setEquipmentChanges] = useState<EquipmentChange[]>([]);
   const [statusHistory, setStatusHistory] = useState<EventStatusChange[]>([]);
   const [reassignments, setReassignments] = useState<EventCoordinatorReassignment[]>([]);
+  const [assignmentHistory, setAssignmentHistory] = useState<EventCoordinatorAssignmentRecord[]>(
+    [],
+  );
   const [approvedAt, setApprovedAt] = useState<string>();
   const [event, setEvent] = useState<EventDetail>();
   const [error, setError] = useState<string>();
@@ -80,17 +85,32 @@ export function EventHistoryPage() {
         () => [] as EventCoordinatorReassignment[],
       ),
       loadEquipmentHistory(eventId).catch(() => [] as EquipmentChange[]),
+      listEventCoordinatorAssignmentHistory(eventId).catch(
+        () => [] as EventCoordinatorAssignmentRecord[],
+      ),
     ])
-      .then(([eventDetail, clarificationRows, fieldChangeRows, decisions, statusRows, reassignmentRows, equipmentRows]) => {
-        if (!active) return;
-        setEvent(eventDetail);
-        setClarifications(clarificationRows);
-        setFieldChanges(fieldChangeRows);
-        setEquipmentChanges(equipmentRows);
-        setApprovedAt(decisions.find((d) => d.decision === "approved")?.decidedAt);
-        setStatusHistory(statusRows);
-        setReassignments(reassignmentRows);
-      })
+      .then(
+        ([
+          eventDetail,
+          clarificationRows,
+          fieldChangeRows,
+          decisions,
+          statusRows,
+          reassignmentRows,
+          equipmentRows,
+          assignmentRows,
+        ]) => {
+          if (!active) return;
+          setEvent(eventDetail);
+          setClarifications(clarificationRows);
+          setFieldChanges(fieldChangeRows);
+          setEquipmentChanges(equipmentRows);
+          setApprovedAt(decisions.find((d) => d.decision === "approved")?.decidedAt);
+          setStatusHistory(statusRows);
+          setReassignments(reassignmentRows);
+          setAssignmentHistory(assignmentRows);
+        },
+      )
       .catch((loadError: unknown) => {
         if (active) {
           setError(
@@ -167,6 +187,16 @@ export function EventHistoryPage() {
                   <ol className="space-y-2">
                     {reassignments.map((reassignment) => (
                       <ReassignmentItem key={reassignment.id} reassignment={reassignment} />
+                    ))}
+                  </ol>
+                </HistorySection>
+              )}
+
+              {assignmentHistory.length > 0 && (
+                <HistorySection title="Coordinator assignments">
+                  <ol className="space-y-2">
+                    {assignmentHistory.map((record) => (
+                      <AssignmentHistoryItem key={record.id} record={record} />
                     ))}
                   </ol>
                 </HistorySection>
@@ -340,6 +370,35 @@ function ReassignmentItem({ reassignment }: { reassignment: EventCoordinatorReas
       {reassignment.reason && (
         <p className="mt-1 text-slate-600">Reason: "{reassignment.reason}"</p>
       )}
+    </li>
+  );
+}
+
+function AssignmentHistoryItem({ record }: { record: EventCoordinatorAssignmentRecord }) {
+  const isCurrent = record.endedAt === null;
+  return (
+    <li className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span className="font-medium text-slate-800">
+          {record.newCoordinatorName ?? "An Event Coordinator"}
+          {isCurrent && (
+            <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+              Current
+            </span>
+          )}
+        </span>
+        <span className="text-xs text-slate-500">
+          {dateFormatter.format(new Date(record.changedAt))}
+          {record.endedAt && ` – ${dateFormatter.format(new Date(record.endedAt))}`}
+        </span>
+      </div>
+      {record.previousCoordinatorName && (
+        <p className="mt-1 text-slate-500">
+          Reassigned from {record.previousCoordinatorName}
+          {record.changedByName && ` by ${record.changedByName}`}
+        </p>
+      )}
+      {record.reason && <p className="mt-1 text-slate-600">Reason: "{record.reason}"</p>}
     </li>
   );
 }

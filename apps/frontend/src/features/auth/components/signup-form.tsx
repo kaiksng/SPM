@@ -18,6 +18,7 @@ import { signup } from "@/features/auth/actions/signup";
 const roleLabels: Record<(typeof signupRoles)[number], string> = {
   event_organiser: "Event organiser",
   event_coordinator: "Event coordinator",
+  event_coordinator_lead: "Event coordinator lead",
   venue_staff: "Venue staff",
   technical_support_staff: "Technical support staff",
   attendee: "Attendee",

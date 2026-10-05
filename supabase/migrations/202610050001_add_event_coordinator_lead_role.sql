@@ -1,0 +1,11 @@
+-- Add the Event Coordinator Lead role (Week 7 customer change #5).
+--
+-- The Lead oversees incoming event requests and assigns them to individual
+-- Event Coordinators. This migration only adds the enum value: Postgres
+-- will not let a newly added enum value be referenced anywhere in the same
+-- transaction that adds it, so the view-access grant (can_view_event, the
+-- profiles policy) is a separate migration that runs after this one
+-- commits. This is the first step of a larger change (the Lead assigning
+-- coordinators, the unassigned queue) — only the role itself and read
+-- access are added for now.
+alter type public.user_role add value 'event_coordinator_lead';

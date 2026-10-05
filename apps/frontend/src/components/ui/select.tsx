@@ -44,7 +44,7 @@ function SelectContent({
 }: SelectPrimitive.Popup.Props) {
   return (
     <SelectPrimitive.Portal>
-      <SelectPrimitive.Positioner sideOffset={4} className="outline-none">
+      <SelectPrimitive.Positioner sideOffset={4} className="z-[60] outline-none">
         <SelectPrimitive.Popup
           data-slot="select-content"
           className={cn(

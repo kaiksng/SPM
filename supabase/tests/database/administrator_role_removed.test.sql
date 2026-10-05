@@ -11,7 +11,8 @@ select is(
     'event_coordinator',
     'venue_staff',
     'technical_support_staff',
-    'attendee'
+    'attendee',
+    'event_coordinator_lead'
   ],
   'user_role has no administrator value'
 );

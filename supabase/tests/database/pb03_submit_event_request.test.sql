@@ -20,10 +20,8 @@ values
     '{"full_name":"PB03 Attendee","role":"attendee"}'::jsonb
   ),
   (
-    -- PB-04 assigns every Requested event to a coordinator in the same
-    -- transaction as submission; without one, submission itself would fail.
-    -- Which coordinator is chosen is PB-04's concern, tested in
-    -- pb04_coordinator_assignment.test.sql — this file only checks that one is.
+    -- No longer assigned by submission itself (Week 7 change #5); left in
+    -- place as an unused fixture rather than renumbering the ids below.
     '30000000-0000-0000-0000-000000000004',
     'pb03-coordinator@example.test',
     '{"full_name":"PB03 Coordinator","role":"event_coordinator"}'::jsonb
@@ -156,12 +154,13 @@ select is(
   'the submitting organiser is recorded'
 );
 
--- PB-04 AC01: submission assigns a coordinator in the same transaction.
--- Which one is chosen is asserted in pb04_coordinator_assignment.test.sql.
-select isnt(
+-- Week 7 change #5 supersedes PB-04 AC01: submission no longer assigns a
+-- coordinator. The event waits in the Event Coordinator Lead's unassigned
+-- queue; assignment is asserted in pb04_coordinator_assignment.test.sql.
+select is(
   (select assigned_coordinator_id from public.events where id = (select id from pb03_event_ids)),
   null::uuid,
-  'submission assigns a coordinator'
+  'submission leaves the event unassigned'
 );
 
 -- The status change is historised with the submitting actor.

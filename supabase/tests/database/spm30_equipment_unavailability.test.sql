@@ -3,7 +3,7 @@ begin;
 select plan(24);
 
 -- SPM-30: Record equipment as unavailable for a period
--- (202610050005_spm30_equipment_unavailability.sql).
+-- (202610060001_spm30_equipment_unavailability.sql).
 
 insert into auth.users (id, email, raw_user_meta_data)
 values

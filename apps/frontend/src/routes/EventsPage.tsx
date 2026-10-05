@@ -10,9 +10,17 @@ import { Link, useLocation } from "react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/auth-context";
+import { AssignCoordinatorDialog } from "@/features/event-requests/components/assign-coordinator-dialog";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
 import { EventHistoryButton } from "@/features/event-requests/components/event-history-link";
-import { EventStatusBadge } from "@/features/event-requests/components/status-badges";
+import { EventStatusBadge, StatusBadge } from "@/features/event-requests/components/status-badges";
+import {
+  assignEventCoordinator,
+  listAllEvents,
+  listCoordinators,
+  type CoordinatorOption,
+  type LeadEventSummary,
+} from "@/features/event-requests/services/all-events";
 import {
   listAssignedEvents,
   type AssignedEventSummary,
@@ -36,6 +44,7 @@ export function EventsPage() {
 
   if (profile?.role === "event_organiser") return <OrganiserEventsView />;
   if (profile?.role === "event_coordinator") return <CoordinatorEventsView />;
+  if (profile?.role === "event_coordinator_lead") return <LeadEventsView />;
 
   return (
     <RoleGate>
@@ -259,8 +268,8 @@ function CoordinatorEventsView() {
               Assigned events
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              Events automatically assigned to you appear here as soon as an
-              organiser submits their request.
+              Events assigned to you by the Event Coordinator Lead appear
+              here.
             </p>
           </header>
 
@@ -299,6 +308,183 @@ function CoordinatorEventsView() {
         </div>
       </div>
     </RoleGate>
+  );
+}
+
+/**
+ * Event Coordinator Lead: every event, read-only. The Lead oversees
+ * incoming requests and assignments but does not edit event requirements,
+ * approve events, or submit venue/equipment requests — so unlike the
+ * organiser's and coordinator's cards, these have no action buttons and
+ * don't link into the (coordinator-oriented) event detail page.
+ */
+type LeadTab = "pending" | "assigned";
+
+function LeadEventsView() {
+  const { state } = useLocation();
+  const [events, setEvents] = useState<LeadEventSummary[]>([]);
+  const [coordinators, setCoordinators] = useState<CoordinatorOption[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [tab, setTab] = useState<LeadTab>("pending");
+  const [assigningEvent, setAssigningEvent] = useState<LeadEventSummary>();
+
+  function reload() {
+    setError(undefined);
+    return listAllEvents()
+      .then(setEvents)
+      .catch((loadError: unknown) => {
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "We couldn't load events.",
+        );
+      });
+  }
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([listAllEvents(), listCoordinators()])
+      .then(([eventItems, coordinatorItems]) => {
+        if (!active) return;
+        setEvents(eventItems);
+        setCoordinators(coordinatorItems);
+      })
+      .catch((loadError: unknown) => {
+        if (active) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "We couldn't load events.",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function handleAssignSubmit(coordinatorId: string, reason: string) {
+    if (!assigningEvent) return;
+    await assignEventCoordinator(assigningEvent.id, coordinatorId, reason);
+    setAssigningEvent(undefined);
+    await reload();
+  }
+
+  const notice = (state as LocationState)?.notice;
+  const pendingEvents = events.filter((event) => !event.assignedCoordinatorId);
+  const assignedEvents = events.filter((event) => event.assignedCoordinatorId);
+  const tabEvents = tab === "pending" ? pendingEvents : assignedEvents;
+  const filteredEvents = filterEventsByTitle(tabEvents, searchQuery);
+
+  return (
+    <RoleGate>
+      <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
+        <div className="mx-auto max-w-6xl">
+          <header className="border-b border-slate-200 pb-7">
+            <p className="text-xs font-semibold tracking-[0.16em] text-primary uppercase">
+              Event Coordinator Lead workspace
+            </p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-slate-950">
+              All events
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              Every event submitted by an organiser, and who it's assigned to.
+            </p>
+          </header>
+
+          <div className="mt-6 flex gap-1 border-b border-slate-200">
+            <LeadTabButton
+              label={`Pending (${pendingEvents.length})`}
+              active={tab === "pending"}
+              onClick={() => setTab("pending")}
+            />
+            <LeadTabButton
+              label={`Assigned (${assignedEvents.length})`}
+              active={tab === "assigned"}
+              onClick={() => setTab("assigned")}
+            />
+          </div>
+
+          <EventsToolbar searchValue={searchQuery} onSearchChange={setSearchQuery} />
+
+          {notice && (
+            <p
+              role="status"
+              className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+            >
+              {notice}
+            </p>
+          )}
+          {error && (
+            <p
+              role="alert"
+              className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+            >
+              {error}
+            </p>
+          )}
+
+          {loading ? (
+            <LoadingList />
+          ) : tabEvents.length === 0 ? (
+            <LeadEmptyState tab={tab} />
+          ) : filteredEvents.length === 0 ? (
+            <NoSearchResults />
+          ) : (
+            <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {filteredEvents.map((event) => (
+                <LeadEventCard
+                  key={event.id}
+                  event={event}
+                  onAssign={() => setAssigningEvent(event)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {assigningEvent && (
+        <AssignCoordinatorDialog
+          mode={assigningEvent.assignedCoordinatorId ? "reassign" : "assign"}
+          coordinators={coordinators}
+          currentCoordinatorId={assigningEvent.assignedCoordinatorId}
+          onCancel={() => setAssigningEvent(undefined)}
+          onSubmit={handleAssignSubmit}
+        />
+      )}
+    </RoleGate>
+  );
+}
+
+function LeadTabButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? "page" : undefined}
+      className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition ${
+        active
+          ? "border-primary text-primary"
+          : "border-transparent text-slate-500 hover:text-slate-800"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -601,6 +787,89 @@ function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
   );
 }
 
+function LeadEventCard({
+  event,
+  onAssign,
+}: {
+  event: LeadEventSummary;
+  onAssign: () => void;
+}) {
+  const isAssigned = Boolean(event.assignedCoordinatorId);
+  // Mirrors reassign_event_coordinator's own block list — showing a button
+  // that the database would always refuse is worse than not showing one.
+  const isReassignmentBlocked = ["draft", "rejected", "cancelled", "completed"].includes(
+    event.status,
+  );
+  return (
+    <article className="flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)]">
+      <div className="flex items-start justify-between gap-3">
+        <StatusBadge status={event.status} />
+        <span className="shrink-0 text-xs text-slate-400">
+          Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeZone: "Asia/Singapore" }).format(new Date(event.updatedAt))}
+        </span>
+      </div>
+      <h2 className="mt-5 text-lg font-semibold tracking-tight text-slate-950">
+        {event.title}
+      </h2>
+      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
+        {event.purpose || "Purpose not added yet"}
+      </p>
+      <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+        <CalendarDays className="size-4" aria-hidden="true" />
+        {event.startsAt
+          ? new Intl.DateTimeFormat("en-SG", {
+              dateStyle: "medium",
+              timeStyle: "short",
+              timeZone: "Asia/Singapore",
+            }).format(new Date(event.startsAt))
+          : "Schedule not added"}
+      </div>
+      {event.submittedAt && (
+        <p className="mt-1 text-xs text-slate-400">
+          Submitted{" "}
+          {new Intl.DateTimeFormat("en-SG", {
+            dateStyle: "medium",
+            timeStyle: "short",
+            timeZone: "Asia/Singapore",
+          }).format(new Date(event.submittedAt))}
+        </p>
+      )}
+      <div className="mt-auto flex flex-col gap-3 border-t border-slate-100 pt-4">
+        <div className="flex flex-col gap-1 text-xs text-slate-500">
+          <span>Organiser: {event.organiserName ?? "Unknown"}</span>
+          <span>Coordinator: {event.assignedCoordinatorName ?? "Unassigned"}</span>
+        </div>
+        <EventHistoryButton eventId={event.id} />
+        {!isReassignmentBlocked && (
+          <Button type="button" variant={isAssigned ? "outline" : "default"} onClick={onAssign}>
+            {isAssigned ? "Reassign" : "Assign coordinator"}
+          </Button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function LeadEmptyState({ tab }: { tab: LeadTab }) {
+  return (
+    <section className="mt-7 grid min-h-80 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 text-center">
+      <div className="max-w-sm py-12">
+        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-accent text-primary">
+          <CalendarDays aria-hidden="true" />
+        </span>
+        <h2 className="mt-5 text-lg font-semibold text-slate-950">
+          {tab === "pending" ? "No pending requests" : "No events assigned yet"}
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          {tab === "pending"
+            ? "New event requests appear here as soon as an organiser submits one."
+            : "Assign a coordinator to a pending request to see it here."}
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function CoordinatorEmptyState() {
   return (
     <section className="mt-7 grid min-h-80 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 text-center">
@@ -610,7 +879,7 @@ function CoordinatorEmptyState() {
         </span>
         <h2 className="mt-5 text-lg font-semibold text-slate-950">No events assigned yet</h2>
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          Events are assigned automatically when an organiser submits a request.
+          The Event Coordinator Lead assigns requests to you once they've been reviewed.
         </p>
       </div>
     </section>
