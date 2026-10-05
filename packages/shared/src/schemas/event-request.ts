@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { isPositiveWholeNumber } from "./equipment-unavailability";
+
 
 const optionalText = (maximum: number) => z.string().trim().max(maximum);
 
@@ -60,7 +62,7 @@ export const equipmentRequirementSchema = equipmentRequirementObject.superRefine
       });
     }
 
-    if (!/^[1-9]\d*$/.test(item.quantity)) {
+    if (!isPositiveWholeNumber(item.quantity)) {
       context.addIssue({
         code: "custom",
         path: ["quantity"],
@@ -357,7 +359,8 @@ export function toEventDraftPayload(
         : {
             id: item.id || null,
             equipmentItemId: item.equipmentItemId,
-            quantity: item.quantity.trim(),
+            // "04" -> "4": the database only accepts a plain positive whole number.
+            quantity: String(Number(item.quantity)),
             requiredFrom: optionalDateValue(item.requiredFrom),
             requiredUntil: optionalDateValue(item.requiredUntil),
             notes: optionalValue(item.notes),

@@ -15,11 +15,12 @@ const localDateTime = z
 export const equipmentUnavailabilitySchema = z
   .object({
     equipmentItemId: z.string().min(1, "Choose equipment from the catalogue"),
+    // Leading zeros ("04") are accepted; the value is sent as a number.
     quantity: z
       .string()
       .trim()
       .min(1, "Enter a quantity")
-      .regex(/^[1-9]\d*$/, "Enter a positive whole number"),
+      .refine((value) => !value || isPositiveWholeNumber(value), "Enter a positive whole number"),
     reason: z
       .string()
       .trim()
@@ -40,8 +41,16 @@ export const equipmentUnavailabilitySchema = z
 
 export type EquipmentUnavailabilityFormValues = z.infer<typeof equipmentUnavailabilitySchema>;
 
-/** Stock is a whole number of units; zero is allowed (none held). */
+/**
+ * Stock is a whole number of units; zero is allowed (none held). Leading
+ * zeros ("04") are accepted, since a number input easily produces them.
+ */
 export const equipmentStockSchema = z
   .string()
   .trim()
-  .regex(/^(0|[1-9]\d*)$/, "Enter a whole number of 0 or more");
+  .regex(/^\d+$/, "Enter a whole number of 0 or more");
+
+/** "4", "04" and "004" are all 4; "0", "-1" and "1.5" are not positive whole numbers. */
+export function isPositiveWholeNumber(value: string) {
+  return /^\d+$/.test(value.trim()) && Number(value) > 0;
+}

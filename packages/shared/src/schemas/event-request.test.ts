@@ -221,6 +221,11 @@ describe("equipment requirement validation", () => {
     expect(item!.requiredUntil).toMatch(/^2099-04-01T/);
   });
 
+  it("accepts a quantity typed with a leading zero and sends the plain number", () => {
+    const parsed = eventDraftSchema.parse(draft({ equipment: [{ ...validItem, quantity: "04" }] }));
+    expect(toEventDraftPayload(parsed).equipment[0]!.quantity).toBe("4");
+  });
+
   it("sends a new row without an id", () => {
     const parsed = eventDraftSchema.parse(draft({ equipment: [validItem] }));
     expect(toEventDraftPayload(parsed).equipment[0]!.id).toBeNull();

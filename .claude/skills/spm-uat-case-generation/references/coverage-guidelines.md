@@ -6,7 +6,7 @@ Read this reference when reviewing the requirements and deciding which UAT cases
 
 Maintain this chain:
 
-`User need -> User story -> Acceptance criterion or scenario -> Test case -> Execution evidence`
+`User need -> Jira issue key or user story -> Acceptance criterion or scenario -> Test case -> Execution evidence`
 
 One acceptance criterion may require several cases. One case may cover closely related parts of more than one criterion only when the setup, action, and observable result are genuinely the same.
 
@@ -65,6 +65,7 @@ Ask one focused question when a gap blocks correct case design. When several gap
 Before delivery, build an internal mapping of every acceptance criterion and scenario to its case IDs. Check for:
 
 - an uncovered requirement;
+- existing sheet cases that already cover the same requirement, including cases filed under a verified legacy story ID;
 - a case with no source anchor;
 - contradictory expected results;
 - duplicated cases with the same setup, action, data class, and outcome;

@@ -140,7 +140,13 @@ export async function listOverlappingReservations(
 }
 
 export async function recordEquipmentUnavailability(values: EquipmentUnavailabilityFormValues) {
-  const parsed = equipmentUnavailabilitySchema.parse(values);
+  // The form validates first; if anything still fails here, surface the
+  // plain message rather than the validator's raw error.
+  const result = equipmentUnavailabilitySchema.safeParse(values);
+  if (!result.success) {
+    throw new Error(result.error.issues[0]?.message ?? "Check the highlighted fields and try again.");
+  }
+  const parsed = result.data;
   const { error } = await supabase.rpc("record_equipment_unavailability", {
     p_equipment_item_id: parsed.equipmentItemId,
     p_quantity: Number(parsed.quantity),

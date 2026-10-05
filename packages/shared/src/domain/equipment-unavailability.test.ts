@@ -94,7 +94,13 @@ describe("equipment unavailability form", () => {
     });
   });
 
+  it("accepts a quantity typed with a leading zero", () => {
+    expect(errors({ quantity: "04" })).toEqual({});
+    expect(errors({ quantity: "00" })).toEqual({ quantity: "Enter a positive whole number" });
+  });
+
   it("accepts zero stock but not negative or fractional stock", () => {
+    expect(equipmentStockSchema.safeParse("04").success).toBe(true);
     expect(equipmentStockSchema.safeParse("0").success).toBe(true);
     expect(equipmentStockSchema.safeParse("12").success).toBe(true);
     expect(equipmentStockSchema.safeParse("-1").success).toBe(false);

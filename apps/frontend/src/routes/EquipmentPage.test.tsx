@@ -182,6 +182,24 @@ describe("EquipmentPage for Technical Support Staff (SPM-30)", () => {
     expect(await screen.findByText("Unavailability recorded.")).toBeInTheDocument();
   });
 
+  it("accepts a quantity typed with a leading zero", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.selectOptions(await screen.findByLabelText("Equipment"), PROJECTOR);
+    await user.clear(screen.getByLabelText("Quantity unavailable"));
+    await user.type(screen.getByLabelText("Quantity unavailable"), "01");
+    await user.type(screen.getByLabelText("Unavailable from"), "2099-04-10T09:00");
+    await user.type(screen.getByLabelText("Unavailable until"), "2099-04-12T09:00");
+    await user.type(screen.getByLabelText("Reason"), "Repair");
+    await user.click(screen.getByRole("button", { name: /Record unavailability/ }));
+
+    // jsdom's number input strips the zero itself (Chrome keeps "01"); the
+    // "01"/"04" rule is covered directly in the shared schema tests.
+    await waitFor(() => expect(recordEquipmentUnavailabilityMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Enter a positive whole number")).not.toBeInTheDocument();
+  });
+
   it("keeps who recorded and removed each record (AC06)", async () => {
     renderPage();
 
