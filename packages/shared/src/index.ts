@@ -9,6 +9,7 @@ export * from "./schemas/signup";
 export * from "./schemas/event-request";
 export * from "./schemas/venue";
 export * from "./schemas/venue-block";
+export * from "./schemas/equipment-unavailability";
 export * from "./schemas/venue-search";
 
 export * from "./domain/role-destination";
@@ -17,6 +18,7 @@ export * from "./domain/event-status";
 export * from "./domain/clarification";
 export * from "./domain/event-field-history";
 export * from "./domain/equipment-history";
+export * from "./domain/equipment-unavailability";
 export * from "./domain/coordinator-assignment";
 export * from "./domain/permissions";
 export * from "./domain/navigation";

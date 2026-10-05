@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { TechnicalSupportEquipment } from "@/features/equipment/components/technical-support-equipment";
 import { ListToolbar } from "@/features/workspace/components/list-toolbar";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
@@ -33,20 +34,26 @@ export function EquipmentPage() {
             </p>
           </header>
 
-          <ListToolbar
-            searchPlaceholder="Search equipment"
-            searchValue={searchQuery}
-            onSearchChange={setSearchQuery}
-            action={
-              canRequestEquipment(profile?.role) ? (
-                <Button type="button" size="sm">
-                  <FilePlus2 /> Equipment request
-                </Button>
-              ) : undefined
-            }
-          />
+          {profile?.role === "technical_support_staff" ? (
+            <TechnicalSupportEquipment />
+          ) : (
+            <>
+              <ListToolbar
+                searchPlaceholder="Search equipment"
+                searchValue={searchQuery}
+                onSearchChange={setSearchQuery}
+                action={
+                  canRequestEquipment(profile?.role) ? (
+                    <Button type="button" size="sm">
+                      <FilePlus2 /> Equipment request
+                    </Button>
+                  ) : undefined
+                }
+              />
 
-          <EmptyState />
+              <EmptyState />
+            </>
+          )}
         </div>
       </div>
     </RoleGate>

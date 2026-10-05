@@ -341,6 +341,80 @@ export type Database = {
           },
         ]
       }
+      equipment_unavailability: {
+        Row: {
+          ended_at: string | null
+          ended_by: string | null
+          ends_at: string
+          equipment_item_id: string
+          id: string
+          quantity: number
+          reason: string
+          recorded_at: string
+          recorded_by: string
+          removed_at: string | null
+          removed_by: string | null
+          starts_at: string
+        }
+        Insert: {
+          ended_at?: string | null
+          ended_by?: string | null
+          ends_at: string
+          equipment_item_id: string
+          id?: string
+          quantity: number
+          reason: string
+          recorded_at?: string
+          recorded_by: string
+          removed_at?: string | null
+          removed_by?: string | null
+          starts_at: string
+        }
+        Update: {
+          ended_at?: string | null
+          ended_by?: string | null
+          ends_at?: string
+          equipment_item_id?: string
+          id?: string
+          quantity?: number
+          reason?: string
+          recorded_at?: string
+          recorded_by?: string
+          removed_at?: string | null
+          removed_by?: string | null
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_unavailability_ended_by_fkey"
+            columns: ["ended_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_unavailability_equipment_item_id_fkey"
+            columns: ["equipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_unavailability_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_unavailability_removed_by_fkey"
+            columns: ["removed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_equipment_changes: {
         Row: {
           change_type: string
@@ -1182,6 +1256,24 @@ export type Database = {
       }
       save_event_draft: {
         Args: { draft: Json; target_event_id?: string }
+        Returns: string
+      }
+      end_equipment_unavailability: {
+        Args: { p_unavailability_id: string }
+        Returns: string
+      }
+      record_equipment_unavailability: {
+        Args: {
+          p_ends_at: string
+          p_equipment_item_id: string
+          p_quantity: number
+          p_reason: string
+          p_starts_at: string
+        }
+        Returns: string
+      }
+      remove_equipment_unavailability: {
+        Args: { p_unavailability_id: string }
         Returns: string
       }
       save_event_equipment_requirements: {
