@@ -12,7 +12,10 @@ import { Button } from "@/components/ui/button";
 import { EquipmentInventory } from "@/features/equipment/components/equipment-inventory";
 import { EventEquipmentAvailabilityList } from "@/features/equipment/components/event-equipment-availability";
 import {
+  changeEquipmentReservation,
   listEventEquipmentAvailability,
+  releaseEquipmentReservation,
+  reserveEquipment,
   type EventEquipmentAvailability,
 } from "@/features/equipment/services/equipment-availability";
 import { EquipmentUnavailabilityForm } from "@/features/equipment/components/equipment-unavailability-form";
@@ -169,7 +172,18 @@ export function TechnicalSupportEquipment() {
 
       {tab === "requests" ? (
         <section role="tabpanel" aria-label="Event requests" className="mt-5">
-          <EventEquipmentAvailabilityList events={eventAvailability} />
+          <EventEquipmentAvailabilityList
+            events={eventAvailability}
+            onReserve={(requirementId, quantity) =>
+              write(() => reserveEquipment(requirementId, quantity), "Equipment reserved.")
+            }
+            onChange={(reservationId, quantity) =>
+              write(() => changeEquipmentReservation(reservationId, quantity), "Reservation updated.")
+            }
+            onRelease={(reservationId, reason) =>
+              write(() => releaseEquipmentReservation(reservationId, reason), "Reservation released.")
+            }
+          />
         </section>
       ) : tab === "inventory" ? (
         <section role="tabpanel" aria-label="Inventory" className="mt-5">

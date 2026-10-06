@@ -31,12 +31,11 @@ const STAGES = [
     id: "planning",
     label: "Planning",
     rank: 2,
-    // Venue links to its own page; Equipment has no booking flow yet (its
-    // own catalogue page exists at /equipment, but nothing here books
-    // equipment for a specific event) — shown as a label only.
+    // Venue and Equipment each link to their own page. Equipment shows the
+    // reservations Technical Support Staff made for this event.
     children: [
       { id: "venue", label: "Venue", href: "venue" },
-      { id: "equipment", label: "Equipment", href: undefined },
+      { id: "equipment", label: "Equipment", href: "equipment" },
     ],
   },
   { id: "confirmed", label: "Event Confirmed", rank: 3 },
@@ -102,21 +101,12 @@ export function EventPlanningTimeline({
                         aria-hidden="true"
                         className="size-3.5 shrink-0 text-slate-300"
                       />
-                      {child.href ? (
-                        <Link
-                          to={`/events/${eventId}/${child.href}`}
-                          className="hover:text-primary hover:underline"
-                        >
-                          {child.label}
-                        </Link>
-                      ) : (
-                        <>
-                          {child.label}
-                          <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-400">
-                            Coming soon
-                          </span>
-                        </>
-                      )}
+                      <Link
+                        to={`/events/${eventId}/${child.href}`}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {child.label}
+                      </Link>
                     </li>
                   ))}
                 </ul>

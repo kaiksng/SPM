@@ -273,6 +273,11 @@ export type Database = {
           requested_by: string
           starts_at: string
           status: Database["public"]["Enums"]["request_status"]
+          needs_recheck: boolean
+          recheck_reason: string | null
+          released_at: string | null
+          released_by: string | null
+          requirement_id: string | null
         }
         Insert: {
           decided_at?: string | null
@@ -286,6 +291,11 @@ export type Database = {
           requested_by: string
           starts_at: string
           status?: Database["public"]["Enums"]["request_status"]
+          needs_recheck?: boolean
+          recheck_reason?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          requirement_id?: string | null
         }
         Update: {
           decided_at?: string | null
@@ -299,6 +309,11 @@ export type Database = {
           requested_by?: string
           starts_at?: string
           status?: Database["public"]["Enums"]["request_status"]
+          needs_recheck?: boolean
+          recheck_reason?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          requirement_id?: string | null
         }
         Relationships: [
           {
@@ -323,10 +338,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "equipment_reservations_released_by_fkey"
+            columns: ["released_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_reservations_requirement_id_fkey"
+            columns: ["requirement_id"]
+            isOneToOne: false
+            referencedRelation: "event_equipment_requirements"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "equipment_reservations_requested_by_fkey"
             columns: ["requested_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_reservation_events: {
+        Row: {
+          action: string
+          actor: string | null
+          details: Json | null
+          id: number
+          occurred_at: string
+          reservation_id: string
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          details?: Json | null
+          id?: never
+          occurred_at?: string
+          reservation_id: string
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          details?: Json | null
+          id?: never
+          occurred_at?: string
+          reservation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_reservation_events_actor_fkey"
+            columns: ["actor"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_reservation_events_reservation_id_fkey"
+            columns: ["reservation_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_reservations"
             referencedColumns: ["id"]
           },
         ]
@@ -1503,12 +1574,30 @@ export type Database = {
           required_from: string | null
           required_until: string | null
           requirement_id: string
+          reservation_id: string | null
+          reservation_needs_recheck: boolean
+          reservation_quantity: number | null
+          reservation_recheck_reason: string | null
+          reserved_at: string | null
+          reserved_by_name: string | null
           reserved_quantity: number
           status: string
           technical_requirements: string | null
           total_units: number
           unavailable_quantity: number
         }[]
+      }
+      reserve_equipment: {
+        Args: { p_quantity: number; p_requirement_id: string }
+        Returns: string
+      }
+      change_equipment_reservation: {
+        Args: { p_quantity: number; p_reservation_id: string }
+        Returns: string
+      }
+      release_equipment_reservation: {
+        Args: { p_reason?: string; p_reservation_id: string }
+        Returns: string
       }
       create_equipment_item: {
         Args: { p_category: string; p_code: string; p_name: string; p_units: number }

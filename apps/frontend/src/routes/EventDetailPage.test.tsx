@@ -200,10 +200,12 @@ describe("EventDetailPage", () => {
       "href",
       "/events/event-1/venue",
     );
-    // Equipment has no booking flow yet — shown as a label only, not a link.
-    expect(screen.getByText("Equipment")).toBeInTheDocument();
-    expect(screen.getByText("Coming soon")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Equipment" })).not.toBeInTheDocument();
+    // Equipment links to the event's equipment arrangements (reservations).
+    expect(screen.getByRole("link", { name: "Equipment" })).toHaveAttribute(
+      "href",
+      "/events/event-1/equipment",
+    );
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
   it("does not show the lifecycle sidebar to the organiser", async () => {

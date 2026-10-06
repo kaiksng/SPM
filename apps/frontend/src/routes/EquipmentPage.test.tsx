@@ -42,8 +42,14 @@ vi.mock("@/features/equipment/services/equipment-unavailability", () => ({
 }));
 
 const listEventEquipmentAvailabilityMock = vi.fn();
+const reserveEquipmentMock = vi.fn();
+const changeEquipmentReservationMock = vi.fn();
+const releaseEquipmentReservationMock = vi.fn();
 vi.mock("@/features/equipment/services/equipment-availability", () => ({
   listEventEquipmentAvailability: () => listEventEquipmentAvailabilityMock(),
+  reserveEquipment: (...args: unknown[]) => reserveEquipmentMock(...args),
+  changeEquipmentReservation: (...args: unknown[]) => changeEquipmentReservationMock(...args),
+  releaseEquipmentReservation: (...args: unknown[]) => releaseEquipmentReservationMock(...args),
 }));
 
 import { EquipmentPage } from "./EquipmentPage";
@@ -118,6 +124,9 @@ beforeEach(() => {
   service.listEquipmentUnavailability.mockResolvedValue([inProgress, removed]);
   service.listOverlappingReservations.mockResolvedValue([]);
   listEventEquipmentAvailabilityMock.mockReset().mockResolvedValue([]);
+  reserveEquipmentMock.mockReset().mockResolvedValue(undefined);
+  changeEquipmentReservationMock.mockReset().mockResolvedValue(undefined);
+  releaseEquipmentReservationMock.mockReset().mockResolvedValue(undefined);
 });
 
 /** The page opens on Event requests; most inventory tests start on Inventory. */
@@ -589,6 +598,7 @@ describe("EquipmentPage event requests (SPM-31)", () => {
     unavailableQuantity: 0,
     availableQuantity: 100,
     status: "available",
+    reservation: null,
     ...overrides,
   });
 
@@ -681,6 +691,173 @@ describe("EquipmentPage event requests (SPM-31)", () => {
     await user.type(await screen.findByLabelText("Search events"), "talk");
     expect(screen.getByRole("listitem", { name: "Tech Talk" })).toBeInTheDocument();
     expect(screen.queryByRole("listitem", { name: "Annual Gala" })).not.toBeInTheDocument();
+  });
+});
+
+describe("EquipmentPage reserving equipment", () => {
+  const base = {
+    requirementId: "req-proj",
+    equipmentItemId: PROJ,
+    equipmentName: "Projector",
+    itemCode: "proj",
+    itemRetired: false,
+    requestedQuantity: 50,
+    requiredFrom: hours(24),
+    requiredUntil: hours(28),
+    technicalRequirements: null,
+    totalUnits: 100,
+    reservedQuantity: 0,
+    unavailableQuantity: 0,
+    availableQuantity: 40,
+    status: "partially_available",
+    reservation: null as null | Record<string, unknown>,
+  };
+  const eventWith = (results: Array<Record<string, unknown>>) => [
+    { id: "event-expo", title: "Spring Expo", status: "planning", startsAt: hours(24), endsAt: hours(28), results },
+  ];
+
+  it("reserves an item, defaulting to what can be provided (AC1)", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([base]));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Reserve" }));
+    const dialog = screen.getByRole("dialog", { name: "Reserve Projector" });
+    expect(within(dialog).getByText(/50 requested · 40 available for this period/)).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Quantity to reserve")).toHaveValue(40);
+    await user.click(within(dialog).getByRole("button", { name: "Reserve" }));
+
+    await waitFor(() => expect(reserveEquipmentMock).toHaveBeenCalledWith("req-proj", 40));
+    expect(await screen.findByText("Equipment reserved.")).toBeInTheDocument();
+  });
+
+  it("shows the rejection and the available quantity when there are not enough (AC2)", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([base]));
+    reserveEquipmentMock.mockRejectedValue(new Error("Only 40 available for this period"));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Reserve" }));
+    const dialog = screen.getByRole("dialog", { name: "Reserve Projector" });
+    await user.clear(within(dialog).getByLabelText("Quantity to reserve"));
+    await user.type(within(dialog).getByLabelText("Quantity to reserve"), "45");
+    await user.click(within(dialog).getByRole("button", { name: "Reserve" }));
+
+    expect(await within(dialog).findByText("Only 40 available for this period")).toBeInTheDocument();
+  });
+
+  it("will not reserve more than was requested", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([{ ...base, availableQuantity: 100, status: "available" }]));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Reserve" }));
+    const dialog = screen.getByRole("dialog", { name: "Reserve Projector" });
+    await user.clear(within(dialog).getByLabelText("Quantity to reserve"));
+    await user.type(within(dialog).getByLabelText("Quantity to reserve"), "60");
+    await user.click(within(dialog).getByRole("button", { name: "Reserve" }));
+
+    expect(within(dialog).getByText("Cannot reserve more than the 50 requested")).toBeInTheDocument();
+    expect(reserveEquipmentMock).not.toHaveBeenCalled();
+  });
+
+  it("shows who reserved what, and offers change and release instead of reserve", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(
+      eventWith([
+        {
+          ...base,
+          availableQuantity: 100,
+          status: "available",
+          reservation: { id: "res-1", quantity: 40, needsRecheck: false, recheckReason: null, reservedByName: "Tess Support", reservedAt: hours(-1) },
+        },
+      ]),
+    );
+    renderPage();
+
+    expect(await screen.findByText(/Reserved 40 of 50 by Tess Support/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reserve" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Release" })).toBeInTheDocument();
+    expect(screen.getByText("1 of 1 reserved")).toBeInTheDocument();
+  });
+
+  it("flags a reservation that needs re-checking, and re-checks it (AC4)", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(
+      eventWith([
+        {
+          ...base,
+          availableQuantity: 100,
+          status: "available",
+          reservation: { id: "res-1", quantity: 40, needsRecheck: true, recheckReason: "The event date or time changed", reservedByName: "Tess Support", reservedAt: hours(-1) },
+        },
+      ]),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByText("Needs re-check: The event date or time changed")).toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "Spring Expo" })).toHaveTextContent("1 of 1 item need attention");
+    await user.click(screen.getByRole("button", { name: "Re-check" }));
+
+    await waitFor(() => expect(changeEquipmentReservationMock).toHaveBeenCalledWith("res-1", 40));
+  });
+
+  it("changes a reservation's quantity (AC5)", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(
+      eventWith([
+        {
+          ...base,
+          availableQuantity: 100,
+          status: "available",
+          reservation: { id: "res-1", quantity: 40, needsRecheck: false, recheckReason: null, reservedByName: null, reservedAt: null },
+        },
+      ]),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Change" }));
+    const dialog = screen.getByRole("dialog", { name: "Change Projector reservation" });
+    expect(within(dialog).getByLabelText("Quantity to reserve")).toHaveValue(40);
+    await user.clear(within(dialog).getByLabelText("Quantity to reserve"));
+    await user.type(within(dialog).getByLabelText("Quantity to reserve"), "30");
+    await user.click(within(dialog).getByRole("button", { name: "Save change" }));
+
+    await waitFor(() => expect(changeEquipmentReservationMock).toHaveBeenCalledWith("res-1", 30));
+  });
+
+  it("releases a reservation with a reason (AC5)", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(
+      eventWith([
+        {
+          ...base,
+          availableQuantity: 100,
+          status: "available",
+          reservation: { id: "res-1", quantity: 40, needsRecheck: false, recheckReason: null, reservedByName: null, reservedAt: null },
+        },
+      ]),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Release" }));
+    const dialog = screen.getByRole("dialog", { name: "Release Projector reservation" });
+    expect(within(dialog).getByText(/The 40 reserved will return to the available pool/)).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText(/Reason/), "No longer needed");
+    await user.click(within(dialog).getByRole("button", { name: "Release" }));
+
+    await waitFor(() => expect(releaseEquipmentReservationMock).toHaveBeenCalledWith("res-1", "No longer needed"));
+    expect(await screen.findByText("Reservation released.")).toBeInTheDocument();
+  });
+
+  it("offers no reserve for unknown equipment", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(
+      eventWith([{ ...base, equipmentItemId: null, itemCode: null, equipmentName: "Old projector", status: "unknown", availableQuantity: 0 }]),
+    );
+    renderPage();
+
+    expect(await screen.findByText("Old projector × 50")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reserve" })).not.toBeInTheDocument();
   });
 });
 

@@ -21,6 +21,7 @@ export * from "./domain/event-field-history";
 export * from "./domain/equipment-history";
 export * from "./domain/equipment-unavailability";
 export * from "./domain/equipment-availability";
+export * from "./domain/equipment-reservation";
 export * from "./domain/permissions";
 export * from "./domain/navigation";
 export * from "./domain/operating-hours";

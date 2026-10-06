@@ -23,6 +23,15 @@ export type EquipmentAvailabilityResult = {
   unavailableQuantity: number;
   availableQuantity: number;
   status: EquipmentAvailabilityStatus;
+  /** The live reservation for this request, if Technical Support Staff made one. */
+  reservation: {
+    id: string;
+    quantity: number;
+    needsRecheck: boolean;
+    recheckReason: string | null;
+    reservedByName: string | null;
+    reservedAt: string | null;
+  } | null;
 };
 
 export type EventEquipmentAvailability = {
@@ -73,6 +82,17 @@ export async function listEventEquipmentAvailability(): Promise<EventEquipmentAv
       availableQuantity: row.available_quantity,
       // Anything unexpected is shown as unknown rather than as available.
       status: isEquipmentAvailabilityStatus(row.status) ? row.status : "unknown",
+      reservation:
+        row.reservation_id && row.reservation_quantity !== null
+          ? {
+              id: row.reservation_id,
+              quantity: row.reservation_quantity,
+              needsRecheck: row.reservation_needs_recheck,
+              recheckReason: row.reservation_recheck_reason,
+              reservedByName: row.reserved_by_name,
+              reservedAt: row.reserved_at,
+            }
+          : null,
     };
     resultsByEvent.set(row.event_id, [...(resultsByEvent.get(row.event_id) ?? []), result]);
   }
@@ -85,4 +105,30 @@ export async function listEventEquipmentAvailability(): Promise<EventEquipmentAv
     endsAt: event.ends_at,
     results: resultsByEvent.get(event.id) ?? [],
   }));
+}
+
+/** Reserves a requested item (all checks, including availability, are in the database). */
+export async function reserveEquipment(requirementId: string, quantity: number) {
+  const { error } = await supabase.rpc("reserve_equipment", {
+    p_requirement_id: requirementId,
+    p_quantity: quantity,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Changes a reservation's quantity; with the same quantity, re-checks it. */
+export async function changeEquipmentReservation(reservationId: string, quantity: number) {
+  const { error } = await supabase.rpc("change_equipment_reservation", {
+    p_reservation_id: reservationId,
+    p_quantity: quantity,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function releaseEquipmentReservation(reservationId: string, reason: string) {
+  const { error } = await supabase.rpc("release_equipment_reservation", {
+    p_reservation_id: reservationId,
+    p_reason: reason.trim() || undefined,
+  });
+  if (error) throw new Error(error.message);
 }
