@@ -993,6 +993,7 @@ export type Database = {
           ends_at: string
           event_id: string
           expires_at: string | null
+          held_by: string | null
           id: string
           needs_review: boolean
           needs_review_reason: string | null
@@ -1009,6 +1010,7 @@ export type Database = {
           ends_at: string
           event_id: string
           expires_at?: string | null
+          held_by?: string | null
           id?: string
           needs_review?: boolean
           needs_review_reason?: string | null
@@ -1025,6 +1027,7 @@ export type Database = {
           ends_at?: string
           event_id?: string
           expires_at?: string | null
+          held_by?: string | null
           id?: string
           needs_review?: boolean
           needs_review_reason?: string | null
@@ -1047,6 +1050,13 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_bookings_held_by_fkey"
+            columns: ["held_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {

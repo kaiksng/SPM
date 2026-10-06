@@ -97,6 +97,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.venue-calendar__month-title--blocked {
+  /* Blocked's month-view row is a solid red bar (venue-calendar__dot--blocked's
+     #dc2626), not a pale tint like the other statuses — the default slate
+     text is unreadable against it. */
+  color: #ffffff;
+}
 
 /* The date last clicked — the day strip below the calendar shows this date;
    clicking never navigates the calendar itself away from month view. */
