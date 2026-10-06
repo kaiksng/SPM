@@ -1,6 +1,6 @@
 begin;
 
-select plan(21);
+select plan(23);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -13,6 +13,18 @@ values
     'f1000000-0000-0000-0000-000000000002',
     'spm24b-coordinator-a@example.test',
     '{"full_name":"SPM24b Coordinator A","role":"event_coordinator"}'::jsonb
+  ),
+  -- Two venue-staff profiles, so the notification fan-out below can assert
+  -- "every venue-staff profile" actually means more than one.
+  (
+    'f1000000-0000-0000-0000-000000000004',
+    'spm24b-venue-staff-a@example.test',
+    '{"full_name":"SPM24b Venue Staff A","role":"venue_staff"}'::jsonb
+  ),
+  (
+    'f1000000-0000-0000-0000-000000000005',
+    'spm24b-venue-staff-b@example.test',
+    '{"full_name":"SPM24b Venue Staff B","role":"venue_staff"}'::jsonb
   );
 
 set local role authenticated;
@@ -219,6 +231,29 @@ select is(
   (select status::text from public.venue_bookings where id = (select id from sb_booking_ids where label = 'booking-1')),
   'pending',
   'AC01: the new request''s status is Pending'
+);
+
+-- Every venue-staff profile is notified of the new request, not just one.
+select is(
+  (
+    select count(*)::int
+    from public.notifications n
+    join public.profiles p on p.id = n.recipient_id
+    where p.role = 'venue_staff'::public.user_role
+      and n.type = 'venue_request'::public.notification_type
+      and n.event_id = (select id from sb_event_ids where label = 'event-a')
+  ),
+  2,
+  'submitting a request notifies both seeded venue-staff profiles'
+);
+select ok(
+  exists(
+    select 1 from public.notifications
+    where recipient_id = 'f1000000-0000-0000-0000-000000000004'::uuid
+      and type = 'venue_request'::public.notification_type
+      and message like '%Room A Test Venue%'
+  ),
+  'the notification names the requested venue'
 );
 
 -- AC03: Room A already has an overlapping Pending booking (booking-1, same

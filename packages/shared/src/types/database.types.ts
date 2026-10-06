@@ -331,6 +331,80 @@ export type Database = {
           },
         ]
       }
+      equipment_unavailability: {
+        Row: {
+          ended_at: string | null
+          ended_by: string | null
+          ends_at: string
+          equipment_item_id: string
+          id: string
+          quantity: number
+          reason: string
+          recorded_at: string
+          recorded_by: string
+          removed_at: string | null
+          removed_by: string | null
+          starts_at: string
+        }
+        Insert: {
+          ended_at?: string | null
+          ended_by?: string | null
+          ends_at: string
+          equipment_item_id: string
+          id?: string
+          quantity: number
+          reason: string
+          recorded_at?: string
+          recorded_by: string
+          removed_at?: string | null
+          removed_by?: string | null
+          starts_at: string
+        }
+        Update: {
+          ended_at?: string | null
+          ended_by?: string | null
+          ends_at?: string
+          equipment_item_id?: string
+          id?: string
+          quantity?: number
+          reason?: string
+          recorded_at?: string
+          recorded_by?: string
+          removed_at?: string | null
+          removed_by?: string | null
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_unavailability_ended_by_fkey"
+            columns: ["ended_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_unavailability_equipment_item_id_fkey"
+            columns: ["equipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_unavailability_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_unavailability_removed_by_fkey"
+            columns: ["removed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_change_requests: {
         Row: {
           event_id: string
@@ -489,80 +563,6 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      equipment_unavailability: {
-        Row: {
-          ended_at: string | null
-          ended_by: string | null
-          ends_at: string
-          equipment_item_id: string
-          id: string
-          quantity: number
-          reason: string
-          recorded_at: string
-          recorded_by: string
-          removed_at: string | null
-          removed_by: string | null
-          starts_at: string
-        }
-        Insert: {
-          ended_at?: string | null
-          ended_by?: string | null
-          ends_at: string
-          equipment_item_id: string
-          id?: string
-          quantity: number
-          reason: string
-          recorded_at?: string
-          recorded_by: string
-          removed_at?: string | null
-          removed_by?: string | null
-          starts_at: string
-        }
-        Update: {
-          ended_at?: string | null
-          ended_by?: string | null
-          ends_at?: string
-          equipment_item_id?: string
-          id?: string
-          quantity?: number
-          reason?: string
-          recorded_at?: string
-          recorded_by?: string
-          removed_at?: string | null
-          removed_by?: string | null
-          starts_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "equipment_unavailability_ended_by_fkey"
-            columns: ["ended_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_unavailability_equipment_item_id_fkey"
-            columns: ["equipment_item_id"]
-            isOneToOne: false
-            referencedRelation: "equipment_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_unavailability_recorded_by_fkey"
-            columns: ["recorded_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_unavailability_removed_by_fkey"
-            columns: ["removed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1077,6 +1077,8 @@ export type Database = {
           decision_notes: string | null
           ends_at: string
           event_id: string
+          expires_at: string | null
+          held_by: string | null
           id: string
           needs_review: boolean
           needs_review_reason: string | null
@@ -1092,6 +1094,8 @@ export type Database = {
           decision_notes?: string | null
           ends_at: string
           event_id: string
+          expires_at?: string | null
+          held_by?: string | null
           id?: string
           needs_review?: boolean
           needs_review_reason?: string | null
@@ -1107,6 +1111,8 @@ export type Database = {
           decision_notes?: string | null
           ends_at?: string
           event_id?: string
+          expires_at?: string | null
+          held_by?: string | null
           id?: string
           needs_review?: boolean
           needs_review_reason?: string | null
@@ -1129,6 +1135,13 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_bookings_held_by_fkey"
+            columns: ["held_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1302,16 +1315,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      auto_reassign_event_coordinator: {
-        Args: { p_actor_id?: string; p_event_id: string; p_reason: string }
-        Returns: Json
-      }
       can_view_event: { Args: { target_event_id: string }; Returns: boolean }
       cancel_event_request: {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json
       }
       complete_event: { Args: { p_event_id: string }; Returns: Json }
+      confirm_venue_booking_hold: {
+        Args: { p_actor_id?: string; p_booking_id: string }
+        Returns: Json
+      }
       create_venue: {
         Args: { p_actor_id?: string; p_venue: Json }
         Returns: Json
@@ -1347,6 +1360,10 @@ export type Database = {
         }
         Returns: Json
       }
+      end_equipment_unavailability: {
+        Args: { p_unavailability_id: string }
+        Returns: string
+      }
       event_equipment_snapshot: {
         Args: {
           requirement: Database["public"]["Tables"]["event_equipment_requirements"]["Row"]
@@ -1364,6 +1381,14 @@ export type Database = {
           to_status: Database["public"]["Enums"]["event_status"]
         }
         Returns: boolean
+      }
+      expire_stale_event_hold: {
+        Args: { p_event_id: string }
+        Returns: undefined
+      }
+      expire_stale_venue_holds: {
+        Args: { p_venue_id: string }
+        Returns: undefined
       }
       find_matching_venues: {
         Args: { p_event_id: string }
@@ -1407,6 +1432,14 @@ export type Database = {
           reason: string
         }[]
       }
+      place_venue_booking_hold: {
+        Args: {
+          p_actor_id?: string
+          p_booking_id: string
+          p_expires_at: string
+        }
+        Returns: Json
+      }
       reassign_event_coordinator: {
         Args: {
           p_actor_id?: string
@@ -1415,6 +1448,21 @@ export type Database = {
           p_reason: string
         }
         Returns: Json
+      }
+      record_equipment_unavailability: {
+        Args: {
+          p_ends_at: string
+          p_equipment_item_id: string
+          p_quantity: number
+          p_reason: string
+          p_starts_at: string
+          p_unit_ids?: string[]
+        }
+        Returns: string
+      }
+      remove_equipment_unavailability: {
+        Args: { p_unavailability_id: string }
+        Returns: string
       }
       remove_venue_block: { Args: { p_block_id: string }; Returns: string }
       request_event_clarification: {
@@ -1442,21 +1490,6 @@ export type Database = {
         Args: { draft: Json; target_event_id?: string }
         Returns: string
       }
-      end_equipment_unavailability: {
-        Args: { p_unavailability_id: string }
-        Returns: string
-      }
-      record_equipment_unavailability: {
-        Args: {
-          p_ends_at: string
-          p_equipment_item_id: string
-          p_quantity: number
-          p_reason: string
-          p_starts_at: string
-          p_unit_ids?: string[]
-        }
-        Returns: string
-      }
       create_equipment_item: {
         Args: { p_category: string; p_code: string; p_name: string; p_units: number }
         Returns: string
@@ -1477,36 +1510,32 @@ export type Database = {
         Args: { p_item_id: string; p_retired: boolean }
         Returns: string
       }
-      remove_equipment_unavailability: {
-        Args: { p_unavailability_id: string }
-        Returns: string
-      }
       save_event_equipment_requirements: {
         Args: { p_equipment: Json; p_event_id: string }
         Returns: number
       }
       search_available_venues: {
         Args: {
-          p_event_id: string
-          p_starts_at: string
-          p_ends_at: string
-          p_min_capacity: number
-          p_location?: string | null
-          p_layout?: string | null
-          p_facilities?: string[]
           p_accessibility?: string | null
+          p_ends_at: string
+          p_event_id: string
+          p_facilities?: string[]
+          p_layout?: string | null
+          p_location?: string | null
+          p_min_capacity: number
+          p_starts_at: string
         }
         Returns: {
-          id: string
-          name: string
-          location: string
+          accessibility_notes: string
           capacity: number
-          operating_hours: Json
-          description: string | null
-          accessibility_notes: string | null
-          updated_at: string
+          description: string
           facilities: string[]
+          id: string
           layouts: string[]
+          location: string
+          name: string
+          operating_hours: Json
+          updated_at: string
         }[]
       }
       submit_event_request: {
@@ -1514,7 +1543,7 @@ export type Database = {
         Returns: Json
       }
       submit_venue_booking_request: {
-        Args: { p_event_id: string; p_venue_id: string }
+        Args: { p_actor_id?: string; p_event_id: string; p_venue_id: string }
         Returns: string
       }
       update_event_as_coordinator: {
@@ -1568,7 +1597,14 @@ export type Database = {
         | "confirmation"
         | "cancellation"
         | "venue_capacity_review"
-      request_status: "pending" | "approved" | "rejected" | "cancelled"
+        | "venue_request"
+      request_status:
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "cancelled"
+        | "on_hold"
+        | "expired"
       room_layout:
         | "Theatre"
         | "Classroom"
@@ -1584,6 +1620,7 @@ export type Database = {
         | "technical_support_staff"
         | "attendee"
         | "event_coordinator_lead"
+        | "safety_officer"
       venue_booking_decision_type: "approved" | "rejected"
     }
     CompositeTypes: {
@@ -1741,8 +1778,16 @@ export const Constants = {
         "confirmation",
         "cancellation",
         "venue_capacity_review",
+        "venue_request",
       ],
-      request_status: ["pending", "approved", "rejected", "cancelled"],
+      request_status: [
+        "pending",
+        "approved",
+        "rejected",
+        "cancelled",
+        "on_hold",
+        "expired",
+      ],
       room_layout: [
         "Theatre",
         "Classroom",
@@ -1759,6 +1804,7 @@ export const Constants = {
         "technical_support_staff",
         "attendee",
         "event_coordinator_lead",
+        "safety_officer",
       ],
       venue_booking_decision_type: ["approved", "rejected"],
     },

@@ -12,7 +12,6 @@ import { useAuth } from "@/context/auth-context";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
 import { EventHistoryButton } from "@/features/event-requests/components/event-history-link";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
-import { ReassignEventDialog } from "@/features/event-requests/components/reassign-event-dialog";
 import { EventStatusBadge } from "@/features/event-requests/components/status-badges";
 import { EventStatusTimeline } from "@/features/event-requests/components/status-timeline";
 import { VenueFacilitiesSection } from "@/features/event-requests/components/venue-facilities-section";
@@ -22,7 +21,6 @@ import {
   type EventDetail,
 } from "@/features/event-requests/services/event-details";
 import { completeEvent } from "@/features/event-requests/services/event-lifecycle";
-import { reassignEventCoordinator } from "@/features/event-requests/services/event-reassignment";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { cn } from "@/lib/utils";
 import { RoleGate } from "@/routes/RoleGate";
@@ -36,11 +34,6 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
 function formatDateTime(value: string | null) {
   return value ? dateTimeFormatter.format(new Date(value)) : "Not set";
 }
-
-// Mirrors reassign_event_coordinator's own eligibility check (draft has no
-// coordinator yet; the rest are terminal) — the button is just hidden when
-// the call would fail anyway, the database remains authoritative.
-const reassignmentIneligibleStatuses = new Set(["draft", "rejected", "cancelled", "completed"]);
 
 /**
  * A read-only view of an event for whoever can see it (organiser or the
@@ -59,7 +52,6 @@ export function EventDetailPage() {
     useState<ClarificationSummary>();
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string>();
-  const [reassigning, setReassigning] = useState(false);
 
   usePageTitle(event?.title ?? "Event details");
 
@@ -112,16 +104,6 @@ export function EventDetailPage() {
     } finally {
       setCompleting(false);
     }
-  }
-
-  async function handleReassign(reason: string) {
-    if (!event) return;
-    await reassignEventCoordinator(event.id, reason);
-    setReassigning(false);
-    navigate("/events", {
-      replace: true,
-      state: { notice: "Event reassigned to another coordinator." },
-    });
   }
 
   return (
@@ -187,17 +169,6 @@ export function EventDetailPage() {
                       {completing ? "Marking completed…" : "Mark as completed"}
                     </Button>
                   )}
-                  {role === "coordinator" &&
-                    !reassignmentIneligibleStatuses.has(event.status) && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-red-200 text-red-700 hover:bg-red-50"
-                        onClick={() => setReassigning(true)}
-                      >
-                        Reassign event
-                      </Button>
-                    )}
                 </div>
                 {completeError && (
                   <p role="alert" className="mt-2 text-sm text-red-700">
@@ -324,9 +295,6 @@ export function EventDetailPage() {
           )}
         </div>
       </div>
-      {reassigning && (
-        <ReassignEventDialog onCancel={() => setReassigning(false)} onSubmit={handleReassign} />
-      )}
     </RoleGate>
   );
 }

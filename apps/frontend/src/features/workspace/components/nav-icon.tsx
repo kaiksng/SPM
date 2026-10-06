@@ -1,5 +1,12 @@
 import type { NavItemId } from "@spm/shared";
-import { Building2, CalendarDays, ClipboardCheck, Compass, Wrench } from "lucide-react";
+import {
+  Building2,
+  CalendarDays,
+  ClipboardCheck,
+  Compass,
+  ShieldCheck,
+  Wrench,
+} from "lucide-react";
 
 const NAV_ICONS = {
   events: CalendarDays,
@@ -7,6 +14,7 @@ const NAV_ICONS = {
   requests: ClipboardCheck,
   equipment: Wrench,
   "browse-events": Compass,
+  "safety-checks": ShieldCheck,
 } as const satisfies Record<
   NavItemId,
   React.ComponentType<{ className?: string }>

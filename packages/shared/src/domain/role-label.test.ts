@@ -8,5 +8,6 @@ describe("role label", () => {
     expect(getRoleLabel("technical_support_staff")).toBe(
       "Technical Support Staff",
     );
+    expect(getRoleLabel("safety_officer")).toBe("Safety Officer");
   });
 });

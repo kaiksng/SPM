@@ -21,28 +21,29 @@ import { RoleGate } from "@/routes/RoleGate";
 
 /**
  * What the calendar actually renders, one level removed from the raw
- * booking status: "reserved" collapses pending-or-confirmed into a single
- * "you can't book this" signal for anyone other than the coordinator who
- * owns it — a fellow coordinator or Venue Staff has no reason to know
- * whether someone else's hold on a slot is merely Pending or already
- * Approved, only that it's unavailable to them.
+ * booking status. Pending and On Hold always show their real detail to
+ * every viewer — they're not "someone else's private request" the way a
+ * Confirmed booking is; a Confirmed booking that isn't the viewer's own
+ * collapses to a generic "reserved" (Booked, unavailable to you) so a
+ * fellow coordinator or Venue Staff only learns the slot is taken, not
+ * whose event it is. Blocked is never masked either (no requester to hide).
  */
-type VenueCalendarDisplayStatus = "pending" | "confirmed" | "reserved" | "blocked";
+type VenueCalendarDisplayStatus = "pending" | "on_hold" | "confirmed" | "reserved" | "blocked";
 
 function toDisplayStatus(period: VenueAvailabilityPeriod): VenueCalendarDisplayStatus {
-  if (period.type === "blocked") return "blocked";
-  return period.isMine ? period.type : "reserved";
+  if (period.type !== "confirmed") return period.type;
+  return period.isMine ? "confirmed" : "reserved";
 }
 
-/** Someone else's booking shows as a generic "Booked" — the same reasoning
- * that hides its real status also hides which event it belongs to. */
-function toDisplayLabel(period: VenueAvailabilityPeriod): string {
+/** Short title for the month view — day belt below shows the full detail. */
+function toDisplayTitle(period: VenueAvailabilityPeriod): string {
   if (period.type === "blocked") return period.label ?? "Reason not recorded";
-  return period.isMine ? (period.label ?? "Booking") : "Booked";
+  return period.label ?? "Booking";
 }
 
 const STATUS_COLORS = {
   pending: { backgroundColor: "#fffbeb", borderColor: "#fde68a", textColor: "#b45309" },
+  on_hold: { backgroundColor: "#eef2ff", borderColor: "#c7d2fe", textColor: "#4338ca" },
   confirmed: { backgroundColor: "#ecfdf5", borderColor: "#a7f3d0", textColor: "#047857" },
   // Pink, not a paler red — otherwise this reads as a faint variant of
   // Blocked instead of its own distinct status.
@@ -61,9 +62,16 @@ function toEvents(periods: VenueAvailabilityPeriod[]): EventInput[] {
     const status = toDisplayStatus(period);
     return {
       id: period.id,
-      title: toDisplayLabel(period),
-      start: period.startsAt,
-      end: period.endsAt,
+      title: toDisplayTitle(period),
+      // Floating (no 'Z'/offset) Singapore wall-clock strings: FullCalendar
+      // takes an offset-less string as already being in its configured
+      // `timeZone` prop, so day-grid placement can't be thrown off by its
+      // own UTC-to-zone conversion — a booking starting 6:00 AM Monday in
+      // Singapore (10:00 PM Sunday UTC) was still drawing its bar starting
+      // Sunday even with timeZone="Asia/Singapore" and allDay:false set.
+      start: toSingaporeFloatingIso(period.startsAt),
+      end: toSingaporeFloatingIso(period.endsAt),
+      allDay: false,
       ...STATUS_COLORS[status],
       extendedProps: { status },
     };
@@ -76,13 +84,41 @@ function renderEventContent(arg: EventContentArg) {
   return (
     <div className="venue-calendar__month-event">
       <span className={`venue-calendar__dot venue-calendar__dot--${status}`} />
-      <span className="venue-calendar__month-title">{arg.event.title}</span>
+      <span className={`venue-calendar__month-title venue-calendar__month-title--${status}`}>
+        {arg.event.title}
+      </span>
     </div>
   );
 }
 
 function singaporeDateStr(date: Date): string {
   return date.toLocaleDateString("en-CA", { timeZone: TIME_ZONE });
+}
+
+/**
+ * A UTC instant, rewritten as a timezone-naive "YYYY-MM-DDTHH:mm:ss" string
+ * holding its Singapore wall-clock time. Handed to FullCalendar instead of
+ * the raw offset-bearing ISO string: with `timeZone={TIME_ZONE}` configured,
+ * FullCalendar treats a string with no 'Z'/offset as already being in that
+ * zone, so day-grid placement can't be thrown off by whatever its own
+ * UTC-to-zone conversion does with an explicit offset (a 6:00 AM Monday
+ * Singapore booking, 10:00 PM Sunday UTC, was drawing one day early even
+ * with the timeZone prop and allDay:false both set — converting ourselves
+ * removes FullCalendar's conversion from the equation entirely).
+ */
+function toSingaporeFloatingIso(isoString: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(isoString));
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}:${get("second")}`;
 }
 
 /** Hour-of-day (e.g. 13.5 for 1:30pm) that `date` falls on in TIME_ZONE. */
@@ -164,9 +200,16 @@ function periodsForDate(
         beltStartHour,
       );
       const endHour = Math.min(
-        // A period ending exactly at midnight reads as hour 0, not 24 — bump
-        // it back up so it clips to the end of the belt instead of vanishing.
-        end.getTime() === dayEnd.getTime() ? 24 : singaporeHour(end),
+        // singaporeHour(end) only reads end's time-of-day, ignoring which
+        // calendar date it falls on — fine for a period that ends today, but
+        // wrong for a multi-day period's earlier days: on day 1 of a 3-day
+        // booking, "end" is two days away, yet its raw clock time (e.g.
+        // 15:10) would be read as if the booking also stopped at 15:10
+        // *today*, instead of running through to midnight. `end >= dayEnd`
+        // catches every day the period continues past (not just the single
+        // case where it ends exactly at midnight), so day 1 (and any full
+        // day in between) correctly fills through to the end of the belt.
+        end >= dayEnd ? 24 : singaporeHour(end),
         beltEndHour,
       );
 
@@ -266,10 +309,8 @@ export function VenueAvailabilityPage() {
 
               <div className="mt-6 flex flex-wrap gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-medium text-slate-600">
                 <Legend swatchClassName="border border-slate-200 bg-white" label="Available" square />
-                <Legend
-                  swatchClassName="border border-amber-200 bg-amber-50"
-                  label="Your pending request"
-                />
+                <Legend swatchClassName="border border-amber-200 bg-amber-50" label="Pending" />
+                <Legend swatchClassName="border border-indigo-200 bg-indigo-50" label="On Hold" />
                 <Legend
                   swatchClassName="border border-emerald-200 bg-emerald-50"
                   label="Your confirmed booking"
@@ -345,6 +386,7 @@ function Legend({
 
 const BELT_STATUS_STYLES = {
   pending: "border-amber-200 bg-amber-50 text-amber-700",
+  on_hold: "border-indigo-200 bg-indigo-50 text-indigo-700",
   confirmed: "border-emerald-200 bg-emerald-50 text-emerald-700",
   // Pink with diagonal hatching, not a flat paler red — the hatching gives
   // it its own texture on top of the hue split from Blocked.
@@ -448,9 +490,39 @@ function DayTimebelt({
                     </p>
                   </div>
                 ) : (
-                  <div className="px-2.5 py-1.5 leading-tight">
-                    <p className="text-xs font-semibold">{timeText}</p>
-                    <p className="truncate text-xs opacity-85">{toDisplayLabel(period)}</p>
+                  <div
+                    className="flex h-full flex-col gap-1.5 overflow-hidden px-2.5 py-2"
+                    title={[
+                      timeText,
+                      period.label,
+                      period.organiserName && `Booked by ${period.organiserName}`,
+                      period.coordinatorName && `Coordinator ${period.coordinatorName}`,
+                      period.heldByName && `Held by ${period.heldByName}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" — ")}
+                  >
+                    <div className="leading-tight">
+                      <p className="text-xs font-semibold">{timeText}</p>
+                      <p className="truncate text-xs font-medium opacity-95">{period.label}</p>
+                    </div>
+                    <div className="flex flex-col gap-1 leading-tight">
+                      {period.type === "on_hold" && period.heldByName && (
+                        <p className="truncate text-[11px] opacity-85">
+                          Held by {period.heldByName}
+                        </p>
+                      )}
+                      {period.organiserName && (
+                        <p className="truncate text-[11px] opacity-85">
+                          Booked by {period.organiserName}
+                        </p>
+                      )}
+                      {period.coordinatorName && (
+                        <p className="truncate text-[11px] opacity-85">
+                          Coordinator: {period.coordinatorName}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

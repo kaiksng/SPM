@@ -1,0 +1,183 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const listNotificationsMock = vi.fn();
+const getUnreadNotificationCountMock = vi.fn();
+const markNotificationReadMock = vi.fn();
+const markAllNotificationsReadMock = vi.fn();
+const navigateMock = vi.fn();
+
+vi.mock("@/features/notifications/services/notifications", () => ({
+  listNotifications: () => listNotificationsMock(),
+  getUnreadNotificationCount: () => getUnreadNotificationCountMock(),
+  markNotificationRead: (...args: unknown[]) => markNotificationReadMock(...args),
+  markAllNotificationsRead: (...args: unknown[]) => markAllNotificationsReadMock(...args),
+}));
+
+vi.mock("react-router", async () => {
+  const actual = await vi.importActual<typeof import("react-router")>("react-router");
+  return { ...actual, useNavigate: () => navigateMock };
+});
+
+import { NotificationBell } from "./notification-bell";
+
+const UNREAD = {
+  id: "n1",
+  type: "decision" as const,
+  title: "Event approved",
+  message: 'Your event "Alumni Homecoming Mixer" was approved.',
+  eventId: "e1",
+  readAt: null,
+  createdAt: "2026-10-06T09:00:00Z",
+};
+
+const READ = {
+  id: "n2",
+  type: "assignment" as const,
+  title: "New event request assigned to you",
+  message: 'Event "Career Fair Showcase" has been assigned to you for review.',
+  eventId: "e2",
+  readAt: "2026-10-04T15:30:00Z",
+  createdAt: "2026-10-04T15:00:00Z",
+};
+
+const VENUE_REQUEST_UNREAD = {
+  id: "n3",
+  type: "venue_request" as const,
+  title: "New venue booking request",
+  message: 'A new venue booking request for "Claude Seminar" at Pan Pacific Hotel is awaiting your review.',
+  eventId: "e3",
+  readAt: null,
+  createdAt: "2026-10-06T19:15:00Z",
+};
+
+function renderBell() {
+  return render(
+    <MemoryRouter>
+      <NotificationBell />
+    </MemoryRouter>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  markNotificationReadMock.mockResolvedValue(undefined);
+  markAllNotificationsReadMock.mockResolvedValue(undefined);
+});
+
+describe("NotificationBell", () => {
+  it("shows the unread count badge", async () => {
+    listNotificationsMock.mockResolvedValue([UNREAD, READ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+
+    renderBell();
+
+    expect(await screen.findByText("1")).toBeInTheDocument();
+  });
+
+  it("shows no badge when there are no unread notifications", async () => {
+    listNotificationsMock.mockResolvedValue([READ]);
+    getUnreadNotificationCountMock.mockResolvedValue(0);
+
+    renderBell();
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument(),
+    );
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("shows the empty state only when there are truly no notifications", async () => {
+    listNotificationsMock.mockResolvedValue([]);
+    getUnreadNotificationCountMock.mockResolvedValue(0);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(screen.getByRole("button", { name: "Notifications" }));
+
+    expect(await screen.findByText("You're all caught up")).toBeInTheDocument();
+  });
+
+  it("keeps an all-read list visible instead of showing the empty state", async () => {
+    listNotificationsMock.mockResolvedValue([READ]);
+    getUnreadNotificationCountMock.mockResolvedValue(0);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(screen.getByRole("button", { name: "Notifications" }));
+
+    expect(await screen.findByText(READ.title)).toBeInTheDocument();
+    expect(screen.queryByText("You're all caught up")).not.toBeInTheDocument();
+  });
+
+  it("marks a notification read and navigates to its event on selection", async () => {
+    listNotificationsMock.mockResolvedValue([UNREAD]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(
+      await screen.findByRole("button", { name: "Notifications, 1 unread" }),
+    );
+    await user.click(await screen.findByText(UNREAD.title));
+
+    expect(markNotificationReadMock).toHaveBeenCalledWith(UNREAD.id);
+    expect(navigateMock).toHaveBeenCalledWith(`/events/${UNREAD.eventId}`);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Notifications" })).toBeInTheDocument(),
+    );
+  });
+
+  it("marks every unread notification read without navigating", async () => {
+    listNotificationsMock.mockResolvedValue([UNREAD, READ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(
+      await screen.findByRole("button", { name: "Notifications, 1 unread" }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Mark all as read" }));
+
+    expect(markAllNotificationsReadMock).toHaveBeenCalled();
+    expect(navigateMock).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Notifications" }),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("routes a venue booking request notification to the requests list, not the event page", async () => {
+    listNotificationsMock.mockResolvedValue([VENUE_REQUEST_UNREAD]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(
+      await screen.findByRole("button", { name: "Notifications, 1 unread" }),
+    );
+    await user.click(await screen.findByText(VENUE_REQUEST_UNREAD.title));
+
+    expect(markNotificationReadMock).toHaveBeenCalledWith(VENUE_REQUEST_UNREAD.id);
+    expect(navigateMock).toHaveBeenCalledWith("/venue-requests");
+    expect(navigateMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/events/"),
+    );
+  });
+
+  it("disables Mark all as read when nothing is unread", async () => {
+    listNotificationsMock.mockResolvedValue([READ]);
+    getUnreadNotificationCountMock.mockResolvedValue(0);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(screen.getByRole("button", { name: "Notifications" }));
+
+    expect(
+      await screen.findByRole("button", { name: "Mark all as read" }),
+    ).toBeDisabled();
+  });
+});

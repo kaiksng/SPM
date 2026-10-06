@@ -14,6 +14,7 @@ import { EventVenuePage } from "@/routes/EventVenuePage";
 import { LoginPage } from "@/routes/LoginPage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
 import { PublicPage } from "@/routes/PublicPage";
+import { SafetyChecksPage } from "@/routes/SafetyChecksPage";
 import { SignupPage } from "@/routes/SignupPage";
 import { VenueAvailabilityPage } from "@/routes/VenueAvailabilityPage";
 import { VenueBlocksPage } from "@/routes/VenueBlocksPage";
@@ -66,6 +67,7 @@ export function App() {
               <Route path="venue-requests" element={<VenueRequestsPage />} />
               <Route path="equipment" element={<EquipmentPage />} />
               <Route path="browse-events" element={<BrowseEventsPage />} />
+              <Route path="safety-checks" element={<SafetyChecksPage />} />
             </Route>
           </Route>
 
