@@ -9,11 +9,20 @@ export type VenueAvailabilityPeriod = {
   endsAt: string;
   // Event title for a booking; reason for an operational block.
   label: string | null;
+  // Who booked the event (the organiser) — null for an operational block,
+  // which has no event.
+  organiserName: string | null;
+  // The event's assigned coordinator — venue_bookings.requested_by is
+  // always the assigned coordinator (submit_venue_booking_request only lets
+  // them submit), never the organiser.
+  coordinatorName: string | null;
+  // Only meaningful for an On Hold booking: the Venue Staff member who
+  // placed it.
+  heldByName: string | null;
   // Whether the signed-in viewer is the coordinator who requested this
-  // booking. Always false for an operational block (it has no requester) and
-  // for Venue Staff/other coordinators viewing someone else's booking — the
-  // page uses this to decide whether to show the real status/title or a
-  // generic "booked, not available to you" treatment.
+  // booking. Always false for an operational block (it has no requester).
+  // Only used to mask a Confirmed booking that isn't the viewer's own —
+  // Pending/On Hold always show their real detail to every viewer.
   isMine: boolean;
 };
 
@@ -22,14 +31,15 @@ function operationError(message: string) {
 }
 
 /**
- * All periods that make a venue unavailable: pending/approved bookings
- * (venue_bookings) and operational blocks (venue_unavailability). Anything
- * not covered by one of these is implicitly Available.
+ * All periods that make a venue unavailable: pending/approved/on-hold
+ * bookings (venue_bookings) and operational blocks (venue_unavailability).
+ * Anything not covered by one of these is implicitly Available.
  *
  * `viewerId` is the signed-in user's id (auth.uid()) — only the assigned
- * coordinator can ever be a booking's requested_by (submit_venue_booking_request
- * enforces this), so comparing against it is exactly "is this my event's
- * booking" with no separate events.assigned_coordinator_id lookup needed.
+ * coordinator can ever be a booking's requested_by
+ * (submit_venue_booking_request enforces this), so comparing against it is
+ * exactly "is this my event's booking" with no separate
+ * events.assigned_coordinator_id lookup needed.
  */
 export async function listVenueAvailability(
   venueId: string,
@@ -38,7 +48,14 @@ export async function listVenueAvailability(
   const [bookings, blocks] = await Promise.all([
     supabase
       .from("venue_bookings")
-      .select("id, starts_at, ends_at, status, expires_at, requested_by, events (title)")
+      .select(
+        `
+          id, starts_at, ends_at, status, expires_at, requested_by,
+          events (title, organiser:profiles!events_organiser_id_fkey (full_name)),
+          coordinator:profiles!venue_bookings_requested_by_fkey (full_name),
+          held_by:profiles!venue_bookings_held_by_fkey (full_name)
+        `,
+      )
       .eq("venue_id", venueId)
       .in("status", ["pending", "approved", "on_hold"]),
     supabase
@@ -69,6 +86,9 @@ export async function listVenueAvailability(
       startsAt: booking.starts_at,
       endsAt: booking.ends_at,
       label: booking.events?.title ?? "Booking",
+      organiserName: booking.events?.organiser?.full_name ?? null,
+      coordinatorName: booking.coordinator?.full_name ?? null,
+      heldByName: booking.held_by?.full_name ?? null,
       isMine: viewerId !== null && booking.requested_by === viewerId,
     }));
 
@@ -78,6 +98,9 @@ export async function listVenueAvailability(
     startsAt: block.starts_at,
     endsAt: block.ends_at,
     label: block.reason?.trim() || "Reason not recorded",
+    organiserName: null,
+    coordinatorName: null,
+    heldByName: null,
     isMine: false,
   }));
 
