@@ -20,6 +20,20 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
 });
 
 /**
+ * Where selecting a notification should go. Every type except
+ * "venue_request" is organiser/coordinator-facing, and both of those roles
+ * can always reach an event's own detail page — see navigation.ts's
+ * ROLE_NAV_ITEM_IDS. venue_request goes to venue_staff instead, who can't
+ * reach /events/:id at all (no "events" nav section); the page where they
+ * actually act on a request is the flat /venue-requests list, not a
+ * per-request route, so that's the target regardless of eventId.
+ */
+function notificationDestination(notification: NotificationSummary): string | undefined {
+  if (notification.type === "venue_request") return "/venue-requests";
+  return notification.eventId ? `/events/${notification.eventId}` : undefined;
+}
+
+/**
  * A bell in the top nav with an unread-count badge, opening a panel of the
  * signed-in user's notifications. Fetches once on mount — same pattern as
  * every other page-level component in this app (no polling/realtime
@@ -72,9 +86,8 @@ export function NotificationBell() {
     }
 
     setOpen(false);
-    if (notification.eventId) {
-      navigate(`/events/${notification.eventId}`);
-    }
+    const destination = notificationDestination(notification);
+    if (destination) navigate(destination);
   }
 
   async function handleMarkAllRead() {
@@ -137,7 +150,7 @@ export function NotificationBell() {
                 key={notification.id}
                 type="button"
                 onClick={() => handleSelect(notification)}
-                disabled={!notification.eventId}
+                disabled={!notificationDestination(notification)}
                 className={cn(
                   "block w-full border-b px-3 py-2.5 text-left last:border-b-0",
                   unread ? "bg-muted/60" : "hover:bg-muted/40",

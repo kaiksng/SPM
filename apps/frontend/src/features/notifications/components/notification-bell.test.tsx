@@ -43,6 +43,16 @@ const READ = {
   createdAt: "2026-10-04T15:00:00Z",
 };
 
+const VENUE_REQUEST_UNREAD = {
+  id: "n3",
+  type: "venue_request" as const,
+  title: "New venue booking request",
+  message: 'A new venue booking request for "Claude Seminar" at Pan Pacific Hotel is awaiting your review.',
+  eventId: "e3",
+  readAt: null,
+  createdAt: "2026-10-06T19:15:00Z",
+};
+
 function renderBell() {
   return render(
     <MemoryRouter>
@@ -137,6 +147,24 @@ describe("NotificationBell", () => {
       expect(
         screen.getByRole("button", { name: "Notifications" }),
       ).toBeInTheDocument(),
+    );
+  });
+
+  it("routes a venue booking request notification to the requests list, not the event page", async () => {
+    listNotificationsMock.mockResolvedValue([VENUE_REQUEST_UNREAD]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(
+      await screen.findByRole("button", { name: "Notifications, 1 unread" }),
+    );
+    await user.click(await screen.findByText(VENUE_REQUEST_UNREAD.title));
+
+    expect(markNotificationReadMock).toHaveBeenCalledWith(VENUE_REQUEST_UNREAD.id);
+    expect(navigateMock).toHaveBeenCalledWith("/venue-requests");
+    expect(navigateMock).not.toHaveBeenCalledWith(
+      expect.stringContaining("/events/"),
     );
   });
 

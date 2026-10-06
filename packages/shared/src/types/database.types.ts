@@ -1437,7 +1437,7 @@ export type Database = {
         Returns: Json
       }
       submit_venue_booking_request: {
-        Args: { p_event_id: string; p_venue_id: string }
+        Args: { p_actor_id?: string; p_event_id: string; p_venue_id: string }
         Returns: string
       }
       update_event_as_coordinator: {
@@ -1491,6 +1491,7 @@ export type Database = {
         | "confirmation"
         | "cancellation"
         | "venue_capacity_review"
+        | "venue_request"
       request_status:
         | "pending"
         | "approved"
@@ -1671,6 +1672,7 @@ export const Constants = {
         "confirmation",
         "cancellation",
         "venue_capacity_review",
+        "venue_request",
       ],
       request_status: [
         "pending",

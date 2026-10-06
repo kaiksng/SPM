@@ -69,28 +69,30 @@ export async function getActiveVenueBooking(eventId: string): Promise<ActiveVenu
 }
 
 /**
- * Unlike most RPC callers in this codebase, this surfaces the database's own
- * exception text rather than a generic fallback — AC02/AC03/AC04/AC07
- * require the specific missing field or conflict to be identified to the
- * coordinator, and there's no client-side pre-check that already covers it
- * (find_matching_venues screens by capacity/date/location/layout/
- * accessibility/facilities, but not operating hours or the one-per-event
- * rule), so the raised message *is* the identification mechanism.
+ * Surfaces the database's own exception text rather than a generic
+ * fallback — AC02/AC03/AC04/AC07 require the specific missing field or
+ * conflict to be identified to the coordinator, and there's no client-side
+ * pre-check that already covers it (find_matching_venues screens by
+ * capacity/date/location/layout/accessibility/facilities, but not operating
+ * hours or the one-per-event rule), so the raised message *is* the
+ * identification mechanism — preserved through apiFetch/ApplicationError the
+ * same way decideVenueBookingRequest's rationale errors are.
+ *
+ * Goes through apps/backend's service client, not a direct supabase-js call:
+ * submit_venue_booking_request now inserts a `notifications` row for every
+ * venue-staff profile, which has no INSERT policy for regular users — same
+ * reasoning as decideVenueBookingRequest below.
  */
 export async function submitVenueBookingRequest(
   eventId: string,
   venueId: string,
 ): Promise<string> {
-  const { data, error } = await supabase.rpc("submit_venue_booking_request", {
-    p_event_id: eventId,
-    p_venue_id: venueId,
+  const { data } = await apiFetch("/venue-bookings/submit", {
+    method: "POST",
+    body: JSON.stringify({ eventId, venueId }),
   });
 
-  if (error || !data) {
-    throw new Error(error?.message ?? "This venue booking request could not be submitted.");
-  }
-
-  return data;
+  return data as string;
 }
 
 export async function withdrawVenueBookingRequest(bookingId: string): Promise<void> {
