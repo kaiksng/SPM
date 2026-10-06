@@ -3,6 +3,7 @@ import { Menu as MenuIcon } from "lucide-react";
 import { Link } from "react-router";
 
 import { NavLinks } from "@/features/workspace/components/nav-links";
+import { NotificationBell } from "@/features/notifications/components/notification-bell";
 import { UserMenu } from "@/features/workspace/components/user-menu";
 import { Button } from "@/components/ui/button";
 
@@ -57,7 +58,8 @@ export function Topbar({
         <NavLinks items={items} orientation="horizontal" />
       </div>
 
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-2">
+        <NotificationBell />
         <UserMenu role={role} email={email} fullName={fullName} />
       </div>
     </header>
