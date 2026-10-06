@@ -4,10 +4,12 @@ import { Link } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { VenueBookingDecisionDialog } from "@/features/venues/components/venue-booking-decision-dialog";
+import { VenueBookingHoldDialog } from "@/features/venues/components/venue-booking-hold-dialog";
 import { VenueBookingStatusBadge } from "@/features/venues/components/venue-booking-status-badge";
 import {
   decideVenueBookingRequest,
   listVenueBookingRequests,
+  placeVenueBookingHold,
   type VenueBookingDecision,
   type VenueBookingRequestSummary,
 } from "@/features/venues/services/venue-bookings";
@@ -22,14 +24,17 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
   timeZone: "Asia/Singapore",
 });
 
-// Pending requests need Venue Staff's attention first; everything else
-// follows by most-recently-requested, matching listVenueBookingRequests'
-// own default order.
+// Pending requests need Venue Staff's attention first, then On Hold ones
+// (still awaiting the coordinator); everything else follows by
+// most-recently-requested, matching listVenueBookingRequests' own default
+// order.
 const STATUS_ORDER: Record<VenueBookingRequestSummary["status"], number> = {
   pending: 0,
-  approved: 1,
-  rejected: 2,
-  cancelled: 3,
+  on_hold: 1,
+  approved: 2,
+  rejected: 3,
+  cancelled: 4,
+  expired: 5,
 };
 
 export function VenueRequestsPage() {
@@ -42,6 +47,7 @@ export function VenueRequestsPage() {
     request: VenueBookingRequestSummary;
     decision: VenueBookingDecision;
   }>();
+  const [holdTarget, setHoldTarget] = useState<VenueBookingRequestSummary>();
 
   useEffect(() => {
     let active = true;
@@ -84,6 +90,17 @@ export function VenueRequestsPage() {
           : item,
       ),
     );
+  }
+
+  async function handlePlaceHold(expiresAtIso: string) {
+    if (!holdTarget) return;
+    await placeVenueBookingHold(holdTarget.id, expiresAtIso);
+    setRequests((current) =>
+      current.map((item) =>
+        item.id === holdTarget.id ? { ...item, status: "on_hold", expiresAt: expiresAtIso } : item,
+      ),
+    );
+    setHoldTarget(undefined);
   }
 
   const filteredRequests = filterRequests(requests, searchQuery).sort(
@@ -134,6 +151,7 @@ export function VenueRequestsPage() {
                   <RequestCard
                     request={request}
                     onDecide={(decision) => setDecisionTarget({ request, decision })}
+                    onPlaceHold={() => setHoldTarget(request)}
                   />
                 </li>
               ))}
@@ -149,6 +167,14 @@ export function VenueRequestsPage() {
           onSubmit={handleDecide}
         />
       )}
+      {holdTarget && (
+        <VenueBookingHoldDialog
+          eventTitle={holdTarget.eventTitle}
+          venueName={holdTarget.venueName}
+          onCancel={() => setHoldTarget(undefined)}
+          onSubmit={handlePlaceHold}
+        />
+      )}
     </RoleGate>
   );
 }
@@ -156,9 +182,11 @@ export function VenueRequestsPage() {
 function RequestCard({
   request,
   onDecide,
+  onPlaceHold,
 }: {
   request: VenueBookingRequestSummary;
   onDecide: (decision: VenueBookingDecision) => void;
+  onPlaceHold: () => void;
 }) {
   const layoutImage = getVenueLayoutImage(request.venueLayouts);
 
@@ -214,7 +242,15 @@ function RequestCard({
               {dateTimeFormatter.format(new Date(request.requestedAt))}
             </dd>
           </div>
-          {request.status !== "pending" && (
+          {request.status === "on_hold" && request.expiresAt && (
+            <div>
+              <dt className="text-xs font-medium text-indigo-700">Hold expires</dt>
+              <dd className="mt-1 text-sm font-semibold text-indigo-700">
+                {dateTimeFormatter.format(new Date(request.expiresAt))}
+              </dd>
+            </div>
+          )}
+          {request.status !== "pending" && request.status !== "on_hold" && (
             <div>
               <dt className="text-xs font-medium text-slate-400">Decided by</dt>
               <dd className="mt-1 text-sm text-slate-800">
@@ -233,8 +269,23 @@ function RequestCard({
           )}
         </dl>
 
+        {request.status === "on_hold" && (
+          <p className="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
+            Waiting on the coordinator to confirm. This request still blocks other bookings for
+            this period.
+          </p>
+        )}
+        {request.status === "expired" && (
+          <p className="mt-4 text-sm text-slate-500">
+            This request lapsed without confirmation. The venue is available again.
+          </p>
+        )}
+
         {request.status === "pending" && (
           <div className="mt-5 flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={onPlaceHold}>
+              Place on hold
+            </Button>
             <Button size="sm" variant="destructive" onClick={() => onDecide("rejected")}>
               Reject
             </Button>

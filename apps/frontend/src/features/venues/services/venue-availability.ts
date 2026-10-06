@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase-client";
 
-export type VenueAvailabilityStatus = "pending" | "confirmed" | "blocked";
+export type VenueAvailabilityStatus = "pending" | "on_hold" | "confirmed" | "blocked";
 
 export type VenueAvailabilityPeriod = {
   id: string;
@@ -38,9 +38,9 @@ export async function listVenueAvailability(
   const [bookings, blocks] = await Promise.all([
     supabase
       .from("venue_bookings")
-      .select("id, starts_at, ends_at, status, requested_by, events (title)")
+      .select("id, starts_at, ends_at, status, expires_at, requested_by, events (title)")
       .eq("venue_id", venueId)
-      .in("status", ["pending", "approved"]),
+      .in("status", ["pending", "approved", "on_hold"]),
     supabase
       .from("venue_unavailability")
       .select("id, starts_at, ends_at, reason")
@@ -52,14 +52,25 @@ export async function listVenueAvailability(
     throw operationError("We couldn't load this venue's availability.");
   }
 
-  const bookingPeriods: VenueAvailabilityPeriod[] = bookings.data.map((booking) => ({
-    id: booking.id,
-    type: booking.status === "approved" ? "confirmed" : "pending",
-    startsAt: booking.starts_at,
-    endsAt: booking.ends_at,
-    label: booking.events?.title ?? "Booking",
-    isMine: viewerId !== null && booking.requested_by === viewerId,
-  }));
+  // An On Hold row past its own expires_at hasn't necessarily been swept to
+  // 'expired' yet (that only happens lazily, on the next write to this
+  // venue) — computed live here instead of trusting the stored status, same
+  // as find_matching_venues/search_available_venues do server-side.
+  const bookingPeriods: VenueAvailabilityPeriod[] = bookings.data
+    .filter((booking) => booking.status !== "on_hold" || new Date(booking.expires_at!) > new Date())
+    .map((booking) => ({
+      id: booking.id,
+      type:
+        booking.status === "approved"
+          ? "confirmed"
+          : booking.status === "on_hold"
+            ? "on_hold"
+            : "pending",
+      startsAt: booking.starts_at,
+      endsAt: booking.ends_at,
+      label: booking.events?.title ?? "Booking",
+      isMine: viewerId !== null && booking.requested_by === viewerId,
+    }));
 
   const blockedPeriods: VenueAvailabilityPeriod[] = blocks.data.map((block) => ({
     id: block.id,

@@ -11,6 +11,7 @@ import {
 } from "@/features/event-requests/services/event-details";
 import { VenueBookingStatusBadge } from "@/features/venues/components/venue-booking-status-badge";
 import {
+  confirmVenueBookingHold,
   getActiveVenueBooking,
   withdrawVenueBookingRequest,
   type ActiveVenueBooking,
@@ -39,6 +40,8 @@ export function EventVenuePage() {
   const [activeBooking, setActiveBooking] = useState<ActiveVenueBooking | null>();
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState<string>();
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string>();
 
   usePageTitle(event?.title ? `Venue — ${event.title}` : "Venue");
 
@@ -88,6 +91,20 @@ export function EventVenuePage() {
       );
     } finally {
       setWithdrawing(false);
+    }
+  }
+
+  async function handleConfirmHold() {
+    if (!activeBooking) return;
+    setConfirming(true);
+    setConfirmError(undefined);
+    try {
+      await confirmVenueBookingHold(activeBooking.id);
+      setActiveBooking({ ...activeBooking, status: "pending" });
+    } catch (err) {
+      setConfirmError(err instanceof Error ? err.message : "This hold could not be confirmed.");
+    } finally {
+      setConfirming(false);
     }
   }
 
@@ -199,6 +216,35 @@ export function EventVenuePage() {
                       {" – "}
                       {dateTimeFormatter.format(new Date(activeBooking.endsAt))}
                     </p>
+                    {activeBooking.status === "expired" && (
+                      <p className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800">
+                        This hold expired before it was confirmed. The venue is available again
+                        — search or pick a new suggestion to submit another request.
+                      </p>
+                    )}
+                    {activeBooking.status === "on_hold" && activeBooking.expiresAt && (
+                      <>
+                        <p className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
+                          Venue Staff put this request on hold. Confirm by{" "}
+                          {dateTimeFormatter.format(new Date(activeBooking.expiresAt))}, or it
+                          expires and the venue becomes available to others again.
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="mt-4"
+                          disabled={confirming}
+                          onClick={handleConfirmHold}
+                        >
+                          {confirming ? "Confirming…" : "Confirm request"}
+                        </Button>
+                        {confirmError && (
+                          <p role="alert" className="mt-2 text-sm text-red-700">
+                            {confirmError}
+                          </p>
+                        )}
+                      </>
+                    )}
                     {activeBooking.status === "pending" && (
                       <>
                         <Button
@@ -220,7 +266,10 @@ export function EventVenuePage() {
                     )}
                   </section>
                 )}
-                <SuggestedVenuesPanel event={event} hasActiveBooking={Boolean(activeBooking)} />
+                <SuggestedVenuesPanel
+                  event={event}
+                  hasActiveBooking={Boolean(activeBooking) && activeBooking?.status !== "expired"}
+                />
               </div>
             </div>
           )}

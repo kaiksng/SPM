@@ -992,6 +992,7 @@ export type Database = {
           decision_notes: string | null
           ends_at: string
           event_id: string
+          expires_at: string | null
           id: string
           needs_review: boolean
           needs_review_reason: string | null
@@ -1007,6 +1008,7 @@ export type Database = {
           decision_notes?: string | null
           ends_at: string
           event_id: string
+          expires_at?: string | null
           id?: string
           needs_review?: boolean
           needs_review_reason?: string | null
@@ -1022,6 +1024,7 @@ export type Database = {
           decision_notes?: string | null
           ends_at?: string
           event_id?: string
+          expires_at?: string | null
           id?: string
           needs_review?: boolean
           needs_review_reason?: string | null
@@ -1223,6 +1226,10 @@ export type Database = {
         Returns: Json
       }
       complete_event: { Args: { p_event_id: string }; Returns: Json }
+      confirm_venue_booking_hold: {
+        Args: { p_actor_id?: string; p_booking_id: string }
+        Returns: Json
+      }
       create_venue: {
         Args: { p_actor_id?: string; p_venue: Json }
         Returns: Json
@@ -1280,6 +1287,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      expire_stale_event_hold: {
+        Args: { p_event_id: string }
+        Returns: undefined
+      }
+      expire_stale_venue_holds: {
+        Args: { p_venue_id: string }
+        Returns: undefined
+      }
       find_matching_venues: {
         Args: { p_event_id: string }
         Returns: {
@@ -1321,6 +1336,10 @@ export type Database = {
           previous_coordinator_name: string
           reason: string
         }[]
+      }
+      place_venue_booking_hold: {
+        Args: { p_actor_id?: string; p_booking_id: string; p_expires_at: string }
+        Returns: Json
       }
       reassign_event_coordinator: {
         Args: {
@@ -1458,7 +1477,13 @@ export type Database = {
         | "confirmation"
         | "cancellation"
         | "venue_capacity_review"
-      request_status: "pending" | "approved" | "rejected" | "cancelled"
+      request_status:
+        | "pending"
+        | "approved"
+        | "rejected"
+        | "cancelled"
+        | "on_hold"
+        | "expired"
       room_layout:
         | "Theatre"
         | "Classroom"
@@ -1632,7 +1657,14 @@ export const Constants = {
         "cancellation",
         "venue_capacity_review",
       ],
-      request_status: ["pending", "approved", "rejected", "cancelled"],
+      request_status: [
+        "pending",
+        "approved",
+        "rejected",
+        "cancelled",
+        "on_hold",
+        "expired",
+      ],
       room_layout: [
         "Theatre",
         "Classroom",

@@ -27,7 +27,7 @@ import { RoleGate } from "@/routes/RoleGate";
  * whether someone else's hold on a slot is merely Pending or already
  * Approved, only that it's unavailable to them.
  */
-type VenueCalendarDisplayStatus = "pending" | "confirmed" | "reserved" | "blocked";
+type VenueCalendarDisplayStatus = "pending" | "on_hold" | "confirmed" | "reserved" | "blocked";
 
 function toDisplayStatus(period: VenueAvailabilityPeriod): VenueCalendarDisplayStatus {
   if (period.type === "blocked") return "blocked";
@@ -43,6 +43,7 @@ function toDisplayLabel(period: VenueAvailabilityPeriod): string {
 
 const STATUS_COLORS = {
   pending: { backgroundColor: "#fffbeb", borderColor: "#fde68a", textColor: "#b45309" },
+  on_hold: { backgroundColor: "#eef2ff", borderColor: "#c7d2fe", textColor: "#4338ca" },
   confirmed: { backgroundColor: "#ecfdf5", borderColor: "#a7f3d0", textColor: "#047857" },
   // Pink, not a paler red — otherwise this reads as a faint variant of
   // Blocked instead of its own distinct status.
@@ -271,6 +272,10 @@ export function VenueAvailabilityPage() {
                   label="Your pending request"
                 />
                 <Legend
+                  swatchClassName="border border-indigo-200 bg-indigo-50"
+                  label="On Hold"
+                />
+                <Legend
                   swatchClassName="border border-emerald-200 bg-emerald-50"
                   label="Your confirmed booking"
                 />
@@ -345,6 +350,7 @@ function Legend({
 
 const BELT_STATUS_STYLES = {
   pending: "border-amber-200 bg-amber-50 text-amber-700",
+  on_hold: "border-indigo-200 bg-indigo-50 text-indigo-700",
   confirmed: "border-emerald-200 bg-emerald-50 text-emerald-700",
   // Pink with diagonal hatching, not a flat paler red — the hatching gives
   // it its own texture on top of the hue split from Blocked.
