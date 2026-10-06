@@ -24,19 +24,39 @@ const statusStyles: Record<EquipmentUnavailabilityStatus, string> = {
   in_progress: "bg-amber-100 text-amber-800",
   ended_early: "bg-emerald-100 text-emerald-800",
   past: "bg-slate-100 text-slate-600",
-  removed: "bg-slate-100 text-slate-500 line-through",
+  removed: "bg-slate-200 text-slate-600",
 };
 
 type PendingAction = { kind: "end" | "remove"; record: EquipmentUnavailabilityRecord };
+
+export type UnavailabilityFilter = "all" | "in_progress" | "upcoming" | "finished" | "removed";
+
+const filterLabels: Record<UnavailabilityFilter, string> = {
+  all: "All",
+  in_progress: "In progress",
+  upcoming: "Upcoming",
+  finished: "Finished",
+  removed: "Removed",
+};
+
+function matchesFilter(status: EquipmentUnavailabilityStatus, filter: UnavailabilityFilter) {
+  if (filter === "all") return true;
+  if (filter === "finished") return status === "past" || status === "ended_early";
+  return status === filter;
+}
 
 /** AC05/AC06: every record, with who/when, and End or Remove where allowed. */
 export function EquipmentUnavailabilityHistory({
   records,
   unitLabelById,
+  filter,
+  onFilterChange,
   onEnd,
   onRemove,
 }: {
   records: EquipmentUnavailabilityRecord[];
+  filter: UnavailabilityFilter;
+  onFilterChange: (filter: UnavailabilityFilter) => void;
   /** unit id -> "mic-3", for records that name specific units. */
   unitLabelById: ReadonlyMap<string, string>;
   onEnd: (id: string) => Promise<void>;
@@ -68,16 +88,48 @@ export function EquipmentUnavailabilityHistory({
   }
 
   const now = new Date();
+  const counts = Object.fromEntries(
+    (Object.keys(filterLabels) as UnavailabilityFilter[]).map((key) => [
+      key,
+      records.filter((record) => matchesFilter(equipmentUnavailabilityStatus(record, now), key)).length,
+    ]),
+  ) as Record<UnavailabilityFilter, number>;
+  const visible = records.filter((record) =>
+    matchesFilter(equipmentUnavailabilityStatus(record, now), filter),
+  );
+
   return (
     <>
-      <ul className="mt-4 divide-y divide-slate-100">
-        {records.map((record) => {
+      <div role="group" aria-label="Filter records" className="mt-4 flex flex-wrap gap-1.5">
+        {(Object.keys(filterLabels) as UnavailabilityFilter[]).map((key) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={filter === key}
+            onClick={() => onFilterChange(key)}
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              filter === key
+                ? "border-primary bg-primary text-white"
+                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
+            )}
+          >
+            {filterLabels[key]} {counts[key]}
+          </button>
+        ))}
+      </div>
+      {visible.length === 0 && (
+        <p className="mt-4 text-sm text-slate-500">No records match this filter.</p>
+      )}
+      <ul className="mt-2 divide-y divide-slate-100">
+        {visible.map((record) => {
           const status = equipmentUnavailabilityStatus(record, now);
+          const cancelled = status === "removed";
           return (
             <li key={record.id} className="flex flex-wrap items-start justify-between gap-4 py-4">
               <div className="min-w-0 text-sm">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-slate-900">
+                  <span className={cn("font-medium text-slate-900", cancelled && "text-slate-400 line-through")}>
                     {record.equipmentName} × {record.quantity}
                   </span>
                   <span
@@ -89,6 +141,7 @@ export function EquipmentUnavailabilityHistory({
                     {equipmentUnavailabilityStatusLabels[status]}
                   </span>
                 </div>
+                <div className={cn(cancelled && "text-slate-400 line-through [&_p]:text-slate-400")}>
                 <p className="mt-1 text-slate-700">{record.reason}</p>
                 {record.unitIds.length > 0 && (
                   <p className="mt-1 font-mono text-xs text-slate-600">
@@ -103,6 +156,7 @@ export function EquipmentUnavailabilityHistory({
                   {dateFormat.format(new Date(record.startsAt))} –{" "}
                   {dateFormat.format(new Date(record.endsAt))}
                 </p>
+                </div>
                 <p className="mt-1 text-xs text-slate-500">
                   Recorded {dateFormat.format(new Date(record.recordedAt))}
                   {record.recordedByName ? ` by ${record.recordedByName}` : ""}

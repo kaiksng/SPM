@@ -151,7 +151,7 @@ export type EquipmentUnavailabilityRecord = {
   removedByName: string | null;
 };
 
-/** Every record, current and past (SPM-30 AC06), newest period first. */
+/** Every record, current and past (SPM-30 AC06), most recently recorded first. */
 export async function listEquipmentUnavailability(): Promise<EquipmentUnavailabilityRecord[]> {
   const { data, error } = await supabase
     .from("equipment_unavailability")
@@ -173,7 +173,7 @@ export async function listEquipmentUnavailability(): Promise<EquipmentUnavailabi
         removed_by_profile:profiles!equipment_unavailability_removed_by_fkey (full_name)
       `,
     )
-    .order("starts_at", { ascending: false });
+    .order("recorded_at", { ascending: false });
 
   if (error) throw new Error("We couldn't load the unavailability records.");
 

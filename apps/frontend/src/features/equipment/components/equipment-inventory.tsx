@@ -1,13 +1,16 @@
-import type { EquipmentItemFormValues } from "@spm/shared";
+import type { EquipmentItemFormValues, EquipmentUnavailabilityFormValues } from "@spm/shared";
 import { ChevronDown, Pencil, Plus, Search } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ConfirmRetireDialog } from "@/features/equipment/components/confirm-retire-dialog";
 import { EquipmentItemDialog } from "@/features/equipment/components/equipment-item-dialog";
+import { EquipmentUnitDialog } from "@/features/equipment/components/equipment-unit-dialog";
 import { EquipmentUnitGrid } from "@/features/equipment/components/equipment-unit-grid";
 import type {
   EquipmentUnavailabilityRecord,
+  EquipmentUnit,
   InventoryItem,
 } from "@/features/equipment/services/equipment-unavailability";
 import { cn } from "@/lib/utils";
@@ -19,6 +22,7 @@ import { cn } from "@/lib/utils";
  */
 export function EquipmentInventory({
   items,
+  records,
   outageByUnit,
   outQuantityByItem,
   onCreateItem,
@@ -26,8 +30,10 @@ export function EquipmentInventory({
   onSetItemRetired,
   onAddUnits,
   onSetUnitRetired,
+  onRecordUnavailable,
 }: {
   items: InventoryItem[];
+  records: EquipmentUnavailabilityRecord[];
   outageByUnit: ReadonlyMap<string, EquipmentUnavailabilityRecord>;
   outQuantityByItem: ReadonlyMap<string, number>;
   onCreateItem: (values: EquipmentItemFormValues, units: number) => Promise<void>;
@@ -35,7 +41,10 @@ export function EquipmentInventory({
   onSetItemRetired: (itemId: string, retired: boolean) => Promise<void>;
   onAddUnits: (itemId: string, count: number) => Promise<void>;
   onSetUnitRetired: (unitId: string, retired: boolean) => Promise<void>;
+  onRecordUnavailable: (values: EquipmentUnavailabilityFormValues) => Promise<void>;
 }) {
+  const [openUnit, setOpenUnit] = useState<{ item: InventoryItem; unit: EquipmentUnit }>();
+  const [confirmRetire, setConfirmRetire] = useState<InventoryItem>();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [showRetired, setShowRetired] = useState(false);
@@ -196,7 +205,9 @@ export function EquipmentInventory({
                             type="button"
                             size="sm"
                             variant="outline"
-                            onClick={() => void toggleRetired(item)}
+                            onClick={() =>
+                              item.retiredAt ? void toggleRetired(item) : setConfirmRetire(item)
+                            }
                           >
                             {item.retiredAt ? "Restore" : "Retire"}
                           </Button>
@@ -212,7 +223,7 @@ export function EquipmentInventory({
                           item={item}
                           outageByUnit={outageByUnit}
                           onAddUnits={(count) => onAddUnits(item.id, count)}
-                          onSetUnitRetired={onSetUnitRetired}
+                          onSelectUnit={(unit) => setOpenUnit({ item, unit })}
                         />
                       )}
                     </li>
@@ -222,6 +233,32 @@ export function EquipmentInventory({
             </section>
           ))}
         </div>
+      )}
+
+      {confirmRetire && (
+        <ConfirmRetireDialog
+          title={`Retire ${confirmRetire.name}?`}
+          description="It will no longer be offered for new events or outages. Events that already use it keep it, and you can restore it later."
+          confirmLabel={`Retire ${confirmRetire.name}`}
+          onCancel={() => setConfirmRetire(undefined)}
+          onConfirm={async () => {
+            await onSetItemRetired(confirmRetire.id, true);
+            setConfirmRetire(undefined);
+          }}
+        />
+      )}
+
+      {openUnit && (
+        <EquipmentUnitDialog
+          item={openUnit.item}
+          unit={openUnit.unit}
+          items={items}
+          records={records}
+          outage={outageByUnit.get(openUnit.unit.id)}
+          onClose={() => setOpenUnit(undefined)}
+          onRecordUnavailable={onRecordUnavailable}
+          onSetRetired={(retired) => onSetUnitRetired(openUnit.unit.id, retired)}
+        />
       )}
 
       {dialog && (

@@ -4,12 +4,16 @@ import {
   type EquipmentItemFormValues,
   type EquipmentUnavailabilityFormValues,
 } from "@spm/shared";
-import { Boxes, CircleCheck, CircleAlert, Archive } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { Boxes, ChevronRight, CircleAlert, Plus } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { EquipmentInventory } from "@/features/equipment/components/equipment-inventory";
 import { EquipmentUnavailabilityForm } from "@/features/equipment/components/equipment-unavailability-form";
-import { EquipmentUnavailabilityHistory } from "@/features/equipment/components/equipment-unavailability-history";
+import {
+  EquipmentUnavailabilityHistory,
+  type UnavailabilityFilter,
+} from "@/features/equipment/components/equipment-unavailability-history";
 import {
   addEquipmentUnits,
   createEquipmentItem,
@@ -24,7 +28,9 @@ import {
   type EquipmentUnavailabilityRecord,
   type InventoryItem,
 } from "@/features/equipment/services/equipment-unavailability";
+import { useStableCallback } from "@/features/equipment/hooks/use-stable-callback";
 import { currentOutages } from "@/features/equipment/utils/inventory-status";
+import { Modal } from "@/features/event-requests/components/modal";
 import { cn } from "@/lib/utils";
 
 type Tab = "inventory" | "unavailability";
@@ -34,6 +40,9 @@ export function TechnicalSupportEquipment() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [records, setRecords] = useState<EquipmentUnavailabilityRecord[]>([]);
   const [tab, setTab] = useState<Tab>("inventory");
+  const [historyFilter, setHistoryFilter] = useState<UnavailabilityFilter>("all");
+  const [recording, setRecording] = useState(false);
+  const historyRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
@@ -78,7 +87,6 @@ export function TechnicalSupportEquipment() {
 
   const { recordByUnit, quantityByItem } = currentOutages(records);
   const activeItems = items.filter((item) => !item.retiredAt);
-  const unitsInService = activeItems.reduce((sum, item) => sum + item.totalQuantity, 0);
   const outNow = activeItems.reduce(
     (sum, item) => sum + Math.min(quantityByItem.get(item.id) ?? 0, item.totalQuantity),
     0,
@@ -95,12 +103,21 @@ export function TechnicalSupportEquipment() {
 
   return (
     <>
-      <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <SummaryCard icon={<Boxes />} label="Equipment types" value={activeItems.length} />
-        <SummaryCard icon={<CircleCheck />} label="Available now" value={unitsInService - outNow} tone="good" />
-        <SummaryCard icon={<CircleAlert />} label="Out of service now" value={outNow} tone={outNow > 0 ? "warn" : undefined} />
-        <SummaryCard icon={<Archive />} label="Retired types" value={items.length - activeItems.length} />
-      </dl>
+        <SummaryCard
+          icon={<CircleAlert />}
+          label="Out of service now"
+          value={outNow}
+          tone={outNow > 0 ? "warn" : undefined}
+          actionLabel="View records in progress"
+          onClick={() => {
+            setTab("unavailability");
+            setHistoryFilter("in_progress");
+            requestAnimationFrame(() => historyRef.current?.scrollIntoView?.({ behavior: "smooth" }));
+          }}
+        />
+      </div>
 
       {(error || notice) && (
         <p
@@ -129,6 +146,7 @@ export function TechnicalSupportEquipment() {
         <section role="tabpanel" aria-label="Inventory" className="mt-5">
           <EquipmentInventory
             items={items}
+            records={records}
             outageByUnit={recordByUnit}
             outQuantityByItem={quantityByItem}
             onCreateItem={(values: EquipmentItemFormValues, units: number) =>
@@ -150,35 +168,69 @@ export function TechnicalSupportEquipment() {
                 `${unitLabelById.get(unitId) ?? "Unit"} ${retired ? "retired" : "restored"}.`,
               )
             }
+            onRecordUnavailable={(values) =>
+              write(() => recordEquipmentUnavailability(values), "Unavailability recorded.")
+            }
           />
         </section>
       ) : (
-        <section role="tabpanel" aria-label="Unavailability" className="mt-5 space-y-7">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
-            <h2 className="text-lg font-semibold text-slate-950">Record equipment as unavailable</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              For repairs, maintenance or loss. Unavailable units are excluded from event planning for the period.
-            </p>
-            <EquipmentUnavailabilityForm
-              items={items}
-              records={records}
-              onSave={(values: EquipmentUnavailabilityFormValues) =>
-                write(() => recordEquipmentUnavailability(values), "Unavailability recorded.")
-              }
-            />
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
-            <h2 className="text-lg font-semibold text-slate-950">Unavailability records</h2>
+        <section role="tabpanel" aria-label="Unavailability" className="mt-5">
+          <div ref={historyRef} className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">Unavailability records</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Repairs, maintenance and losses. Unavailable units are excluded from event planning for the period.
+                </p>
+              </div>
+              <Button type="button" onClick={() => setRecording(true)}>
+                <Plus /> Record unavailability
+              </Button>
+            </div>
             <EquipmentUnavailabilityHistory
               records={records}
               unitLabelById={unitLabelById}
+              filter={historyFilter}
+              onFilterChange={setHistoryFilter}
               onEnd={(id) => write(() => endEquipmentUnavailability(id), "Equipment returned to service.")}
               onRemove={(id) => write(() => removeEquipmentUnavailability(id), "Record removed.")}
             />
           </div>
         </section>
       )}
+
+      {recording && (
+        <RecordUnavailabilityDialog
+          items={items}
+          records={records}
+          onClose={() => setRecording(false)}
+          onSave={async (values) => {
+            await write(() => recordEquipmentUnavailability(values), "Unavailability recorded.");
+            setRecording(false);
+          }}
+        />
+      )}
     </>
+  );
+}
+
+/** The SPM-30 form, opened from the "Record unavailability" button. */
+function RecordUnavailabilityDialog({
+  items,
+  records,
+  onClose,
+  onSave,
+}: {
+  items: InventoryItem[];
+  records: EquipmentUnavailabilityRecord[];
+  onClose: () => void;
+  onSave: (values: EquipmentUnavailabilityFormValues) => Promise<void>;
+}) {
+  const close = useStableCallback(onClose);
+  return (
+    <Modal titleId="record-unavailability-title" title="Record equipment as unavailable" onCancel={close} size="large">
+      <EquipmentUnavailabilityForm items={items} records={records} onSave={onSave} />
+    </Modal>
   );
 }
 
@@ -187,14 +239,19 @@ function SummaryCard({
   label,
   value,
   tone,
+  actionLabel,
+  onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
   tone?: "good" | "warn";
+  /** Makes the card a button that opens the matching records. */
+  actionLabel?: string;
+  onClick?: () => void;
 }) {
-  return (
-    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+  const content = (
+    <>
       <span
         aria-hidden="true"
         className={cn(
@@ -206,11 +263,26 @@ function SummaryCard({
       >
         {icon}
       </span>
-      <div>
-        <dt className="text-xs font-medium text-slate-500">{label}</dt>
-        <dd className="text-2xl font-semibold tracking-tight text-slate-950">{value}</dd>
+      <div className="flex-1 text-left">
+        <p className="text-xs font-medium text-slate-500">{label}</p>
+        <p className="text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
       </div>
-    </div>
+      {onClick && <ChevronRight aria-hidden="true" className="size-5 text-slate-400" />}
+    </>
+  );
+  const cardClass = "flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4";
+
+  return onClick ? (
+    <button
+      type="button"
+      aria-label={`${label}: ${value}. ${actionLabel ?? ""}`}
+      onClick={onClick}
+      className={cn(cardClass, "transition-colors hover:border-primary/40 hover:bg-accent/40")}
+    >
+      {content}
+    </button>
+  ) : (
+    <div className={cardClass}>{content}</div>
   );
 }
 

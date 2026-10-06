@@ -13,29 +13,23 @@ import { cn } from "@/lib/utils";
 
 type UnitFilter = "all" | "in_service" | "out" | "retired";
 
-const dateFormat = new Intl.DateTimeFormat("en-SG", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "Asia/Singapore",
-});
-
 /**
- * Every physical unit of one item (mic-1 … mic-100) with its status. Select
- * a unit to retire or restore it; add more units at the bottom.
+ * Every physical unit of one item (mic-1 … mic-100) with its status. Click a
+ * unit to open it (mark unavailable, retire, restore); add more units at the
+ * bottom.
  */
 export function EquipmentUnitGrid({
   item,
   outageByUnit,
   onAddUnits,
-  onSetUnitRetired,
+  onSelectUnit,
 }: {
   item: InventoryItem;
   outageByUnit: ReadonlyMap<string, EquipmentUnavailabilityRecord>;
   onAddUnits: (count: number) => Promise<void>;
-  onSetUnitRetired: (unitId: string, retired: boolean) => Promise<void>;
+  onSelectUnit: (unit: EquipmentUnit) => void;
 }) {
   const [filter, setFilter] = useState<UnitFilter>("all");
-  const [selectedId, setSelectedId] = useState<string>();
   const [count, setCount] = useState("1");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -46,7 +40,6 @@ export function EquipmentUnitGrid({
   for (const unit of item.units) counts[statusOf(unit)] += 1;
 
   const visible = item.units.filter((unit) => filter === "all" || statusOf(unit) === filter);
-  const selected = item.units.find((unit) => unit.id === selectedId);
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -115,7 +108,6 @@ export function EquipmentUnitGrid({
               <li key={unit.id}>
                 <button
                   type="button"
-                  aria-pressed={selectedId === unit.id}
                   title={
                     status === "out"
                       ? `Out: ${outageByUnit.get(unit.id)?.reason}`
@@ -123,13 +115,12 @@ export function EquipmentUnitGrid({
                         ? "Retired"
                         : "In service"
                   }
-                  onClick={() => setSelectedId(selectedId === unit.id ? undefined : unit.id)}
+                  onClick={() => onSelectUnit(unit)}
                   className={cn(
                     "w-full rounded-lg border px-2 py-1.5 font-mono text-xs transition-colors",
                     status === "in_service" && "border-slate-200 bg-white text-slate-700 hover:border-primary/50",
                     status === "out" && "border-amber-300 bg-amber-50 text-amber-900",
                     status === "retired" && "border-slate-200 bg-slate-100 text-slate-400 line-through",
-                    selectedId === unit.id && "ring-2 ring-primary ring-offset-1",
                   )}
                 >
                   {label}
@@ -138,32 +129,6 @@ export function EquipmentUnitGrid({
             );
           })}
         </ul>
-      )}
-
-      {selected && (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
-          <div>
-            <p className="font-mono font-semibold text-slate-900">
-              {equipmentUnitLabel(item.code, selected.unitNumber)}
-            </p>
-            <p className="mt-0.5 text-slate-600">
-              {selected.retiredAt
-                ? `Retired ${dateFormat.format(new Date(selected.retiredAt))}`
-                : outageByUnit.has(selected.id)
-                  ? `Out of service: ${outageByUnit.get(selected.id)?.reason}`
-                  : "In service"}
-            </p>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant={selected.retiredAt ? "outline" : "destructive"}
-            disabled={busy}
-            onClick={() => void run(() => onSetUnitRetired(selected.id, !selected.retiredAt))}
-          >
-            {selected.retiredAt ? "Restore unit" : "Retire unit"}
-          </Button>
-        </div>
       )}
 
       <form onSubmit={addUnits} noValidate className="mt-3 flex flex-wrap items-center gap-2">

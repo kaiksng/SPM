@@ -99,6 +99,13 @@ async function openUnavailabilityTab(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("tab", { name: /Unavailability/ }));
 }
 
+/** The form is behind the "Record unavailability" button. */
+async function openRecordForm(user: ReturnType<typeof userEvent.setup>) {
+  await openUnavailabilityTab(user);
+  await user.click(screen.getByRole("button", { name: /Record unavailability/ }));
+  return screen.getByRole("dialog", { name: "Record equipment as unavailable" });
+}
+
 beforeEach(() => {
   authState.profile = { full_name: "Tess Support", role: "technical_support_staff" };
   for (const mock of Object.values(service)) mock.mockReset().mockResolvedValue(undefined);
@@ -108,15 +115,25 @@ beforeEach(() => {
 });
 
 describe("EquipmentPage inventory for Technical Support Staff", () => {
-  it("summarises the equipment at a glance", async () => {
+  it("summarises equipment types and what is out of service", async () => {
     renderPage();
 
-    const summary = await screen.findByText("Equipment types");
-    const cards = summary.closest("dl")!;
-    expect(within(cards).getByText("Equipment types").nextSibling).toHaveTextContent("2");
-    expect(within(cards).getByText("Available now").nextSibling).toHaveTextContent("4");
-    expect(within(cards).getByText("Out of service now").nextSibling).toHaveTextContent("1");
-    expect(within(cards).getByText("Retired types").nextSibling).toHaveTextContent("1");
+    expect((await screen.findByText("Equipment types")).nextSibling).toHaveTextContent("2");
+    expect(screen.getByText("Out of service now").nextSibling).toHaveTextContent("1");
+    expect(screen.queryByText("Available now", { selector: "p" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Retired types")).not.toBeInTheDocument();
+  });
+
+  it("opens the records in progress from the out-of-service card", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /Out of service now: 1/ }));
+
+    expect(screen.getByRole("tab", { name: /Unavailability/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: "In progress 1" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Battery fault")).toBeInTheDocument();
+    expect(screen.queryByText("Entered by mistake")).not.toBeInTheDocument();
   });
 
   it("groups items by category and hides retired items until asked", async () => {
@@ -164,19 +181,60 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
     expect(within(grid).getByRole("button", { name: "mic-2" })).toHaveAttribute("title", "Out: Battery fault");
 
     await user.click(within(grid).getByRole("button", { name: "mic-2" }));
-    expect(screen.getByText("Out of service: Battery fault")).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "mic-2 · Wireless microphone" });
+    expect(within(dialog).getByText("Out of service")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Battery fault · until/)).toBeInTheDocument();
   });
 
-  it("retires a unit", async () => {
+  it("retires a unit from its dialog", async () => {
     const user = userEvent.setup();
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Show Wireless microphone units" }));
     await user.click(screen.getByRole("button", { name: "mic-3" }));
-    await user.click(screen.getByRole("button", { name: "Retire unit" }));
+    const dialog = screen.getByRole("dialog", { name: "mic-3 · Wireless microphone" });
+    await user.click(within(dialog).getByRole("button", { name: "Retire unit" }));
+    expect(service.setEquipmentUnitRetired).not.toHaveBeenCalled();
+    expect(within(dialog).getByText("Retire mic-3?")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Retire mic-3" }));
 
     await waitFor(() => expect(service.setEquipmentUnitRetired).toHaveBeenCalledWith(`${MIC}-unit-3`, true));
     expect(await screen.findByText("mic-3 retired.")).toBeInTheDocument();
+  });
+
+  it("marks a unit unavailable from its dialog, with the unit already chosen", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Show Wireless microphone units" }));
+    await user.click(screen.getByRole("button", { name: "mic-3" }));
+    await user.click(screen.getByRole("button", { name: /Mark unavailable/ }));
+
+    const dialog = screen.getByRole("dialog", { name: "mic-3 · Wireless microphone" });
+    expect(within(dialog).getByLabelText("Equipment")).toHaveValue(MIC);
+    expect(within(dialog).getByRole("checkbox", { name: "mic-3" })).toBeChecked();
+    await user.type(within(dialog).getByLabelText("Unavailable from"), "2099-04-10T09:00");
+    await user.type(within(dialog).getByLabelText("Unavailable until"), "2099-04-12T09:00");
+    await user.type(within(dialog).getByLabelText("Reason"), "Cracked casing");
+    await user.click(within(dialog).getByRole("button", { name: /Mark mic-3 unavailable/ }));
+
+    await waitFor(() =>
+      expect(service.recordEquipmentUnavailability).toHaveBeenCalledWith(
+        expect.objectContaining({ equipmentItemId: MIC, unitIds: [`${MIC}-unit-3`], reason: "Cracked casing" }),
+      ),
+    );
+    expect(await screen.findByText("Unavailability recorded.")).toBeInTheDocument();
+  });
+
+  it("shows a retired unit struck through", async () => {
+    const items = inventory();
+    items[0]!.units[0]!.retiredAt = hours(-5);
+    service.listInventory.mockResolvedValue(items);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Show Wireless microphone units" }));
+    expect(screen.getByRole("button", { name: "mic-1" })).toHaveClass("line-through");
   });
 
   it("adds units after the highest existing one", async () => {
@@ -261,8 +319,23 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 
     const row = (await screen.findByText("Projector")).closest("li")!;
     await user.click(within(row).getByRole("button", { name: "Retire" }));
+    const confirm = screen.getByRole("dialog", { name: "Retire Projector?" });
+    expect(service.setEquipmentItemRetired).not.toHaveBeenCalled();
+    await user.click(within(confirm).getByRole("button", { name: "Retire Projector" }));
 
     await waitFor(() => expect(service.setEquipmentItemRetired).toHaveBeenCalledWith(PROJ, true));
+  });
+
+  it("does not retire an item when the confirmation is cancelled", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const row = (await screen.findByText("Projector")).closest("li")!;
+    await user.click(within(row).getByRole("button", { name: "Retire" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Retire Projector?" })).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(service.setEquipmentItemRetired).not.toHaveBeenCalled();
   });
 });
 
@@ -270,39 +343,39 @@ describe("EquipmentPage unavailability (SPM-30)", () => {
   it("identifies each missing field and does not save (AC01)", async () => {
     const user = userEvent.setup();
     renderPage();
-    await openUnavailabilityTab(user);
+    const form = await openRecordForm(user);
 
-    await user.clear(screen.getByLabelText("Quantity unavailable"));
-    await user.click(screen.getByRole("button", { name: /Record unavailability/ }));
+    await user.clear(within(form).getByLabelText("Quantity unavailable"));
+    await user.click(within(form).getByRole("button", { name: /Record unavailability/ }));
 
-    expect(await screen.findByText("Choose equipment from the catalogue")).toBeInTheDocument();
-    expect(screen.getByText("Enter a quantity")).toBeInTheDocument();
-    expect(screen.getByText("Enter a reason")).toBeInTheDocument();
-    expect(screen.getAllByText("Enter a date and time")).toHaveLength(2);
+    expect(await within(form).findByText("Choose equipment from the catalogue")).toBeInTheDocument();
+    expect(within(form).getByText("Enter a quantity")).toBeInTheDocument();
+    expect(within(form).getByText("Enter a reason")).toBeInTheDocument();
+    expect(within(form).getAllByText("Enter a date and time")).toHaveLength(2);
     expect(service.recordEquipmentUnavailability).not.toHaveBeenCalled();
   });
 
   it("requires the end to be after the start (AC02)", async () => {
     const user = userEvent.setup();
     renderPage();
-    await openUnavailabilityTab(user);
+    const form = await openRecordForm(user);
 
-    await user.selectOptions(screen.getByLabelText("Equipment"), PROJ);
-    await user.type(screen.getByLabelText("Unavailable from"), "2099-04-10T12:00");
-    await user.type(screen.getByLabelText("Unavailable until"), "2099-04-10T09:00");
-    await user.type(screen.getByLabelText("Reason"), "Repair");
-    await user.click(screen.getByRole("button", { name: /Record unavailability/ }));
+    await user.selectOptions(within(form).getByLabelText("Equipment"), PROJ);
+    await user.type(within(form).getByLabelText("Unavailable from"), "2099-04-10T12:00");
+    await user.type(within(form).getByLabelText("Unavailable until"), "2099-04-10T09:00");
+    await user.type(within(form).getByLabelText("Reason"), "Repair");
+    await user.click(within(form).getByRole("button", { name: /Record unavailability/ }));
 
-    expect(await screen.findByText("End time must be after start time")).toBeInTheDocument();
+    expect(await within(form).findByText("End time must be after start time")).toBeInTheDocument();
     expect(service.recordEquipmentUnavailability).not.toHaveBeenCalled();
   });
 
   it("does not offer retired items", async () => {
     const user = userEvent.setup();
     renderPage();
-    await openUnavailabilityTab(user);
+    const form = await openRecordForm(user);
 
-    expect(screen.queryByRole("option", { name: "Overhead projector" })).not.toBeInTheDocument();
+    expect(within(form).queryByRole("option", { name: "Overhead projector" })).not.toBeInTheDocument();
   });
 
   it("shows overlapping records and reservations before saving (AC03)", async () => {
@@ -311,35 +384,35 @@ describe("EquipmentPage unavailability (SPM-30)", () => {
     ]);
     const user = userEvent.setup();
     renderPage();
-    await openUnavailabilityTab(user);
+    const form = await openRecordForm(user);
 
-    await user.selectOptions(screen.getByLabelText("Equipment"), MIC);
-    await user.type(screen.getByLabelText("Unavailable from"), toLocal(hours(1)));
-    await user.type(screen.getByLabelText("Unavailable until"), toLocal(hours(6)));
+    await user.selectOptions(within(form).getByLabelText("Equipment"), MIC);
+    await user.type(within(form).getByLabelText("Unavailable from"), toLocal(hours(1)));
+    await user.type(within(form).getByLabelText("Unavailable until"), toLocal(hours(6)));
 
-    const panel = await screen.findByRole("region", { name: "Overlaps for this period" });
+    const panel = await within(form).findByRole("region", { name: "Overlaps for this period" });
     expect(within(panel).getByText(/3 units in service/)).toBeInTheDocument();
     expect(within(panel).getByText(/Unavailable × 1/)).toBeInTheDocument();
     expect(within(panel).queryByText(/Entered by mistake/)).not.toBeInTheDocument();
     expect(await within(panel).findByText(/Confirmed reservation × 3/)).toBeInTheDocument();
     // mic-2 is already out for this period, so it cannot be chosen again.
-    expect(screen.getByRole("checkbox", { name: "mic-2" })).toBeDisabled();
+    expect(within(form).getByRole("checkbox", { name: "mic-2" })).toBeDisabled();
   });
 
   it("records an outage for specific units", async () => {
     const user = userEvent.setup();
     renderPage();
-    await openUnavailabilityTab(user);
+    const form = await openRecordForm(user);
 
-    await user.selectOptions(screen.getByLabelText("Equipment"), PROJ);
-    await user.click(screen.getByRole("checkbox", { name: "proj-1" }));
-    await user.click(screen.getByRole("checkbox", { name: "proj-2" }));
-    expect(screen.getByLabelText("Quantity unavailable")).toHaveValue(2);
-    expect(screen.getByLabelText("Quantity unavailable")).toBeDisabled();
-    await user.type(screen.getByLabelText("Unavailable from"), "2099-04-10T09:00");
-    await user.type(screen.getByLabelText("Unavailable until"), "2099-04-12T09:00");
-    await user.type(screen.getByLabelText("Reason"), "Lamp replacement");
-    await user.click(screen.getByRole("button", { name: /Record unavailability/ }));
+    await user.selectOptions(within(form).getByLabelText("Equipment"), PROJ);
+    await user.click(within(form).getByRole("checkbox", { name: "proj-1" }));
+    await user.click(within(form).getByRole("checkbox", { name: "proj-2" }));
+    expect(within(form).getByLabelText("Quantity unavailable")).toHaveValue(2);
+    expect(within(form).getByLabelText("Quantity unavailable")).toBeDisabled();
+    await user.type(within(form).getByLabelText("Unavailable from"), "2099-04-10T09:00");
+    await user.type(within(form).getByLabelText("Unavailable until"), "2099-04-12T09:00");
+    await user.type(within(form).getByLabelText("Reason"), "Lamp replacement");
+    await user.click(within(form).getByRole("button", { name: /Record unavailability/ }));
 
     await waitFor(() =>
       expect(service.recordEquipmentUnavailability).toHaveBeenCalledWith(
@@ -352,19 +425,29 @@ describe("EquipmentPage unavailability (SPM-30)", () => {
   it("records an outage by quantity alone", async () => {
     const user = userEvent.setup();
     renderPage();
-    await openUnavailabilityTab(user);
+    const form = await openRecordForm(user);
 
-    await user.selectOptions(screen.getByLabelText("Equipment"), PROJ);
-    await user.type(screen.getByLabelText("Unavailable from"), "2099-04-10T09:00");
-    await user.type(screen.getByLabelText("Unavailable until"), "2099-04-12T09:00");
-    await user.type(screen.getByLabelText("Reason"), "Lamp replacement");
-    await user.click(screen.getByRole("button", { name: /Record unavailability/ }));
+    await user.selectOptions(within(form).getByLabelText("Equipment"), PROJ);
+    await user.type(within(form).getByLabelText("Unavailable from"), "2099-04-10T09:00");
+    await user.type(within(form).getByLabelText("Unavailable until"), "2099-04-12T09:00");
+    await user.type(within(form).getByLabelText("Reason"), "Lamp replacement");
+    await user.click(within(form).getByRole("button", { name: /Record unavailability/ }));
 
     await waitFor(() =>
       expect(service.recordEquipmentUnavailability).toHaveBeenCalledWith(
         expect.objectContaining({ quantity: "1", unitIds: [] }),
       ),
     );
+  });
+
+  it("lists the records first, with the form behind a button", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openUnavailabilityTab(user);
+
+    expect(screen.getByRole("heading", { name: "Unavailability records" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Reason")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All 2" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("keeps who recorded and removed each record, and the units named (AC06)", async () => {
@@ -388,6 +471,19 @@ describe("EquipmentPage unavailability (SPM-30)", () => {
 
     await waitFor(() => expect(service.endEquipmentUnavailability).toHaveBeenCalledWith("record-current"));
     expect(await screen.findByText("Equipment returned to service.")).toBeInTheDocument();
+  });
+
+  it("filters records by status and strikes through cancelled ones", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openUnavailabilityTab(user);
+
+    expect(screen.getByText("Entered by mistake").closest("div")).toHaveClass("line-through");
+    expect(screen.getByText("Battery fault").closest("div")).not.toHaveClass("line-through");
+
+    await user.click(screen.getByRole("button", { name: "Removed 1" }));
+    expect(screen.getByText("Entered by mistake")).toBeInTheDocument();
+    expect(screen.queryByText("Battery fault")).not.toBeInTheDocument();
   });
 
   it("offers no actions on a removed record", async () => {

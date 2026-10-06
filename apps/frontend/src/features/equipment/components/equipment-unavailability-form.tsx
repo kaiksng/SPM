@@ -41,13 +41,19 @@ const selectClass =
 export function EquipmentUnavailabilityForm({
   items,
   records,
+  initialValues,
+  submitLabel = "Record unavailability",
   onSave,
 }: {
   items: InventoryItem[];
   records: EquipmentUnavailabilityRecord[];
+  /** Pre-fills the form, e.g. with one unit picked from the inventory. */
+  initialValues?: Partial<EquipmentUnavailabilityFormValues>;
+  submitLabel?: string;
   onSave: (values: EquipmentUnavailabilityFormValues) => Promise<void>;
 }) {
-  const [values, setValues] = useState(emptyValues);
+  const startingValues = { ...emptyValues, ...initialValues };
+  const [values, setValues] = useState(startingValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [reservations, setReservations] = useState<EquipmentReservationOverlap[]>([]);
@@ -130,7 +136,7 @@ export function EquipmentUnavailabilityForm({
     setSaving(true);
     try {
       await onSave(parsed.data);
-      setValues(emptyValues);
+      setValues(startingValues);
     } catch (cause) {
       setErrors({
         form: cause instanceof Error ? cause.message : "This record could not be saved.",
@@ -311,7 +317,7 @@ export function EquipmentUnavailabilityForm({
           </p>
         )}
         <Button type="submit" size="lg" disabled={saving}>
-          <Plus /> {saving ? "Saving…" : "Record unavailability"}
+          <Plus /> {saving ? "Saving…" : submitLabel}
         </Button>
       </div>
     </form>
