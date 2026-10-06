@@ -106,7 +106,11 @@ export function VenueDetailPage() {
       .then(async ([detail, booking]) => {
         if (!active) return;
         setForEvent(detail);
-        setActiveBooking(Boolean(booking));
+        // getActiveVenueBooking still returns a past-deadline On Hold row
+        // (status computed as "expired" for display, per
+        // effectiveBookingStatus) so it can be shown as such — it isn't
+        // actually blocking anymore, so it must not count as "active" here.
+        setActiveBooking(Boolean(booking) && booking?.status !== "expired");
         if (detail.status !== "planning" || !detail.startsAt || !detail.endsAt) {
           setAvailabilityError("This event is not ready for a venue request.");
           return;
