@@ -1,6 +1,12 @@
 import type { UserRole } from "../types/role";
 
-export type NavItemId = "events" | "venues" | "requests" | "equipment" | "browse-events";
+export type NavItemId =
+  | "events"
+  | "venues"
+  | "requests"
+  | "equipment"
+  | "browse-events"
+  | "safety-checks";
 
 export interface NavItem {
   id: NavItemId;
@@ -18,6 +24,11 @@ const NAV_ITEMS: Record<NavItemId, NavItem> = {
     label: "Browse Event",
     href: "/browse-events",
   },
+  "safety-checks": {
+    id: "safety-checks",
+    label: "Safety Checks",
+    href: "/safety-checks",
+  },
 };
 
 const ROLE_NAV_ITEM_IDS = {
@@ -30,6 +41,10 @@ const ROLE_NAV_ITEM_IDS = {
   // just showing every event instead of one organiser's or coordinator's
   // own. See EventsPage's LeadEventsView.
   event_coordinator_lead: ["events"],
+  // Access scaffolding only: the Operational Safety Check workflow doesn't
+  // exist yet (no "confirmed" status is ever reached today), so this is a
+  // placeholder page with no event data until that lands.
+  safety_officer: ["safety-checks"],
 } as const satisfies Record<UserRole, readonly NavItemId[]>;
 
 /** Ordered nav items a given role sees in the workspace side menu. */

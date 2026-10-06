@@ -1338,7 +1338,11 @@ export type Database = {
         }[]
       }
       place_venue_booking_hold: {
-        Args: { p_actor_id?: string; p_booking_id: string; p_expires_at: string }
+        Args: {
+          p_actor_id?: string
+          p_booking_id: string
+          p_expires_at: string
+        }
         Returns: Json
       }
       reassign_event_coordinator: {
@@ -1499,6 +1503,7 @@ export type Database = {
         | "technical_support_staff"
         | "attendee"
         | "event_coordinator_lead"
+        | "safety_officer"
       venue_booking_decision_type: "approved" | "rejected"
     }
     CompositeTypes: {
@@ -1681,6 +1686,7 @@ export const Constants = {
         "technical_support_staff",
         "attendee",
         "event_coordinator_lead",
+        "safety_officer",
       ],
       venue_booking_decision_type: ["approved", "rejected"],
     },

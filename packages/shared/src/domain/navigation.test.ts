@@ -84,4 +84,16 @@ describe("workspace navigation", () => {
     ).toBe(false);
     expect(isPathAllowedForRole("/events/new", "event_coordinator_lead")).toBe(false);
   });
+
+  it("gives the safety officer only the safety checks section", () => {
+    expect(
+      getNavItemsForRole("safety_officer").map((item) => item.id),
+    ).toEqual(["safety-checks"]);
+  });
+
+  it("blocks the safety officer from events and other sections", () => {
+    expect(isPathAllowedForRole("/safety-checks", "safety_officer")).toBe(true);
+    expect(isPathAllowedForRole("/events", "safety_officer")).toBe(false);
+    expect(isPathAllowedForRole("/venues", "safety_officer")).toBe(false);
+  });
 });
