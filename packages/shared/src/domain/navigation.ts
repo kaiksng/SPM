@@ -37,8 +37,18 @@ export function getNavItemsForRole(role: UserRole): NavItem[] {
   return ROLE_NAV_ITEM_IDS[role].map((id) => NAV_ITEMS[id]);
 }
 
+// The Lead's "events" access is read-only and narrower than an organiser's
+// or coordinator's: their dashboard (LeadEventsView) only ever links into
+// the event history page, never into the detail, venue, or edit routes —
+// so, unlike every other role, they get an explicit allow-list instead of
+// the whole "/events/*" subtree.
+const LEAD_ALLOWED_EVENT_PATHS = [/^\/events$/, /^\/events\/[^/]+\/history$/];
+
 /** Whether a role is entitled to a nav section, keyed by its route path. */
 export function isPathAllowedForRole(pathname: string, role: UserRole) {
+  if (role === "event_coordinator_lead") {
+    return LEAD_ALLOWED_EVENT_PATHS.some((pattern) => pattern.test(pathname));
+  }
   return getNavItemsForRole(role).some(
     (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
   );
