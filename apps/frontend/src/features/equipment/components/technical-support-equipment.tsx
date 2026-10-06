@@ -1,4 +1,5 @@
 import {
+  overallEquipmentAvailability,
   equipmentUnavailabilityStatus,
   equipmentUnitLabel,
   type EquipmentItemFormValues,
@@ -9,6 +10,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { EquipmentInventory } from "@/features/equipment/components/equipment-inventory";
+import { EventEquipmentAvailabilityList } from "@/features/equipment/components/event-equipment-availability";
+import {
+  listEventEquipmentAvailability,
+  type EventEquipmentAvailability,
+} from "@/features/equipment/services/equipment-availability";
 import { EquipmentUnavailabilityForm } from "@/features/equipment/components/equipment-unavailability-form";
 import {
   EquipmentUnavailabilityHistory,
@@ -33,13 +39,14 @@ import { currentOutages } from "@/features/equipment/utils/inventory-status";
 import { Modal } from "@/features/event-requests/components/modal";
 import { cn } from "@/lib/utils";
 
-type Tab = "inventory" | "unavailability";
+type Tab = "requests" | "inventory" | "unavailability";
 
 /** The Technical Support Staff view of the Equipment page. */
 export function TechnicalSupportEquipment() {
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [records, setRecords] = useState<EquipmentUnavailabilityRecord[]>([]);
-  const [tab, setTab] = useState<Tab>("inventory");
+  const [tab, setTab] = useState<Tab>("requests");
+  const [eventAvailability, setEventAvailability] = useState<EventEquipmentAvailability[]>([]);
   const [historyFilter, setHistoryFilter] = useState<UnavailabilityFilter>("all");
   const [recording, setRecording] = useState(false);
   const historyRef = useRef<HTMLDivElement>(null);
@@ -48,9 +55,15 @@ export function TechnicalSupportEquipment() {
   const [notice, setNotice] = useState<string>();
 
   const refresh = useCallback(async () => {
-    const [inventory, history] = await Promise.all([listInventory(), listEquipmentUnavailability()]);
+    // Availability depends on stock and outages, so it reloads with them.
+    const [inventory, history, availability] = await Promise.all([
+      listInventory(),
+      listEquipmentUnavailability(),
+      listEventEquipmentAvailability(),
+    ]);
     setItems(inventory);
     setRecords(history);
+    setEventAvailability(availability);
   }, []);
 
   useEffect(() => {
@@ -96,6 +109,10 @@ export function TechnicalSupportEquipment() {
     return status === "upcoming" || status === "in_progress";
   }).length;
 
+  const eventsWithShortage = eventAvailability.filter(
+    (event) => overallEquipmentAvailability(event.results.map((result) => result.status)) !== "available",
+  ).length;
+
   const unitLabelById = new Map<string, string>();
   for (const item of items) {
     for (const unit of item.units) unitLabelById.set(unit.id, equipmentUnitLabel(item.code, unit.unitNumber));
@@ -129,6 +146,14 @@ export function TechnicalSupportEquipment() {
       )}
 
       <div role="tablist" aria-label="Equipment sections" className="mt-7 flex gap-1 border-b border-slate-200">
+        <TabButton active={tab === "requests"} onClick={() => setTab("requests")}>
+          Event requests
+          {eventsWithShortage > 0 && (
+            <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
+              {eventsWithShortage}
+            </span>
+          )}
+        </TabButton>
         <TabButton active={tab === "inventory"} onClick={() => setTab("inventory")}>
           Inventory
         </TabButton>
@@ -142,7 +167,11 @@ export function TechnicalSupportEquipment() {
         </TabButton>
       </div>
 
-      {tab === "inventory" ? (
+      {tab === "requests" ? (
+        <section role="tabpanel" aria-label="Event requests" className="mt-5">
+          <EventEquipmentAvailabilityList events={eventAvailability} />
+        </section>
+      ) : tab === "inventory" ? (
         <section role="tabpanel" aria-label="Inventory" className="mt-5">
           <EquipmentInventory
             items={items}

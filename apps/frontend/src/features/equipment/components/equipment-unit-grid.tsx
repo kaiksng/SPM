@@ -1,6 +1,6 @@
 import { equipmentUnitCountSchema, equipmentUnitLabel } from "@spm/shared";
 import { Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,13 +23,22 @@ export function EquipmentUnitGrid({
   outageByUnit,
   onAddUnits,
   onSelectUnit,
+  onMarkUnavailable,
+  selectionResetKey,
 }: {
   item: InventoryItem;
   outageByUnit: ReadonlyMap<string, EquipmentUnavailabilityRecord>;
   onAddUnits: (count: number) => Promise<void>;
   onSelectUnit: (unit: EquipmentUnit) => void;
+  /** Opens the unavailability form for several units at once. */
+  onMarkUnavailable: (unitIds: string[]) => void;
+  /** Changes after a bulk save, so the finished selection is cleared. */
+  selectionResetKey: number;
 }) {
   const [filter, setFilter] = useState<UnitFilter>("all");
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [anchorId, setAnchorId] = useState<string>();
   const [count, setCount] = useState("1");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -40,6 +49,40 @@ export function EquipmentUnitGrid({
   for (const unit of item.units) counts[statusOf(unit)] += 1;
 
   const visible = item.units.filter((unit) => filter === "all" || statusOf(unit) === filter);
+  // Retired units cannot be marked unavailable, so they cannot be selected.
+  const selectable = (unit: EquipmentUnit) => !unit.retiredAt;
+
+  // Click toggles one unit; shift-click selects everything between the last
+  // clicked unit and this one (in the order shown).
+  function toggle(unit: EquipmentUnit, range: boolean) {
+    const next = new Set(selected);
+    const anchorIndex = visible.findIndex((candidate) => candidate.id === anchorId);
+    const index = visible.findIndex((candidate) => candidate.id === unit.id);
+    if (range && anchorIndex >= 0) {
+      const [from, to] = anchorIndex < index ? [anchorIndex, index] : [index, anchorIndex];
+      for (const candidate of visible.slice(from, to + 1)) {
+        if (selectable(candidate)) next.add(candidate.id);
+      }
+    } else if (next.has(unit.id)) {
+      next.delete(unit.id);
+    } else {
+      next.add(unit.id);
+    }
+    setSelected(next);
+    setAnchorId(unit.id);
+  }
+
+  function stopSelecting() {
+    setSelecting(false);
+    setSelected(new Set());
+    setAnchorId(undefined);
+  }
+
+  // Once the selected units have been marked unavailable, the selection is
+  // done: leave selection mode so they show their new (out) status.
+  useEffect(() => {
+    if (selectionResetKey > 0) stopSelecting();
+  }, [selectionResetKey]);
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -75,6 +118,7 @@ export function EquipmentUnitGrid({
 
   return (
     <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-4 sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
       <div role="group" aria-label={`Filter ${item.name} units`} className="flex flex-wrap gap-1.5">
         {filters.map(([value, label]) => (
           <button
@@ -93,6 +137,48 @@ export function EquipmentUnitGrid({
           </button>
         ))}
       </div>
+        <Button
+          type="button"
+          size="sm"
+          variant={selecting ? "secondary" : "outline"}
+          aria-pressed={selecting}
+          onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+        >
+          {selecting ? "Done selecting" : "Select units"}
+        </Button>
+      </div>
+
+      {selecting && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-accent/60 px-3 py-2 text-sm select-none">
+          <span className="font-medium text-slate-900">{selected.size} selected</span>
+          <span className="text-xs text-slate-500">Click to select · Shift-click to select a range</span>
+          <span className="flex-1" />
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelected(new Set([...selected, ...visible.filter(selectable).map((unit) => unit.id)]))}
+          >
+            Select all shown
+          </Button>
+          <Button type="button" size="sm" variant="ghost" disabled={selected.size === 0} onClick={() => setSelected(new Set())}>
+            Clear
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={selected.size === 0}
+            onClick={() =>
+              onMarkUnavailable(
+                // In unit order, so the form lists them mic-3, mic-7, …
+                item.units.filter((unit) => selected.has(unit.id)).map((unit) => unit.id),
+              )
+            }
+          >
+            Mark {selected.size} unavailable
+          </Button>
+        </div>
+      )}
 
       {visible.length === 0 ? (
         <p className="mt-3 text-sm text-slate-500">No units match this filter.</p>
@@ -108,6 +194,8 @@ export function EquipmentUnitGrid({
               <li key={unit.id}>
                 <button
                   type="button"
+                  aria-pressed={selecting ? selected.has(unit.id) : undefined}
+                  disabled={selecting && !selectable(unit)}
                   title={
                     status === "out"
                       ? `Out: ${outageByUnit.get(unit.id)?.reason}`
@@ -115,14 +203,20 @@ export function EquipmentUnitGrid({
                         ? "Retired"
                         : "In service"
                   }
-                  onClick={() => onSelectUnit(unit)}
+                  onClick={(event) => (selecting ? toggle(unit, event.shiftKey) : onSelectUnit(unit))}
                   className={cn(
                     "w-full rounded-lg border px-2 py-1.5 font-mono text-xs transition-colors",
                     status === "in_service" && "border-slate-200 bg-white text-slate-700 hover:border-primary/50",
                     status === "out" && "border-amber-300 bg-amber-50 text-amber-900",
                     status === "retired" && "border-slate-200 bg-slate-100 text-slate-400 line-through",
+                    // Keeps the status colour (amber = out) visible while selected.
+                    selecting && selected.has(unit.id) && "ring-2 ring-primary ring-offset-1 font-semibold",
+                    selecting && !selectable(unit) && "cursor-not-allowed opacity-50",
+                    // Shift-click should not highlight text across the grid.
+                    selecting && "select-none",
                   )}
                 >
+                  {selecting && selected.has(unit.id) && <span aria-hidden="true">✓ </span>}
                   {label}
                 </button>
               </li>

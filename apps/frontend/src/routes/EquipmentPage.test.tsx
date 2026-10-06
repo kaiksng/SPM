@@ -41,6 +41,11 @@ vi.mock("@/features/equipment/services/equipment-unavailability", () => ({
   setEquipmentItemRetired: (...args: unknown[]) => service.setEquipmentItemRetired(...args),
 }));
 
+const listEventEquipmentAvailabilityMock = vi.fn();
+vi.mock("@/features/equipment/services/equipment-availability", () => ({
+  listEventEquipmentAvailability: () => listEventEquipmentAvailabilityMock(),
+}));
+
 import { EquipmentPage } from "./EquipmentPage";
 
 const MIC = "item-mic";
@@ -112,11 +117,19 @@ beforeEach(() => {
   service.listInventory.mockResolvedValue(inventory());
   service.listEquipmentUnavailability.mockResolvedValue([inProgress, removed]);
   service.listOverlappingReservations.mockResolvedValue([]);
+  listEventEquipmentAvailabilityMock.mockReset().mockResolvedValue([]);
 });
+
+/** The page opens on Event requests; most inventory tests start on Inventory. */
+async function renderInventory() {
+  const user = userEvent.setup();
+  renderPage();
+  await user.click(await screen.findByRole("tab", { name: "Inventory" }));
+}
 
 describe("EquipmentPage inventory for Technical Support Staff", () => {
   it("summarises equipment types and what is out of service", async () => {
-    renderPage();
+    await renderInventory();
 
     expect((await screen.findByText("Equipment types")).nextSibling).toHaveTextContent("2");
     expect(screen.getByText("Out of service now").nextSibling).toHaveTextContent("1");
@@ -126,7 +139,7 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 
   it("opens the records in progress from the out-of-service card", async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     await user.click(await screen.findByRole("button", { name: /Out of service now: 1/ }));
 
@@ -138,7 +151,7 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 
   it("groups items by category and hides retired items until asked", async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     expect(await screen.findByRole("region", { name: "Audio" })).toHaveTextContent("Wireless microphone");
     expect(screen.queryByText("Overhead projector")).not.toBeInTheDocument();
@@ -149,7 +162,7 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 
   it("finds an item by name, code or unit ID", async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     const search = await screen.findByLabelText("Search equipment");
     await user.type(search, "mic-2");
@@ -164,7 +177,7 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 
   it("filters by category", async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     await user.selectOptions(await screen.findByLabelText("Filter by category"), "Visual");
     expect(screen.getByText("Projector")).toBeInTheDocument();
@@ -173,7 +186,7 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 
   it("lists each unit by ID with the out-of-service one flagged", async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     await user.click(await screen.findByRole("button", { name: "Show Wireless microphone units" }));
     const grid = screen.getByRole("list", { name: "Wireless microphone units" });
@@ -188,7 +201,7 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 
   it("retires a unit from its dialog", async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     await user.click(await screen.findByRole("button", { name: "Show Wireless microphone units" }));
     await user.click(screen.getByRole("button", { name: "mic-3" }));
@@ -204,7 +217,7 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 
   it("marks a unit unavailable from its dialog, with the unit already chosen", async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     await user.click(await screen.findByRole("button", { name: "Show Wireless microphone units" }));
     await user.click(screen.getByRole("button", { name: "mic-3" }));
@@ -226,12 +239,74 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
     expect(await screen.findByText("Unavailability recorded.")).toBeInTheDocument();
   });
 
+  it("selects several units, including a shift-click range, and marks them unavailable together", async () => {
+    const user = userEvent.setup();
+    await renderInventory();
+
+    await user.click(await screen.findByRole("button", { name: "Show Wireless microphone units" }));
+    await user.click(screen.getByRole("button", { name: "Select units" }));
+    await user.click(screen.getByRole("button", { name: "mic-1" }));
+    await user.keyboard("{Shift>}");
+    await user.click(screen.getByRole("button", { name: "mic-3" }));
+    await user.keyboard("{/Shift}");
+
+    expect(screen.getByText("3 selected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "mic-2" })).toHaveAttribute("aria-pressed", "true");
+    // In selection mode a click selects; it does not open the unit dialog.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Mark 3 unavailable" }));
+    const dialog = screen.getByRole("dialog", { name: "Mark 3 Wireless microphone units unavailable" });
+    for (const label of ["mic-1", "mic-2", "mic-3"]) {
+      expect(within(dialog).getByRole("checkbox", { name: label })).toBeChecked();
+    }
+    expect(within(dialog).getByLabelText("Quantity unavailable")).toHaveValue(3);
+    await user.type(within(dialog).getByLabelText("Unavailable from"), "2099-04-10T09:00");
+    await user.type(within(dialog).getByLabelText("Unavailable until"), "2099-04-12T09:00");
+    await user.type(within(dialog).getByLabelText("Reason"), "Firmware update");
+    await user.click(within(dialog).getByRole("button", { name: "Mark 3 unavailable" }));
+
+    await waitFor(() =>
+      expect(service.recordEquipmentUnavailability).toHaveBeenCalledWith(
+        expect.objectContaining({
+          equipmentItemId: MIC,
+          unitIds: [`${MIC}-unit-1`, `${MIC}-unit-2`, `${MIC}-unit-3`],
+        }),
+      ),
+    );
+    // The finished selection is cleared, so nothing stays selected.
+    expect(await screen.findByRole("button", { name: "Select units" })).toBeInTheDocument();
+    expect(screen.queryByText(/selected$/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Mark d+ unavailable/ })).not.toBeInTheDocument();
+  });
+
+  it("selects all shown units, skipping retired ones, and can clear them", async () => {
+    const items = inventory();
+    items[0]!.units[2]!.retiredAt = hours(-5);
+    service.listInventory.mockResolvedValue(items);
+    const user = userEvent.setup();
+    await renderInventory();
+
+    await user.click(await screen.findByRole("button", { name: "Show Wireless microphone units" }));
+    await user.click(screen.getByRole("button", { name: "Select units" }));
+    expect(screen.getByRole("button", { name: "mic-3" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Select all shown" }));
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    expect(screen.getByText("0 selected")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark 0 unavailable" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Done selecting" }));
+    expect(screen.queryByText("0 selected")).not.toBeInTheDocument();
+  });
+
   it("shows a retired unit struck through", async () => {
     const items = inventory();
     items[0]!.units[0]!.retiredAt = hours(-5);
     service.listInventory.mockResolvedValue(items);
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     await user.click(await screen.findByRole("button", { name: "Show Wireless microphone units" }));
     expect(screen.getByRole("button", { name: "mic-1" })).toHaveClass("line-through");
@@ -239,7 +314,7 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 
   it("adds units after the highest existing one", async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     await user.click(await screen.findByRole("button", { name: "Show Wireless microphone units" }));
     expect(screen.getByText("New units continue from mic-4")).toBeInTheDocument();
@@ -254,7 +329,7 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 
   it("adds a new item with its first units", async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     await user.click(await screen.findByRole("button", { name: /Add equipment/ }));
     const dialog = screen.getByRole("dialog", { name: "Add equipment" });
@@ -281,7 +356,7 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
   it("shows a server error inside the add dialog", async () => {
     service.createEquipmentItem.mockRejectedValue(new Error("Another item already uses the code mic"));
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     await user.click(await screen.findByRole("button", { name: /Add equipment/ }));
     const dialog = screen.getByRole("dialog", { name: "Add equipment" });
@@ -295,7 +370,7 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 
   it("edits an item", async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     await user.click(await screen.findByRole("button", { name: "Edit Projector" }));
     const dialog = screen.getByRole("dialog", { name: "Edit Projector" });
@@ -315,7 +390,7 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 
   it("retires an item", async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     const row = (await screen.findByText("Projector")).closest("li")!;
     await user.click(within(row).getByRole("button", { name: "Retire" }));
@@ -328,7 +403,7 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 
   it("does not retire an item when the confirmation is cancelled", async () => {
     const user = userEvent.setup();
-    renderPage();
+    await renderInventory();
 
     const row = (await screen.findByText("Projector")).closest("li")!;
     await user.click(within(row).getByRole("button", { name: "Retire" }));
@@ -495,6 +570,117 @@ describe("EquipmentPage unavailability (SPM-30)", () => {
     expect(screen.getByText(/Entered by mistake/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "End now" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+  });
+});
+
+describe("EquipmentPage event requests (SPM-31)", () => {
+  const result = (overrides: Record<string, unknown>) => ({
+    requirementId: "req",
+    equipmentItemId: PROJ,
+    equipmentName: "Projector",
+    itemCode: "proj",
+    itemRetired: false,
+    requestedQuantity: 3,
+    requiredFrom: hours(24),
+    requiredUntil: hours(28),
+    technicalRequirements: null,
+    totalUnits: 100,
+    reservedQuantity: 0,
+    unavailableQuantity: 0,
+    availableQuantity: 100,
+    status: "available",
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue([
+      {
+        id: "event-gala",
+        title: "Annual Gala",
+        status: "planning",
+        startsAt: hours(24),
+        endsAt: hours(28),
+        results: [
+          result({ requirementId: "r1", technicalRequirements: "HDMI input", reservedQuantity: 40, unavailableQuantity: 30 }),
+          result({ requirementId: "r2", equipmentName: "Wireless microphone", itemCode: "mic", requestedQuantity: 80, availableQuantity: 60, status: "partially_available" }),
+          result({ requirementId: "r3", equipmentName: "Smoke machine", itemCode: "smoke", requestedQuantity: 1, availableQuantity: 0, totalUnits: 2, status: "unavailable" }),
+          result({ requirementId: "r4", equipmentItemId: null, equipmentName: "Old smoke machine", itemCode: null, requestedQuantity: 1, availableQuantity: 0, requiredFrom: null, requiredUntil: null, status: "unknown" }),
+        ],
+      },
+      {
+        id: "event-talk",
+        title: "Tech Talk",
+        status: "requested",
+        startsAt: hours(48),
+        endsAt: hours(50),
+        results: [result({ requirementId: "r5" })],
+      },
+    ]);
+  });
+
+  it("opens on the event requests, flagging events with a shortage", async () => {
+    renderPage();
+
+    expect(await screen.findByRole("tab", { name: /Event requests/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /Event requests/ })).toHaveTextContent("1");
+    expect(await screen.findByRole("listitem", { name: "Annual Gala" })).toHaveTextContent("3 of 4 items need attention");
+    expect(screen.getByRole("listitem", { name: "Tech Talk" })).toHaveTextContent("All equipment available");
+  });
+
+  it("shows each item's result and available quantity (AC01/AC04)", async () => {
+    renderPage();
+
+    const gala = await screen.findByRole("listitem", { name: "Annual Gala" });
+    const projector = within(gala).getByText("Projector × 3").closest("li")!;
+    expect(projector).toHaveTextContent("Available");
+    expect(projector).toHaveTextContent("100 available");
+    expect(projector).toHaveTextContent("Technical requirements: HDMI input");
+    expect(projector).toHaveTextContent("100 in service · 40 reserved · 30 out of service during this period");
+
+    const mic = within(gala).getByText("Wireless microphone × 80").closest("li")!;
+    expect(mic).toHaveTextContent("Partially available");
+    expect(mic).toHaveTextContent("60 available");
+
+    const smoke = within(gala).getByText("Smoke machine × 1").closest("li")!;
+    expect(smoke).toHaveTextContent("Unavailable");
+    expect(smoke).toHaveTextContent("0 available");
+  });
+
+  it("states the shortage before any reservation (scenario)", async () => {
+    renderPage();
+
+    const gala = await screen.findByRole("listitem", { name: "Annual Gala" });
+    expect(within(gala).getByText("Wireless microphone × 80").closest("li")).toHaveTextContent("Short by 20");
+    expect(within(gala).getByText("Smoke machine × 1").closest("li")).toHaveTextContent("Short by 1");
+    expect(within(gala).getByText("Projector × 3").closest("li")).not.toHaveTextContent("Short by");
+  });
+
+  it("identifies unknown equipment instead of treating it as available (AC05)", async () => {
+    renderPage();
+
+    const legacy = (await screen.findByText("Old smoke machine × 1")).closest("li")!;
+    expect(legacy).toHaveTextContent("Unknown equipment");
+    expect(legacy).toHaveTextContent("Not in the catalogue — check manually");
+    expect(legacy).not.toHaveTextContent("available");
+  });
+
+  it("can show only events with a shortage", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByRole("listitem", { name: "Tech Talk" });
+    await user.click(screen.getByLabelText("Only events with a shortage"));
+    expect(screen.queryByRole("listitem", { name: "Tech Talk" })).not.toBeInTheDocument();
+    expect(screen.getByRole("listitem", { name: "Annual Gala" })).toBeInTheDocument();
+  });
+
+  it("searches events by name", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(await screen.findByLabelText("Search events"), "talk");
+    expect(screen.getByRole("listitem", { name: "Tech Talk" })).toBeInTheDocument();
+    expect(screen.queryByRole("listitem", { name: "Annual Gala" })).not.toBeInTheDocument();
   });
 });
 

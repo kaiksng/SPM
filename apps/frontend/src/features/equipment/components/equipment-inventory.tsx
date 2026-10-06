@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmRetireDialog } from "@/features/equipment/components/confirm-retire-dialog";
 import { EquipmentItemDialog } from "@/features/equipment/components/equipment-item-dialog";
+import { EquipmentUnavailabilityForm } from "@/features/equipment/components/equipment-unavailability-form";
 import { EquipmentUnitDialog } from "@/features/equipment/components/equipment-unit-dialog";
 import { EquipmentUnitGrid } from "@/features/equipment/components/equipment-unit-grid";
 import type {
@@ -13,6 +14,8 @@ import type {
   EquipmentUnit,
   InventoryItem,
 } from "@/features/equipment/services/equipment-unavailability";
+import { useStableCallback } from "@/features/equipment/hooks/use-stable-callback";
+import { Modal } from "@/features/event-requests/components/modal";
 import { cn } from "@/lib/utils";
 
 /**
@@ -45,6 +48,8 @@ export function EquipmentInventory({
 }) {
   const [openUnit, setOpenUnit] = useState<{ item: InventoryItem; unit: EquipmentUnit }>();
   const [confirmRetire, setConfirmRetire] = useState<InventoryItem>();
+  const [bulkUnavailable, setBulkUnavailable] = useState<{ item: InventoryItem; unitIds: string[] }>();
+  const [selectionResetKey, setSelectionResetKey] = useState(0);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [showRetired, setShowRetired] = useState(false);
@@ -224,6 +229,8 @@ export function EquipmentInventory({
                           outageByUnit={outageByUnit}
                           onAddUnits={(count) => onAddUnits(item.id, count)}
                           onSelectUnit={(unit) => setOpenUnit({ item, unit })}
+                          onMarkUnavailable={(unitIds) => setBulkUnavailable({ item, unitIds })}
+                          selectionResetKey={selectionResetKey}
                         />
                       )}
                     </li>
@@ -233,6 +240,21 @@ export function EquipmentInventory({
             </section>
           ))}
         </div>
+      )}
+
+      {bulkUnavailable && (
+        <BulkUnavailableDialog
+          item={bulkUnavailable.item}
+          unitIds={bulkUnavailable.unitIds}
+          items={items}
+          records={records}
+          onClose={() => setBulkUnavailable(undefined)}
+          onSave={async (values) => {
+            await onRecordUnavailable(values);
+            setBulkUnavailable(undefined);
+            setSelectionResetKey((key) => key + 1);
+          }}
+        />
       )}
 
       {confirmRetire && (
@@ -274,6 +296,42 @@ export function EquipmentInventory({
         />
       )}
     </div>
+  );
+}
+
+/** The unavailability form for several units picked in the grid. */
+function BulkUnavailableDialog({
+  item,
+  unitIds,
+  items,
+  records,
+  onClose,
+  onSave,
+}: {
+  item: InventoryItem;
+  unitIds: string[];
+  items: InventoryItem[];
+  records: EquipmentUnavailabilityRecord[];
+  onClose: () => void;
+  onSave: (values: EquipmentUnavailabilityFormValues) => Promise<void>;
+}) {
+  const close = useStableCallback(onClose);
+  const count = unitIds.length;
+  return (
+    <Modal
+      titleId="bulk-unavailable-title"
+      title={`Mark ${count} ${item.name} unit${count === 1 ? "" : "s"} unavailable`}
+      onCancel={close}
+      size="large"
+    >
+      <EquipmentUnavailabilityForm
+        items={items}
+        records={records}
+        initialValues={{ equipmentItemId: item.id, unitIds }}
+        submitLabel={`Mark ${count} unavailable`}
+        onSave={onSave}
+      />
+    </Modal>
   );
 }
 

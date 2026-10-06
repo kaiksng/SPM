@@ -1490,6 +1490,26 @@ export type Database = {
         Args: { draft: Json; target_event_id?: string }
         Returns: string
       }
+      check_event_equipment_availability: {
+        Args: { p_event_ids: string[] }
+        Returns: {
+          available_quantity: number
+          equipment_item_id: string | null
+          equipment_name: string
+          event_id: string
+          item_code: string | null
+          item_retired: boolean
+          requested_quantity: number
+          required_from: string | null
+          required_until: string | null
+          requirement_id: string
+          reserved_quantity: number
+          status: string
+          technical_requirements: string | null
+          total_units: number
+          unavailable_quantity: number
+        }[]
+      }
       create_equipment_item: {
         Args: { p_category: string; p_code: string; p_name: string; p_units: number }
         Returns: string
