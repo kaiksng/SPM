@@ -154,26 +154,111 @@ export type Database = {
       equipment_items: {
         Row: {
           category: string | null
+          code: string
           id: string
           name: string
           notes: string | null
+          retired_at: string | null
+          retired_by: string | null
           total_quantity: number
         }
         Insert: {
           category?: string | null
+          code: string
           id?: string
           name: string
           notes?: string | null
+          retired_at?: string | null
+          retired_by?: string | null
           total_quantity: number
         }
         Update: {
           category?: string | null
+          code?: string
           id?: string
           name?: string
           notes?: string | null
+          retired_at?: string | null
+          retired_by?: string | null
           total_quantity?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "equipment_items_retired_by_fkey"
+            columns: ["retired_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_units: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          equipment_item_id: string
+          id: string
+          retired_at: string | null
+          retired_by: string | null
+          unit_number: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          equipment_item_id: string
+          id?: string
+          retired_at?: string | null
+          retired_by?: string | null
+          unit_number: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          equipment_item_id?: string
+          id?: string
+          retired_at?: string | null
+          retired_by?: string | null
+          unit_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_units_equipment_item_id_fkey"
+            columns: ["equipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_unavailability_units: {
+        Row: {
+          unavailability_id: string
+          unit_id: string
+        }
+        Insert: {
+          unavailability_id: string
+          unit_id: string
+        }
+        Update: {
+          unavailability_id?: string
+          unit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_unavailability_units_unavailability_id_fkey"
+            columns: ["unavailability_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_unavailability"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_unavailability_units_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_units"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       equipment_reservations: {
         Row: {
@@ -1368,7 +1453,28 @@ export type Database = {
           p_quantity: number
           p_reason: string
           p_starts_at: string
+          p_unit_ids?: string[]
         }
+        Returns: string
+      }
+      create_equipment_item: {
+        Args: { p_category: string; p_code: string; p_name: string; p_units: number }
+        Returns: string
+      }
+      update_equipment_item: {
+        Args: { p_category: string; p_code: string; p_item_id: string; p_name: string }
+        Returns: string
+      }
+      add_equipment_units: {
+        Args: { p_count: number; p_item_id: string }
+        Returns: number
+      }
+      set_equipment_unit_retired: {
+        Args: { p_retired: boolean; p_unit_id: string }
+        Returns: string
+      }
+      set_equipment_item_retired: {
+        Args: { p_item_id: string; p_retired: boolean }
         Returns: string
       }
       remove_equipment_unavailability: {

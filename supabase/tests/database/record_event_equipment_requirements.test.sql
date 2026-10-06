@@ -441,7 +441,7 @@ select is(
   'Technical Support Staff cannot read profiles unrelated to equipment history'
 );
 select lives_ok(
-  $$insert into public.equipment_items (name, category, total_quantity) values ('Spotlight', 'Lighting', 4)$$,
+  $$insert into public.equipment_items (name, category, code, total_quantity) values ('Spotlight', 'Lighting', 'spot', 4)$$,
   'Technical Support Staff maintain the catalogue (AC09)'
 );
 
@@ -512,7 +512,7 @@ select is(
 );
 
 select throws_ok(
-  $$insert into public.equipment_items (name, category, total_quantity) values ('Fog machine', 'Lighting', 1)$$,
+  $$insert into public.equipment_items (name, category, code, total_quantity) values ('Fog machine', 'Lighting', 'fog', 1)$$,
   '42501',
   null,
   'a coordinator cannot add to the catalogue (AC09)'

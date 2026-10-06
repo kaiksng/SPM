@@ -8,6 +8,7 @@ import {
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useStableCallback } from "@/features/equipment/hooks/use-stable-callback";
 import { Modal } from "@/features/event-requests/components/modal";
 import type { EquipmentUnavailabilityRecord } from "@/features/equipment/services/equipment-unavailability";
 import { cn } from "@/lib/utils";
@@ -31,16 +32,22 @@ type PendingAction = { kind: "end" | "remove"; record: EquipmentUnavailabilityRe
 /** AC05/AC06: every record, with who/when, and End or Remove where allowed. */
 export function EquipmentUnavailabilityHistory({
   records,
+  unitLabelById,
   onEnd,
   onRemove,
 }: {
   records: EquipmentUnavailabilityRecord[];
+  /** unit id -> "mic-3", for records that name specific units. */
+  unitLabelById: ReadonlyMap<string, string>;
   onEnd: (id: string) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
 }) {
   const [pending, setPending] = useState<PendingAction>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const closeDialog = useStableCallback(() => {
+    if (!busy) setPending(undefined);
+  });
 
   async function confirm() {
     if (!pending) return;
@@ -83,6 +90,15 @@ export function EquipmentUnavailabilityHistory({
                   </span>
                 </div>
                 <p className="mt-1 text-slate-700">{record.reason}</p>
+                {record.unitIds.length > 0 && (
+                  <p className="mt-1 font-mono text-xs text-slate-600">
+                    Units:{" "}
+                    {record.unitIds
+                      .map((id) => unitLabelById.get(id) ?? "unknown unit")
+                      .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }))
+                      .join(", ")}
+                  </p>
+                )}
                 <p className="mt-1 text-slate-600">
                   {dateFormat.format(new Date(record.startsAt))} –{" "}
                   {dateFormat.format(new Date(record.endsAt))}
@@ -141,7 +157,7 @@ export function EquipmentUnavailabilityHistory({
         <Modal
           titleId="unavailability-action-title"
           title={pending.kind === "end" ? "Return to service now?" : "Remove this record?"}
-          onCancel={() => !busy && setPending(undefined)}
+          onCancel={closeDialog}
         >
           <p className="mt-2 text-sm leading-6 text-slate-600">
             {pending.kind === "end"

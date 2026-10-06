@@ -59,9 +59,10 @@ describe("equipment unavailability form", () => {
     reason: "Lamp replacement",
     startsAt: "2099-04-10T09:00",
     endsAt: "2099-04-10T17:00",
+    unitIds: [] as string[],
   };
 
-  function errors(overrides: Record<string, string>) {
+  function errors(overrides: Record<string, string | string[]>) {
     const result = equipmentUnavailabilitySchema.safeParse({ ...valid, ...overrides });
     const messages: Record<string, string> = {};
     if (!result.success) {
@@ -86,6 +87,10 @@ describe("equipment unavailability form", () => {
 
   it.each(["0", "-1", "1.5"])("rejects quantity %s", (quantity) => {
     expect(errors({ quantity })).toEqual({ quantity: "Enter a positive whole number" });
+  });
+
+  it("uses the chosen units instead of a quantity", () => {
+    expect(errors({ quantity: "", unitIds: ["unit-3", "unit-7"] })).toEqual({});
   });
 
   it("requires the end to be after the start", () => {

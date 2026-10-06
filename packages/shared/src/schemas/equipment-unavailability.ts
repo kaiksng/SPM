@@ -16,11 +16,10 @@ export const equipmentUnavailabilitySchema = z
   .object({
     equipmentItemId: z.string().min(1, "Choose equipment from the catalogue"),
     // Leading zeros ("04") are accepted; the value is sent as a number.
-    quantity: z
-      .string()
-      .trim()
-      .min(1, "Enter a quantity")
-      .refine((value) => !value || isPositiveWholeNumber(value), "Enter a positive whole number"),
+    // Ignored when specific units are chosen: the count of units is used.
+    quantity: z.string().trim(),
+    /** Specific units that are out (optional). */
+    unitIds: z.array(z.string()),
     reason: z
       .string()
       .trim()
@@ -30,6 +29,17 @@ export const equipmentUnavailabilitySchema = z
     endsAt: localDateTime,
   })
   .superRefine((value, context) => {
+    if (value.unitIds.length === 0) {
+      if (!value.quantity) {
+        context.addIssue({ code: "custom", path: ["quantity"], message: "Enter a quantity" });
+      } else if (!isPositiveWholeNumber(value.quantity)) {
+        context.addIssue({
+          code: "custom",
+          path: ["quantity"],
+          message: "Enter a positive whole number",
+        });
+      }
+    }
     if (value.startsAt && value.endsAt && value.endsAt <= value.startsAt) {
       context.addIssue({
         code: "custom",

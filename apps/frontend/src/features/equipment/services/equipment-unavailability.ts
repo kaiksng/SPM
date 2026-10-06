@@ -1,45 +1,136 @@
 import {
+  equipmentItemSchema,
   equipmentUnavailabilitySchema,
   singaporeLocalToIso,
+  type EquipmentItemFormValues,
   type EquipmentUnavailabilityFormValues,
 } from "@spm/shared";
 
 import { supabase } from "@/lib/supabase-client";
 
-export type StockedEquipmentItem = {
+export type EquipmentUnit = {
+  id: string;
+  equipmentItemId: string;
+  unitNumber: number;
+  retiredAt: string | null;
+};
+
+export type InventoryItem = {
   id: string;
   name: string;
   category: string | null;
+  code: string;
+  /** In-service (not retired) units. */
   totalQuantity: number;
+  retiredAt: string | null;
+  units: EquipmentUnit[];
 };
 
-/** The catalogue with each item's total stock, for Technical Support Staff. */
-export async function listStockedEquipment(): Promise<StockedEquipmentItem[]> {
-  const { data, error } = await supabase
-    .from("equipment_items")
-    .select("id, name, category, total_quantity")
-    .order("category", { ascending: true, nullsFirst: false })
-    .order("name", { ascending: true });
+// PostgREST returns at most 1,000 rows per request; there are 100 units per
+// item, so units are read in pages.
+const PAGE_SIZE = 1000;
+
+async function listAllUnits(): Promise<EquipmentUnit[]> {
+  const units: EquipmentUnit[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("equipment_units")
+      .select("id, equipment_item_id, unit_number, retired_at")
+      .order("equipment_item_id", { ascending: true })
+      .order("unit_number", { ascending: true })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) throw new Error("We couldn't load the equipment units.");
+
+    units.push(
+      ...data.map((row) => ({
+        id: row.id,
+        equipmentItemId: row.equipment_item_id,
+        unitNumber: row.unit_number,
+        retiredAt: row.retired_at,
+      })),
+    );
+    if (data.length < PAGE_SIZE) return units;
+  }
+}
+
+/** Every catalogue item, retired or not, with its units, for Technical Support Staff. */
+export async function listInventory(): Promise<InventoryItem[]> {
+  const [{ data, error }, units] = await Promise.all([
+    supabase
+      .from("equipment_items")
+      .select("id, name, category, code, total_quantity, retired_at")
+      .order("category", { ascending: true, nullsFirst: false })
+      .order("name", { ascending: true }),
+    listAllUnits(),
+  ]);
 
   if (error) throw new Error("We couldn't load the equipment catalogue.");
+
+  const unitsByItem = new Map<string, EquipmentUnit[]>();
+  for (const unit of units) {
+    unitsByItem.set(unit.equipmentItemId, [...(unitsByItem.get(unit.equipmentItemId) ?? []), unit]);
+  }
 
   return data.map((row) => ({
     id: row.id,
     name: row.name,
     category: row.category,
+    code: row.code,
     totalQuantity: row.total_quantity,
+    retiredAt: row.retired_at,
+    units: unitsByItem.get(row.id) ?? [],
   }));
 }
 
-/** RLS limits catalogue writes to Technical Support Staff. */
-export async function updateEquipmentStock(itemId: string, totalQuantity: number) {
-  const { data, error } = await supabase
-    .from("equipment_items")
-    .update({ total_quantity: totalQuantity })
-    .eq("id", itemId)
-    .select("id");
+function firstIssue(error: { issues: Array<{ message: string }> }) {
+  return error.issues[0]?.message ?? "Check the highlighted fields and try again.";
+}
 
-  if (error || !data?.length) throw new Error("The stock could not be updated.");
+export async function createEquipmentItem(values: EquipmentItemFormValues, units: number) {
+  const result = equipmentItemSchema.safeParse(values);
+  if (!result.success) throw new Error(firstIssue(result.error));
+  const { data, error } = await supabase.rpc("create_equipment_item", {
+    p_name: result.data.name,
+    p_category: result.data.category,
+    p_code: result.data.code,
+    p_units: units,
+  });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function updateEquipmentItem(itemId: string, values: EquipmentItemFormValues) {
+  const result = equipmentItemSchema.safeParse(values);
+  if (!result.success) throw new Error(firstIssue(result.error));
+  const { error } = await supabase.rpc("update_equipment_item", {
+    p_item_id: itemId,
+    p_name: result.data.name,
+    p_category: result.data.category,
+    p_code: result.data.code,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function addEquipmentUnits(itemId: string, count: number) {
+  const { error } = await supabase.rpc("add_equipment_units", { p_item_id: itemId, p_count: count });
+  if (error) throw new Error(error.message);
+}
+
+export async function setEquipmentUnitRetired(unitId: string, retired: boolean) {
+  const { error } = await supabase.rpc("set_equipment_unit_retired", {
+    p_unit_id: unitId,
+    p_retired: retired,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function setEquipmentItemRetired(itemId: string, retired: boolean) {
+  const { error } = await supabase.rpc("set_equipment_item_retired", {
+    p_item_id: itemId,
+    p_retired: retired,
+  });
+  if (error) throw new Error(error.message);
 }
 
 export type EquipmentUnavailabilityRecord = {
@@ -47,6 +138,8 @@ export type EquipmentUnavailabilityRecord = {
   equipmentItemId: string;
   equipmentName: string;
   quantity: number;
+  /** Specific units named on the record, if any. */
+  unitIds: string[];
   reason: string;
   startsAt: string;
   endsAt: string;
@@ -58,7 +151,7 @@ export type EquipmentUnavailabilityRecord = {
   removedByName: string | null;
 };
 
-/** Every record, current and past (AC06), newest period first. */
+/** Every record, current and past (SPM-30 AC06), newest period first. */
 export async function listEquipmentUnavailability(): Promise<EquipmentUnavailabilityRecord[]> {
   const { data, error } = await supabase
     .from("equipment_unavailability")
@@ -74,6 +167,7 @@ export async function listEquipmentUnavailability(): Promise<EquipmentUnavailabi
         ended_at,
         removed_at,
         equipment_item:equipment_items (name),
+        units:equipment_unavailability_units (unit_id),
         recorded_by_profile:profiles!equipment_unavailability_recorded_by_fkey (full_name),
         ended_by_profile:profiles!equipment_unavailability_ended_by_fkey (full_name),
         removed_by_profile:profiles!equipment_unavailability_removed_by_fkey (full_name)
@@ -88,6 +182,7 @@ export async function listEquipmentUnavailability(): Promise<EquipmentUnavailabi
     equipmentItemId: row.equipment_item_id,
     equipmentName: row.equipment_item?.name ?? "Unknown equipment",
     quantity: row.quantity,
+    unitIds: row.units.map((unit) => unit.unit_id),
     reason: row.reason,
     startsAt: row.starts_at,
     endsAt: row.ends_at,
@@ -110,7 +205,7 @@ export type EquipmentReservationOverlap = {
 };
 
 /**
- * AC03: Pending and Confirmed reservations of one item that overlap a
+ * SPM-30 AC03: Pending and Confirmed reservations of one item that overlap a
  * period, shown before an unavailability record is saved.
  */
 export async function listOverlappingReservations(
@@ -143,16 +238,15 @@ export async function recordEquipmentUnavailability(values: EquipmentUnavailabil
   // The form validates first; if anything still fails here, surface the
   // plain message rather than the validator's raw error.
   const result = equipmentUnavailabilitySchema.safeParse(values);
-  if (!result.success) {
-    throw new Error(result.error.issues[0]?.message ?? "Check the highlighted fields and try again.");
-  }
+  if (!result.success) throw new Error(firstIssue(result.error));
   const parsed = result.data;
   const { error } = await supabase.rpc("record_equipment_unavailability", {
     p_equipment_item_id: parsed.equipmentItemId,
-    p_quantity: Number(parsed.quantity),
+    p_quantity: parsed.unitIds.length > 0 ? parsed.unitIds.length : Number(parsed.quantity),
     p_reason: parsed.reason,
     p_starts_at: singaporeLocalToIso(parsed.startsAt),
     p_ends_at: singaporeLocalToIso(parsed.endsAt),
+    p_unit_ids: parsed.unitIds.length > 0 ? parsed.unitIds : undefined,
   });
   if (error) throw new Error(error.message);
 }

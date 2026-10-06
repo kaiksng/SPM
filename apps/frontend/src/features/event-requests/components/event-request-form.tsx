@@ -680,15 +680,19 @@ function EquipmentSelect({
       className="border-input h-9 w-full rounded-lg border bg-white px-2.5 text-sm focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-red-600 disabled:cursor-not-allowed disabled:opacity-50"
     >
       <option value="">{placeholder}</option>
-      {groups.map((group) => (
-        <optgroup key={group.category} label={group.category}>
-          {group.items.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </optgroup>
-      ))}
+      {groups.map((group) => {
+        // A retired item is offered only to the row that already uses it.
+        const options = group.items.filter((item) => !item.retired || item.id === value);
+        return options.length === 0 ? null : (
+          <optgroup key={group.category} label={group.category}>
+            {options.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.retired ? `${item.name} (no longer offered)` : item.name}
+              </option>
+            ))}
+          </optgroup>
+        );
+      })}
     </select>
   );
 }

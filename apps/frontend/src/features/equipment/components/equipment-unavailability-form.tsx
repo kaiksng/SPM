@@ -1,6 +1,7 @@
 import {
   effectiveUnavailabilityEnd,
   equipmentUnavailabilitySchema,
+  equipmentUnitLabel,
   isValidSingaporeLocal,
   periodsOverlap,
   singaporeLocalToIso,
@@ -15,8 +16,9 @@ import {
   listOverlappingReservations,
   type EquipmentReservationOverlap,
   type EquipmentUnavailabilityRecord,
-  type StockedEquipmentItem,
+  type InventoryItem,
 } from "@/features/equipment/services/equipment-unavailability";
+import { cn } from "@/lib/utils";
 
 const dateFormat = new Intl.DateTimeFormat("en-SG", {
   dateStyle: "medium",
@@ -30,6 +32,7 @@ const emptyValues: EquipmentUnavailabilityFormValues = {
   reason: "",
   startsAt: "",
   endsAt: "",
+  unitIds: [],
 };
 
 const selectClass =
@@ -40,7 +43,7 @@ export function EquipmentUnavailabilityForm({
   records,
   onSave,
 }: {
-  items: StockedEquipmentItem[];
+  items: InventoryItem[];
   records: EquipmentUnavailabilityRecord[];
   onSave: (values: EquipmentUnavailabilityFormValues) => Promise<void>;
 }) {
@@ -104,6 +107,15 @@ export function EquipmentUnavailabilityForm({
       )
     : [];
   const selectedItem = items.find((item) => item.id === values.equipmentItemId);
+  const busyUnitIds = new Set(overlappingRecords.flatMap((record) => record.unitIds));
+  const pickableUnits = (selectedItem?.units ?? []).filter((unit) => !unit.retiredAt);
+  const toggleUnit = (unitId: string) =>
+    setValues((current) => ({
+      ...current,
+      unitIds: current.unitIds.includes(unitId)
+        ? current.unitIds.filter((id) => id !== unitId)
+        : [...current.unitIds, unitId],
+    }));
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -128,11 +140,16 @@ export function EquipmentUnavailabilityForm({
     }
   }
 
-  const set = (key: keyof EquipmentUnavailabilityFormValues, value: string) =>
-    setValues((current) => ({ ...current, [key]: value }));
+  const set = (key: Exclude<keyof EquipmentUnavailabilityFormValues, "unitIds">, value: string) =>
+    setValues((current) => ({
+      ...current,
+      [key]: value,
+      // Units belong to one item; changing the item clears them.
+      ...(key === "equipmentItemId" ? { unitIds: [] } : {}),
+    }));
 
-  const groups = new Map<string, StockedEquipmentItem[]>();
-  for (const item of items) {
+  const groups = new Map<string, InventoryItem[]>();
+  for (const item of items.filter((candidate) => !candidate.retiredAt)) {
     const category = item.category ?? "Other";
     groups.set(category, [...(groups.get(category) ?? []), item]);
   }
@@ -165,10 +182,14 @@ export function EquipmentUnavailabilityForm({
           type="number"
           min="1"
           step="1"
-          value={values.quantity}
+          value={values.unitIds.length > 0 ? String(values.unitIds.length) : values.quantity}
+          disabled={values.unitIds.length > 0}
           aria-invalid={Boolean(errors.quantity)}
           onChange={(event) => set("quantity", event.target.value)}
         />
+        {values.unitIds.length > 0 && (
+          <p className="mt-1 text-xs text-slate-500">Set by the units chosen below.</p>
+        )}
       </FormField>
       <FormField label="Unavailable from" htmlFor="unavailability-starts" error={errors.startsAt}>
         <Input
@@ -204,6 +225,44 @@ export function EquipmentUnavailabilityForm({
         />
       </FormField>
 
+      {selectedItem && pickableUnits.length > 0 && (
+        <fieldset className="sm:col-span-2">
+          <legend className="mb-1 text-sm font-medium text-slate-900">
+            Specific units <span className="font-normal text-slate-500">(optional)</span>
+          </legend>
+          <p className="mb-2 text-xs text-slate-500">
+            Choose the exact units that are out, or leave blank and enter a quantity.
+            {period ? " Units already out for this period are greyed out." : ""}
+          </p>
+          <div className="grid max-h-44 grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-1.5 overflow-y-auto rounded-xl border border-slate-200 p-2">
+            {pickableUnits.map((unit) => {
+              const label = equipmentUnitLabel(selectedItem.code, unit.unitNumber);
+              const busy = busyUnitIds.has(unit.id);
+              const checked = values.unitIds.includes(unit.id);
+              return (
+                <label
+                  key={unit.id}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-1.5 rounded-lg border px-2 py-1 font-mono text-xs",
+                    checked ? "border-primary bg-accent text-primary" : "border-slate-200 bg-white text-slate-700",
+                    busy && "cursor-not-allowed opacity-40",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    className="size-3.5 accent-primary"
+                    checked={checked}
+                    disabled={busy}
+                    onChange={() => toggleUnit(unit.id)}
+                  />
+                  {label}
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
+
       {period && selectedItem && (
         <section
           aria-label="Overlaps for this period"
@@ -211,7 +270,7 @@ export function EquipmentUnavailabilityForm({
         >
           <h3 className="font-semibold text-slate-900">Already planned for this period</h3>
           <p className="mt-1 text-slate-600">
-            {selectedItem.name}: {selectedItem.totalQuantity} in stock.
+            {selectedItem.name}: {selectedItem.totalQuantity} units in service.
           </p>
           {reservationError && (
             <p role="alert" className="mt-2 text-red-700">

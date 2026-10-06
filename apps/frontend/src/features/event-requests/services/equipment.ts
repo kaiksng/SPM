@@ -13,13 +13,15 @@ export type EquipmentCatalogueItem = {
   id: string;
   name: string;
   category: string | null;
+  /** Retired items stay readable so events already using them still show them. */
+  retired: boolean;
 };
 
 /** The equipment_items catalogue, ordered for a grouped dropdown (AC02). */
 export async function loadEquipmentCatalogue(): Promise<EquipmentCatalogueItem[]> {
   const { data, error } = await supabase
     .from("equipment_items")
-    .select("id, name, category")
+    .select("id, name, category, retired_at")
     .order("category", { ascending: true, nullsFirst: false })
     .order("name", { ascending: true });
 
@@ -27,7 +29,12 @@ export async function loadEquipmentCatalogue(): Promise<EquipmentCatalogueItem[]
     throw new Error("The equipment catalogue is unavailable. Try again.");
   }
 
-  return data ?? [];
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    retired: row.retired_at !== null,
+  }));
 }
 
 /**
