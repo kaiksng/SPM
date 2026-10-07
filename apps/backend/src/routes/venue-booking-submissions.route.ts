@@ -10,6 +10,7 @@ import { requireAuth } from "../middleware/auth";
 export const venueBookingSubmissionsRouter = Router();
 
 const submitBodySchema = z.object({ eventId: z.uuid(), venueId: z.uuid() });
+const bookingIdParamsSchema = z.object({ bookingId: z.uuid() });
 
 /**
  * submit_venue_booking_request now notifies every venue-staff profile, which
@@ -29,6 +30,30 @@ venueBookingSubmissionsRouter.post(
     const { data, error } = await getServiceClient().rpc("submit_venue_booking_request", {
       p_event_id: body.data.eventId,
       p_venue_id: body.data.venueId,
+      p_actor_id: req.userId,
+    });
+
+    if (error) throw mapSubmitError(error);
+
+    res.json({ data });
+  }),
+);
+
+/**
+ * withdraw_venue_booking_request now notifies every venue-staff profile too,
+ * same reasoning as the submit route above.
+ */
+venueBookingSubmissionsRouter.post(
+  "/venue-bookings/:bookingId/withdraw",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const params = bookingIdParamsSchema.safeParse(req.params);
+    if (!params.success) {
+      throw new ApplicationError("VALIDATION", "Enter a valid venue booking request id");
+    }
+
+    const { data, error } = await getServiceClient().rpc("withdraw_venue_booking_request", {
+      p_booking_id: params.data.bookingId,
       p_actor_id: req.userId,
     });
 

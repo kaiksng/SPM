@@ -1056,36 +1056,49 @@ export type Database = {
       }
       notifications: {
         Row: {
+          booking_id: string | null
           created_at: string
           event_id: string | null
           id: string
           message: string
           read_at: string | null
           recipient_id: string
+          scheduled_for: string | null
           title: string
           type: Database["public"]["Enums"]["notification_type"]
         }
         Insert: {
+          booking_id?: string | null
           created_at?: string
           event_id?: string | null
           id?: string
           message: string
           read_at?: string | null
           recipient_id: string
+          scheduled_for?: string | null
           title: string
           type: Database["public"]["Enums"]["notification_type"]
         }
         Update: {
+          booking_id?: string | null
           created_at?: string
           event_id?: string | null
           id?: string
           message?: string
           read_at?: string | null
           recipient_id?: string
+          scheduled_for?: string | null
           title?: string
           type?: Database["public"]["Enums"]["notification_type"]
         }
         Relationships: [
+          {
+            foreignKeyName: "notifications_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "venue_bookings"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "notifications_event_id_fkey"
             columns: ["event_id"]
@@ -1676,7 +1689,7 @@ export type Database = {
         Returns: boolean
       }
       withdraw_venue_booking_request: {
-        Args: { p_booking_id: string }
+        Args: { p_booking_id: string; p_actor_id?: string }
         Returns: string
       }
     }
@@ -1707,6 +1720,11 @@ export type Database = {
         | "cancellation"
         | "venue_capacity_review"
         | "venue_request"
+        | "venue_hold_expiring_soon"
+        | "venue_hold_expired"
+        | "venue_hold_placed"
+        | "venue_hold_confirmed"
+        | "venue_request_withdrawn"
       request_status:
         | "pending"
         | "approved"
@@ -1888,6 +1906,11 @@ export const Constants = {
         "cancellation",
         "venue_capacity_review",
         "venue_request",
+        "venue_hold_expiring_soon",
+        "venue_hold_expired",
+        "venue_hold_placed",
+        "venue_hold_confirmed",
+        "venue_request_withdrawn",
       ],
       request_status: [
         "pending",

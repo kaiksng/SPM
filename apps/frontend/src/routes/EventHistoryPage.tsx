@@ -35,6 +35,11 @@ import {
   type EventFieldChange,
 } from "@/features/event-requests/services/field-history";
 import { formatEventFieldChangeValue } from "@/features/event-requests/utils/format-field-change-value";
+import { VenueBookingStatusBadge } from "@/features/venues/components/venue-booking-status-badge";
+import {
+  listVenueBookingsForEvent,
+  type VenueBookingRequestSummary,
+} from "@/features/venues/services/venue-bookings";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
@@ -64,6 +69,7 @@ export function EventHistoryPage() {
   const [assignmentHistory, setAssignmentHistory] = useState<EventCoordinatorAssignmentRecord[]>(
     [],
   );
+  const [venueBookings, setVenueBookings] = useState<VenueBookingRequestSummary[]>([]);
   const [approvedAt, setApprovedAt] = useState<string>();
   const [event, setEvent] = useState<EventDetail>();
   const [error, setError] = useState<string>();
@@ -88,6 +94,7 @@ export function EventHistoryPage() {
       listEventCoordinatorAssignmentHistory(eventId).catch(
         () => [] as EventCoordinatorAssignmentRecord[],
       ),
+      listVenueBookingsForEvent(eventId).catch(() => [] as VenueBookingRequestSummary[]),
     ])
       .then(
         ([
@@ -99,6 +106,7 @@ export function EventHistoryPage() {
           reassignmentRows,
           equipmentRows,
           assignmentRows,
+          venueBookingRows,
         ]) => {
           if (!active) return;
           setEvent(eventDetail);
@@ -107,6 +115,7 @@ export function EventHistoryPage() {
           setEquipmentChanges(equipmentRows);
           setApprovedAt(decisions.find((d) => d.decision === "approved")?.decidedAt);
           setStatusHistory(statusRows);
+          setVenueBookings(venueBookingRows);
           setReassignments(reassignmentRows);
           setAssignmentHistory(assignmentRows);
         },
@@ -237,6 +246,18 @@ export function EventHistoryPage() {
                   )}
                 </HistorySection>
               )}
+
+              <HistorySection title="Venue bookings">
+                {venueBookings.length === 0 ? (
+                  <p className="text-sm text-slate-500">No venue booking requests made yet.</p>
+                ) : (
+                  <ol className="space-y-2">
+                    {venueBookings.map((booking) => (
+                      <VenueBookingItem key={booking.id} booking={booking} />
+                    ))}
+                  </ol>
+                )}
+              </HistorySection>
 
               {/* AC08: the organiser is not shown equipment history (RLS
                   would return nothing for them anyway). */}
@@ -399,6 +420,43 @@ function AssignmentHistoryItem({ record }: { record: EventCoordinatorAssignmentR
         </p>
       )}
       {record.reason && <p className="mt-1 text-slate-600">Reason: "{record.reason}"</p>}
+    </li>
+  );
+}
+
+/**
+ * One venue booking request's outcome — "rejected for this venue, by this
+ * Venue Staff member" is the main thing this card exists to answer, but it
+ * reports the same decidedByName/decisionNotes shape for every terminal
+ * status (approved, on_hold's held-by, expired) so a coordinator trying
+ * multiple venues sees the full attempt history, not just the current one.
+ */
+function VenueBookingItem({ booking }: { booking: VenueBookingRequestSummary }) {
+  return (
+    <li className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <span className="font-medium text-slate-800">{booking.venueName}</span>
+        <VenueBookingStatusBadge status={booking.status} />
+      </div>
+      <p className="mt-1 text-xs text-slate-500">
+        Requested {dateFormatter.format(new Date(booking.requestedAt))}
+        {booking.requestedByName ? ` by ${booking.requestedByName}` : ""}
+      </p>
+      {booking.status === "rejected" && booking.decidedAt && (
+        <p className="mt-1 text-red-700">
+          Rejected {dateFormatter.format(new Date(booking.decidedAt))}
+          {booking.decidedByName ? ` by ${booking.decidedByName}` : ""}
+        </p>
+      )}
+      {booking.status === "approved" && booking.decidedAt && (
+        <p className="mt-1 text-slate-600">
+          Confirmed {dateFormatter.format(new Date(booking.decidedAt))}
+          {booking.decidedByName ? ` by ${booking.decidedByName}` : ""}
+        </p>
+      )}
+      {booking.decisionNotes && (
+        <p className="mt-1 text-slate-600">Reason: "{booking.decisionNotes}"</p>
+      )}
     </li>
   );
 }

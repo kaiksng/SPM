@@ -11,6 +11,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   type NotificationSummary,
+  type NotificationType,
 } from "@/features/notifications/services/notifications";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
@@ -19,18 +20,39 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
   timeZone: "Asia/Singapore",
 });
 
+// Coordinator-facing: the hold itself is the point, and Confirm lives on
+// the event's venue sub-page, not the event detail page — so these skip
+// straight there instead of making the coordinator click through.
+const COORDINATOR_VENUE_HOLD_TYPES = new Set<NotificationType>([
+  "venue_hold_placed",
+  "venue_hold_expiring_soon",
+  "venue_hold_expired",
+]);
+
+// Venue-staff-facing: see the comment below on why these go to
+// /venue-requests, same as "venue_request".
+const VENUE_STAFF_TYPES = new Set<NotificationType>([
+  "venue_request",
+  "venue_hold_confirmed",
+  "venue_request_withdrawn",
+]);
+
 /**
- * Where selecting a notification should go. Every type except
- * "venue_request" is organiser/coordinator-facing, and both of those roles
- * can always reach an event's own detail page — see navigation.ts's
- * ROLE_NAV_ITEM_IDS. venue_request goes to venue_staff instead, who can't
- * reach /events/:id at all (no "events" nav section); the page where they
- * actually act on a request is the flat /venue-requests list, not a
+ * Where selecting a notification should go. Every type except the
+ * venue-staff ones above is organiser/coordinator-facing, and both of those
+ * roles can always reach an event's own detail page — see navigation.ts's
+ * ROLE_NAV_ITEM_IDS. The venue-staff ones go to venue_staff instead, who
+ * can't reach /events/:id at all (no "events" nav section); the page where
+ * they actually act on a request is the flat /venue-requests list, not a
  * per-request route, so that's the target regardless of eventId.
  */
 function notificationDestination(notification: NotificationSummary): string | undefined {
-  if (notification.type === "venue_request") return "/venue-requests";
-  return notification.eventId ? `/events/${notification.eventId}` : undefined;
+  if (VENUE_STAFF_TYPES.has(notification.type)) return "/venue-requests";
+  if (!notification.eventId) return undefined;
+  if (COORDINATOR_VENUE_HOLD_TYPES.has(notification.type)) {
+    return `/events/${notification.eventId}/venue`;
+  }
+  return `/events/${notification.eventId}`;
 }
 
 /**

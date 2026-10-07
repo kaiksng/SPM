@@ -95,14 +95,16 @@ export async function submitVenueBookingRequest(
   return data as string;
 }
 
+/**
+ * Goes through apps/backend's service client, not a direct supabase-js
+ * call: withdraw_venue_booking_request now notifies every venue-staff
+ * profile, which inserts into `notifications` — no INSERT policy for
+ * regular users — same reasoning as submitVenueBookingRequest above.
+ */
 export async function withdrawVenueBookingRequest(bookingId: string): Promise<void> {
-  const { error } = await supabase.rpc("withdraw_venue_booking_request", {
-    p_booking_id: bookingId,
+  await apiFetch(`/venue-bookings/${bookingId}/withdraw`, {
+    method: "POST",
   });
-
-  if (error) {
-    throw new Error(error.message || "This venue booking request could not be withdrawn.");
-  }
 }
 
 /**
@@ -110,30 +112,32 @@ export async function withdrawVenueBookingRequest(bookingId: string): Promise<vo
  * surfaces the database's own message, same reasoning as
  * submitVenueBookingRequest (the expiry-before-period-starts rule is only
  * actually enforced server-side).
+ *
+ * Goes through apps/backend's service client, not a direct supabase-js call:
+ * place_venue_booking_hold now inserts the hold's scheduled reminder
+ * notifications, which has no INSERT policy for regular users — same
+ * reasoning as decideVenueBookingRequest below.
  */
 export async function placeVenueBookingHold(
   bookingId: string,
   expiresAt: string,
 ): Promise<void> {
-  const { error } = await supabase.rpc("place_venue_booking_hold", {
-    p_booking_id: bookingId,
-    p_expires_at: expiresAt,
+  await apiFetch(`/venue-bookings/${bookingId}/hold`, {
+    method: "POST",
+    body: JSON.stringify({ expiresAt }),
   });
-
-  if (error) {
-    throw new Error(error.message || "This request could not be put on hold.");
-  }
 }
 
-/** The requesting coordinator confirms an On Hold request before its deadline. */
+/**
+ * The requesting coordinator confirms an On Hold request before its
+ * deadline. Goes through the backend for the same reason as above:
+ * confirm_venue_booking_hold now deletes the hold's still-pending reminder
+ * notifications.
+ */
 export async function confirmVenueBookingHold(bookingId: string): Promise<void> {
-  const { error } = await supabase.rpc("confirm_venue_booking_hold", {
-    p_booking_id: bookingId,
+  await apiFetch(`/venue-bookings/${bookingId}/confirm-hold`, {
+    method: "POST",
   });
-
-  if (error) {
-    throw new Error(error.message || "This hold could not be confirmed.");
-  }
 }
 
 export type VenueBookingRequestSummary = {
@@ -224,6 +228,29 @@ export async function listVenueBookingRequests(): Promise<VenueBookingRequestSum
     .order("requested_at", { ascending: false });
 
   if (error) throw new Error("Venue booking requests are unavailable.");
+
+  return (data ?? []).map(toVenueBookingRequestSummary);
+}
+
+/**
+ * Every venue booking request ever made for an event, oldest first — the
+ * Change History page's "Venue bookings" section. Unlike getActiveVenueBooking
+ * this is not filtered to pending/approved/on_hold: a rejected or cancelled
+ * attempt at an earlier venue should still show up here. RLS's "venue
+ * bookings visible to participants" policy (can_view_event) already covers
+ * the organiser and assigned coordinator, so this reads straight through
+ * Supabase rather than the backend, same as listVenueBookingRequests.
+ */
+export async function listVenueBookingsForEvent(
+  eventId: string,
+): Promise<VenueBookingRequestSummary[]> {
+  const { data, error } = await supabase
+    .from("venue_bookings")
+    .select(VENUE_BOOKING_REQUEST_SELECT)
+    .eq("event_id", eventId)
+    .order("requested_at", { ascending: true });
+
+  if (error) throw new Error("This event's venue booking history is unavailable.");
 
   return (data ?? []).map(toVenueBookingRequestSummary);
 }
