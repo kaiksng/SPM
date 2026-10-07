@@ -24,18 +24,6 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
   timeZone: "Asia/Singapore",
 });
 
-// Pending requests need Venue Staff's attention first, then On Hold ones
-// (still awaiting the coordinator); everything else follows by
-// most-recently-requested, matching listVenueBookingRequests' own default
-// order.
-const STATUS_ORDER: Record<VenueBookingRequestSummary["status"], number> = {
-  pending: 0,
-  on_hold: 1,
-  approved: 2,
-  rejected: 3,
-  cancelled: 4,
-  expired: 5,
-};
 
 export function VenueRequestsPage() {
   usePageTitle("Requests");
@@ -103,8 +91,13 @@ export function VenueRequestsPage() {
     setHoldTarget(undefined);
   }
 
+  // Most-recently-requested first, regardless of status — a rejected or
+  // cancelled request stays where it falls chronologically instead of being
+  // pushed to the bottom, matching listVenueBookingRequests' own default
+  // order (so this is really just preserving fetch order through the
+  // search filter, not a separate sort).
   const filteredRequests = filterRequests(requests, searchQuery).sort(
-    (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status],
+    (a, b) => b.requestedAt.localeCompare(a.requestedAt),
   );
 
   return (
