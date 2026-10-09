@@ -3,12 +3,28 @@ import {
   isDirectEditBlocked,
   type ClarificationPermittedField,
 } from "@spm/shared";
-import { CalendarDays, ChevronDown, FilePlus2, Pencil, Search, Send, Trash2 } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronDown,
+  FilePlus2,
+  Pencil,
+  RefreshCw,
+  Search,
+  Send,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/context/auth-context";
 import { AssignCoordinatorDialog } from "@/features/event-requests/components/assign-coordinator-dialog";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
@@ -315,19 +331,36 @@ function CoordinatorEventsView() {
  * Event Coordinator Lead: every event, read-only. The Lead oversees
  * incoming requests and assignments but does not edit event requirements,
  * approve events, or submit venue/equipment requests — so unlike the
- * organiser's and coordinator's cards, these have no action buttons and
- * don't link into the (coordinator-oriented) event detail page.
+ * organiser's and coordinator's cards, these have no action buttons beyond
+ * assign/reassign, history, and (now) opening the read-only detail page.
  */
-type LeadTab = "pending" | "assigned";
+type LeadTab = "queue" | "oversight";
+
+const ACTIVE_EVENT_STATUSES = ["requested", "planning", "pending_safety_check", "confirmed"];
+
+const STATUS_FILTER_LABELS: Record<string, string> = {
+  active: "Active statuses",
+  all: "All statuses",
+  requested: "Requested",
+  planning: "Planning",
+  pending_safety_check: "Pending Safety Check",
+  confirmed: "Confirmed",
+  completed: "Completed",
+  cancelled: "Cancelled",
+  rejected: "Rejected",
+};
 
 function LeadEventsView() {
   const { state } = useLocation();
   const [events, setEvents] = useState<LeadEventSummary[]>([]);
   const [coordinators, setCoordinators] = useState<CoordinatorOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string>();
   const [searchQuery, setSearchQuery] = useState("");
-  const [tab, setTab] = useState<LeadTab>("pending");
+  const [tab, setTab] = useState<LeadTab>("queue");
+  const [coordinatorFilter, setCoordinatorFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [assigningEvent, setAssigningEvent] = useState<LeadEventSummary>();
 
   function reload() {
@@ -341,6 +374,20 @@ function LeadEventsView() {
             : "We couldn't load events.",
         );
       });
+  }
+
+  // The Lead's data is otherwise fetched once on mount only (same
+  // no-polling/no-realtime convention as every other page here, e.g.
+  // NotificationBell) — this button is the Lead's way to see a change made
+  // elsewhere (an organiser cancelling, another assignment) without a full
+  // page reload.
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await reload();
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   useEffect(() => {
@@ -377,41 +424,140 @@ function LeadEventsView() {
   }
 
   const notice = (state as LocationState)?.notice;
-  const pendingEvents = events.filter((event) => !event.assignedCoordinatorId);
+
+  // AC: oldest submission first, no coordinator yet.
+  const queueEvents = events
+    .filter((event) => event.status === "requested" && !event.assignedCoordinatorId)
+    .sort((a, b) => {
+      const left = a.submittedAt ? new Date(a.submittedAt).getTime() : 0;
+      const right = b.submittedAt ? new Date(b.submittedAt).getTime() : 0;
+      return left - right;
+    });
+
+  // AC: oversight only covers assigned events; unassigned ones live in the queue.
   const assignedEvents = events.filter((event) => event.assignedCoordinatorId);
-  const tabEvents = tab === "pending" ? pendingEvents : assignedEvents;
-  const filteredEvents = filterEventsByTitle(tabEvents, searchQuery);
+  const oversightEvents = assignedEvents.filter((event) => {
+    if (coordinatorFilter !== "all" && event.assignedCoordinatorId !== coordinatorFilter) {
+      return false;
+    }
+    if (statusFilter === "active") return ACTIVE_EVENT_STATUSES.includes(event.status);
+    if (statusFilter === "all") return true;
+    return event.status === statusFilter;
+  });
+  const oversightGroups = groupEventsByCoordinator(oversightEvents);
+
+  const filteredQueueEvents = filterEventsByTitle(queueEvents, searchQuery);
+  const filteredOversightGroups = oversightGroups
+    .map((group) => ({
+      ...group,
+      events: filterEventsByTitle(group.events, searchQuery),
+    }))
+    .filter((group) => group.events.length > 0);
 
   return (
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-6xl">
-          <header className="border-b border-slate-200 pb-7">
-            <p className="text-xs font-semibold tracking-[0.16em] text-primary uppercase">
-              Event Coordinator Lead workspace
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-slate-950">
-              All events
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              Every event submitted by an organiser, and who it's assigned to.
-            </p>
+          <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-7">
+            <div>
+              <p className="text-xs font-semibold tracking-[0.16em] text-primary uppercase">
+                Event Coordinator Lead workspace
+              </p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-slate-950">
+                All events
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+                Triage newly submitted events and oversee every coordinator's active work.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={refreshing}
+              onClick={handleRefresh}
+            >
+              <RefreshCw className={refreshing ? "animate-spin" : undefined} aria-hidden="true" />
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </Button>
           </header>
 
           <div className="mt-6 flex gap-1 border-b border-slate-200">
             <LeadTabButton
-              label={`Pending (${pendingEvents.length})`}
-              active={tab === "pending"}
-              onClick={() => setTab("pending")}
+              label={`Unassigned queue (${queueEvents.length})`}
+              active={tab === "queue"}
+              onClick={() => setTab("queue")}
             />
             <LeadTabButton
-              label={`Assigned (${assignedEvents.length})`}
-              active={tab === "assigned"}
-              onClick={() => setTab("assigned")}
+              label={`Oversight (${assignedEvents.length})`}
+              active={tab === "oversight"}
+              onClick={() => setTab("oversight")}
             />
           </div>
 
-          <EventsToolbar searchValue={searchQuery} onSearchChange={setSearchQuery} />
+          {tab === "queue" ? (
+            <EventsToolbar searchValue={searchQuery} onSearchChange={setSearchQuery} hideFilters />
+          ) : (
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative w-full max-w-xs">
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-400"
+                />
+                <Input
+                  type="search"
+                  placeholder="Search events"
+                  aria-label="Search events"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="h-9 pl-8"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
+                  value={coordinatorFilter}
+                  onValueChange={(value) => setCoordinatorFilter(value ?? "all")}
+                  items={{
+                    all: "All coordinators",
+                    ...Object.fromEntries(
+                      coordinators.map((coordinator) => [
+                        coordinator.id,
+                        coordinator.fullName ?? "Unnamed coordinator",
+                      ]),
+                    ),
+                  }}
+                >
+                  <SelectTrigger aria-label="Filter by coordinator" className="w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All coordinators</SelectItem>
+                    {coordinators.map((coordinator) => (
+                      <SelectItem key={coordinator.id} value={coordinator.id}>
+                        {coordinator.fullName ?? "Unnamed coordinator"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) => setStatusFilter(value ?? "active")}
+                  items={STATUS_FILTER_LABELS}
+                >
+                  <SelectTrigger aria-label="Filter by status" className="w-44">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(STATUS_FILTER_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           {notice && (
             <p
@@ -432,18 +578,46 @@ function LeadEventsView() {
 
           {loading ? (
             <LoadingList />
-          ) : tabEvents.length === 0 ? (
-            <LeadEmptyState tab={tab} />
-          ) : filteredEvents.length === 0 ? (
+          ) : tab === "queue" ? (
+            queueEvents.length === 0 ? (
+              <LeadEmptyState tab="queue" />
+            ) : filteredQueueEvents.length === 0 ? (
+              <NoSearchResults />
+            ) : (
+              <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {filteredQueueEvents.map((event) => (
+                  <LeadEventCard
+                    key={event.id}
+                    event={event}
+                    onAssign={() => setAssigningEvent(event)}
+                  />
+                ))}
+              </div>
+            )
+          ) : oversightEvents.length === 0 ? (
+            <LeadEmptyState tab="oversight" />
+          ) : filteredOversightGroups.length === 0 ? (
             <NoSearchResults />
           ) : (
-            <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {filteredEvents.map((event) => (
-                <LeadEventCard
-                  key={event.id}
-                  event={event}
-                  onAssign={() => setAssigningEvent(event)}
-                />
+            <div className="mt-7 space-y-8">
+              {filteredOversightGroups.map((group) => (
+                <section key={group.coordinatorId}>
+                  <h2 className="flex items-baseline gap-2 text-sm font-semibold text-slate-700">
+                    {group.coordinatorName}
+                    <span className="text-xs font-normal text-slate-400">
+                      {group.events.length} event{group.events.length === 1 ? "" : "s"}
+                    </span>
+                  </h2>
+                  <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {group.events.map((event) => (
+                      <LeadEventCard
+                        key={event.id}
+                        event={event}
+                        onAssign={() => setAssigningEvent(event)}
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           )}
@@ -460,6 +634,28 @@ function LeadEventsView() {
         />
       )}
     </RoleGate>
+  );
+}
+
+/** Groups assigned events by coordinator, alphabetised by coordinator name. */
+function groupEventsByCoordinator(events: LeadEventSummary[]) {
+  const groups = new Map<string, { coordinatorId: string; coordinatorName: string; events: LeadEventSummary[] }>();
+  for (const event of events) {
+    const coordinatorId = event.assignedCoordinatorId;
+    if (!coordinatorId) continue;
+    const existing = groups.get(coordinatorId);
+    if (existing) {
+      existing.events.push(event);
+    } else {
+      groups.set(coordinatorId, {
+        coordinatorId,
+        coordinatorName: event.assignedCoordinatorName ?? "Unnamed coordinator",
+        events: [event],
+      });
+    }
+  }
+  return Array.from(groups.values()).sort((a, b) =>
+    a.coordinatorName.localeCompare(b.coordinatorName),
   );
 }
 
@@ -523,10 +719,14 @@ function EventsToolbar({
   createHref,
   searchValue,
   onSearchChange,
+  hideFilters,
 }: {
   createHref?: string;
   searchValue: string;
   onSearchChange: (value: string) => void;
+  /** The Lead's Oversight tab renders its own (functional) coordinator/status
+   * filters in place of this placeholder — see LeadEventsView. */
+  hideFilters?: boolean;
 }) {
   return (
     <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -545,9 +745,11 @@ function EventsToolbar({
             className="h-9 pl-8"
           />
         </div>
-        <Button type="button" variant="outline" size="sm">
-          Filters <ChevronDown className="size-4" aria-hidden="true" />
-        </Button>
+        {!hideFilters && (
+          <Button type="button" variant="outline" size="sm">
+            Filters <ChevronDown className="size-4" aria-hidden="true" />
+          </Button>
+        )}
       </div>
       {createHref && (
         <Link to={createHref} className={buttonVariants({ size: "sm" })}>
@@ -614,10 +816,16 @@ function EventCard({
         </p>
       )}
       {/* PB-04 AC02: the organiser can see who is coordinating their request. */}
-      {event.assignedCoordinatorName && (
+      {event.assignedCoordinatorName ? (
         <p className="mt-1 text-xs text-slate-500">
           Coordinator: {event.assignedCoordinatorName}
         </p>
+      ) : (
+        event.status === "requested" && (
+          <p className="mt-1 text-xs text-slate-500">
+            Awaiting coordinator assignment
+          </p>
+        )
       )}
       <div className="mt-auto flex flex-col gap-2">
         <EventHistoryButton eventId={event.id} />
@@ -834,11 +1042,19 @@ function LeadEventCard({
           }).format(new Date(event.submittedAt))}
         </p>
       )}
+      {event.expectedAttendance != null && (
+        <p className="mt-1 text-xs text-slate-400">
+          Expected attendance: {event.expectedAttendance}
+        </p>
+      )}
       <div className="mt-auto flex flex-col gap-3 border-t border-slate-100 pt-4">
         <div className="flex flex-col gap-1 text-xs text-slate-500">
           <span>Organiser: {event.organiserName ?? "Unknown"}</span>
           <span>Coordinator: {event.assignedCoordinatorName ?? "Unassigned"}</span>
         </div>
+        <Link to={`/events/${event.id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+          View details
+        </Link>
         <EventHistoryButton eventId={event.id} />
         {!isReassignmentBlocked && (
           <Button type="button" variant={isAssigned ? "outline" : "default"} onClick={onAssign}>
@@ -858,12 +1074,12 @@ function LeadEmptyState({ tab }: { tab: LeadTab }) {
           <CalendarDays aria-hidden="true" />
         </span>
         <h2 className="mt-5 text-lg font-semibold text-slate-950">
-          {tab === "pending" ? "No pending requests" : "No events assigned yet"}
+          {tab === "queue" ? "No unassigned events" : "No events assigned yet"}
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          {tab === "pending"
+          {tab === "queue"
             ? "New event requests appear here as soon as an organiser submits one."
-            : "Assign a coordinator to a pending request to see it here."}
+            : "Assign a coordinator to an unassigned request to see it here."}
         </p>
       </div>
     </section>

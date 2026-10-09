@@ -1,0 +1,24 @@
+-- Enforce Revised Event Lifecycle Transitions.
+--
+-- Supported statuses: Draft, Requested, Planning, Pending Safety Check,
+-- Confirmed, Completed, Rejected, Cancelled.
+-- Allowed transitions: Draft->Requested; Requested->Planning/Rejected/
+-- Cancelled; Planning->Pending Safety Check/Cancelled; Pending Safety
+-- Check->Confirmed/Planning/Cancelled; Confirmed->Planning (re-review)/
+-- Completed/Cancelled.
+--
+-- Nothing in this codebase has ever transitioned an event to 'confirmed'
+-- (venue/technical confirmation is a separate, not-yet-built story), so this
+-- only inserts the new status into the reachable path between Planning and
+-- Confirmed and widens Confirmed to allow a re-review. No RPC calls any of
+-- these arms yet; event_status_history (202609060001) and
+-- enforce_event_status_transition (202609060001, last touched by
+-- 202609170002) already log and gate every transition unchanged.
+--
+-- 'requested' drops 'clarification_requested' as a reachable target: nothing
+-- has ever set it (202609140003 deliberately keeps status at 'requested'
+-- throughout a clarification round), so this removes a dead arm rather than
+-- changing behaviour. Every other already-dead arm (submitted,
+-- clarification_requested's own outgoing arm, under_review, approved) is
+-- left exactly as prior migrations left it.
+alter type public.event_status add value if not exists 'pending_safety_check' after 'planning';

@@ -32,8 +32,12 @@ describe("event status transitions", () => {
   });
 
   // PB-03 AC05: a requested event is available for review, not for confirmation.
+  // "Enforce Revised Event Lifecycle Transitions" retires
+  // "clarification_requested" as a reachable target from "requested" —
+  // nothing ever produces it (a clarification round keeps status at
+  // "requested" throughout).
   it.each([
-    ["clarification_requested", true],
+    ["clarification_requested", false],
     // "under_review" is retired as a reachable target — nothing ever
     // produces it.
     ["under_review", false],
@@ -41,6 +45,7 @@ describe("event status transitions", () => {
     ["rejected", true],
     ["cancelled", true],
     ["confirmed", false],
+    ["pending_safety_check", false],
     ["draft", false],
     // Approving now produces "planning", not "approved" — see "Approve or
     // Reject an Event Request" AC02.
@@ -49,8 +54,23 @@ describe("event status transitions", () => {
     expect(canTransitionEventStatus("requested", to)).toBe(expected);
   });
 
-  it("allows a confirmed event to be marked completed", () => {
+  // Planning now routes through Pending Safety Check rather than straight to
+  // Confirmed.
+  it("moves a planning event to pending safety check, not confirmed", () => {
+    expect(canTransitionEventStatus("planning", "pending_safety_check")).toBe(true);
+    expect(canTransitionEventStatus("planning", "confirmed")).toBe(false);
+  });
+
+  it("lets pending safety check move to confirmed, back to planning, or cancelled", () => {
+    expect(canTransitionEventStatus("pending_safety_check", "confirmed")).toBe(true);
+    expect(canTransitionEventStatus("pending_safety_check", "planning")).toBe(true);
+    expect(canTransitionEventStatus("pending_safety_check", "cancelled")).toBe(true);
+    expect(canTransitionEventStatus("pending_safety_check", "rejected")).toBe(false);
+  });
+
+  it("allows a confirmed event to be marked completed or sent back to planning", () => {
     expect(canTransitionEventStatus("confirmed", "completed")).toBe(true);
+    expect(canTransitionEventStatus("confirmed", "planning")).toBe(true);
   });
 
   it("does not allow completed to transition anywhere else", () => {

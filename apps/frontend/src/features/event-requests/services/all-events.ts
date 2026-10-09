@@ -9,6 +9,7 @@ export type LeadEventSummary = {
   endsAt: string | null;
   updatedAt: string;
   submittedAt: string | null;
+  expectedAttendance: number | null;
   organiserName: string | null;
   assignedCoordinatorId: string | null;
   assignedCoordinatorName: string | null;
@@ -32,6 +33,7 @@ export async function listAllEvents() {
         ends_at,
         updated_at,
         submitted_at,
+        expected_attendance,
         assigned_coordinator_id,
         organiser:profiles!events_organiser_id_fkey (full_name),
         coordinator:profiles!events_assigned_coordinator_id_fkey (full_name)
@@ -51,6 +53,7 @@ export async function listAllEvents() {
       endsAt: event.ends_at,
       updatedAt: event.updated_at,
       submittedAt: event.submitted_at,
+      expectedAttendance: event.expected_attendance,
       organiserName: event.organiser?.full_name ?? null,
       assignedCoordinatorId: event.assigned_coordinator_id,
       assignedCoordinatorName: event.coordinator?.full_name ?? null,

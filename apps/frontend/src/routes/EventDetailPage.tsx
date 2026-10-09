@@ -12,7 +12,7 @@ import { useAuth } from "@/context/auth-context";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
 import { EventHistoryButton } from "@/features/event-requests/components/event-history-link";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
-import { EventStatusBadge } from "@/features/event-requests/components/status-badges";
+import { EventStatusBadge, StatusBadge } from "@/features/event-requests/components/status-badges";
 import { EventStatusTimeline } from "@/features/event-requests/components/status-timeline";
 import { VenueFacilitiesSection } from "@/features/event-requests/components/venue-facilities-section";
 import type { ClarificationSummary } from "@/features/event-requests/services/clarifications";
@@ -36,9 +36,13 @@ function formatDateTime(value: string | null) {
 }
 
 /**
- * A read-only view of an event for whoever can see it (organiser or the
- * assigned coordinator) — the coordinator's counterpart to the organiser's
- * "Edit request" page, which already doubles as their own full-detail view.
+ * A read-only view of an event for whoever can see it (organiser, the
+ * assigned coordinator, or an Event Coordinator Lead) — the coordinator's
+ * counterpart to the organiser's "Edit request" page, which already doubles
+ * as their own full-detail view. The Lead's view is strictly read-only: no
+ * edit/complete actions and no clarification panel (mutating actions only
+ * the organiser or assigned coordinator may take) — the Lead sees history
+ * via EventHistoryButton/EventHistoryPage instead.
  */
 export function EventDetailPage() {
   const { eventId } = useParams();
@@ -81,7 +85,12 @@ export function EventDetailPage() {
     };
   }, [eventId]);
 
-  const role = profile?.role === "event_organiser" ? "organiser" : "coordinator";
+  const role =
+    profile?.role === "event_organiser"
+      ? "organiser"
+      : profile?.role === "event_coordinator_lead"
+        ? "lead"
+        : "coordinator";
   // SPM-09 AC02: "authorised coordinator" means the one coordinator assigned
   // to this specific event — a coordinator who isn't assigned sees the same
   // denial as an event they can't load at all.
@@ -142,11 +151,15 @@ export function EventDetailPage() {
               )}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <EventStatusBadge
-                    status={event.status}
-                    reviewState={reviewState === "open" ? "open" : undefined}
-                    role={role}
-                  />
+                  {role === "lead" ? (
+                    <StatusBadge status={event.status} />
+                  ) : (
+                    <EventStatusBadge
+                      status={event.status}
+                      reviewState={reviewState === "open" ? "open" : undefined}
+                      role={role}
+                    />
+                  )}
                 </div>
                 <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
                   <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950">
@@ -271,25 +284,27 @@ export function EventDetailPage() {
                   <EventHistoryButton eventId={event.id} />
                 </div>
   
-                <ClarificationPanel
-                  eventId={event.id}
-                  eventStatus={event.status}
-                  role={role}
-                  onReviewStateChange={setReviewState}
-                  onUnresolvedChange={setUnresolvedClarification}
-                  onDecided={(decision) =>
-                    navigate("/events", {
-                      replace: true,
-                      state: {
-                        notice:
-                          decision === "approved"
-                            ? "Event approved — now in planning."
-                            : "Event rejected.",
-                      },
-                    })
-                  }
-                  className="mt-6 text-sm"
-                />
+                {role !== "lead" && (
+                  <ClarificationPanel
+                    eventId={event.id}
+                    eventStatus={event.status}
+                    role={role}
+                    onReviewStateChange={setReviewState}
+                    onUnresolvedChange={setUnresolvedClarification}
+                    onDecided={(decision) =>
+                      navigate("/events", {
+                        replace: true,
+                        state: {
+                          notice:
+                            decision === "approved"
+                              ? "Event approved — now in planning."
+                              : "Event rejected.",
+                        },
+                      })
+                    }
+                    className="mt-6 text-sm"
+                  />
+                )}
               </div>
             </div>
           )}
