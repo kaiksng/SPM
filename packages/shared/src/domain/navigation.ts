@@ -58,12 +58,20 @@ export function getNavItemsForRole(role: UserRole): NavItem[] {
   return ROLE_NAV_ITEM_IDS[role].map((id) => NAV_ITEMS[id]);
 }
 
+// A v4 UUID, to tell an event id ("/events/:id") apart from a literal
+// route segment like "/events/new" — both match a bare "[^/]+".
+const UUID_SEGMENT = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
 // The Lead's "events" access is read-only and narrower than an organiser's
-// or coordinator's: their dashboard (LeadEventsView) only ever links into
-// the event history page, never into the detail, venue, or edit routes —
-// so, unlike every other role, they get an explicit allow-list instead of
-// the whole "/events/*" subtree.
-const LEAD_ALLOWED_EVENT_PATHS = [/^\/events$/, /^\/events\/[^/]+\/history$/];
+// or coordinator's: their dashboard (LeadEventsView) links into the event
+// history page and a read-only event detail page, never into venue, edit, or
+// creation routes — so, unlike every other role, they get an explicit
+// allow-list instead of the whole "/events/*" subtree.
+const LEAD_ALLOWED_EVENT_PATHS = [
+  /^\/events$/,
+  new RegExp(`^/events/${UUID_SEGMENT}/history$`, "i"),
+  new RegExp(`^/events/${UUID_SEGMENT}$`, "i"),
+];
 
 /** Whether a role is entitled to a nav section, keyed by its route path. */
 export function isPathAllowedForRole(pathname: string, role: UserRole) {

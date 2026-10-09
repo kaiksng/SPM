@@ -5,6 +5,7 @@ export const eventStatuses = [
   "clarification_requested",
   "under_review",
   "planning",
+  "pending_safety_check",
   "approved",
   "rejected",
   "confirmed",
@@ -19,28 +20,32 @@ export type EventStatus = (typeof eventStatuses)[number];
  * authoritative rule. Keep the two in step: a transition permitted here but
  * refused there surfaces as a failed write rather than a blocked button.
  *
- * "As an authorised user, I want to see an event's current lifecycle status"
- * retires "submitted" and "under_review" as reachable targets — flagged as
- * this story's job by PB-03 and "Approve or Reject an Event Request" back
- * when they first noticed nothing ever produces either value. "approved" is
- * left exactly as those stories left it (unreachable, but not this story's
- * to retire either) — the same "add, don't remove an already-listed arm
- * outside what a story actually asks" policy applies here. "completed" is
- * new: an event's terminal, successful end state, reached only from
- * "confirmed" via public.complete_event.
+ * "Enforce Revised Event Lifecycle Transitions" adds "pending_safety_check"
+ * between Planning and Confirmed, and lets Confirmed return to Planning for
+ * re-review. It also retires "clarification_requested" as a reachable target
+ * from "requested" — nothing has ever produced it (see
+ * packages/supabase's 202609140003_event_clarifications.sql, which
+ * deliberately keeps status at "requested" throughout a clarification
+ * round), so removing it changes no behaviour, the same "retire a dead arm
+ * this story actually touches" policy "Approve or Reject an Event Request"
+ * used for "submitted"/"under_review". "approved" is left exactly as those
+ * stories left it (unreachable, but not this story's to retire either).
+ * "completed" is an event's terminal, successful end state, reached only
+ * from "confirmed" via public.complete_event — unchanged here.
  */
 export const allowedEventStatusTransitions: Readonly<
   Record<EventStatus, readonly EventStatus[]>
 > = {
   draft: ["requested", "cancelled"],
-  requested: ["clarification_requested", "planning", "rejected", "cancelled"],
+  requested: ["planning", "rejected", "cancelled"],
   submitted: [],
   clarification_requested: ["requested", "cancelled"],
   under_review: [],
-  planning: ["confirmed", "cancelled"],
+  planning: ["pending_safety_check", "cancelled"],
+  pending_safety_check: ["confirmed", "planning", "cancelled"],
   approved: ["confirmed", "cancelled"],
   rejected: [],
-  confirmed: ["completed", "cancelled"],
+  confirmed: ["planning", "completed", "cancelled"],
   completed: [],
   cancelled: [],
 };

@@ -1837,6 +1837,7 @@ export type Database = {
         | "clarification_requested"
         | "under_review"
         | "planning"
+        | "pending_safety_check"
         | "approved"
         | "rejected"
         | "confirmed"
@@ -2024,6 +2025,7 @@ export const Constants = {
         "clarification_requested",
         "under_review",
         "planning",
+        "pending_safety_check",
         "approved",
         "rejected",
         "confirmed",

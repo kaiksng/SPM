@@ -53,8 +53,14 @@ describe("workspace navigation", () => {
     expect(isPathAllowedForRole("/equipment", "venue_staff")).toBe(false);
   });
 
-  it("gives the event coordinator lead only the events dashboard and history page", () => {
+  it("gives the event coordinator lead the events dashboard, read-only detail, and history page", () => {
     expect(isPathAllowedForRole("/events", "event_coordinator_lead")).toBe(true);
+    expect(
+      isPathAllowedForRole(
+        "/events/10000000-0000-0000-0000-000000000001",
+        "event_coordinator_lead",
+      ),
+    ).toBe(true);
     expect(
       isPathAllowedForRole(
         "/events/10000000-0000-0000-0000-000000000001/history",
@@ -63,11 +69,9 @@ describe("workspace navigation", () => {
     ).toBe(true);
   });
 
-  it("blocks the event coordinator lead from an event's detail, venue, and edit routes", () => {
+  it("blocks the event coordinator lead from an event's venue and edit routes, and from creating one", () => {
     const eventId = "10000000-0000-0000-0000-000000000001";
-    expect(isPathAllowedForRole(`/events/${eventId}`, "event_coordinator_lead")).toBe(
-      false,
-    );
+    expect(isPathAllowedForRole("/events/new", "event_coordinator_lead")).toBe(false);
     expect(
       isPathAllowedForRole(`/events/${eventId}/venue`, "event_coordinator_lead"),
     ).toBe(false);
@@ -83,7 +87,6 @@ describe("workspace navigation", () => {
         "event_coordinator_lead",
       ),
     ).toBe(false);
-    expect(isPathAllowedForRole("/events/new", "event_coordinator_lead")).toBe(false);
   });
 
   it("gives the safety officer only the safety checks section", () => {

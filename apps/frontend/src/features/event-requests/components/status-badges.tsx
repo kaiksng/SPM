@@ -11,6 +11,7 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   clarification_requested: "border-amber-200 bg-amber-50 text-amber-800",
   under_review: "border-amber-200 bg-amber-50 text-amber-800",
   planning: "border-teal-200 bg-teal-50 text-teal-700",
+  pending_safety_check: "border-violet-200 bg-violet-50 text-violet-700",
   approved: "border-teal-200 bg-teal-50 text-teal-700",
   confirmed: "border-emerald-200 bg-emerald-50 text-emerald-700",
   completed: "border-indigo-200 bg-indigo-50 text-indigo-700",

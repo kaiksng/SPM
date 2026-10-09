@@ -19,8 +19,9 @@ const STAGE_RANK: Record<string, number> = {
   clarification_requested: 1,
   planning: 2,
   approved: 2,
-  confirmed: 3,
-  completed: 3,
+  pending_safety_check: 3,
+  confirmed: 4,
+  completed: 4,
   rejected: 1,
   cancelled: 1,
 };
@@ -38,7 +39,8 @@ const STAGES = [
       { id: "equipment", label: "Equipment", href: "equipment" },
     ],
   },
-  { id: "confirmed", label: "Event Confirmed", rank: 3 },
+  { id: "pending_safety_check", label: "Safety Check", rank: 3 },
+  { id: "confirmed", label: "Event Confirmed", rank: 4 },
 ] as const;
 
 export function EventPlanningTimeline({
