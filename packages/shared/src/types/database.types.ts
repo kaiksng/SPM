@@ -192,174 +192,6 @@ export type Database = {
           },
         ]
       }
-      equipment_units: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          equipment_item_id: string
-          id: string
-          retired_at: string | null
-          retired_by: string | null
-          unit_number: number
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          equipment_item_id: string
-          id?: string
-          retired_at?: string | null
-          retired_by?: string | null
-          unit_number: number
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          equipment_item_id?: string
-          id?: string
-          retired_at?: string | null
-          retired_by?: string | null
-          unit_number?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "equipment_units_equipment_item_id_fkey"
-            columns: ["equipment_item_id"]
-            isOneToOne: false
-            referencedRelation: "equipment_items"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      equipment_unavailability_units: {
-        Row: {
-          unavailability_id: string
-          unit_id: string
-        }
-        Insert: {
-          unavailability_id: string
-          unit_id: string
-        }
-        Update: {
-          unavailability_id?: string
-          unit_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "equipment_unavailability_units_unavailability_id_fkey"
-            columns: ["unavailability_id"]
-            isOneToOne: false
-            referencedRelation: "equipment_unavailability"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_unavailability_units_unit_id_fkey"
-            columns: ["unit_id"]
-            isOneToOne: false
-            referencedRelation: "equipment_units"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      equipment_reservations: {
-        Row: {
-          decided_at: string | null
-          decided_by: string | null
-          ends_at: string
-          equipment_item_id: string
-          event_id: string
-          id: string
-          quantity: number
-          requested_at: string
-          requested_by: string
-          starts_at: string
-          status: Database["public"]["Enums"]["request_status"]
-          needs_recheck: boolean
-          recheck_reason: string | null
-          released_at: string | null
-          released_by: string | null
-          requirement_id: string | null
-        }
-        Insert: {
-          decided_at?: string | null
-          decided_by?: string | null
-          ends_at: string
-          equipment_item_id: string
-          event_id: string
-          id?: string
-          quantity: number
-          requested_at?: string
-          requested_by: string
-          starts_at: string
-          status?: Database["public"]["Enums"]["request_status"]
-          needs_recheck?: boolean
-          recheck_reason?: string | null
-          released_at?: string | null
-          released_by?: string | null
-          requirement_id?: string | null
-        }
-        Update: {
-          decided_at?: string | null
-          decided_by?: string | null
-          ends_at?: string
-          equipment_item_id?: string
-          event_id?: string
-          id?: string
-          quantity?: number
-          requested_at?: string
-          requested_by?: string
-          starts_at?: string
-          status?: Database["public"]["Enums"]["request_status"]
-          needs_recheck?: boolean
-          recheck_reason?: string | null
-          released_at?: string | null
-          released_by?: string | null
-          requirement_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "equipment_reservations_decided_by_fkey"
-            columns: ["decided_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_reservations_equipment_item_id_fkey"
-            columns: ["equipment_item_id"]
-            isOneToOne: false
-            referencedRelation: "equipment_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_reservations_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_reservations_released_by_fkey"
-            columns: ["released_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_reservations_requirement_id_fkey"
-            columns: ["requirement_id"]
-            isOneToOne: false
-            referencedRelation: "event_equipment_requirements"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_reservations_requested_by_fkey"
-            columns: ["requested_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       equipment_reservation_events: {
         Row: {
           action: string
@@ -398,6 +230,106 @@ export type Database = {
             columns: ["reservation_id"]
             isOneToOne: false
             referencedRelation: "equipment_reservations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_reservations: {
+        Row: {
+          decided_at: string | null
+          decided_by: string | null
+          ends_at: string
+          equipment_item_id: string
+          event_id: string
+          id: string
+          needs_recheck: boolean
+          quantity: number
+          recheck_reason: string | null
+          released_at: string | null
+          released_by: string | null
+          requested_at: string
+          requested_by: string
+          requirement_id: string | null
+          starts_at: string
+          status: Database["public"]["Enums"]["request_status"]
+        }
+        Insert: {
+          decided_at?: string | null
+          decided_by?: string | null
+          ends_at: string
+          equipment_item_id: string
+          event_id: string
+          id?: string
+          needs_recheck?: boolean
+          quantity: number
+          recheck_reason?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          requested_at?: string
+          requested_by: string
+          requirement_id?: string | null
+          starts_at: string
+          status?: Database["public"]["Enums"]["request_status"]
+        }
+        Update: {
+          decided_at?: string | null
+          decided_by?: string | null
+          ends_at?: string
+          equipment_item_id?: string
+          event_id?: string
+          id?: string
+          needs_recheck?: boolean
+          quantity?: number
+          recheck_reason?: string | null
+          released_at?: string | null
+          released_by?: string | null
+          requested_at?: string
+          requested_by?: string
+          requirement_id?: string | null
+          starts_at?: string
+          status?: Database["public"]["Enums"]["request_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_reservations_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_reservations_equipment_item_id_fkey"
+            columns: ["equipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_reservations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_reservations_released_by_fkey"
+            columns: ["released_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_reservations_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_reservations_requirement_id_fkey"
+            columns: ["requirement_id"]
+            isOneToOne: false
+            referencedRelation: "event_equipment_requirements"
             referencedColumns: ["id"]
           },
         ]
@@ -470,6 +402,88 @@ export type Database = {
           {
             foreignKeyName: "equipment_unavailability_removed_by_fkey"
             columns: ["removed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_unavailability_units: {
+        Row: {
+          unavailability_id: string
+          unit_id: string
+        }
+        Insert: {
+          unavailability_id: string
+          unit_id: string
+        }
+        Update: {
+          unavailability_id?: string
+          unit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_unavailability_units_unavailability_id_fkey"
+            columns: ["unavailability_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_unavailability"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_unavailability_units_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      equipment_units: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          equipment_item_id: string
+          id: string
+          retired_at: string | null
+          retired_by: string | null
+          unit_number: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          equipment_item_id: string
+          id?: string
+          retired_at?: string | null
+          retired_by?: string | null
+          unit_number: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          equipment_item_id?: string
+          id?: string
+          retired_at?: string | null
+          retired_by?: string | null
+          unit_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_units_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_units_equipment_item_id_fkey"
+            columns: ["equipment_item_id"]
+            isOneToOne: false
+            referencedRelation: "equipment_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_units_retired_by_fkey"
+            columns: ["retired_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1154,6 +1168,81 @@ export type Database = {
         }
         Relationships: []
       }
+      venue_booking_conflicts: {
+        Row: {
+          booking_id: string
+          cause: string
+          conflicting_block_id: string | null
+          conflicting_booking_id: string | null
+          flagged_at: string
+          flagged_by: string | null
+          id: number
+          is_responsible: boolean
+          resolved_at: string | null
+          resolved_by: string | null
+        }
+        Insert: {
+          booking_id: string
+          cause: string
+          conflicting_block_id?: string | null
+          conflicting_booking_id?: string | null
+          flagged_at?: string
+          flagged_by?: string | null
+          id?: never
+          is_responsible?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Update: {
+          booking_id?: string
+          cause?: string
+          conflicting_block_id?: string | null
+          conflicting_booking_id?: string | null
+          flagged_at?: string
+          flagged_by?: string | null
+          id?: never
+          is_responsible?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_booking_conflicts_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "venue_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_booking_conflicts_conflicting_block_id_fkey"
+            columns: ["conflicting_block_id"]
+            isOneToOne: false
+            referencedRelation: "venue_unavailability"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_booking_conflicts_conflicting_booking_id_fkey"
+            columns: ["conflicting_booking_id"]
+            isOneToOne: false
+            referencedRelation: "venue_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_booking_conflicts_flagged_by_fkey"
+            columns: ["flagged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_booking_conflicts_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_bookings: {
         Row: {
           decided_at: string | null
@@ -1237,6 +1326,51 @@ export type Database = {
           },
           {
             foreignKeyName: "venue_bookings_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venue_buffer_time_changes: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          field_name: string
+          id: number
+          new_value: number
+          previous_value: number
+          venue_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          field_name: string
+          id?: never
+          new_value: number
+          previous_value: number
+          venue_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          field_name?: string
+          id?: never
+          new_value?: number
+          previous_value?: number
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_buffer_time_changes_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_buffer_time_changes_venue_id_fkey"
             columns: ["venue_id"]
             isOneToOne: false
             referencedRelation: "venues"
@@ -1344,126 +1478,6 @@ export type Database = {
           },
         ]
       }
-      venue_booking_conflicts: {
-        Row: {
-          booking_id: string
-          cause: string
-          conflicting_block_id: string | null
-          conflicting_booking_id: string | null
-          flagged_at: string
-          flagged_by: string | null
-          id: number
-          is_responsible: boolean
-          resolved_at: string | null
-          resolved_by: string | null
-        }
-        Insert: {
-          booking_id: string
-          cause: string
-          conflicting_block_id?: string | null
-          conflicting_booking_id?: string | null
-          flagged_at?: string
-          flagged_by?: string | null
-          id?: number
-          is_responsible?: boolean
-          resolved_at?: string | null
-          resolved_by?: string | null
-        }
-        Update: {
-          booking_id?: string
-          cause?: string
-          conflicting_block_id?: string | null
-          conflicting_booking_id?: string | null
-          flagged_at?: string
-          flagged_by?: string | null
-          id?: number
-          is_responsible?: boolean
-          resolved_at?: string | null
-          resolved_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "venue_booking_conflicts_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "venue_bookings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "venue_booking_conflicts_conflicting_block_id_fkey"
-            columns: ["conflicting_block_id"]
-            isOneToOne: false
-            referencedRelation: "venue_unavailability"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "venue_booking_conflicts_conflicting_booking_id_fkey"
-            columns: ["conflicting_booking_id"]
-            isOneToOne: false
-            referencedRelation: "venue_bookings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "venue_booking_conflicts_flagged_by_fkey"
-            columns: ["flagged_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "venue_booking_conflicts_resolved_by_fkey"
-            columns: ["resolved_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      venue_buffer_time_changes: {
-        Row: {
-          changed_at: string
-          changed_by: string | null
-          field_name: string
-          id: number
-          new_value: number
-          previous_value: number
-          venue_id: string
-        }
-        Insert: {
-          changed_at?: string
-          changed_by?: string | null
-          field_name: string
-          id?: number
-          new_value: number
-          previous_value: number
-          venue_id: string
-        }
-        Update: {
-          changed_at?: string
-          changed_by?: string | null
-          field_name?: string
-          id?: number
-          new_value?: number
-          previous_value?: number
-          venue_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "venue_buffer_time_changes_changed_by_fkey"
-            columns: ["changed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "venue_buffer_time_changes_venue_id_fkey"
-            columns: ["venue_id"]
-            isOneToOne: false
-            referencedRelation: "venues"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       venues: {
         Row: {
           accessibility_notes: string | null
@@ -1525,15 +1539,72 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_equipment_units: {
+        Args: { p_count: number; p_item_id: string }
+        Returns: number
+      }
+      assert_technical_support_staff: { Args: never; Returns: undefined }
       can_view_event: { Args: { target_event_id: string }; Returns: boolean }
       cancel_event_request: {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json
       }
+      change_equipment_reservation: {
+        Args: { p_quantity: number; p_reservation_id: string }
+        Returns: string
+      }
+      check_event_equipment_availability: {
+        Args: { p_event_ids: string[] }
+        Returns: {
+          available_quantity: number
+          equipment_item_id: string
+          equipment_name: string
+          event_id: string
+          item_code: string
+          item_retired: boolean
+          requested_quantity: number
+          required_from: string
+          required_until: string
+          requirement_id: string
+          reservation_id: string
+          reservation_needs_recheck: boolean
+          reservation_quantity: number
+          reservation_recheck_reason: string
+          reserved_at: string
+          reserved_by_name: string
+          reserved_quantity: number
+          status: string
+          technical_requirements: string
+          total_units: number
+          unavailable_quantity: number
+        }[]
+      }
+      check_venue_booking_availability: {
+        Args: { p_event_id: string; p_venue_id: string }
+        Returns: Json
+      }
+      clean_equipment_item_fields: {
+        Args: {
+          p_category: string
+          p_code: string
+          p_item_id: string
+          p_name: string
+        }
+        Returns: Record<string, unknown>
+      }
       complete_event: { Args: { p_event_id: string }; Returns: Json }
       confirm_venue_booking_hold: {
         Args: { p_actor_id?: string; p_booking_id: string }
         Returns: Json
+      }
+      create_equipment_item: {
+        Args: {
+          p_category: string
+          p_code: string
+          p_name: string
+          p_units: number
+        }
+        Returns: string
       }
       create_venue: {
         Args: { p_actor_id?: string; p_venue: Json }
@@ -1574,6 +1645,19 @@ export type Database = {
         Args: { p_unavailability_id: string }
         Returns: string
       }
+      equipment_commitment_peaks: {
+        Args: {
+          p_exclude_requirement_id?: string
+          p_from: string
+          p_item_id: string
+          p_until: string
+        }
+        Returns: {
+          peak_all: number
+          peak_reserved: number
+          peak_unavailable: number
+        }[]
+      }
       event_equipment_snapshot: {
         Args: {
           requirement: Database["public"]["Tables"]["event_equipment_requirements"]["Row"]
@@ -1612,8 +1696,14 @@ export type Database = {
           location: string
           name: string
           operating_hours: Json
+          setup_time_minutes: number
+          turnaround_time_minutes: number
           updated_at: string
         }[]
+      }
+      flag_equipment_reservations: {
+        Args: { p_reason: string; p_reservation_ids: string[] }
+        Returns: undefined
       }
       list_auto_event_coordinator_reassignments: {
         Args: { p_event_id: string }
@@ -1642,20 +1732,16 @@ export type Database = {
           reason: string
         }[]
       }
+      lock_requirement_for_reservation: {
+        Args: { p_requirement_id: string }
+        Returns: Record<string, unknown>
+      }
       place_venue_booking_hold: {
         Args: {
           p_actor_id?: string
           p_booking_id: string
           p_expires_at: string
         }
-        Returns: Json
-      }
-      recheck_venue_conflicts: {
-        Args: { p_actor_id?: string; p_venue_id: string }
-        Returns: Json
-      }
-      recheck_all_venue_conflicts: {
-        Args: { p_actor_id?: string }
         Returns: Json
       }
       reassign_event_coordinator: {
@@ -1667,6 +1753,14 @@ export type Database = {
         }
         Returns: Json
       }
+      recheck_all_venue_conflicts: {
+        Args: { p_actor_id?: string }
+        Returns: Json
+      }
+      recheck_venue_conflicts: {
+        Args: { p_actor_id?: string; p_venue_id: string }
+        Returns: Json
+      }
       record_equipment_unavailability: {
         Args: {
           p_ends_at: string
@@ -1676,6 +1770,10 @@ export type Database = {
           p_starts_at: string
           p_unit_ids?: string[]
         }
+        Returns: string
+      }
+      release_equipment_reservation: {
+        Args: { p_reason?: string; p_reservation_id: string }
         Returns: string
       }
       remove_equipment_unavailability: {
@@ -1691,6 +1789,16 @@ export type Database = {
           p_question: string
         }
         Returns: Json
+      }
+      reservation_snapshot: {
+        Args: {
+          p_reservation: Database["public"]["Tables"]["equipment_reservations"]["Row"]
+        }
+        Returns: Json
+      }
+      reserve_equipment: {
+        Args: { p_quantity: number; p_requirement_id: string }
+        Returns: string
       }
       resolve_event_clarification: {
         Args: { p_actor_id?: string; p_clarification_id: string }
@@ -1708,76 +1816,18 @@ export type Database = {
         Args: { draft: Json; target_event_id?: string }
         Returns: string
       }
-      check_event_equipment_availability: {
-        Args: { p_event_ids: string[] }
-        Returns: {
-          available_quantity: number
-          equipment_item_id: string | null
-          equipment_name: string
-          event_id: string
-          item_code: string | null
-          item_retired: boolean
-          requested_quantity: number
-          required_from: string | null
-          required_until: string | null
-          requirement_id: string
-          reservation_id: string | null
-          reservation_needs_recheck: boolean
-          reservation_quantity: number | null
-          reservation_recheck_reason: string | null
-          reserved_at: string | null
-          reserved_by_name: string | null
-          reserved_quantity: number
-          status: string
-          technical_requirements: string | null
-          total_units: number
-          unavailable_quantity: number
-        }[]
-      }
-      reserve_equipment: {
-        Args: { p_quantity: number; p_requirement_id: string }
-        Returns: string
-      }
-      change_equipment_reservation: {
-        Args: { p_quantity: number; p_reservation_id: string }
-        Returns: string
-      }
-      release_equipment_reservation: {
-        Args: { p_reason?: string; p_reservation_id: string }
-        Returns: string
-      }
-      create_equipment_item: {
-        Args: { p_category: string; p_code: string; p_name: string; p_units: number }
-        Returns: string
-      }
-      update_equipment_item: {
-        Args: { p_category: string; p_code: string; p_item_id: string; p_name: string }
-        Returns: string
-      }
-      add_equipment_units: {
-        Args: { p_count: number; p_item_id: string }
-        Returns: number
-      }
-      set_equipment_unit_retired: {
-        Args: { p_retired: boolean; p_unit_id: string }
-        Returns: string
-      }
-      set_equipment_item_retired: {
-        Args: { p_item_id: string; p_retired: boolean }
-        Returns: string
-      }
       save_event_equipment_requirements: {
         Args: { p_equipment: Json; p_event_id: string }
         Returns: number
       }
       search_available_venues: {
         Args: {
-          p_accessibility?: string | null
+          p_accessibility?: string
           p_ends_at: string
           p_event_id: string
           p_facilities?: string[]
-          p_layout?: string | null
-          p_location?: string | null
+          p_layout?: string
+          p_location?: string
           p_min_capacity: number
           p_starts_at: string
         }
@@ -1791,8 +1841,18 @@ export type Database = {
           location: string
           name: string
           operating_hours: Json
+          setup_time_minutes: number
+          turnaround_time_minutes: number
           updated_at: string
         }[]
+      }
+      set_equipment_item_retired: {
+        Args: { p_item_id: string; p_retired: boolean }
+        Returns: string
+      }
+      set_equipment_unit_retired: {
+        Args: { p_retired: boolean; p_unit_id: string }
+        Returns: string
       }
       submit_event_request: {
         Args: { p_actor_id?: string; p_event_id: string }
@@ -1800,6 +1860,15 @@ export type Database = {
       }
       submit_venue_booking_request: {
         Args: { p_actor_id?: string; p_event_id: string; p_venue_id: string }
+        Returns: string
+      }
+      update_equipment_item: {
+        Args: {
+          p_category: string
+          p_code: string
+          p_item_id: string
+          p_name: string
+        }
         Returns: string
       }
       update_event_as_coordinator: {
@@ -1818,12 +1887,16 @@ export type Database = {
         Args: { p_ends_at: string; p_starts_at: string; p_venue_id: string }
         Returns: boolean
       }
+      venue_effective_window: {
+        Args: { p_ends_at: string; p_starts_at: string; p_venue_id: string }
+        Returns: unknown
+      }
       venue_matches_area: {
         Args: { p_address: string; p_requested: string; p_tags: string[] }
         Returns: boolean
       }
       withdraw_venue_booking_request: {
-        Args: { p_booking_id: string; p_actor_id?: string }
+        Args: { p_actor_id?: string; p_booking_id: string }
         Returns: string
       }
     }

@@ -105,6 +105,38 @@ describe("SuggestedVenuesPanel", () => {
     );
   });
 
+  it("shows the venue's setup and turnaround time", async () => {
+    listSuggestedVenuesMock.mockResolvedValue([
+      { ...venue, setupTimeMinutes: 30, turnaroundTimeMinutes: 45 },
+    ]);
+    renderPanel();
+
+    expect(await screen.findByText("Conference Room A")).toBeInTheDocument();
+    expect(screen.getByText("Setup 30 min · Turnaround 45 min")).toBeInTheDocument();
+  });
+
+  it("shows zero setup and turnaround rather than hiding the line", async () => {
+    renderPanel();
+
+    expect(await screen.findByText("Conference Room A")).toBeInTheDocument();
+    expect(screen.getByText("Setup 0 min · Turnaround 0 min")).toBeInTheDocument();
+  });
+
+  it("shows setup and turnaround time on a manual search result too", async () => {
+    searchAvailableVenuesMock.mockResolvedValue([
+      venue,
+      { ...otherVenue, setupTimeMinutes: 15, turnaroundTimeMinutes: 20 },
+    ]);
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(await screen.findByRole("button", { name: "Search venues" }));
+    await user.click(screen.getByRole("button", { name: "Search venues" }));
+
+    expect(await screen.findByRole("heading", { name: "Auditorium" })).toBeInTheDocument();
+    expect(screen.getByText("Setup 15 min · Turnaround 20 min")).toBeInTheDocument();
+  });
+
   it("shows an empty state when no venue matches", async () => {
     listSuggestedVenuesMock.mockResolvedValue([]);
     renderPanel();

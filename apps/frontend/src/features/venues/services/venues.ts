@@ -40,9 +40,6 @@ export type VenueSummary = {
   updatedByName: string | null;
   // Venue Catalogue AC06: a nonzero count surfaces the "Needs Review" badge.
   needsReviewCount: number;
-  // Only set by listVenues (the catalogue) — listSuggestedVenues's
-  // find_matching_venues doesn't return these, since a venue suggestion for
-  // one event's schedule has no need for them.
   setupTimeMinutes?: number;
   turnaroundTimeMinutes?: number;
   // Only meaningful for a suggestion against a specific event's schedule
@@ -141,6 +138,8 @@ type SuggestedVenueRow = {
   layouts: string[] | null;
   updated_at: string;
   availability_status: VenueAvailabilityStatus;
+  setup_time_minutes: number;
+  turnaround_time_minutes: number;
 };
 
 /**
@@ -192,6 +191,8 @@ export async function listSuggestedVenues(eventId: string): Promise<VenueSummary
       updatedByName: null,
       needsReviewCount: 0,
       availabilityStatus: venue.availability_status,
+      setupTimeMinutes: venue.setup_time_minutes,
+      turnaroundTimeMinutes: venue.turnaround_time_minutes,
     }),
   );
 }

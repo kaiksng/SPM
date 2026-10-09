@@ -6,9 +6,11 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from "reac
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { loadEventDetail, type EventDetail } from "@/features/event-requests/services/event-details";
-import { getActiveVenueBooking, submitVenueBookingRequest } from "@/features/venues/services/venue-bookings";
-import { searchAvailableVenues } from "@/features/venues/services/venue-search";
-import { eventSearchDefaults } from "@/features/venues/components/manual-venue-search";
+import {
+  checkVenueBookingAvailability,
+  getActiveVenueBooking,
+  submitVenueBookingRequest,
+} from "@/features/venues/services/venue-bookings";
 import { getVenueLayoutImage } from "@/features/venues/utils/venue-layout-image";
 import {
   getVenue,
@@ -143,14 +145,15 @@ export function VenueDetailPage() {
           setAvailabilityError("This event is not ready for a venue request.");
           return;
         }
-        const defaults = eventSearchDefaults(detail);
-        const available = await searchAvailableVenues(forEventId, {
-          ...defaults, location: "", layout: "", facilities: [], accessibility: "",
-        });
+        // Same function submitVenueBookingRequest/decideVenueBookingRequest
+        // call internally, so this pre-check (including setup/turnaround)
+        // and the server's real enforcement can never drift apart — and the
+        // "Request venue" button stays disabled, with this exact reason
+        // shown, until it's actually available.
+        const availability = await checkVenueBookingAvailability(venueId, forEventId);
         if (active) {
-          setAvailabilityChecked(available.some((candidate) => candidate.id === venueId));
-          setAvailabilityError(available.some((candidate) => candidate.id === venueId)
-            ? "" : "This venue is not available or suitable for the event's saved schedule.");
+          setAvailabilityChecked(availability.available);
+          setAvailabilityError(availability.available ? "" : (availability.reason ?? "This venue is not available for the event's saved schedule."));
         }
       })
       .catch(() => {
@@ -446,11 +449,9 @@ export function VenueDetailPage() {
                     </p>
                   )}
                   <div className="mt-4 flex gap-2">
-                    {isBookable && (
-                      <Button type="button" disabled={requesting} onClick={handleRequestVenue}>
-                        {requesting ? "Requesting…" : "Request venue"}
-                      </Button>
-                    )}
+                    <Button type="button" disabled={!isBookable || requesting} onClick={handleRequestVenue}>
+                      {requesting ? "Requesting…" : "Request venue"}
+                    </Button>
                     <Link
                       to={`/events/${forEventId}/venue`}
                       state={location.state}

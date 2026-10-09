@@ -87,11 +87,9 @@ export function VenueCard({
           </div>
         )}
         <p className="mt-3 text-xs text-slate-500">{formatOperatingHours(venue.operatingHours)}</p>
-        {((venue.setupTimeMinutes ?? 0) > 0 || (venue.turnaroundTimeMinutes ?? 0) > 0) && (
-          <p className="mt-1 text-xs text-slate-500">
-            Setup {venue.setupTimeMinutes} min · Turnaround {venue.turnaroundTimeMinutes} min
-          </p>
-        )}
+        <p className="mt-1 text-xs text-slate-500">
+          Setup {venue.setupTimeMinutes ?? 0} min · Turnaround {venue.turnaroundTimeMinutes ?? 0} min
+        </p>
         <span className="mt-auto pt-4 text-sm font-medium text-primary group-hover:underline">
           View details
         </span>

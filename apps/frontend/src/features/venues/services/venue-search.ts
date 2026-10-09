@@ -28,5 +28,6 @@ export async function searchAvailableVenues(
     description: row.description, accessibilityNotes: row.accessibility_notes,
     facilities: row.facilities, layouts: row.layouts, updatedAt: row.updated_at,
     updatedByName: null, needsReviewCount: 0, availabilityStatus: "available",
+    setupTimeMinutes: row.setup_time_minutes, turnaroundTimeMinutes: row.turnaround_time_minutes,
   }));
 }

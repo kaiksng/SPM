@@ -141,6 +141,9 @@ function SuggestedVenueCard({ eventId, venue, exploreOnly }: { eventId: string; 
         </div>
       )}
       <p className="mt-3 text-xs text-slate-500">{formatOperatingHours(venue.operatingHours)}</p>
+      <p className="mt-1 text-xs text-slate-500">
+        Setup {venue.setupTimeMinutes ?? 0} min &middot; Turnaround {venue.turnaroundTimeMinutes ?? 0} min
+      </p>
       <Link
         to={`/venues/${venue.id}?forEvent=${eventId}${venue.availabilityStatus ? `&status=${venue.availabilityStatus}` : ""}${exploreOnly ? "&explore=1" : ""}`}
         className="mt-auto self-start rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"

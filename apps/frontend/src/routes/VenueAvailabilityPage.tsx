@@ -5,7 +5,7 @@ import type { DateClickArg } from "@fullcalendar/interaction";
 import type { EventContentArg, EventInput } from "@fullcalendar/core";
 import FullCalendar from "@fullcalendar/react";
 import { ArrowLeft } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import { useAuth } from "@/context/auth-context";
@@ -177,7 +177,54 @@ function isClosedDate(operatingHours: OperatingHours, dateStr: string): boolean 
   return hoursForDay(operatingHours, dayCodeForDate(dateStr)) === null;
 }
 
-type BeltPeriod = VenueAvailabilityPeriod & { startHour: number; endHour: number };
+type BeltPeriod = VenueAvailabilityPeriod & {
+  startHour: number;
+  endHour: number;
+  // Only present when this period is a booking (not a block — a block has
+  // no setup/turnaround of its own) AND the venue has a nonzero value AND
+  // the segment actually falls within this day/belt's visible bounds.
+  setupStartHour?: number;
+  setupEndHour?: number;
+  turnaroundStartHour?: number;
+  turnaroundEndHour?: number;
+};
+
+/**
+ * Clips [start, end) to `dateStr`'s day and [beltStartHour, beltEndHour],
+ * returning null if the range doesn't touch that window at all. Shared by
+ * a period's own bounds and its setup/turnaround segments below — same
+ * clipping rules either way.
+ */
+function clipRangeToDay(
+  start: Date,
+  end: Date,
+  dayStart: Date,
+  dayEnd: Date,
+  beltStartHour: number,
+  beltEndHour: number,
+): { startHour: number; endHour: number } | null {
+  if (end <= dayStart || start >= dayEnd) return null;
+
+  const startHour = Math.max(
+    singaporeHour(start < dayStart ? dayStart : start),
+    beltStartHour,
+  );
+  const endHour = Math.min(
+    // singaporeHour(end) only reads end's time-of-day, ignoring which
+    // calendar date it falls on — fine for a period that ends today, but
+    // wrong for a multi-day period's earlier days: on day 1 of a 3-day
+    // booking, "end" is two days away, yet its raw clock time (e.g.
+    // 15:10) would be read as if the booking also stopped at 15:10
+    // *today*, instead of running through to midnight. `end >= dayEnd`
+    // catches every day the period continues past (not just the single
+    // case where it ends exactly at midnight), so day 1 (and any full
+    // day in between) correctly fills through to the end of the belt.
+    end >= dayEnd ? 24 : singaporeHour(end),
+    beltEndHour,
+  );
+
+  return endHour > startHour ? { startHour, endHour } : null;
+}
 
 /** Periods overlapping `dateStr` (a TIME_ZONE-local "YYYY-MM-DD"), clipped to [beltStartHour, beltEndHour]. */
 function periodsForDate(
@@ -185,6 +232,8 @@ function periodsForDate(
   dateStr: string,
   beltStartHour: number,
   beltEndHour: number,
+  setupMinutes: number,
+  turnaroundMinutes: number,
 ): BeltPeriod[] {
   const dayStart = new Date(`${dateStr}T00:00:00+08:00`);
   const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
@@ -193,27 +242,32 @@ function periodsForDate(
     .map((period): BeltPeriod | null => {
       const start = new Date(period.startsAt);
       const end = new Date(period.endsAt);
-      if (end <= dayStart || start >= dayEnd) return null;
+      const clipped = clipRangeToDay(start, end, dayStart, dayEnd, beltStartHour, beltEndHour);
+      if (!clipped) return null;
 
-      const startHour = Math.max(
-        singaporeHour(start < dayStart ? dayStart : start),
-        beltStartHour,
-      );
-      const endHour = Math.min(
-        // singaporeHour(end) only reads end's time-of-day, ignoring which
-        // calendar date it falls on — fine for a period that ends today, but
-        // wrong for a multi-day period's earlier days: on day 1 of a 3-day
-        // booking, "end" is two days away, yet its raw clock time (e.g.
-        // 15:10) would be read as if the booking also stopped at 15:10
-        // *today*, instead of running through to midnight. `end >= dayEnd`
-        // catches every day the period continues past (not just the single
-        // case where it ends exactly at midnight), so day 1 (and any full
-        // day in between) correctly fills through to the end of the belt.
-        end >= dayEnd ? 24 : singaporeHour(end),
-        beltEndHour,
-      );
+      const result: BeltPeriod = { ...period, startHour: clipped.startHour, endHour: clipped.endHour };
 
-      return endHour > startHour ? { ...period, startHour, endHour } : null;
+      // A block has no setup/turnaround of its own — only bookings do.
+      if (period.type !== "blocked") {
+        if (setupMinutes > 0) {
+          const setupStart = new Date(start.getTime() - setupMinutes * 60_000);
+          const setupClip = clipRangeToDay(setupStart, start, dayStart, dayEnd, beltStartHour, beltEndHour);
+          if (setupClip) {
+            result.setupStartHour = setupClip.startHour;
+            result.setupEndHour = setupClip.endHour;
+          }
+        }
+        if (turnaroundMinutes > 0) {
+          const turnaroundEnd = new Date(end.getTime() + turnaroundMinutes * 60_000);
+          const turnaroundClip = clipRangeToDay(end, turnaroundEnd, dayStart, dayEnd, beltStartHour, beltEndHour);
+          if (turnaroundClip) {
+            result.turnaroundStartHour = turnaroundClip.startHour;
+            result.turnaroundEndHour = turnaroundClip.endHour;
+          }
+        }
+      }
+
+      return result;
     })
     .filter((period): period is BeltPeriod => period !== null)
     .sort((a, b) => a.startHour - b.startHour);
@@ -264,10 +318,18 @@ export function VenueAvailabilityPage() {
     () => (venue ? hoursForDay(venue.operatingHours, selectedDayCode) : null),
     [venue, selectedDayCode],
   );
+  // The day timebelt is where setup/turnaround is shown distinctly — unlike
+  // the month view above, it's plain positioned divs, not FullCalendar, so
+  // it isn't subject to FullCalendar's background-event rendering gap for
+  // sub-day ranges (the reason "Blocked" is a solid event there, not one).
+  const setupMinutes = Number(venue?.setupTimeMinutes) || 0;
+  const turnaroundMinutes = Number(venue?.turnaroundTimeMinutes) || 0;
   const beltPeriods = useMemo(
     () =>
-      dayHours ? periodsForDate(periods, selectedDate, dayHours.startHour, dayHours.endHour) : [],
-    [periods, selectedDate, dayHours],
+      dayHours
+        ? periodsForDate(periods, selectedDate, dayHours.startHour, dayHours.endHour, setupMinutes, turnaroundMinutes)
+        : [],
+    [periods, selectedDate, dayHours, setupMinutes, turnaroundMinutes],
   );
 
   function handleDateClick(arg: DateClickArg) {
@@ -320,6 +382,11 @@ export function VenueAvailabilityPage() {
                   label="Booked (unavailable to you)"
                 />
                 <Legend swatchClassName="bg-red-600" label="Blocked" />
+                <Legend
+                  swatchClassName="venue-calendar__buffer-swatch border border-slate-300 bg-slate-100"
+                  label="Setup / turnaround"
+                  square
+                />
               </div>
 
               <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
@@ -473,8 +540,19 @@ function DayTimebelt({
             const status = toDisplayStatus(period);
 
             return (
+              <Fragment key={period.id}>
+                {period.setupStartHour !== undefined && period.setupEndHour !== undefined && (
+                  <div
+                    className="venue-calendar__buffer-bar absolute inset-x-2 overflow-hidden rounded-lg"
+                    style={{
+                      top: `calc(${((period.setupStartHour - startHour) / hourCount) * 100}% + 2px)`,
+                      height: `calc(${((period.setupEndHour - period.setupStartHour) / hourCount) * 100}% - 4px)`,
+                    }}
+                  >
+                    <span className="venue-calendar__buffer-label">Setup</span>
+                  </div>
+                )}
               <div
-                key={period.id}
                 className={`absolute inset-x-2 overflow-hidden rounded-lg border ${BELT_STATUS_STYLES[status]}`}
                 style={{ top: `calc(${top}% + 2px)`, height: `calc(${height}% - 4px)` }}
               >
@@ -526,6 +604,18 @@ function DayTimebelt({
                   </div>
                 )}
               </div>
+                {period.turnaroundStartHour !== undefined && period.turnaroundEndHour !== undefined && (
+                  <div
+                    className="venue-calendar__buffer-bar absolute inset-x-2 overflow-hidden rounded-lg"
+                    style={{
+                      top: `calc(${((period.turnaroundStartHour - startHour) / hourCount) * 100}% + 2px)`,
+                      height: `calc(${((period.turnaroundEndHour - period.turnaroundStartHour) / hourCount) * 100}% - 4px)`,
+                    }}
+                  >
+                    <span className="venue-calendar__buffer-label">Turnaround</span>
+                  </div>
+                )}
+              </Fragment>
             );
           })}
         </div>

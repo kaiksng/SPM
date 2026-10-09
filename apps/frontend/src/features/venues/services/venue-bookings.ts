@@ -68,15 +68,47 @@ export async function getActiveVenueBooking(eventId: string): Promise<ActiveVenu
   };
 }
 
+export type VenueBookingAvailability = {
+  available: boolean;
+  reason: string | null;
+};
+
+/**
+ * Read-only pre-check so the "Request venue" button can be disabled — and
+ * the reason shown — before the coordinator even clicks it, rather than
+ * only after a failed submission. A direct supabase.rpc call: this
+ * function writes nothing, so none of the "must go through the backend's
+ * service client" reasoning below applies to it. submitVenueBookingRequest
+ * and decideVenueBookingRequest call this exact same database function
+ * internally, so this pre-check and the server's real enforcement can
+ * never drift apart.
+ */
+export async function checkVenueBookingAvailability(
+  venueId: string,
+  eventId: string,
+): Promise<VenueBookingAvailability> {
+  const { data, error } = await supabase.rpc("check_venue_booking_availability", {
+    p_venue_id: venueId,
+    p_event_id: eventId,
+  });
+
+  if (error || !data) {
+    throw operationError("This venue's availability could not be checked.");
+  }
+
+  const result = data as { available: boolean; reason: string | null };
+  return { available: result.available, reason: result.reason };
+}
+
 /**
  * Surfaces the database's own exception text rather than a generic
  * fallback — AC02/AC03/AC04/AC07 require the specific missing field or
- * conflict to be identified to the coordinator, and there's no client-side
- * pre-check that already covers it (find_matching_venues screens by
- * capacity/date/location/layout/accessibility/facilities, but not operating
- * hours or the one-per-event rule), so the raised message *is* the
- * identification mechanism — preserved through apiFetch/ApplicationError the
- * same way decideVenueBookingRequest's rationale errors are.
+ * conflict to be identified to the coordinator. checkVenueBookingAvailability
+ * above now covers operating-hours fit and venue/block conflicts
+ * proactively; this still surfaces the raw message as a safety net for the
+ * remaining checks (and for the rare race between the pre-check and the
+ * click) — preserved through apiFetch/ApplicationError the same way
+ * decideVenueBookingRequest's rationale errors are.
  *
  * Goes through apps/backend's service client, not a direct supabase-js call:
  * submit_venue_booking_request now inserts a `notifications` row for every

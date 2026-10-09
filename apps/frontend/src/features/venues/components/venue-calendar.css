@@ -123,6 +123,42 @@
   );
 }
 
+/* Setup/turnaround segments on the day timebelt — deliberately neutral grey,
+   not a tint of any booking status color, so a buffer segment never reads
+   as its own booking state. Dashed border + light diagonal hatch, distinct
+   from Booked's solid pink hatch above. */
+.venue-calendar__buffer-bar {
+  border: 1px dashed #cbd5e1;
+  background-color: #f8fafc;
+  background-image: repeating-linear-gradient(
+    135deg,
+    #e2e8f0 0,
+    #e2e8f0 3px,
+    transparent 3px,
+    transparent 8px
+  );
+}
+.venue-calendar__buffer-label {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.venue-calendar__buffer-swatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    #cbd5e1 0,
+    #cbd5e1 2px,
+    transparent 2px,
+    transparent 5px
+  );
+}
+
 /* A day the venue has no operating-hours period for — greyed out and not
    selectable (dateClick in VenueAvailabilityPage.tsx ignores clicks on it). */
 .venue-calendar__closed-day {
