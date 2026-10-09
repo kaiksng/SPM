@@ -31,10 +31,18 @@ const COORDINATOR_VENUE_HOLD_TYPES = new Set<NotificationType>([
 
 // Venue-staff-facing: see the comment below on why these go to
 // /venue-requests, same as "venue_request".
-const VENUE_STAFF_TYPES = new Set<NotificationType>([
+const VENUE_STAFF_REQUEST_TYPES = new Set<NotificationType>([
   "venue_request",
   "venue_hold_confirmed",
   "venue_request_withdrawn",
+]);
+
+// Also venue-staff-facing: a conflict notification now goes to Venue Staff
+// (not the coordinator — see recheck_venue_conflicts), so it links to the
+// Flagged page they can actually open, not an event page.
+const VENUE_STAFF_CONFLICT_TYPES = new Set<NotificationType>([
+  "venue_conflict_flagged",
+  "venue_conflict_resolved",
 ]);
 
 /**
@@ -47,7 +55,8 @@ const VENUE_STAFF_TYPES = new Set<NotificationType>([
  * per-request route, so that's the target regardless of eventId.
  */
 function notificationDestination(notification: NotificationSummary): string | undefined {
-  if (VENUE_STAFF_TYPES.has(notification.type)) return "/venue-requests";
+  if (VENUE_STAFF_REQUEST_TYPES.has(notification.type)) return "/venue-requests";
+  if (VENUE_STAFF_CONFLICT_TYPES.has(notification.type)) return "/flagged-bookings";
   if (!notification.eventId) return undefined;
   if (COORDINATOR_VENUE_HOLD_TYPES.has(notification.type)) {
     return `/events/${notification.eventId}/venue`;
