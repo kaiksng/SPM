@@ -12,6 +12,7 @@ import { EventRequestEditorPage } from "@/routes/EventRequestEditorPage";
 import { EventsPage } from "@/routes/EventsPage";
 import { EventEquipmentPage } from "@/routes/EventEquipmentPage";
 import { EventVenuePage } from "@/routes/EventVenuePage";
+import { FlaggedBookingsPage } from "@/routes/FlaggedBookingsPage";
 import { LoginPage } from "@/routes/LoginPage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
 import { PublicPage } from "@/routes/PublicPage";
@@ -67,6 +68,7 @@ export function App() {
                 element={<VenueAvailabilityPage />}
               />
               <Route path="venue-requests" element={<VenueRequestsPage />} />
+              <Route path="flagged-bookings" element={<FlaggedBookingsPage />} />
               <Route path="equipment" element={<EquipmentPage />} />
               <Route path="browse-events" element={<BrowseEventsPage />} />
               <Route path="safety-checks" element={<SafetyChecksPage />} />

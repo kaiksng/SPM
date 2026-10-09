@@ -18,6 +18,8 @@ function validValues(overrides: Partial<VenueFormValues> = {}): VenueFormValues 
     layouts: ["Theatre"],
     description: "",
     accessibilityNotes: "",
+    setupTimeMinutes: "0",
+    turnaroundTimeMinutes: "0",
     ...overrides,
   };
 }
@@ -239,6 +241,29 @@ describe("venueFormSchema", () => {
       expect(fieldErrors(validValues({ [field]: text }))[field] === undefined).toBe(valid);
     });
   });
+
+  describe.each(["setupTimeMinutes", "turnaroundTimeMinutes"] as const)("%s", (field) => {
+    const message =
+      field === "setupTimeMinutes"
+        ? "Enter setup time as 0 or a positive whole number"
+        : "Enter turnaround time as 0 or a positive whole number";
+
+    it.each([
+      ["0", true],
+      ["45", true],
+      ["-1", false],
+      ["1.5", false],
+      ["abc", false],
+      ["", false],
+    ])("%j -> valid: %s", (value, valid) => {
+      const errors = fieldErrors(validValues({ [field]: value }));
+      if (valid) {
+        expect(errors[field]).toBeUndefined();
+      } else {
+        expect(errors[field]).toBe(message);
+      }
+    });
+  });
 });
 
 describe("emptyVenueFormValues", () => {
@@ -273,6 +298,8 @@ describe("toVenuePayload", () => {
       accessibility_notes: "Ramp at entrance",
       facilities: ["Projector", "Stage"],
       layouts: ["Theatre", "Banquet"],
+      setup_time_minutes: 0,
+      turnaround_time_minutes: 0,
     });
   });
 

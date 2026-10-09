@@ -1,5 +1,5 @@
 import { formatOperatingHours, hasPermission, isLocationArea } from "@spm/shared";
-import { ArrowLeft, Ban, Building2, CalendarClock } from "lucide-react";
+import { ArrowLeft, Ban, Building2, CalendarClock, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 
@@ -12,8 +12,11 @@ import { eventSearchDefaults } from "@/features/venues/components/manual-venue-s
 import { getVenueLayoutImage } from "@/features/venues/utils/venue-layout-image";
 import {
   getVenue,
+  listVenueBufferTimeChanges,
+  recheckVenueConflicts,
   VENUE_AVAILABILITY_LABELS,
   type VenueAvailabilityStatus,
+  type VenueBufferTimeChange,
   type VenueDetail,
 } from "@/features/venues/services/venues";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -24,6 +27,11 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
   timeStyle: "short",
   timeZone: "Asia/Singapore",
 });
+
+const BUFFER_FIELD_LABELS: Record<VenueBufferTimeChange["field"], string> = {
+  setup_time_minutes: "Setup time",
+  turnaround_time_minutes: "Turnaround time",
+};
 
 /**
  * Read-only view of a venue catalogue entry — the entry point from the venue
@@ -59,6 +67,9 @@ export function VenueDetailPage() {
   const [availabilityChecked, setAvailabilityChecked] = useState(false);
   const [availabilityError, setAvailabilityError] = useState("");
   const [activeBooking, setActiveBooking] = useState(false);
+  const [bufferTimeChanges, setBufferTimeChanges] = useState<VenueBufferTimeChange[]>([]);
+  const [rechecking, setRechecking] = useState(false);
+  const [recheckMessage, setRecheckMessage] = useState<string>();
   const canManageVenues = hasPermission(profile?.role ?? "attendee", "manageVenue");
   const canRequestVenue = Boolean(forEventId) && profile?.role === "event_coordinator"
     && forEvent?.assignedCoordinatorId === user?.id;
@@ -99,6 +110,23 @@ export function VenueDetailPage() {
   }, [venueId]);
 
   useEffect(() => {
+    if (!venueId || !canManageVenues) return;
+    let active = true;
+    listVenueBufferTimeChanges(venueId)
+      .then((changes) => {
+        if (active) setBufferTimeChanges(changes);
+      })
+      .catch(() => {
+        // Non-critical — the Overview card's Setup/Turnaround fields still
+        // render fine without a history log.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [venueId, canManageVenues]);
+
+  useEffect(() => {
     if (!forEventId || !venueId) return;
     let active = true;
     setAvailabilityChecked(false);
@@ -133,6 +161,28 @@ export function VenueDetailPage() {
       active = false;
     };
   }, [forEventId, venueId]);
+
+  async function handleRecheckConflicts() {
+    if (!venueId) return;
+    setRechecking(true);
+    setRecheckMessage(undefined);
+    try {
+      const result = await recheckVenueConflicts(venueId);
+      setRecheckMessage(
+        result.activeCount === 0
+          ? "No scheduling conflicts for this venue."
+          : `${result.activeCount} conflict${result.activeCount === 1 ? "" : "s"} flagged for this venue. View them on the Flagged page.`,
+      );
+    } catch (recheckError) {
+      setRecheckMessage(
+        recheckError instanceof Error
+          ? recheckError.message
+          : "This venue's conflicts could not be re-checked.",
+      );
+    } finally {
+      setRechecking(false);
+    }
+  }
 
   async function handleRequestVenue() {
     if (!forEventId || !venueId) return;
@@ -209,6 +259,17 @@ export function VenueDetailPage() {
                     </Link>
                   )}
                   {canManageVenues && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={rechecking}
+                      onClick={handleRecheckConflicts}
+                    >
+                      <RefreshCw /> {rechecking ? "Re-checking…" : "Re-check conflicts"}
+                    </Button>
+                  )}
+                  {canManageVenues && (
                     <Link
                       to={`/venues/${venueId}/edit`}
                       className={buttonVariants({
@@ -227,6 +288,11 @@ export function VenueDetailPage() {
                 Last updated {dateTimeFormatter.format(new Date(venue.updatedAt))}
                 {venue.updatedByName && ` by ${venue.updatedByName}`}
               </p>
+              {recheckMessage && (
+                <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                  {recheckMessage}
+                </p>
+              )}
 
               <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
                 <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
@@ -238,6 +304,25 @@ export function VenueDetailPage() {
                     <Field label="Address" value={venue.location} />
                   )}
                   <Field label="Capacity" value={venue.capacity} />
+                  {/* Wrapped in its own row, spanning both columns, so Setup
+                      and Turnaround always stay paired regardless of how
+                      many fields (Location, Address, Capacity) precede them —
+                      Address is conditional, so its presence would otherwise
+                      shift this pair out of alignment. */}
+                  <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
+                    <div className="rounded-lg bg-accent px-3.5 py-2.5">
+                      <dt className="text-xs font-medium text-primary">Setup time</dt>
+                      <dd className="mt-1 text-sm font-semibold text-slate-900">
+                        {venue.setupTimeMinutes} min
+                      </dd>
+                    </div>
+                    <div className="rounded-lg bg-accent px-3.5 py-2.5">
+                      <dt className="text-xs font-medium text-primary">Turnaround time</dt>
+                      <dd className="mt-1 text-sm font-semibold text-slate-900">
+                        {venue.turnaroundTimeMinutes} min
+                      </dd>
+                    </div>
+                  </div>
                   <Field
                     label="Operating hours"
                     value={formatOperatingHours(venue.operatingHours)}
@@ -290,6 +375,45 @@ export function VenueDetailPage() {
                   </div>
                 </dl>
               </section>
+
+              {/* AC: Venue Staff can see the setup/turnaround change log —
+                  inline here rather than a separate route (unlike
+                  EventHistoryPage), since a venue's buffer edits are a
+                  short, low-volume log, not the multi-stage history an
+                  event accumulates. RLS only lets venue_staff read
+                  venue_buffer_time_changes anyway, so gating the section on
+                  canManageVenues matches what the query would return. */}
+              {canManageVenues && (
+                <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+                  <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
+                    Change history
+                  </h2>
+                  {bufferTimeChanges.length === 0 ? (
+                    <p className="mt-4 text-sm text-slate-500">
+                      No setup or turnaround time changes recorded yet.
+                    </p>
+                  ) : (
+                    <ol className="mt-4 space-y-2">
+                      {bufferTimeChanges.map((change) => (
+                        <li
+                          key={change.id}
+                          className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-sm"
+                        >
+                          <span className="text-slate-800">
+                            {BUFFER_FIELD_LABELS[change.field]} changed{" "}
+                            <span className="text-slate-400">{change.previousValue} min →</span>{" "}
+                            <b>{change.newValue} min</b>
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {change.changedByName ?? "Unknown"} ·{" "}
+                            {dateTimeFormatter.format(new Date(change.changedAt))}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </section>
+              )}
 
               {canRequestVenue && (
                 <section

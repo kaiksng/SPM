@@ -24,6 +24,8 @@ function validValues(overrides: Partial<VenueFormValues> = {}): VenueFormValues 
     layouts: ["Theatre"],
     description: "",
     accessibilityNotes: "",
+    setupTimeMinutes: "0",
+    turnaroundTimeMinutes: "0",
     ...overrides,
   };
 }
@@ -51,10 +53,16 @@ function renderForm(props: Partial<Parameters<typeof VenueForm>[0]> = {}) {
   );
 }
 
+// Field wraps each input in a bare <span> label, not a real <label for>
+// (see venue-form.tsx's comment on why), so the three number inputs can
+// only be told apart by DOM order: Capacity, then Setup time, then
+// Turnaround time.
 const fields = {
   name: () => screen.getByPlaceholderText("e.g. Innovation Hall"),
   location: () => screen.getByPlaceholderText("Optional building or street address"),
-  capacity: () => screen.getByRole("spinbutton"),
+  capacity: () => screen.getAllByRole("spinbutton")[0]!,
+  setupTime: () => screen.getAllByRole("spinbutton")[1]!,
+  turnaroundTime: () => screen.getAllByRole("spinbutton")[2]!,
   description: () => screen.getByPlaceholderText("Notes coordinators should know before booking."),
   accessibility: () =>
     screen.getByPlaceholderText("Describe accessibility features, or leave blank if none."),
@@ -80,12 +88,16 @@ describe("VenueForm", () => {
       initialValues: validValues({
         description: "Big room",
         accessibilityNotes: "Ramp",
+        setupTimeMinutes: "15",
+        turnaroundTimeMinutes: "30",
       }),
     });
 
     expect(fields.name()).toHaveValue("Innovation Hall");
     expect(fields.location()).toHaveValue("Block A");
     expect(fields.capacity()).toHaveValue(120);
+    expect(fields.setupTime()).toHaveValue(15);
+    expect(fields.turnaroundTime()).toHaveValue(30);
     expect(screen.getByRole("combobox", { name: "Location" })).toHaveValue("Central Area");
     expect(screen.queryByText("Venue areas")).not.toBeInTheDocument();
     expect(screen.getByText("Projector (previously saved)")).toBeInTheDocument();
@@ -140,6 +152,10 @@ describe("VenueForm", () => {
     await user.type(fields.name(), "  Innovation Hall  ");
     await user.type(fields.location(), "Block A");
     await user.type(fields.capacity(), "80");
+    await user.clear(fields.setupTime());
+    await user.type(fields.setupTime(), "15");
+    await user.clear(fields.turnaroundTime());
+    await user.type(fields.turnaroundTime(), "30");
     await user.click(screen.getByRole("button", { name: "Theatre" }));
     await user.click(screen.getByRole("button", { name: "Mon" }));
     await user.click(screen.getByRole("button", { name: "Tue" }));
@@ -162,6 +178,8 @@ describe("VenueForm", () => {
       layouts: ["Theatre"],
       description: "Bright room",
       accessibilityNotes: "Lift access",
+      setupTimeMinutes: "15",
+      turnaroundTimeMinutes: "30",
     });
     expect(screen.queryAllByRole("alert")).toHaveLength(0);
   });

@@ -13,9 +13,12 @@ vi.mock("@/lib/supabase-client", () => ({
   supabase: { from: fromMock, rpc: rpcMock },
 }));
 
-vi.mock("@/lib/api-client", () => ({
-  apiFetch: apiFetchMock,
-}));
+vi.mock("@/lib/api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-client")>();
+  return { ...actual, apiFetch: apiFetchMock };
+});
+
+import { ApiError } from "@/lib/api-client";
 
 import {
   createVenue,
@@ -40,6 +43,8 @@ function validValues(overrides: Partial<VenueFormValues> = {}): VenueFormValues 
     layouts: ["Theatre", "Banquet"],
     description: "",
     accessibilityNotes: "Ramp",
+    setupTimeMinutes: "0",
+    turnaroundTimeMinutes: "0",
     ...overrides,
   };
 }
@@ -54,6 +59,8 @@ const EXPECTED_PAYLOAD = {
   accessibility_notes: "Ramp",
   facilities: ["Projector"],
   layouts: ["Theatre", "Banquet"],
+  setup_time_minutes: 0,
+  turnaround_time_minutes: 0,
 };
 
 beforeEach(() => {
@@ -85,36 +92,34 @@ describe("createVenue", () => {
 });
 
 describe("updateVenue", () => {
-  it("calls update_venue with the venue id and payload, returning the flagged-booking count", async () => {
-    rpcMock.mockResolvedValue({
+  it("calls the backend's update route with the venue id and payload, returning the flagged-booking count", async () => {
+    apiFetchMock.mockResolvedValue({
       data: { venueId: "venue-1", flaggedBookingsCount: 2 },
-      error: null,
     });
 
     await expect(updateVenue("venue-1", validValues())).resolves.toEqual({
       venueId: "venue-1",
       flaggedBookingsCount: 2,
     });
-    expect(rpcMock).toHaveBeenCalledWith("update_venue", {
-      p_venue_id: "venue-1",
-      p_venue: EXPECTED_PAYLOAD,
+    expect(apiFetchMock).toHaveBeenCalledWith("/venues/venue-1/update", {
+      method: "POST",
+      body: JSON.stringify({ venue: EXPECTED_PAYLOAD }),
     });
   });
 
-  it("rejects invalid values before calling the database", async () => {
+  it("rejects invalid values before calling the backend", async () => {
     await expect(updateVenue("venue-1", validValues({ layouts: [] }))).rejects.toThrow();
-    expect(rpcMock).not.toHaveBeenCalled();
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 });
 
-// mapVenueRpcError is private — exercised through both write paths.
-describe.each([
-  ["createVenue", () => createVenue(validValues())],
-  ["updateVenue", () => updateVenue("venue-1", validValues())],
-])("%s database error mapping", (_name, save) => {
+// mapVenueRpcError is private — exercised through createVenue's direct
+// supabase.rpc path (create_venue never notifies anyone, so it stays
+// direct — see the comment on updateVenue above).
+describe("createVenue database error mapping", () => {
   async function saveWithError(error: Record<string, unknown>) {
     rpcMock.mockResolvedValue({ data: null, error });
-    const thrown = await save().catch((caught: unknown) => caught);
+    const thrown = await createVenue(validValues()).catch((caught: unknown) => caught);
     expect(thrown).toBeInstanceOf(EventSubmissionError);
     return thrown as EventSubmissionError;
   }
@@ -202,6 +207,61 @@ describe.each([
   });
 });
 
+// updateVenue's counterpart: apps/backend's mapVenueError already does the
+// 23505/23514/42501/22P02 -> ApplicationError translation server-side, so
+// this only exercises mapVenueApiError reshaping an ApiError (whatever the
+// backend sent) into the same EventSubmissionError/fieldErrors shape
+// VenueForm expects — not re-testing the backend's own mapping.
+describe("updateVenue database error mapping", () => {
+  async function saveWithError(error: unknown) {
+    apiFetchMock.mockRejectedValue(error);
+    const thrown = await updateVenue("venue-1", validValues()).catch((caught: unknown) => caught);
+    expect(thrown).toBeInstanceOf(EventSubmissionError);
+    return thrown as EventSubmissionError;
+  }
+
+  it("maps a field-level ApiError onto that field", async () => {
+    const error = await saveWithError(
+      new ApiError("A venue with this name already exists at this location", 422, [
+        { field: "name", message: "A venue with this name already exists at this location" },
+      ]),
+    );
+
+    expect(error.message).toBe("A venue with this name already exists at this location");
+    expect(error.fieldErrors).toEqual({
+      name: "A venue with this name already exists at this location",
+    });
+  });
+
+  it("maps several field issues onto every listed field", async () => {
+    const error = await saveWithError(
+      new ApiError("Check the highlighted fields and try again.", 422, [
+        { field: "capacity", message: "Capacity must be positive" },
+        { field: "facilities", message: "Add at least one facility" },
+      ]),
+    );
+
+    expect(error.message).toBe("Check the highlighted fields and try again.");
+    expect(error.fieldErrors).toEqual({
+      capacity: "Capacity must be positive",
+      facilities: "Add at least one facility",
+    });
+  });
+
+  it("surfaces the backend's own message when there are no field issues", async () => {
+    const error = await saveWithError(new ApiError("Only venue staff can manage venues", 403));
+
+    expect(error.message).toBe("Only venue staff can manage venues");
+    expect(error.fieldErrors).toBeUndefined();
+  });
+
+  it("falls back to a generic message for a non-ApiError failure", async () => {
+    const error = await saveWithError(new TypeError("network error"));
+
+    expect(error.message).toBe("network error");
+  });
+});
+
 describe("getVenue", () => {
   const row = {
     name: "Innovation Hall",
@@ -212,6 +272,8 @@ describe("getVenue", () => {
     description: "Big room",
     accessibility_notes: "Ramp",
     updated_at: "2026-09-25T06:20:00Z",
+    setup_time_minutes: 15,
+    turnaround_time_minutes: 30,
     updated_by_profile: { full_name: "Daryl" },
     venue_facilities: [{ facility_name: "Projector" }, { facility_name: "Stage" }],
     venue_layouts: [{ layout_name: "Theatre" }],
@@ -233,6 +295,8 @@ describe("getVenue", () => {
       layouts: ["Theatre"],
       updatedAt: "2026-09-25T06:20:00Z",
       updatedByName: "Daryl",
+      setupTimeMinutes: "15",
+      turnaroundTimeMinutes: "30",
     });
     expect(fromMock).toHaveBeenCalledWith("venues");
     expect(query.eq).toHaveBeenCalledWith("id", "venue-1");
@@ -330,6 +394,8 @@ describe("listVenues", () => {
     description: null,
     accessibility_notes: null,
     updated_at: "2026-09-25T06:20:00Z",
+    setup_time_minutes: 15,
+    turnaround_time_minutes: 30,
     updated_by_profile: { full_name: "Daryl" },
     venue_facilities: [{ facility_name: "Projector" }],
     venue_layouts: [{ layout_name: "Theatre" }, { layout_name: "Banquet" }],
@@ -355,6 +421,8 @@ describe("listVenues", () => {
         updatedAt: "2026-09-25T06:20:00Z",
         updatedByName: "Daryl",
         needsReviewCount: 2,
+        setupTimeMinutes: 15,
+        turnaroundTimeMinutes: 30,
       },
     ]);
     expect(query.order).toHaveBeenCalledWith("updated_at", { ascending: false });

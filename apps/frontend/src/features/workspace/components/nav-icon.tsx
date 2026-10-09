@@ -4,6 +4,7 @@ import {
   CalendarDays,
   ClipboardCheck,
   Compass,
+  Flag,
   ShieldCheck,
   Wrench,
 } from "lucide-react";
@@ -12,6 +13,7 @@ const NAV_ICONS = {
   events: CalendarDays,
   venues: Building2,
   requests: ClipboardCheck,
+  "flagged-bookings": Flag,
   equipment: Wrench,
   "browse-events": Compass,
   "safety-checks": ShieldCheck,

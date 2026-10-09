@@ -211,6 +211,41 @@ export function VenueForm({
         </Field>
       </FormSection>
 
+      <FormSection
+        number="02"
+        title="Setup & turnaround time"
+        description="Blocks the venue immediately before and after each booking, so availability reflects the time needed to prepare and reset the room. Whole minutes only — both default to 0."
+      >
+        <Field label="Setup time before booking" error={errors.setupTimeMinutes}>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min="0"
+              step="5"
+              className="w-28"
+              value={values.setupTimeMinutes}
+              onChange={(event) => setField("setupTimeMinutes", event.target.value)}
+              aria-invalid={Boolean(errors.setupTimeMinutes)}
+            />
+            <span className="text-sm text-slate-500">minutes</span>
+          </div>
+        </Field>
+        <Field label="Turnaround time after booking" error={errors.turnaroundTimeMinutes}>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min="0"
+              step="5"
+              className="w-28"
+              value={values.turnaroundTimeMinutes}
+              onChange={(event) => setField("turnaroundTimeMinutes", event.target.value)}
+              aria-invalid={Boolean(errors.turnaroundTimeMinutes)}
+            />
+            <span className="text-sm text-slate-500">minutes</span>
+          </div>
+        </Field>
+      </FormSection>
+
       {capacityWarning && (
         <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />

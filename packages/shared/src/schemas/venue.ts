@@ -67,6 +67,17 @@ export const venueFormSchema = z.object({
     .max(30, "Add no more than 30 layouts"),
   description: optionalText(2_000),
   accessibilityNotes: optionalText(2_000),
+  // Both default to "0" (emptyVenueFormValues) — whole minutes only, no
+  // upper bound enforced here (public.update_venue is the authority; this
+  // just screens the obvious bad input before a round trip).
+  setupTimeMinutes: z
+    .string()
+    .trim()
+    .regex(/^\d+$/, "Enter setup time as 0 or a positive whole number"),
+  turnaroundTimeMinutes: z
+    .string()
+    .trim()
+    .regex(/^\d+$/, "Enter turnaround time as 0 or a positive whole number"),
 });
 
 export type VenueFormValues = z.infer<typeof venueFormSchema>;
@@ -81,6 +92,8 @@ export const emptyVenueFormValues: VenueFormValues = {
   layouts: [],
   description: "",
   accessibilityNotes: "",
+  setupTimeMinutes: "0",
+  turnaroundTimeMinutes: "0",
 };
 
 /** Matches the jsonb keys public.create_venue/public.update_venue expect. */
@@ -94,6 +107,8 @@ export type VenuePayload = {
   accessibility_notes: string | null;
   facilities: string[];
   layouts: string[];
+  setup_time_minutes: number;
+  turnaround_time_minutes: number;
 };
 
 export function toVenuePayload(values: VenueFormValues): VenuePayload {
@@ -107,5 +122,7 @@ export function toVenuePayload(values: VenueFormValues): VenuePayload {
     accessibility_notes: values.accessibilityNotes.trim() || null,
     facilities: values.facilities.map((facility) => facility.trim()),
     layouts: values.layouts,
+    setup_time_minutes: Number(values.setupTimeMinutes),
+    turnaround_time_minutes: Number(values.turnaroundTimeMinutes),
   };
 }

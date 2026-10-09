@@ -9,6 +9,7 @@ import { healthRouter } from "./routes/health.route";
 import { venueBookingDecisionsRouter } from "./routes/venue-booking-decisions.route";
 import { venueBookingHoldRouter } from "./routes/venue-booking-hold.route";
 import { venueBookingSubmissionsRouter } from "./routes/venue-booking-submissions.route";
+import { venueManagementRouter } from "./routes/venue-management.route";
 import { venueSuggestionsRouter } from "./routes/venue-suggestions.route";
 
 export function createApp() {
@@ -24,6 +25,7 @@ export function createApp() {
   app.use(venueBookingDecisionsRouter);
   app.use(venueBookingHoldRouter);
   app.use(venueBookingSubmissionsRouter);
+  app.use(venueManagementRouter);
   app.use(venueSuggestionsRouter);
 
   app.use(errorHandler);

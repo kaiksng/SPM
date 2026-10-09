@@ -4,6 +4,7 @@ export type NavItemId =
   | "events"
   | "venues"
   | "requests"
+  | "flagged-bookings"
   | "equipment"
   | "browse-events"
   | "safety-checks";
@@ -18,6 +19,11 @@ const NAV_ITEMS: Record<NavItemId, NavItem> = {
   events: { id: "events", label: "Events", href: "/events" },
   venues: { id: "venues", label: "Venues", href: "/venues" },
   requests: { id: "requests", label: "Requests", href: "/venue-requests" },
+  "flagged-bookings": {
+    id: "flagged-bookings",
+    label: "Flagged",
+    href: "/flagged-bookings",
+  },
   equipment: { id: "equipment", label: "Equipment", href: "/equipment" },
   "browse-events": {
     id: "browse-events",
@@ -34,7 +40,7 @@ const NAV_ITEMS: Record<NavItemId, NavItem> = {
 const ROLE_NAV_ITEM_IDS = {
   event_organiser: ["events", "venues", "equipment"],
   event_coordinator: ["events", "venues", "equipment"],
-  venue_staff: ["venues", "requests"],
+  venue_staff: ["venues", "requests", "flagged-bookings"],
   technical_support_staff: ["equipment"],
   attendee: ["browse-events"],
   // View-only for now: the Lead's dashboard is the shared "events" section,

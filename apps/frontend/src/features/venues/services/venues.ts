@@ -8,7 +8,7 @@ import {
 } from "@spm/shared";
 import type { PostgrestError } from "@supabase/supabase-js";
 
-import { apiFetch } from "@/lib/api-client";
+import { ApiError, apiFetch } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase-client";
 
 // AC08's four venue-period states — purely booking/block-derived, not
@@ -40,6 +40,11 @@ export type VenueSummary = {
   updatedByName: string | null;
   // Venue Catalogue AC06: a nonzero count surfaces the "Needs Review" badge.
   needsReviewCount: number;
+  // Only set by listVenues (the catalogue) — listSuggestedVenues's
+  // find_matching_venues doesn't return these, since a venue suggestion for
+  // one event's schedule has no need for them.
+  setupTimeMinutes?: number;
+  turnaroundTimeMinutes?: number;
   // Only meaningful for a suggestion against a specific event's schedule
   // (listSuggestedVenues) — undefined for the plain catalogue (listVenues),
   // which has no event to check availability against.
@@ -73,6 +78,8 @@ export async function listVenues(): Promise<VenueSummary[]> {
         description,
         accessibility_notes,
         updated_at,
+        setup_time_minutes,
+        turnaround_time_minutes,
         updated_by_profile:profiles!venues_updated_by_fkey (full_name),
         venue_facilities (facility_name),
         venue_layouts (layout_name),
@@ -88,7 +95,7 @@ export async function listVenues(): Promise<VenueSummary[]> {
       .from("venues")
       .select(`
         id, name, location, capacity, operating_hours, description,
-        accessibility_notes, updated_at,
+        accessibility_notes, updated_at, setup_time_minutes, turnaround_time_minutes,
         updated_by_profile:profiles!venues_updated_by_fkey (full_name),
         venue_facilities (facility_name), venue_layouts (layout_name),
         venue_bookings (needs_review)
@@ -116,6 +123,8 @@ export async function listVenues(): Promise<VenueSummary[]> {
       updatedByName: venue.updated_by_profile?.full_name ?? null,
       needsReviewCount: venue.venue_bookings.filter((booking) => booking.needs_review)
         .length,
+      setupTimeMinutes: venue.setup_time_minutes,
+      turnaroundTimeMinutes: venue.turnaround_time_minutes,
     }),
   );
 }
@@ -200,6 +209,8 @@ export async function getVenue(venueId: string): Promise<VenueDetail> {
         description,
         accessibility_notes,
         updated_at,
+        setup_time_minutes,
+        turnaround_time_minutes,
         updated_by_profile:profiles!venues_updated_by_fkey (full_name),
         venue_facilities (facility_name),
         venue_layouts (layout_name)
@@ -213,7 +224,7 @@ export async function getVenue(venueId: string): Promise<VenueDetail> {
       .from("venues")
       .select(`
         name, location, capacity, operating_hours, description,
-        accessibility_notes, updated_at,
+        accessibility_notes, updated_at, setup_time_minutes, turnaround_time_minutes,
         updated_by_profile:profiles!venues_updated_by_fkey (full_name),
         venue_facilities (facility_name), venue_layouts (layout_name)
       `)
@@ -241,7 +252,47 @@ export async function getVenue(venueId: string): Promise<VenueDetail> {
     layouts: data.venue_layouts.map((layout) => layout.layout_name) as VenueFormValues["layouts"],
     updatedAt: data.updated_at,
     updatedByName: data.updated_by_profile?.full_name ?? null,
+    setupTimeMinutes: data.setup_time_minutes.toString(),
+    turnaroundTimeMinutes: data.turnaround_time_minutes.toString(),
   };
+}
+
+export type VenueBufferTimeChange = {
+  id: number;
+  field: "setup_time_minutes" | "turnaround_time_minutes";
+  previousValue: number;
+  newValue: number;
+  changedByName: string | null;
+  changedAt: string;
+};
+
+/**
+ * AC: each setup/turnaround change, newest first, with who made it and the
+ * before/after value. RLS's "venue staff view buffer time history" policy
+ * already scopes this to venue_staff — there's no write policy on this
+ * table at all, only update_venue (security definer) inserts into it.
+ */
+export async function listVenueBufferTimeChanges(
+  venueId: string,
+): Promise<VenueBufferTimeChange[]> {
+  const { data, error } = await supabase
+    .from("venue_buffer_time_changes")
+    .select(
+      "id, field_name, previous_value, new_value, changed_at, changed_by:profiles (full_name)",
+    )
+    .eq("venue_id", venueId)
+    .order("changed_at", { ascending: false });
+
+  if (error) throw operationError("This venue's change history is unavailable.");
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    field: row.field_name as VenueBufferTimeChange["field"],
+    previousValue: row.previous_value,
+    newValue: row.new_value,
+    changedByName: row.changed_by?.full_name ?? null,
+    changedAt: row.changed_at,
+  }));
 }
 
 /**
@@ -279,6 +330,89 @@ export async function listAtRiskBookings(
     }));
 }
 
+export type FlaggedBookingConflict = {
+  id: number;
+  bookingId: string;
+  eventId: string;
+  eventTitle: string;
+  venueId: string;
+  venueName: string;
+  venueLayouts: string[];
+  startsAt: string;
+  endsAt: string;
+  // The event's CURRENT assigned coordinator (events.assigned_coordinator_id),
+  // not venue_bookings.requested_by — a reassignment after the request was
+  // submitted would otherwise leave this pointing at someone no longer on
+  // the event.
+  coordinatorName: string | null;
+  // Set on the later-created booking's own row (false on the earlier one) —
+  // not used to single anyone out in the UI; both coordinators are expected
+  // to liaise and resolve the conflict together, but this is kept for any
+  // future use (e.g. sorting the queue by who acted last).
+  isResponsible: boolean;
+  cause: string;
+  flaggedAt: string;
+  // Exactly one of these is set, matching
+  // venue_booking_conflicts_one_other_side.
+  conflictingEventTitle: string | null;
+  conflictingBlockReason: string | null;
+};
+
+/**
+ * Every currently-unresolved conflict, newest first — Venue Staff's
+ * "Flagged" queue. RLS's "venue staff view conflicts" policy already grants
+ * unrestricted select, so this reads straight through Supabase.
+ */
+export async function listFlaggedBookingConflicts(): Promise<FlaggedBookingConflict[]> {
+  const { data, error } = await supabase
+    .from("venue_booking_conflicts")
+    .select(
+      `
+        id, cause, is_responsible, flagged_at,
+        booking:venue_bookings!venue_booking_conflicts_booking_id_fkey (
+          id, starts_at, ends_at, event_id,
+          events (
+            title,
+            coordinator:profiles!events_assigned_coordinator_id_fkey (full_name)
+          ),
+          venues (id, name, venue_layouts (layout_name))
+        ),
+        conflicting_booking:venue_bookings!venue_booking_conflicts_conflicting_booking_id_fkey (
+          events (title)
+        ),
+        conflicting_block:venue_unavailability!venue_booking_conflicts_conflicting_block_id_fkey (
+          reason
+        )
+      `,
+    )
+    .is("resolved_at", null)
+    .order("flagged_at", { ascending: false });
+
+  if (error) throw operationError("Flagged bookings are unavailable.");
+
+  return (data ?? [])
+    .filter((row) => row.booking)
+    .map(
+      (row): FlaggedBookingConflict => ({
+        id: row.id,
+        bookingId: row.booking!.id,
+        eventId: row.booking!.event_id,
+        eventTitle: row.booking!.events?.title ?? "Unknown event",
+        venueId: row.booking!.venues?.id ?? "",
+        venueName: row.booking!.venues?.name ?? "Unknown venue",
+        venueLayouts: row.booking!.venues?.venue_layouts.map((layout) => layout.layout_name) ?? [],
+        startsAt: row.booking!.starts_at,
+        endsAt: row.booking!.ends_at,
+        coordinatorName: row.booking!.events?.coordinator?.full_name ?? null,
+        isResponsible: row.is_responsible,
+        cause: row.cause,
+        flaggedAt: row.flagged_at,
+        conflictingEventTitle: row.conflicting_booking?.events?.title ?? null,
+        conflictingBlockReason: row.conflicting_block?.reason ?? null,
+      }),
+    );
+}
+
 export async function createVenue(values: VenueFormValues) {
   const parsed = venueFormSchema.parse(values);
   await ensureAreaTagsAvailable();
@@ -290,16 +424,41 @@ export async function createVenue(values: VenueFormValues) {
   return data as { venueId: string };
 }
 
+/**
+ * Goes through apps/backend's service client, not a direct supabase-js
+ * call: update_venue now re-checks venue_booking_conflicts when setup/
+ * turnaround time changes, which inserts `notifications` rows — no INSERT
+ * policy for regular users. create_venue above is unaffected (a brand-new
+ * venue has no bookings to conflict with) and stays direct.
+ */
 export async function updateVenue(venueId: string, values: VenueFormValues) {
   const parsed = venueFormSchema.parse(values);
   await ensureAreaTagsAvailable();
-  const { data, error } = await supabase.rpc("update_venue", {
-    p_venue_id: venueId,
-    p_venue: toVenuePayload(parsed),
-  });
+  try {
+    const { data } = await apiFetch(`/venues/${venueId}/update`, {
+      method: "POST",
+      body: JSON.stringify({ venue: toVenuePayload(parsed) }),
+    });
+    return data as { venueId: string; flaggedBookingsCount: number };
+  } catch (error) {
+    throw mapVenueApiError(error);
+  }
+}
 
-  if (error) throw mapVenueRpcError(error);
-  return data as { venueId: string; flaggedBookingsCount: number };
+/** Venue Staff can run a conflict re-check for a venue or all venues. */
+export async function recheckVenueConflicts(
+  venueId: string,
+): Promise<{ venueId: string; flaggedCount: number; clearedCount: number; activeCount: number }> {
+  const { data } = await apiFetch(`/venues/${venueId}/recheck-conflicts`, { method: "POST" });
+  return data as { venueId: string; flaggedCount: number; clearedCount: number; activeCount: number };
+}
+
+export async function recheckAllVenueConflicts(): Promise<{
+  flaggedCount: number;
+  clearedCount: number;
+}> {
+  const { data } = await apiFetch("/venues/recheck-conflicts", { method: "POST" });
+  return data as { flaggedCount: number; clearedCount: number };
 }
 
 async function ensureAreaTagsAvailable() {
@@ -322,6 +481,29 @@ async function ensureAreaTagsAvailable() {
  * same 23505/23514 -> EventSubmissionError translation happens here instead
  * of in a backend route.
  */
+/**
+ * updateVenue's counterpart to mapVenueRpcError below, now that it goes
+ * through the backend: apps/backend's mapVenueError (venue-management.
+ * route.ts) already did the 23505/23514/42501/22P02 translation into an
+ * ApplicationError with a `fields` array — this just reshapes that into the
+ * same EventSubmissionError/fieldErrors shape VenueForm already expects, so
+ * callers don't need to know which path a given write takes.
+ */
+function mapVenueApiError(error: unknown): EventSubmissionError {
+  if (error instanceof ApiError) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of error.fields ?? []) fieldErrors[issue.field] = issue.message;
+    return new EventSubmissionError(
+      error.message,
+      Object.keys(fieldErrors).length > 0 ? fieldErrors : undefined,
+    );
+  }
+
+  return new EventSubmissionError(
+    error instanceof Error ? error.message : "This venue could not be saved. Try again.",
+  );
+}
+
 function mapVenueRpcError(error: PostgrestError): EventSubmissionError {
   if (error.code === "23505") {
     const issue = safeJsonParse(error.details) as

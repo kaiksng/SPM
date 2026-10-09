@@ -1344,6 +1344,126 @@ export type Database = {
           },
         ]
       }
+      venue_booking_conflicts: {
+        Row: {
+          booking_id: string
+          cause: string
+          conflicting_block_id: string | null
+          conflicting_booking_id: string | null
+          flagged_at: string
+          flagged_by: string | null
+          id: number
+          is_responsible: boolean
+          resolved_at: string | null
+          resolved_by: string | null
+        }
+        Insert: {
+          booking_id: string
+          cause: string
+          conflicting_block_id?: string | null
+          conflicting_booking_id?: string | null
+          flagged_at?: string
+          flagged_by?: string | null
+          id?: number
+          is_responsible?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Update: {
+          booking_id?: string
+          cause?: string
+          conflicting_block_id?: string | null
+          conflicting_booking_id?: string | null
+          flagged_at?: string
+          flagged_by?: string | null
+          id?: number
+          is_responsible?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_booking_conflicts_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "venue_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_booking_conflicts_conflicting_block_id_fkey"
+            columns: ["conflicting_block_id"]
+            isOneToOne: false
+            referencedRelation: "venue_unavailability"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_booking_conflicts_conflicting_booking_id_fkey"
+            columns: ["conflicting_booking_id"]
+            isOneToOne: false
+            referencedRelation: "venue_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_booking_conflicts_flagged_by_fkey"
+            columns: ["flagged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_booking_conflicts_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      venue_buffer_time_changes: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          field_name: string
+          id: number
+          new_value: number
+          previous_value: number
+          venue_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          field_name: string
+          id?: number
+          new_value: number
+          previous_value: number
+          venue_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          field_name?: string
+          id?: number
+          new_value?: number
+          previous_value?: number
+          venue_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_buffer_time_changes_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_buffer_time_changes_venue_id_fkey"
+            columns: ["venue_id"]
+            isOneToOne: false
+            referencedRelation: "venues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venues: {
         Row: {
           accessibility_notes: string | null
@@ -1355,6 +1475,8 @@ export type Database = {
           location: string
           name: string
           operating_hours: Json
+          setup_time_minutes: number
+          turnaround_time_minutes: number
           updated_at: string
           updated_by: string | null
         }
@@ -1368,6 +1490,8 @@ export type Database = {
           location: string
           name: string
           operating_hours?: Json
+          setup_time_minutes?: number
+          turnaround_time_minutes?: number
           updated_at?: string
           updated_by?: string | null
         }
@@ -1381,6 +1505,8 @@ export type Database = {
           location?: string
           name?: string
           operating_hours?: Json
+          setup_time_minutes?: number
+          turnaround_time_minutes?: number
           updated_at?: string
           updated_by?: string | null
         }
@@ -1522,6 +1648,14 @@ export type Database = {
           p_booking_id: string
           p_expires_at: string
         }
+        Returns: Json
+      }
+      recheck_venue_conflicts: {
+        Args: { p_actor_id?: string; p_venue_id: string }
+        Returns: Json
+      }
+      recheck_all_venue_conflicts: {
+        Args: { p_actor_id?: string }
         Returns: Json
       }
       reassign_event_coordinator: {
@@ -1725,6 +1859,8 @@ export type Database = {
         | "venue_hold_placed"
         | "venue_hold_confirmed"
         | "venue_request_withdrawn"
+        | "venue_conflict_flagged"
+        | "venue_conflict_resolved"
       request_status:
         | "pending"
         | "approved"
@@ -1911,6 +2047,8 @@ export const Constants = {
         "venue_hold_placed",
         "venue_hold_confirmed",
         "venue_request_withdrawn",
+        "venue_conflict_flagged",
+        "venue_conflict_resolved",
       ],
       request_status: [
         "pending",
