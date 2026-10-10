@@ -149,8 +149,14 @@ describe("VenueForm", () => {
     const user = userEvent.setup();
     renderForm({ initialValues: structuredClone(emptyVenueFormValues) });
 
-    await user.type(fields.name(), "  Innovation Hall  ");
-    await user.type(fields.location(), "Block A");
+    // Longer text is pasted (one input event) rather than typed key by key:
+    // every keystroke re-renders the whole form, and ~60 of them pushed this
+    // test past Vitest's per-test timeout on a busy machine. This test is
+    // about the submitted values, not per-keystroke handling.
+    await user.click(fields.name());
+    await user.paste("  Innovation Hall  ");
+    await user.click(fields.location());
+    await user.paste("Block A");
     await user.type(fields.capacity(), "80");
     await user.clear(fields.setupTime());
     await user.type(fields.setupTime(), "15");
@@ -164,8 +170,10 @@ describe("VenueForm", () => {
     await user.selectOptions(screen.getByRole("combobox", { name: "Location" }), "Bugis");
     await user.click(screen.getByText("Select facilities (0 selected)"));
     await user.click(screen.getByRole("checkbox", { name: "Pantry" }));
-    await user.type(fields.description(), "Bright room");
-    await user.type(fields.accessibility(), "Lift access");
+    await user.click(fields.description());
+    await user.paste("Bright room");
+    await user.click(fields.accessibility());
+    await user.paste("Lift access");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     expect(onSave).toHaveBeenCalledWith({

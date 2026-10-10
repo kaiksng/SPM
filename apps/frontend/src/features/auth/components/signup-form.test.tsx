@@ -45,7 +45,7 @@ describe("SignupForm", () => {
     // frame or more after the click — findByRole waits for them, getByRole
     // checked once and failed intermittently on a loaded CI runner.
     expect(
-      await screen.findByRole("option", { name: "Event organiser" }, { timeout: 3000 }),
+      await screen.findByRole("option", { name: "Event organiser" }),
     ).toBeInTheDocument();
   });
 

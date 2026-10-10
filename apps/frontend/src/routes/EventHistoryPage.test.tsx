@@ -50,6 +50,10 @@ vi.mock("@/features/event-requests/services/equipment", () => ({
   loadEquipmentHistory: (...args: unknown[]) => loadEquipmentHistoryMock(...args),
 }));
 
+vi.mock("@/features/venues/services/venue-bookings", () => ({
+  listVenueBookingsForEvent: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
 
 import { EventHistoryPage } from "./EventHistoryPage";
