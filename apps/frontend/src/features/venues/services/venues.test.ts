@@ -24,8 +24,11 @@ import {
   createVenue,
   getVenue,
   listAtRiskBookings,
+  listFlaggedBookingConflicts,
   listSuggestedVenues,
   listVenues,
+  recheckAllVenueConflicts,
+  recheckVenueConflicts,
   updateVenue,
   VENUE_AVAILABILITY_LABELS,
 } from "./venues";
@@ -525,5 +528,184 @@ describe("VENUE_AVAILABILITY_LABELS", () => {
       confirmed: "Confirmed",
       blocked: "Blocked",
     });
+  });
+});
+
+describe("listFlaggedBookingConflicts", () => {
+  const bookingConflictRow = {
+    id: 7,
+    cause: "setup_time_changed",
+    is_responsible: true,
+    flagged_at: "2026-10-09T02:00:00Z",
+    booking: {
+      id: "booking-1",
+      starts_at: "2026-10-20T01:00:00Z",
+      ends_at: "2026-10-20T03:00:00Z",
+      event_id: "event-1",
+      events: { title: "Leadership Summit", coordinator: { full_name: "Joyce" } },
+      venues: {
+        id: "venue-1",
+        name: "Innovation Hall",
+        venue_layouts: [{ layout_name: "Theatre" }, { layout_name: "Banquet" }],
+      },
+    },
+    conflicting_booking: { events: { title: "Orientation Night" } },
+    conflicting_block: null,
+  };
+
+  it("reads only unresolved conflicts, newest first, and maps a booking-vs-booking conflict", async () => {
+    const query = queryBuilder({ data: [bookingConflictRow], error: null });
+    fromMock.mockReturnValue(query);
+
+    await expect(listFlaggedBookingConflicts()).resolves.toEqual([
+      {
+        id: 7,
+        bookingId: "booking-1",
+        eventId: "event-1",
+        eventTitle: "Leadership Summit",
+        venueId: "venue-1",
+        venueName: "Innovation Hall",
+        venueLayouts: ["Theatre", "Banquet"],
+        startsAt: "2026-10-20T01:00:00Z",
+        endsAt: "2026-10-20T03:00:00Z",
+        coordinatorName: "Joyce",
+        isResponsible: true,
+        cause: "setup_time_changed",
+        flaggedAt: "2026-10-09T02:00:00Z",
+        conflictingEventTitle: "Orientation Night",
+        conflictingBlockReason: null,
+      },
+    ]);
+    expect(fromMock).toHaveBeenCalledWith("venue_booking_conflicts");
+    expect(query.is).toHaveBeenCalledWith("resolved_at", null);
+    expect(query.order).toHaveBeenCalledWith("flagged_at", { ascending: false });
+  });
+
+  it("maps a booking-vs-block conflict to the block's reason", async () => {
+    fromMock.mockReturnValue(
+      queryBuilder({
+        data: [
+          {
+            ...bookingConflictRow,
+            conflicting_booking: null,
+            conflicting_block: { reason: "Annual maintenance" },
+          },
+        ],
+        error: null,
+      }),
+    );
+
+    const [conflict] = await listFlaggedBookingConflicts();
+
+    expect(conflict?.conflictingEventTitle).toBeNull();
+    expect(conflict?.conflictingBlockReason).toBe("Annual maintenance");
+  });
+
+  it("falls back to readable placeholders when related rows are missing", async () => {
+    fromMock.mockReturnValue(
+      queryBuilder({
+        data: [
+          {
+            ...bookingConflictRow,
+            is_responsible: false,
+            booking: { ...bookingConflictRow.booking, events: null, venues: null },
+            conflicting_booking: { events: null },
+            conflicting_block: { reason: null },
+          },
+        ],
+        error: null,
+      }),
+    );
+
+    const [conflict] = await listFlaggedBookingConflicts();
+
+    expect(conflict).toMatchObject({
+      eventTitle: "Unknown event",
+      venueId: "",
+      venueName: "Unknown venue",
+      venueLayouts: [],
+      coordinatorName: null,
+      isResponsible: false,
+      conflictingEventTitle: null,
+      conflictingBlockReason: null,
+    });
+  });
+
+  it("reports no coordinator when the event has none assigned", async () => {
+    fromMock.mockReturnValue(
+      queryBuilder({
+        data: [
+          {
+            ...bookingConflictRow,
+            booking: {
+              ...bookingConflictRow.booking,
+              events: { title: "Leadership Summit", coordinator: null },
+            },
+          },
+        ],
+        error: null,
+      }),
+    );
+
+    const [conflict] = await listFlaggedBookingConflicts();
+
+    expect(conflict?.coordinatorName).toBeNull();
+  });
+
+  it("skips a conflict whose booking is not visible", async () => {
+    fromMock.mockReturnValue(
+      queryBuilder({ data: [{ ...bookingConflictRow, booking: null }, bookingConflictRow], error: null }),
+    );
+
+    const conflicts = await listFlaggedBookingConflicts();
+
+    expect(conflicts.map((conflict) => conflict.id)).toEqual([7]);
+  });
+
+  it("returns an empty list when the query returns no data", async () => {
+    fromMock.mockReturnValue(queryBuilder({ data: null, error: null }));
+
+    await expect(listFlaggedBookingConflicts()).resolves.toEqual([]);
+  });
+
+  it("throws a friendly error when the query fails", async () => {
+    fromMock.mockReturnValue(queryBuilder({ data: null, error: { message: "boom" } }));
+
+    await expect(listFlaggedBookingConflicts()).rejects.toThrow("Flagged bookings are unavailable.");
+  });
+});
+
+describe("recheckVenueConflicts", () => {
+  it("asks the backend to re-check one venue and returns the counts", async () => {
+    const counts = { venueId: "venue-1", flaggedCount: 2, clearedCount: 1, activeCount: 3 };
+    apiFetchMock.mockResolvedValue({ data: counts });
+
+    await expect(recheckVenueConflicts("venue-1")).resolves.toEqual(counts);
+    expect(apiFetchMock).toHaveBeenCalledWith("/venues/venue-1/recheck-conflicts", {
+      method: "POST",
+    });
+  });
+
+  it("passes a backend failure through to the caller", async () => {
+    apiFetchMock.mockRejectedValue(new ApiError("Only venue staff can re-check venue conflicts", 403));
+
+    await expect(recheckVenueConflicts("venue-1")).rejects.toThrow(
+      "Only venue staff can re-check venue conflicts",
+    );
+  });
+});
+
+describe("recheckAllVenueConflicts", () => {
+  it("asks the backend to re-check every venue and returns the counts", async () => {
+    apiFetchMock.mockResolvedValue({ data: { flaggedCount: 4, clearedCount: 2 } });
+
+    await expect(recheckAllVenueConflicts()).resolves.toEqual({ flaggedCount: 4, clearedCount: 2 });
+    expect(apiFetchMock).toHaveBeenCalledWith("/venues/recheck-conflicts", { method: "POST" });
+  });
+
+  it("passes a backend failure through to the caller", async () => {
+    apiFetchMock.mockRejectedValue(new ApiError("Request failed with status 500", 500));
+
+    await expect(recheckAllVenueConflicts()).rejects.toThrow("Request failed with status 500");
   });
 });

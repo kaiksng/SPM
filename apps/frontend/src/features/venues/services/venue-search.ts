@@ -16,10 +16,12 @@ export async function searchAvailableVenues(
     p_starts_at: singaporeLocalToIso(parsed.startsAt),
     p_ends_at: singaporeLocalToIso(parsed.endsAt),
     p_min_capacity: Number(parsed.minimumCapacity),
-    p_location: parsed.location.trim() || null,
-    p_layout: parsed.layout || null,
+    // undefined omits the argument so Postgres uses its `default null`
+    // (same behaviour as sending null, which the generated types no longer allow).
+    p_location: parsed.location.trim() || undefined,
+    p_layout: parsed.layout || undefined,
     p_facilities: parsed.facilities,
-    p_accessibility: parsed.accessibility.trim() || null,
+    p_accessibility: parsed.accessibility.trim() || undefined,
   });
   if (error) throw new Error(error.message);
   return data.map((row) => ({
