@@ -29,6 +29,13 @@ const COORDINATOR_VENUE_HOLD_TYPES = new Set<NotificationType>([
   "venue_hold_expired",
 ]);
 
+// SPM-83: a venue block disrupted the coordinator's booking (or cleared the
+// disruption again). The venue sub-page is where they arrange the alternative.
+const COORDINATOR_VENUE_DISRUPTION_TYPES = new Set<NotificationType>([
+  "venue_booking_disrupted",
+  "venue_disruption_cleared",
+]);
+
 // Venue-staff-facing: see the comment below on why these go to
 // /venue-requests, same as "venue_request".
 const VENUE_STAFF_REQUEST_TYPES = new Set<NotificationType>([
@@ -58,7 +65,10 @@ function notificationDestination(notification: NotificationSummary): string | un
   if (VENUE_STAFF_REQUEST_TYPES.has(notification.type)) return "/venue-requests";
   if (VENUE_STAFF_CONFLICT_TYPES.has(notification.type)) return "/flagged-bookings";
   if (!notification.eventId) return undefined;
-  if (COORDINATOR_VENUE_HOLD_TYPES.has(notification.type)) {
+  if (
+    COORDINATOR_VENUE_HOLD_TYPES.has(notification.type) ||
+    COORDINATOR_VENUE_DISRUPTION_TYPES.has(notification.type)
+  ) {
     return `/events/${notification.eventId}/venue`;
   }
   return `/events/${notification.eventId}`;

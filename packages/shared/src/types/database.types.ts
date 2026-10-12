@@ -1243,6 +1243,65 @@ export type Database = {
           },
         ]
       }
+      venue_booking_disruptions: {
+        Row: {
+          block_id: string
+          booking_id: string
+          cleared_at: string | null
+          cleared_by: string | null
+          flagged_at: string
+          flagged_by: string | null
+          id: string
+        }
+        Insert: {
+          block_id: string
+          booking_id: string
+          cleared_at?: string | null
+          cleared_by?: string | null
+          flagged_at?: string
+          flagged_by?: string | null
+          id?: string
+        }
+        Update: {
+          block_id?: string
+          booking_id?: string
+          cleared_at?: string | null
+          cleared_by?: string | null
+          flagged_at?: string
+          flagged_by?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "venue_booking_disruptions_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "venue_unavailability"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_booking_disruptions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "venue_bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_booking_disruptions_cleared_by_fkey"
+            columns: ["cleared_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_booking_disruptions_flagged_by_fkey"
+            columns: ["flagged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       venue_bookings: {
         Row: {
           decided_at: string | null
@@ -1438,6 +1497,7 @@ export type Database = {
           ends_at: string
           id: string
           reason: string | null
+          reason_category: Database["public"]["Enums"]["venue_block_reason_category"]
           removed_at: string | null
           removed_by: string | null
           starts_at: string
@@ -1447,6 +1507,7 @@ export type Database = {
           ends_at: string
           id?: string
           reason?: string | null
+          reason_category?: Database["public"]["Enums"]["venue_block_reason_category"]
           removed_at?: string | null
           removed_by?: string | null
           starts_at: string
@@ -1456,6 +1517,7 @@ export type Database = {
           ends_at?: string
           id?: string
           reason?: string | null
+          reason_category?: Database["public"]["Enums"]["venue_block_reason_category"]
           removed_at?: string | null
           removed_by?: string | null
           starts_at?: string
@@ -1614,10 +1676,11 @@ export type Database = {
         Args: {
           p_ends_at: string
           p_reason: string
+          p_reason_category?: Database["public"]["Enums"]["venue_block_reason_category"]
           p_starts_at: string
           p_venue_id: string
         }
-        Returns: string
+        Returns: Json
       }
       current_user_role: {
         Args: never
@@ -1753,6 +1816,20 @@ export type Database = {
         }
         Returns: Json
       }
+      preview_venue_block_impact: {
+        Args: { p_ends_at: string; p_starts_at: string; p_venue_id: string }
+        Returns: {
+          booking_id: string
+          coordinator_id: string
+          coordinator_name: string
+          ends_at: string
+          event_id: string
+          event_title: string
+          starts_at: string
+          status: Database["public"]["Enums"]["request_status"]
+          venue_name: string
+        }[]
+      }
       recheck_all_venue_conflicts: {
         Args: { p_actor_id?: string }
         Returns: Json
@@ -1879,6 +1956,10 @@ export type Database = {
         Args: { p_actor_id?: string; p_venue: Json; p_venue_id: string }
         Returns: Json
       }
+      update_venue_block: {
+        Args: { p_block_id: string; p_ends_at: string; p_starts_at: string }
+        Returns: Json
+      }
       validate_operating_hours: {
         Args: { p_operating_hours: Json }
         Returns: string
@@ -1935,6 +2016,8 @@ export type Database = {
         | "venue_request_withdrawn"
         | "venue_conflict_flagged"
         | "venue_conflict_resolved"
+        | "venue_booking_disrupted"
+        | "venue_disruption_cleared"
       request_status:
         | "pending"
         | "approved"
@@ -1958,6 +2041,12 @@ export type Database = {
         | "attendee"
         | "event_coordinator_lead"
         | "safety_officer"
+      venue_block_reason_category:
+        | "maintenance"
+        | "equipment_failure"
+        | "renovation"
+        | "safety"
+        | "other"
       venue_booking_decision_type: "approved" | "rejected"
     }
     CompositeTypes: {
@@ -2124,6 +2213,8 @@ export const Constants = {
         "venue_request_withdrawn",
         "venue_conflict_flagged",
         "venue_conflict_resolved",
+        "venue_booking_disrupted",
+        "venue_disruption_cleared",
       ],
       request_status: [
         "pending",
@@ -2150,6 +2241,13 @@ export const Constants = {
         "attendee",
         "event_coordinator_lead",
         "safety_officer",
+      ],
+      venue_block_reason_category: [
+        "maintenance",
+        "equipment_failure",
+        "renovation",
+        "safety",
+        "other",
       ],
       venue_booking_decision_type: ["approved", "rejected"],
     },

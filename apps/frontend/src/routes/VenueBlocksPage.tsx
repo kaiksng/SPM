@@ -1,4 +1,12 @@
-import { hasPermission, venueBlockSchema, type VenueBlockFormValues } from "@spm/shared";
+import {
+  hasPermission,
+  isoToSingaporeLocal,
+  VENUE_BLOCK_REASON_CATEGORIES,
+  VENUE_BLOCK_REASON_CATEGORY_LABELS,
+  venueBlockSchema,
+  type VenueBlockFormValues,
+  type VenueBlockReasonCategory,
+} from "@spm/shared";
 import { ArrowLeft, CalendarClock, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
@@ -6,8 +14,10 @@ import { Link, useParams } from "react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/auth-context";
+import { Modal } from "@/features/event-requests/components/modal";
 import {
-  createVenueBlock, listVenueBlocks, removeVenueBlock, type VenueBlock,
+  createVenueBlock, listVenueBlocks, previewVenueBlockImpact, removeVenueBlock, shortenVenueBlock,
+  type AffectedBooking, type VenueBlock,
 } from "@/features/venues/services/venue-blocks";
 import { getVenue } from "@/features/venues/services/venues";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -16,6 +26,14 @@ import { RoleGate } from "@/routes/RoleGate";
 const dateFormat = new Intl.DateTimeFormat("en-SG", {
   dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Singapore",
 });
+
+// The form holds "" until the staff member picks a category.
+type BlockFormState = Omit<VenueBlockFormValues, "reasonCategory"> & {
+  reasonCategory: VenueBlockReasonCategory | "";
+};
+
+const SELECT_CLASS_NAME =
+  "border-input flex h-8 w-full min-w-0 rounded-lg border bg-transparent px-2.5 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive";
 
 export function VenueBlocksPage() {
   const { venueId } = useParams();
@@ -26,9 +44,18 @@ export function VenueBlocksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [values, setValues] = useState<VenueBlockFormValues>({
-    venueId: venueId ?? "", reason: "", startsAt: "", endsAt: "",
+  // Where the success/error message shows: next to the form or the history,
+  // whichever the staff member just used, so it is not lost above the fold.
+  const [feedbackArea, setFeedbackArea] = useState<"form" | "history">("form");
+  const [flaggedBookings, setFlaggedBookings] = useState<AffectedBooking[]>([]);
+  const [values, setValues] = useState<BlockFormState>({
+    venueId: venueId ?? "", reasonCategory: "", reason: "", startsAt: "", endsAt: "",
   });
+  const [pendingBlock, setPendingBlock] = useState<{
+    values: VenueBlockFormValues;
+    affected: AffectedBooking[];
+  }>();
+  const [blockToShorten, setBlockToShorten] = useState<VenueBlock>();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [blockToRemove, setBlockToRemove] = useState<VenueBlock>();
@@ -58,32 +85,77 @@ export function VenueBlocksPage() {
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(""); setNotice("");
+    setError(""); setNotice(""); setFlaggedBookings([]); setFeedbackArea("form");
     const parsed = venueBlockSchema.safeParse({ ...values, venueId });
     if (!parsed.success) {
       const next: Record<string, string> = {};
       for (const issue of parsed.error.issues) next[String(issue.path[0])] ??= issue.message;
       setFieldErrors(next);
+      // The venue comes from the page address, so it has no field to flag.
+      if (next.venueId) setError("This venue link is not valid. Open the venue from the catalogue and try again.");
       return;
     }
     setFieldErrors({}); setSaving(true);
     try {
-      await createVenueBlock(parsed.data);
-      await refresh();
-      setValues({ venueId: venueId!, reason: "", startsAt: "", endsAt: "" });
-      setNotice("Block saved. Availability has been updated.");
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "This block could not be saved.";
-      setError(message);
-      if (message.includes("overlaps a Pending or Confirmed booking")) {
-        setFieldErrors({ startsAt: "This period conflicts with an active booking." });
+      // SPM-83: a block may overlap bookings. Show Venue Staff who is
+      // affected and make them confirm before anything is saved.
+      const affected = await previewVenueBlockImpact(parsed.data);
+      if (affected.length > 0) {
+        setPendingBlock({ values: parsed.data, affected });
+        return;
       }
+      await persistBlock(parsed.data);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "This block could not be saved.");
     } finally { setSaving(false); }
+  }
+
+  async function persistBlock(data: VenueBlockFormValues) {
+    const created = await createVenueBlock(data);
+    await refresh();
+    setValues({ venueId: venueId!, reasonCategory: "", reason: "", startsAt: "", endsAt: "" });
+    const flagged = created.affected.length;
+    setFlaggedBookings(created.affected);
+    setNotice(
+      flagged > 0
+        ? `Block saved. ${flagged} ${flagged === 1 ? "booking was" : "bookings were"} flagged Disrupted - Alternative Required and the assigned coordinators have been notified.`
+        : "Block saved. Availability has been updated.",
+    );
+  }
+
+  async function confirmPendingBlock() {
+    if (!pendingBlock) return;
+    setError(""); setFlaggedBookings([]); setFeedbackArea("form"); setSaving(true);
+    try {
+      await persistBlock(pendingBlock.values);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "This block could not be saved.");
+    } finally {
+      setPendingBlock(undefined);
+      setSaving(false);
+    }
+  }
+
+  async function shorten(startsAt: string, endsAt: string) {
+    if (!blockToShorten) return;
+    setError(""); setNotice(""); setFlaggedBookings([]); setFeedbackArea("history");
+    try {
+      const { clearedCount } = await shortenVenueBlock(blockToShorten.id, startsAt, endsAt);
+      setBlockToShorten(undefined);
+      await refresh();
+      setNotice(
+        clearedCount > 0
+          ? `Block shortened. ${clearedCount} ${clearedCount === 1 ? "booking is" : "bookings are"} no longer disrupted and the coordinators have been told.`
+          : "Block shortened. Availability has been updated.",
+      );
+    } catch (cause) {
+      throw cause instanceof Error ? cause : new Error("This block could not be shortened.");
+    }
   }
 
   async function remove() {
     if (!blockToRemove) return;
-    setError(""); setNotice(""); setRemoveError(""); setRemoving(true);
+    setError(""); setNotice(""); setFlaggedBookings([]); setFeedbackArea("history"); setRemoveError(""); setRemoving(true);
     try {
       await removeVenueBlock(blockToRemove.id);
       setBlockToRemove(undefined);
@@ -97,6 +169,22 @@ export function VenueBlocksPage() {
       setRemoveError(cause instanceof Error ? cause.message : "This block could not be removed.");
     } finally { setRemoving(false); }
   }
+
+  const feedback = (error || notice) ? (
+    <div role={error ? "alert" : "status"} className={`mt-5 rounded-xl px-4 py-3 text-sm ${error ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}>
+      <p>{error || notice}</p>
+      {!error && flaggedBookings.length > 0 && (
+        <ul className="mt-2 list-disc space-y-0.5 pl-5">
+          {flaggedBookings.map((booking) => (
+            <li key={booking.bookingId}>
+              {booking.eventTitle} · {booking.coordinatorName ?? "Unassigned"} ·{" "}
+              {dateFormat.format(new Date(booking.startsAt))} – {dateFormat.format(new Date(booking.endsAt))}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  ) : null;
 
   const now = Date.now();
   return (
@@ -122,26 +210,44 @@ export function VenueBlocksPage() {
                   <CalendarClock /> View availability
                 </Link>
               </header>
-              {(error || notice) && <p role={error ? "alert" : "status"} className={`mt-5 rounded-xl px-4 py-3 text-sm ${error ? "bg-red-50 text-red-800" : "bg-emerald-50 text-emerald-800"}`}>{error || notice}</p>}
               <section className="mt-7 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
                 <h2 className="text-lg font-semibold text-slate-950">New operational block</h2>
                 <form onSubmit={save} noValidate className="mt-5 grid gap-5 sm:grid-cols-2">
                   <div className="sm:col-span-2"><label htmlFor="block-venue" className="mb-1 block text-sm font-medium">Venue</label><Input id="block-venue" value={venueName} readOnly /></div>
+                  <div className="sm:col-span-2"><label htmlFor="block-category" className="mb-1 block text-sm font-medium">Reason category</label><select id="block-category" className={SELECT_CLASS_NAME} value={values.reasonCategory} aria-invalid={!!fieldErrors.reasonCategory} aria-describedby={fieldErrors.reasonCategory ? "category-error" : undefined} onChange={(e) => setValues({ ...values, reasonCategory: e.target.value as BlockFormState["reasonCategory"] })}><option value="">Select a category</option>{VENUE_BLOCK_REASON_CATEGORIES.map((category) => <option key={category} value={category}>{VENUE_BLOCK_REASON_CATEGORY_LABELS[category]}</option>)}</select>{fieldErrors.reasonCategory && <p id="category-error" className="mt-1 text-sm text-red-700">{fieldErrors.reasonCategory}</p>}</div>
                   <div className="sm:col-span-2"><label htmlFor="block-reason" className="mb-1 block text-sm font-medium">Reason</label><Input id="block-reason" value={values.reason} aria-invalid={!!fieldErrors.reason} aria-describedby={fieldErrors.reason ? "reason-error" : undefined} onChange={(e) => setValues({ ...values, reason: e.target.value })} placeholder="e.g. Air-conditioning maintenance" />{fieldErrors.reason && <p id="reason-error" className="mt-1 text-sm text-red-700">{fieldErrors.reason}</p>}</div>
                   {(["startsAt", "endsAt"] as const).map((key) => <div key={key}><label htmlFor={key} className="mb-1 block text-sm font-medium">{key === "startsAt" ? "Start date and time" : "End date and time"}</label><Input id={key} type="datetime-local" value={values[key]} aria-invalid={!!fieldErrors[key]} aria-describedby={fieldErrors[key] ? `${key}-error` : undefined} onChange={(e) => setValues({ ...values, [key]: e.target.value })} />{fieldErrors[key] && <p id={`${key}-error`} className="mt-1 text-sm text-red-700">{fieldErrors[key]}</p>}</div>)}
-                  <div className="sm:col-span-2"><Button type="submit" size="lg" disabled={saving}><Plus /> {saving ? "Saving…" : "Save block"}</Button></div>
+                  <div className="sm:col-span-2"><Button type="submit" size="lg" disabled={saving}><Plus /> {saving ? "Saving…" : "Save block"}</Button>{feedbackArea === "form" && feedback}</div>
                 </form>
               </section>
               <section className="mt-7 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
                 <h2 className="text-lg font-semibold text-slate-950">Block history</h2>
+                {feedbackArea === "history" && feedback}
                 {blocks.length === 0 ? <p className="mt-4 text-sm text-slate-500">No blocks have been recorded for this venue.</p> : <ul className="mt-4 divide-y divide-slate-100">{blocks.map((block) => {
                   const status = block.removedAt ? "Removed" : new Date(block.endsAt).getTime() <= now ? "Past" : new Date(block.startsAt).getTime() > now ? "Upcoming" : "In progress";
-                  return <li key={block.id} className="flex flex-wrap items-start justify-between gap-4 py-4"><div><div className="flex flex-wrap items-center gap-2"><span className="font-medium text-slate-900">{block.reason || "Reason not recorded"}</span><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{status}</span></div><p className="mt-1 text-sm text-slate-600">{dateFormat.format(new Date(block.startsAt))} – {dateFormat.format(new Date(block.endsAt))}</p>{block.removedAt && <p className="mt-1 text-xs text-slate-500">Removed {dateFormat.format(new Date(block.removedAt))}</p>}</div>{!block.removedAt && new Date(block.endsAt).getTime() > now && <Button type="button" variant="destructive" size="sm" onClick={() => { setRemoveError(""); setBlockToRemove(block); }}>Remove block</Button>}</li>;
+                  return <li key={block.id} className="flex flex-wrap items-start justify-between gap-4 py-4"><div><div className="flex flex-wrap items-center gap-2"><span className="font-medium text-slate-900">{block.reason || "Reason not recorded"}</span><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{VENUE_BLOCK_REASON_CATEGORY_LABELS[block.reasonCategory]}</span><span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{status}</span></div><p className="mt-1 text-sm text-slate-600">{dateFormat.format(new Date(block.startsAt))} – {dateFormat.format(new Date(block.endsAt))}</p>{block.removedAt && <p className="mt-1 text-xs text-slate-500">Removed {dateFormat.format(new Date(block.removedAt))}</p>}</div>{!block.removedAt && new Date(block.endsAt).getTime() > now && <div className="flex gap-2"><Button type="button" variant="outline" size="sm" onClick={() => setBlockToShorten(block)}>Shorten block</Button><Button type="button" variant="destructive" size="sm" onClick={() => { setRemoveError(""); setBlockToRemove(block); }}>Remove block</Button></div>}</li>;
                 })}</ul>}
               </section>
             </>
           )}
         </div>
+        {pendingBlock && (
+          <AffectedBookingsDialog
+            venueName={venueName}
+            values={pendingBlock.values}
+            affected={pendingBlock.affected}
+            saving={saving}
+            onCancel={() => setPendingBlock(undefined)}
+            onConfirm={confirmPendingBlock}
+          />
+        )}
+        {blockToShorten && (
+          <ShortenBlockDialog
+            block={blockToShorten}
+            onCancel={() => setBlockToShorten(undefined)}
+            onConfirm={shorten}
+          />
+        )}
         {blockToRemove && (
           <RemoveBlockDialog
             block={blockToRemove}
@@ -228,5 +334,94 @@ function RemoveBlockDialog({
         </div>
       </div>
     </div>
+  );
+}
+
+function AffectedBookingsDialog({
+  venueName, values, affected, saving, onCancel, onConfirm,
+}: {
+  venueName: string;
+  values: VenueBlockFormValues;
+  affected: AffectedBooking[];
+  saving: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal titleId="affected-bookings-title" title="This block affects existing bookings" onCancel={onCancel}>
+      <p className="mt-2 text-sm leading-6 text-slate-600">
+        {venueName} will be unavailable from {dateFormat.format(new Date(`${values.startsAt}+08:00`))} to{" "}
+        {dateFormat.format(new Date(`${values.endsAt}+08:00`))}. The bookings below will be flagged Disrupted -
+        Alternative Required and each coordinator notified. Nothing is cancelled.
+      </p>
+      <ul className="mt-4 max-h-64 space-y-2 overflow-y-auto">
+        {affected.map((booking) => (
+          <li key={booking.bookingId} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+            <p className="font-semibold text-slate-900">{booking.eventTitle}</p>
+            <p className="text-slate-600">Coordinator: {booking.coordinatorName ?? "Unassigned"}</p>
+            <p className="text-slate-600">
+              {dateFormat.format(new Date(booking.startsAt))} – {dateFormat.format(new Date(booking.endsAt))}
+            </p>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-6 flex flex-wrap justify-end gap-2">
+        <Button type="button" variant="outline" disabled={saving} onClick={onCancel}>Go back</Button>
+        <Button type="button" variant="destructive" disabled={saving} onClick={onConfirm}>
+          {saving ? "Saving…" : "Save block anyway"}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
+function ShortenBlockDialog({
+  block, onCancel, onConfirm,
+}: {
+  block: VenueBlock;
+  onCancel: () => void;
+  onConfirm: (startsAt: string, endsAt: string) => Promise<void>;
+}) {
+  const [startsAt, setStartsAt] = useState(isoToSingaporeLocal(block.startsAt));
+  const [endsAt, setEndsAt] = useState(isoToSingaporeLocal(block.endsAt));
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!startsAt || !endsAt || endsAt <= startsAt) {
+      setError("End time must be after start time");
+      return;
+    }
+    setError(""); setSaving(true);
+    try {
+      await onConfirm(startsAt, endsAt);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "This block could not be shortened.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal titleId="shorten-block-title" title="Shorten this block" onCancel={onCancel}>
+      <form onSubmit={submit} noValidate className="mt-3 grid gap-4">
+        <p className="text-sm text-slate-600">
+          A block can only be made shorter. Bookings that no longer overlap it are cleared and their coordinators told.
+        </p>
+        <div>
+          <label htmlFor="shorten-start" className="mb-1 block text-sm font-medium">New start date and time</label>
+          <Input id="shorten-start" type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+        </div>
+        <div>
+          <label htmlFor="shorten-end" className="mb-1 block text-sm font-medium">New end date and time</label>
+          <Input id="shorten-end" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+        </div>
+        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" variant="outline" disabled={saving} onClick={onCancel}>Cancel</Button>
+          <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save shortened block"}</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

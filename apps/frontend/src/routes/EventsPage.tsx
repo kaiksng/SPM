@@ -48,6 +48,11 @@ import {
   listEventRequests,
   type EventDraftSummary,
 } from "@/features/event-requests/services/event-drafts";
+import {
+  AffectedVenueBookings,
+  splitVenueDisruptions,
+  useVenueDisruptions,
+} from "@/features/venues/components/affected-venue-bookings";
 import { PagePlaceholder } from "@/features/workspace/components/page-placeholder";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
@@ -239,6 +244,11 @@ function CoordinatorEventsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [searchQuery, setSearchQuery] = useState("");
+  const { disruptions, error: disruptionError } = useVenueDisruptions();
+  // Events with a venue disruption that still needs attention get a badge.
+  const eventsWithVenueIssue = new Set(
+    splitVenueDisruptions(disruptions).open.map((item) => item.eventId),
+  );
 
   useEffect(() => {
     if (!user) {
@@ -317,10 +327,16 @@ function CoordinatorEventsView() {
           ) : (
             <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {filteredEvents.map((event) => (
-                <AssignedEventCard key={event.id} event={event} />
+                <AssignedEventCard
+                  key={event.id}
+                  event={event}
+                  venueIssue={eventsWithVenueIssue.has(event.id)}
+                />
               ))}
             </div>
           )}
+
+          <AffectedVenueBookings disruptions={disruptions} error={disruptionError} />
         </div>
       </div>
     </RoleGate>
@@ -910,7 +926,13 @@ function EventCard({
   );
 }
 
-function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
+function AssignedEventCard({
+  event,
+  venueIssue = false,
+}: {
+  event: AssignedEventSummary;
+  venueIssue?: boolean;
+}) {
   const [reviewState, setReviewState] = useState<{
     status: "open" | "answered";
     permittedFields: string[];
@@ -939,6 +961,11 @@ function AssignedEventCard({ event }: { event: AssignedEventSummary }) {
             reviewState={reviewState?.status === "open" ? "open" : undefined}
             role="coordinator"
           />
+          {venueIssue && (
+            <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800">
+              Venue issue
+            </span>
+          )}
         </div>
         <span className="shrink-0 text-xs text-slate-400">
           Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeZone: "Asia/Singapore" }).format(new Date(event.updatedAt))}

@@ -1,5 +1,5 @@
 begin;
-select plan(19);
+select plan(18);
 
 insert into auth.users (id, email, raw_user_meta_data) values
   ('f8600000-0000-0000-0000-000000000001', 'spm86-staff@example.test', '{"full_name":"SPM86 Staff","role":"venue_staff"}'::jsonb),

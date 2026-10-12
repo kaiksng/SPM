@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +7,7 @@ const listEventRequestsMock = vi.fn();
 const deleteEventDraftMock = vi.fn();
 const cancelEventRequestMock = vi.fn();
 const listAssignedEventsMock = vi.fn();
+const listVenueDisruptionsMock = vi.fn();
 const listClarificationsMock = vi.fn();
 const getClarificationReviewStateMock = vi.fn();
 const listEventDecisionsMock = vi.fn();
@@ -30,6 +31,10 @@ vi.mock("@/features/event-requests/services/event-drafts", () => ({
 
 vi.mock("@/features/event-requests/services/assigned-events", () => ({
   listAssignedEvents: (...args: unknown[]) => listAssignedEventsMock(...args),
+}));
+
+vi.mock("@/features/venues/services/venue-disruptions", () => ({
+  listVenueDisruptionsForCoordinator: (...args: unknown[]) => listVenueDisruptionsMock(...args),
 }));
 
 vi.mock("@/features/event-requests/services/clarifications", () => ({
@@ -358,11 +363,91 @@ describe("EventsPage coordinator view", () => {
   beforeEach(() => {
     authState.profile.role = "event_coordinator";
     listAssignedEventsMock.mockReset().mockResolvedValue([assignedEvent]);
+    listVenueDisruptionsMock.mockReset().mockResolvedValue([]);
     getClarificationReviewStateMock.mockReset().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     authState.profile.role = "event_organiser";
+  });
+
+  const disruption = {
+    id: "disruption-1",
+    bookingId: "booking-1",
+    eventId: "assigned-1",
+    eventTitle: "Shernice Test Submission",
+    venueId: "venue-1",
+    venueName: "Auditorium",
+    bookingStartsAt: "2099-04-06T02:00:00.000Z",
+    bookingEndsAt: "2099-04-06T04:00:00.000Z",
+    blockReasonCategory: "maintenance" as const,
+    blockReason: "Air-conditioning repair",
+    blockStartsAt: "2099-04-06T04:00:00.000Z",
+    blockEndsAt: "2099-04-06T06:00:00.000Z",
+    flaggedAt: "2099-04-01T00:00:00.000Z",
+    clearedAt: null,
+    state: "replacement_required" as const,
+  };
+
+  // SPM-83 AC: coordinators see their events with affected venue bookings in a
+  // table below the event cards, and the affected event's own card carries a badge.
+  it("shows open venue disruptions in a table below the events and badges the affected event", async () => {
+    listVenueDisruptionsMock.mockResolvedValue([disruption]);
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    const section = await screen.findByRole("region", { name: "Affected venue bookings" });
+    expect(within(section).getByText("1 open")).toBeInTheDocument();
+    expect(within(section).getByText("Replacement Required")).toBeInTheDocument();
+    expect(within(section).getByRole("link", { name: "Shernice Test Submission" })).toHaveAttribute(
+      "href",
+      "/events/assigned-1/venue",
+    );
+
+    const card = await screen.findByRole("link", { name: /Shernice Test Submission.*Organiser/s });
+    expect(within(card).getByText("Venue issue")).toBeInTheDocument();
+    // The table sits after the event cards, not above them.
+    expect(card.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("does not badge an event whose disruption is resolved", async () => {
+    listVenueDisruptionsMock.mockResolvedValue([
+      { ...disruption, state: "resolved", clearedAt: new Date().toISOString() },
+    ]);
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("button", { name: "Show resolved (1)" });
+    expect(screen.queryByText("Venue issue")).not.toBeInTheDocument();
+  });
+
+  it("shows no affected-bookings section when no venue booking is disrupted", async () => {
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Shernice Test Submission");
+    expect(screen.queryByRole("region", { name: "Affected venue bookings" })).not.toBeInTheDocument();
+  });
+
+  it("explains when the affected bookings could not be loaded", async () => {
+    listVenueDisruptionsMock.mockRejectedValue(new Error("We couldn't load your affected venue bookings."));
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("We couldn't load your affected venue bookings.")).toBeInTheDocument();
+    expect(screen.getByText("Shernice Test Submission")).toBeInTheDocument();
   });
 
   it("lists an event assigned to the signed-in coordinator", async () => {

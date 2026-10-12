@@ -9,8 +9,28 @@ export function isValidSingaporeLocal(value: string): boolean {
 const localDateTime = z.string().min(1, "Enter a date and time")
   .refine((value) => !value || isValidSingaporeLocal(value), "Enter a valid date and time");
 
+export const VENUE_BLOCK_REASON_CATEGORIES = [
+  "maintenance",
+  "equipment_failure",
+  "renovation",
+  "safety",
+  "other",
+] as const;
+
+export type VenueBlockReasonCategory = (typeof VENUE_BLOCK_REASON_CATEGORIES)[number];
+
+export const VENUE_BLOCK_REASON_CATEGORY_LABELS: Record<VenueBlockReasonCategory, string> = {
+  maintenance: "Maintenance",
+  equipment_failure: "Equipment failure",
+  renovation: "Renovation",
+  safety: "Safety",
+  other: "Other",
+};
+
+// `reason` is the block's description; the category is recorded alongside it.
 export const venueBlockSchema = z.object({
   venueId: z.uuid("Select a venue"),
+  reasonCategory: z.enum(VENUE_BLOCK_REASON_CATEGORIES, "Select a reason category"),
   reason: z.string().trim().min(1, "Enter a reason"),
   startsAt: localDateTime,
   endsAt: localDateTime,

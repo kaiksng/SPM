@@ -168,6 +168,27 @@ describe("NotificationBell", () => {
     );
   });
 
+  // SPM-83: a disruption notification goes to the venue page where the
+  // coordinator arranges an alternative.
+  it.each(["venue_booking_disrupted", "venue_disruption_cleared"] as const)(
+    "routes a %s notification to the event's venue page",
+    async (type) => {
+      listNotificationsMock.mockResolvedValue([
+        { ...UNREAD, id: "n9", type, title: "Venue issue", eventId: "e9" },
+      ]);
+      getUnreadNotificationCountMock.mockResolvedValue(1);
+      const user = userEvent.setup();
+
+      renderBell();
+      await user.click(
+        await screen.findByRole("button", { name: "Notifications, 1 unread" }),
+      );
+      await user.click(await screen.findByText("Venue issue"));
+
+      expect(navigateMock).toHaveBeenCalledWith("/events/e9/venue");
+    },
+  );
+
   it("disables Mark all as read when nothing is unread", async () => {
     listNotificationsMock.mockResolvedValue([READ]);
     getUnreadNotificationCountMock.mockResolvedValue(0);
