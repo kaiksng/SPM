@@ -4,7 +4,7 @@ Instructions for AI coding agents (Claude Code, Codex, Cursor, Copilot) working 
 
 ## Project overview
 
-ConnectSphere is an event-planning workspace (organisers, event coordinators, venue staff, technical support staff, attendees). It is a pnpm monorepo:
+ConnectSphere is an event-planning workspace for a school Scrum project (IS212). Roles: event organisers, event coordinators, event coordinator leads, venue staff, technical support staff, safety officers, attendees. It is a pnpm monorepo:
 
 | Path | What it is |
 | --- | --- |
@@ -17,6 +17,14 @@ ConnectSphere is an event-planning workspace (organisers, event coordinators, ve
 | `docs/requirements` | Story contracts and acceptance criteria. Read the relevant one before changing a feature |
 
 Frontend code is organised by feature: `apps/frontend/src/features/<feature>/{components,services,hooks,utils}`. Pages live in `src/routes`.
+
+### Domain glossary
+
+- **Event status:** `draft`, `submitted`, `clarification_requested`, `under_review`, `planning`, `approved`, `rejected`, `confirmed`, `completed`, `cancelled`, `pending_safety_check`. Allowed transitions are enforced in Postgres (`event_status_transition_allowed`) and mirrored in `packages/shared/src/domain/event-status.ts`; change both together.
+- **Venue booking status:** `pending`, `approved`, `rejected`, `cancelled`, `on_hold`, `expired`. Only pending, approved and on_hold occupy a venue. A venue booking is a request by a coordinator that venue staff decide.
+- **Effective window:** a booking occupies its venue from event start minus the venue's setup time to event end plus its turnaround time (`venue_effective_window`). Availability and conflict checks must use it, not the raw event times.
+- **Block:** a period a venue is unavailable (`venue_unavailability`), recorded by venue staff.
+- **Roles:** the Event Coordinator Lead assigns and reassigns coordinators; coordinators manage only events assigned to them; the Safety Officer reviews the operational safety of an event before it proceeds.
 
 ## Commands
 
@@ -42,6 +50,15 @@ pnpm db:test                              # pgTAP tests (needs Docker + local Su
 - Backend routes follow the existing pattern in `apps/backend/src/routes`: `requireAuth` → zod-validate params/body → `getServiceClient().rpc(...)` → map Postgres errors to `ApplicationError` (`42501` → 403, `23514` → 422 with field errors). The service-role client bypasses RLS, so a route must re-check that the caller may access the resource.
 - Frontend services (`features/*/services`) are the only place that calls `supabase` or `apiFetch`. Components and pages call services, never the client directly.
 - Event and booking times are entered in Singapore local time; use the shared helpers (e.g. `singaporeLocalToIso`) rather than hand-rolled date maths.
+
+## Working on a user story
+
+- **Requirements:** a story's user story and acceptance criteria are in the latest Jira CSV export (ask for the path); contracts and traceability notes for finished stories are in `docs/requirements`. Customer requirements change during the project, so don't rely on memory or old summaries. If a story conflicts with an earlier one or an existing test, raise it instead of choosing silently.
+- **Start from current code:** fetch and merge `origin/main` into your branch first. Other people merge schema and role changes constantly, and a stale checkout hides them. Verify a function signature or table in `supabase/migrations` before using it.
+- **Plan first** for anything non-trivial (new feature, schema change, several packages): read the contract and the code, propose the approach with any dependencies on other stories, and wait for confirmation.
+- **One story at a time.** Tag acceptance criteria in tests (`// AC03: ...`) so tests trace back to stories.
+- **Local project knowledge:** if `.claude/project-knowledge.md` exists on your machine, read it for course context and decisions. It is a summary: verify anything in it against the code.
+- CI (`.github/workflows/ci.yml`) runs `pnpm check`. `pnpm db:test` needs Docker and local Supabase.
 
 ## Testing instructions
 
@@ -82,7 +99,9 @@ There is **one shared hosted Supabase project** (`qqyvnlznjgupmxfqutff`) used by
 
 - **Never run `supabase db push`, `migration repair`, or any write, drop or alter against the hosted database** unless the user explicitly asks in that turn.
 - Never create users, profiles or other records in the hosted project from scripts or tests. Verification scripts that sign up accounts have left fake coordinators in the assignment pool before.
-- Never edit a migration that has already been applied; Supabase tracks migrations by filename and will skip it. Add a new migration (`pnpm exec supabase migration new <name>`) using `create or replace`.
+- Never edit a migration that has already been applied; Supabase tracks migrations by filename and will skip it. Add a new migration (`pnpm exec supabase migration new <name>`) using `create or replace`. Names are `YYYYMMDDNNNN_snake_case.sql` and must sort after the latest existing migration.
+- A newly added enum value cannot be used in the same migration. Add the value in its own migration and use it in a later one (notification types are added one per file). A new notification type also needs a destination mapping in `features/notifications/components/notification-bell.tsx`.
+- Notifications have no client insert policy; create them inside security-definer RPCs.
 - After a schema change, regenerate `packages/shared/src/types/database.types.ts` (`pnpm db:types`), fix any type errors it causes in the same change, and run `pnpm check`.
 - The service-role key is backend-only. Frontend code uses the publishable key plus RLS.
 - Never commit `.env`, `.env.local`, keys or passwords, including in tests, screenshots or docs.
