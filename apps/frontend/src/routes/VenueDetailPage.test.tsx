@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getVenueMock = vi.fn();
+const listVenueBufferTimeChangesMock = vi.fn();
 const loadEventDetailMock = vi.fn();
 const submitVenueBookingRequestMock = vi.fn();
 const getActiveVenueBookingMock = vi.fn();
@@ -22,6 +23,7 @@ vi.mock("@/context/auth-context", () => ({
 
 vi.mock("@/features/venues/services/venues", () => ({
   getVenue: (...args: unknown[]) => getVenueMock(...args),
+  listVenueBufferTimeChanges: (...args: unknown[]) => listVenueBufferTimeChangesMock(...args),
   VENUE_AVAILABILITY_LABELS: {
     available: "Available",
     pending: "Pending",
@@ -60,6 +62,8 @@ const venue = {
   layouts: ["Open Floor"],
   updatedAt: "2026-09-26T06:11:00.000Z",
   updatedByName: "keith",
+  setupTimeMinutes: "15",
+  turnaroundTimeMinutes: "30",
 };
 
 const event = {
@@ -100,6 +104,7 @@ function renderPage(initialEntry: string) {
 
 beforeEach(() => {
   getVenueMock.mockReset().mockResolvedValue(venue);
+  listVenueBufferTimeChangesMock.mockReset().mockResolvedValue([]);
   loadEventDetailMock.mockReset().mockResolvedValue(event);
   submitVenueBookingRequestMock.mockReset().mockResolvedValue("booking-1");
   getActiveVenueBookingMock.mockReset().mockResolvedValue(null);
@@ -118,6 +123,67 @@ describe("VenueDetailPage", () => {
     expect(screen.getByText("projector")).toBeInTheDocument();
     expect(screen.getByText("stage")).toBeInTheDocument();
     expect(screen.getByText("Open Floor")).toBeInTheDocument();
+  });
+
+  // SPM-86 AC03: saved setup and turnaround times are shown on the details page.
+  it("shows the venue's setup and turnaround time", async () => {
+    renderPage("/venues/venue-1");
+
+    expect(await screen.findByText("Setup time")).toBeInTheDocument();
+    expect(screen.getByText("15 min")).toBeInTheDocument();
+    expect(screen.getByText("Turnaround time")).toBeInTheDocument();
+    expect(screen.getByText("30 min")).toBeInTheDocument();
+  });
+
+  // SPM-86 AC04/AC05: Venue Staff see who changed a value, from what, to what, and when.
+  it("shows the setup and turnaround change history to Venue Staff", async () => {
+    authState.profile.role = "venue_staff";
+    listVenueBufferTimeChangesMock.mockResolvedValue([
+      {
+        id: 2,
+        field: "turnaround_time_minutes",
+        previousValue: 0,
+        newValue: 30,
+        changedByName: "Sam Staff",
+        changedAt: "2026-10-01T02:00:00.000Z",
+      },
+      {
+        id: 1,
+        field: "setup_time_minutes",
+        previousValue: 5,
+        newValue: 15,
+        changedByName: null,
+        changedAt: "2026-09-30T02:00:00.000Z",
+      },
+    ]);
+    renderPage("/venues/venue-1");
+
+    expect(await screen.findByText("Change history")).toBeInTheDocument();
+    expect(await screen.findByText(/Turnaround time changed/)).toBeInTheDocument();
+    expect(screen.getByText(/Setup time changed/)).toBeInTheDocument();
+    expect(screen.getByText("0 min →")).toBeInTheDocument();
+    expect(screen.getByText("5 min →")).toBeInTheDocument();
+    expect(screen.getByText(/Sam Staff/)).toBeInTheDocument();
+    expect(screen.getByText(/Unknown/)).toBeInTheDocument();
+    expect(listVenueBufferTimeChangesMock).toHaveBeenCalledWith("venue-1");
+  });
+
+  it("tells Venue Staff when no setup or turnaround change has been recorded", async () => {
+    authState.profile.role = "venue_staff";
+    renderPage("/venues/venue-1");
+
+    expect(
+      await screen.findByText("No setup or turnaround time changes recorded yet."),
+    ).toBeInTheDocument();
+  });
+
+  // SPM-86 AC05: the history is Venue Staff only, so other roles never request it.
+  it("does not show or request the change history for a coordinator", async () => {
+    renderPage("/venues/venue-1");
+
+    await screen.findByText("Setup time");
+    expect(screen.queryByText("Change history")).not.toBeInTheDocument();
+    expect(listVenueBufferTimeChangesMock).not.toHaveBeenCalled();
   });
 
   it("shows the selected location and a separate saved address", async () => {
