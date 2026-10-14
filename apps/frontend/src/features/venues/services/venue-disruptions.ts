@@ -21,6 +21,8 @@ export type VenueDisruption = {
   blockEndsAt: string;
   flaggedAt: string;
   clearedAt: string | null;
+  // SPM-82: the pending replacement for this booking, if one was requested.
+  replacementBookingId: string | null;
   state: VenueDisruptionState;
 };
 
@@ -47,6 +49,23 @@ export async function listVenueDisruptionsForCoordinator(): Promise<VenueDisrupt
 
   if (error) throw new Error("We couldn't load your affected venue bookings.");
 
+  // SPM-82: which disrupted bookings already have a pending replacement.
+  const bookingIds = (data ?? []).map((row) => row.booking.id);
+  const pendingReplacements = new Map<string, string>();
+  if (bookingIds.length > 0) {
+    const { data: replacements, error: replacementError } = await supabase
+      .from("venue_bookings")
+      .select("id, replaces_booking_id")
+      .in("replaces_booking_id", bookingIds)
+      .eq("status", "pending");
+    if (replacementError) throw new Error("We couldn't load your affected venue bookings.");
+    for (const replacement of replacements ?? []) {
+      if (replacement.replaces_booking_id) {
+        pendingReplacements.set(replacement.replaces_booking_id, replacement.id);
+      }
+    }
+  }
+
   return (data ?? [])
     .map((row) => ({
       id: row.id,
@@ -63,9 +82,11 @@ export async function listVenueDisruptionsForCoordinator(): Promise<VenueDisrupt
       blockEndsAt: row.block.ends_at,
       flaggedAt: row.flagged_at,
       clearedAt: row.cleared_at,
+      replacementBookingId: pendingReplacements.get(row.booking.id) ?? null,
       state: deriveVenueDisruptionState({
         clearedAt: row.cleared_at,
         bookingActive: ACTIVE_BOOKING_STATUSES.has(row.booking.status),
+        replacementRequested: pendingReplacements.has(row.booking.id),
       }),
     }))
     .sort((a, b) => Number(a.state === "resolved") - Number(b.state === "resolved"));

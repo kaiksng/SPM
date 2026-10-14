@@ -386,6 +386,7 @@ describe("EventsPage coordinator view", () => {
     blockEndsAt: "2099-04-06T06:00:00.000Z",
     flaggedAt: "2099-04-01T00:00:00.000Z",
     clearedAt: null,
+    replacementBookingId: null,
     state: "replacement_required" as const,
   };
 

@@ -35,7 +35,9 @@ import {
   type EventFieldChange,
 } from "@/features/event-requests/services/field-history";
 import { formatEventFieldChangeValue } from "@/features/event-requests/utils/format-field-change-value";
+import { DisruptedPill } from "@/features/venues/components/disrupted-pill";
 import { VenueBookingStatusBadge } from "@/features/venues/components/venue-booking-status-badge";
+import { listVenueDisruptionsForCoordinator } from "@/features/venues/services/venue-disruptions";
 import {
   listVenueBookingsForEvent,
   type VenueBookingRequestSummary,
@@ -70,6 +72,8 @@ export function EventHistoryPage() {
     [],
   );
   const [venueBookings, setVenueBookings] = useState<VenueBookingRequestSummary[]>([]);
+  // SPM-83: bookings of this event that a venue block currently disrupts.
+  const [disruptedBookingIds, setDisruptedBookingIds] = useState<Set<string>>(new Set());
   const [approvedAt, setApprovedAt] = useState<string>();
   const [event, setEvent] = useState<EventDetail>();
   const [error, setError] = useState<string>();
@@ -95,6 +99,8 @@ export function EventHistoryPage() {
         () => [] as EventCoordinatorAssignmentRecord[],
       ),
       listVenueBookingsForEvent(eventId).catch(() => [] as VenueBookingRequestSummary[]),
+      // Non-critical, and limited by access rules to the people who act on disruptions.
+      listVenueDisruptionsForCoordinator().catch(() => []),
     ])
       .then(
         ([
@@ -107,6 +113,7 @@ export function EventHistoryPage() {
           equipmentRows,
           assignmentRows,
           venueBookingRows,
+          disruptionRows,
         ]) => {
           if (!active) return;
           setEvent(eventDetail);
@@ -116,6 +123,13 @@ export function EventHistoryPage() {
           setApprovedAt(decisions.find((d) => d.decision === "approved")?.decidedAt);
           setStatusHistory(statusRows);
           setVenueBookings(venueBookingRows);
+          setDisruptedBookingIds(
+            new Set(
+              disruptionRows
+                .filter((row) => row.eventId === eventId && row.state !== "resolved")
+                .map((row) => row.bookingId),
+            ),
+          );
           setReassignments(reassignmentRows);
           setAssignmentHistory(assignmentRows);
         },
@@ -253,7 +267,16 @@ export function EventHistoryPage() {
                 ) : (
                   <ol className="space-y-2">
                     {venueBookings.map((booking) => (
-                      <VenueBookingItem key={booking.id} booking={booking} />
+                      <VenueBookingItem
+                        key={booking.id}
+                        booking={booking}
+                        disrupted={disruptedBookingIds.has(booking.id)}
+                        replacement={venueBookings.find(
+                          (other) =>
+                            other.replacesBookingId === booking.id &&
+                            (other.status === "approved" || other.status === "pending"),
+                        )}
+                      />
                     ))}
                   </ol>
                 )}
@@ -431,13 +454,41 @@ function AssignmentHistoryItem({ record }: { record: EventCoordinatorAssignmentR
  * status (approved, on_hold's held-by, expired) so a coordinator trying
  * multiple venues sees the full attempt history, not just the current one.
  */
-function VenueBookingItem({ booking }: { booking: VenueBookingRequestSummary }) {
+function VenueBookingItem({
+  booking,
+  disrupted,
+  replacement,
+}: {
+  booking: VenueBookingRequestSummary;
+  // SPM-83: a venue block currently disrupts this booking (it keeps its own status).
+  disrupted: boolean;
+  // The approved or pending replacement for this booking, if any (a rejected
+  // or withdrawn attempt does not mean the booking was replaced).
+  replacement?: VenueBookingRequestSummary;
+}) {
   return (
     <li className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <span className="font-medium text-slate-800">{booking.venueName}</span>
-        <VenueBookingStatusBadge status={booking.status} />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <VenueBookingStatusBadge status={booking.status} />
+          {disrupted && <DisruptedPill />}
+        </div>
       </div>
+      {/* SPM-82: the disrupted booking and its replacement are linked both ways. */}
+      {booking.replacesBookingId && (
+        <p className="mt-1 text-xs font-medium text-amber-800">
+          Replacement for the disrupted booking
+          {booking.replacesVenueName ? ` at ${booking.replacesVenueName}` : ""}
+        </p>
+      )}
+      {replacement && (
+        <p className="mt-1 text-xs font-medium text-amber-800">
+          {replacement.status === "approved"
+            ? `Replaced by the booking at ${replacement.venueName}`
+            : `Replacement requested at ${replacement.venueName}`}
+        </p>
+      )}
       <p className="mt-1 text-xs text-slate-500">
         Requested {dateFormatter.format(new Date(booking.requestedAt))}
         {booking.requestedByName ? ` by ${booking.requestedByName}` : ""}

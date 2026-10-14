@@ -7,6 +7,7 @@ const getVenueMock = vi.fn();
 const listVenueBufferTimeChangesMock = vi.fn();
 const loadEventDetailMock = vi.fn();
 const submitVenueBookingRequestMock = vi.fn();
+const requestReplacementVenueMock = vi.fn();
 const getActiveVenueBookingMock = vi.fn();
 const checkVenueBookingAvailabilityMock = vi.fn();
 const navigateMock = vi.fn();
@@ -38,6 +39,7 @@ vi.mock("@/features/event-requests/services/event-details", () => ({
 
 vi.mock("@/features/venues/services/venue-bookings", () => ({
   submitVenueBookingRequest: (...args: unknown[]) => submitVenueBookingRequestMock(...args),
+  requestReplacementVenue: (...args: unknown[]) => requestReplacementVenueMock(...args),
   getActiveVenueBooking: (...args: unknown[]) => getActiveVenueBookingMock(...args),
   checkVenueBookingAvailability: (...args: unknown[]) => checkVenueBookingAvailabilityMock(...args),
 }));
@@ -107,6 +109,7 @@ beforeEach(() => {
   listVenueBufferTimeChangesMock.mockReset().mockResolvedValue([]);
   loadEventDetailMock.mockReset().mockResolvedValue(event);
   submitVenueBookingRequestMock.mockReset().mockResolvedValue("booking-1");
+  requestReplacementVenueMock.mockReset().mockResolvedValue("replacement-1");
   getActiveVenueBookingMock.mockReset().mockResolvedValue(null);
   checkVenueBookingAvailabilityMock.mockReset().mockResolvedValue({ available: true, reason: null });
   navigateMock.mockReset();
@@ -227,6 +230,74 @@ describe("VenueDetailPage", () => {
       expect(submitVenueBookingRequestMock).toHaveBeenCalledWith("event-1", "venue-1");
     });
     expect(navigateMock).toHaveBeenCalledWith("/events/event-1/venue");
+  });
+
+  // ---- SPM-82: requesting a venue as the replacement for a disrupted booking ----
+
+  const activeOriginal = {
+    id: "booking-1", venueId: "venue-0", venueName: "Auditorium", status: "approved",
+    startsAt: "2099-04-06T02:00:00.000Z", endsAt: "2099-04-06T04:00:00.000Z", expiresAt: null,
+    replacesBookingId: null,
+  };
+
+  // AC04: the event already has an (disrupted) active booking, which must not block
+  // a request that replaces exactly that booking.
+  it("requests the venue as a replacement and returns to the event's venue page", async () => {
+    getActiveVenueBookingMock.mockResolvedValue(activeOriginal);
+    const user = userEvent.setup();
+    renderPage("/venues/venue-1?forEvent=event-1&replaces=booking-1");
+
+    expect(await screen.findByText("Request this venue as a replacement")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Request replacement" }));
+
+    await waitFor(() => expect(requestReplacementVenueMock).toHaveBeenCalledWith("booking-1", "venue-1"));
+    expect(submitVenueBookingRequestMock).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith("/events/event-1/venue");
+  });
+
+  it("explains that the replacement keeps the same period", async () => {
+    getActiveVenueBookingMock.mockResolvedValue(activeOriginal);
+    renderPage("/venues/venue-1?forEvent=event-1&replaces=booking-1");
+
+    expect(await screen.findByText(/replacement for the disrupted booking of "Career Fair"\. It keeps the same period/)).toBeInTheDocument();
+  });
+
+  it("is also allowed for a Confirmed event, since approving it returns the event to Planning", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+    getActiveVenueBookingMock.mockResolvedValue(activeOriginal);
+    renderPage("/venues/venue-1?forEvent=event-1&replaces=booking-1");
+
+    expect(await screen.findByRole("button", { name: "Request replacement" })).toBeEnabled();
+  });
+
+  it("does not let a Confirmed event request an ordinary new venue", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+    renderPage("/venues/venue-1?forEvent=event-1");
+
+    expect(await screen.findByText("This event is not ready for a venue request.")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Request venue" })).toBeDisabled();
+  });
+
+  it("shows the server's reason when the replacement is refused", async () => {
+    getActiveVenueBookingMock.mockResolvedValue(activeOriginal);
+    requestReplacementVenueMock.mockRejectedValue(
+      new Error("This venue's capacity (10) is below the event's expected attendance (200)"),
+    );
+    const user = userEvent.setup();
+    renderPage("/venues/venue-1?forEvent=event-1&replaces=booking-1");
+
+    await user.click(await screen.findByRole("button", { name: "Request replacement" }));
+
+    expect(await screen.findByText(/capacity \(10\) is below the event's expected attendance/)).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it("still blocks an ordinary request while the event has an active booking", async () => {
+    getActiveVenueBookingMock.mockResolvedValue(activeOriginal);
+    renderPage("/venues/venue-1?forEvent=event-1");
+
+    expect(await screen.findByText(/already has an active venue request/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Request venue" })).toBeDisabled();
   });
 
   it("shows the specific error identifying why the request failed", async () => {

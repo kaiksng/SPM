@@ -74,7 +74,7 @@ export function useVenueDisruptions() {
 function DisruptionStateBadge({ state }: { state: VenueDisruptionState }) {
   return (
     <span
-      className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${STATE_BADGE_CLASS[state]}`}
+      className={`inline-block shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${STATE_BADGE_CLASS[state]}`}
     >
       {VENUE_DISRUPTION_STATE_LABELS[state]}
     </span>
@@ -104,6 +104,16 @@ function DisruptionRow({ item }: { item: VenueDisruption }) {
       </td>
       <td className="px-4 py-3 align-top">
         <DisruptionStateBadge state={item.state} />
+      </td>
+      <td className="px-4 py-3 align-top whitespace-nowrap">
+        {item.state !== "resolved" && (
+          <Link
+            to={`/events/${item.eventId}/venue`}
+            className="font-medium text-primary hover:underline"
+          >
+            {item.state === "replacement_requested" ? "View request" : "Find replacement"}
+          </Link>
+        )}
       </td>
     </tr>
   );
@@ -170,7 +180,7 @@ export function AffectedVenueBookings({
         {rows.length === 0 ? (
           <p className="px-4 py-4 text-sm text-slate-500">No open affected bookings.</p>
         ) : (
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[820px] text-left text-sm">
             <caption className="sr-only">Venue bookings affected by a venue block</caption>
             <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold tracking-wide text-slate-500 uppercase">
               <tr>
@@ -179,6 +189,7 @@ export function AffectedVenueBookings({
                 <th scope="col" className="px-4 py-2.5">Booking period</th>
                 <th scope="col" className="px-4 py-2.5">Reason</th>
                 <th scope="col" className="px-4 py-2.5">Status</th>
+                <th scope="col" className="px-4 py-2.5">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

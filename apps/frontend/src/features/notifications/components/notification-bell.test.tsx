@@ -168,6 +168,22 @@ describe("NotificationBell", () => {
     );
   });
 
+  // SPM-82: a venue decision (including a rejected replacement) opens the change
+  // history, where the outcome and the rejection reason are listed.
+  it("routes a venue decision notification to the event's change history", async () => {
+    listNotificationsMock.mockResolvedValue([
+      { ...UNREAD, id: "n8", type: "venue_decision" as const, title: "Replacement venue rejected", eventId: "e8" },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("Replacement venue rejected"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/events/e8/history");
+  });
+
   // SPM-83: a disruption notification goes to the venue page where the
   // coordinator arranges an alternative.
   it.each(["venue_booking_disrupted", "venue_disruption_cleared"] as const)(

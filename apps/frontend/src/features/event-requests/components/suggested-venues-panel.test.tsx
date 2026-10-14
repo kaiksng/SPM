@@ -44,7 +44,7 @@ const otherVenue = {
   location: "Building 2",
 };
 
-function renderPanel() {
+function renderPanel(replacing?: { bookingId: string; venueId: string }) {
   const event: EventDetail = {
     id: "event-1", title: "Planning event", purpose: null, description: null,
     eventType: null, expectedAttendance: 20,
@@ -57,7 +57,7 @@ function renderPanel() {
   };
   return render(
     <MemoryRouter>
-      <SuggestedVenuesPanel event={event} hasActiveBooking={false} />
+      <SuggestedVenuesPanel event={event} hasActiveBooking={false} replacing={replacing} />
     </MemoryRouter>,
   );
 }
@@ -73,6 +73,55 @@ describe("SuggestedVenuesPanel", () => {
 
     expect(await screen.findByText("Conference Room A")).toBeInTheDocument();
     expect(listSuggestedVenuesMock).toHaveBeenCalledWith("event-1");
+  });
+
+  // SPM-82 AC02: the disrupted venue is not offered as its own replacement, and
+  // each result carries the booking being replaced into the venue page.
+  describe("replacing a disrupted booking", () => {
+    it("leaves the disrupted venue out of the suggestions and carries the booking in the link", async () => {
+      listSuggestedVenuesMock.mockResolvedValue([venue, otherVenue]);
+      renderPanel({ bookingId: "booking-1", venueId: "venue-1" });
+
+      expect(await screen.findByRole("heading", { name: "Auditorium" })).toBeInTheDocument();
+      expect(screen.queryByText("Conference Room A")).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute(
+        "href",
+        "/venues/venue-2?forEvent=event-1&replaces=booking-1",
+      );
+    });
+
+    it("shows the empty state when the disrupted venue was the only suggestion", async () => {
+      listSuggestedVenuesMock.mockResolvedValue([venue]);
+      renderPanel({ bookingId: "booking-1", venueId: "venue-1" });
+
+      expect(await screen.findByText("No matching venues")).toBeInTheDocument();
+    });
+
+    it("leaves the disrupted venue out of manual search results too, and carries the booking", async () => {
+      const user = userEvent.setup();
+      renderPanel({ bookingId: "booking-1", venueId: "venue-1" });
+
+      await user.click(await screen.findByRole("button", { name: "Search venues" }));
+      await user.click(screen.getByRole("button", { name: "Search venues" }));
+
+      expect(await screen.findByRole("heading", { name: "Auditorium" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Conference Room A" })).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute(
+        "href",
+        expect.stringContaining("/venues/venue-2?forEvent=event-1&fromSearch=1"),
+      );
+      expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute(
+        "href",
+        expect.stringContaining("&replaces=booking-1"),
+      );
+    });
+
+    it("does not change the links when no booking is being replaced", async () => {
+      renderPanel();
+
+      await screen.findByText("Conference Room A");
+      expect(screen.getByRole("link", { name: "View details" }).getAttribute("href")).not.toContain("replaces=");
+    });
   });
 
   it("links View details to the venue's detail page for this event", async () => {
