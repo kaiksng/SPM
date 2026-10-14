@@ -1,10 +1,12 @@
 begin;
-select plan(18);
+select plan(21);
 
 insert into auth.users (id, email, raw_user_meta_data) values
   ('f8600000-0000-0000-0000-000000000001', 'spm86-staff@example.test', '{"full_name":"SPM86 Staff","role":"venue_staff"}'::jsonb),
   ('f8600000-0000-0000-0000-000000000002', 'spm86-coord@example.test', '{"full_name":"SPM86 Coordinator","role":"event_coordinator"}'::jsonb),
-  ('f8600000-0000-0000-0000-000000000003', 'spm86-org@example.test', '{"full_name":"SPM86 Organiser","role":"event_organiser"}'::jsonb);
+  ('f8600000-0000-0000-0000-000000000003', 'spm86-org@example.test', '{"full_name":"SPM86 Organiser","role":"event_organiser"}'::jsonb),
+  ('f8600000-0000-0000-0000-000000000006', 'spm86-staff-b@example.test', '{"full_name":"SPM86 Staff B","role":"venue_staff"}'::jsonb),
+  ('f8600000-0000-0000-0000-000000000007', 'spm86-staff-c@example.test', '{"full_name":"SPM86 Staff C","role":"venue_staff"}'::jsonb);
 
 -- Calls update_venue and returns the validation detail (which names the
 -- offending fields) instead of raising, so the test can assert on it.
@@ -85,6 +87,18 @@ select throws_ok(format($$insert into public.venue_buffer_time_changes (venue_id
 select set_config('request.jwt.claims', '{"sub":"f8600000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select throws_ok(format($$select public.update_venue(%L::uuid, '{"name":"SPM86 Hall","location":"Block 86","area_tags":["Central Area"],"capacity":80,"operating_hours":[{"days":["mon"],"opensAt":"08:00","closesAt":"18:00"}],"facilities":[],"layouts":["Theatre"],"setup_time_minutes":99,"turnaround_time_minutes":99}'::jsonb)$$,
   (select id from spm86_venue)), '42501', 'Only Venue Staff can update venues', 'AC05: an organiser cannot change the values');
+
+-- AC04: the history names whoever made each change, including a colleague. A
+-- Venue Staff member who has not requested, decided or held any booking must
+-- still be named, but staff who changed nothing stay private.
+select set_config('request.jwt.claims', '{"sub":"f8600000-0000-0000-0000-000000000006","role":"authenticated"}', true);
+select lives_ok(format($$select public.update_venue(%L::uuid, '{"name":"SPM86 Hall","location":"Block 86","area_tags":["Central Area"],"capacity":80,"operating_hours":[{"days":["mon","tue","wed","thu","fri"],"opensAt":"08:00","closesAt":"18:00"}],"facilities":[],"layouts":["Theatre"],"setup_time_minutes":15,"turnaround_time_minutes":25}'::jsonb)$$,
+  (select id from spm86_venue)), 'a second Venue Staff member changes the setup and turnaround time');
+select set_config('request.jwt.claims', '{"sub":"f8600000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is((select count(*)::int from public.profiles where id = 'f8600000-0000-0000-0000-000000000006'), 1,
+  'AC04: Venue Staff can see the name of a colleague who made a change');
+select is((select count(*)::int from public.profiles where id = 'f8600000-0000-0000-0000-000000000007'), 0,
+  'a Venue Staff member who changed nothing is not exposed to other staff');
 
 select * from finish();
 rollback;

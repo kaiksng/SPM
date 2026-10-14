@@ -83,7 +83,8 @@ select set_config('request.jwt.claims', '{"sub":"f3000000-0000-0000-0000-0000000
 -- booking is now saved and the booking flagged, not refused.
 select lives_ok($$select public.create_venue_block('f3000000-0000-0000-0000-000000000010', 'Repair', '2099-04-06T11:00:00+08:00', '2099-04-06T12:00:00+08:00')$$,
   'block overlapping a Pending booking is saved (SPM-83)');
-select is((select count(*)::int from public.venue_booking_disruptions where cleared_at is null), 1,
+select is((select count(*)::int from public.venue_booking_disruptions d join public.venue_bookings b on b.id = d.booking_id
+  where d.cleared_at is null and b.venue_id = 'f3000000-0000-0000-0000-000000000010'), 1,
   'the overlapped Pending booking is flagged as disrupted');
 select lives_ok($$select public.create_venue_block('f3000000-0000-0000-0000-000000000010', 'Repair', '2099-04-06T12:00:00+08:00', '2099-04-06T13:00:00+08:00')$$,
   'block starting at booking end is allowed');
