@@ -63,6 +63,38 @@ venueBookingSubmissionsRouter.post(
   }),
 );
 
+const replacementBodySchema = z.object({ venueId: z.uuid() });
+
+/**
+ * SPM-82: request a replacement venue for a disrupted booking. Like submit,
+ * it notifies every venue-staff profile (no INSERT policy for regular
+ * users), so it goes through the service client.
+ */
+venueBookingSubmissionsRouter.post(
+  "/venue-bookings/:bookingId/replacement",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const params = bookingIdParamsSchema.safeParse(req.params);
+    if (!params.success) {
+      throw new ApplicationError("VALIDATION", "Enter a valid venue booking id");
+    }
+    const body = replacementBodySchema.safeParse(req.body);
+    if (!body.success) {
+      throw new ApplicationError("VALIDATION", "Select a venue to request");
+    }
+
+    const { data, error } = await getServiceClient().rpc("request_replacement_venue", {
+      p_booking_id: params.data.bookingId,
+      p_venue_id: body.data.venueId,
+      p_actor_id: req.userId,
+    });
+
+    if (error) throw mapSubmitError(error);
+
+    res.json({ data });
+  }),
+);
+
 function mapSubmitError(error: PostgrestError): ApplicationError | PostgrestError {
   if (error.code === "42501") {
     return new ApplicationError("FORBIDDEN", error.message, error);

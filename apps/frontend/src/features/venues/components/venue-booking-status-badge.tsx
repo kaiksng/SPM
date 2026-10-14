@@ -27,7 +27,7 @@ const VENUE_BOOKING_STATUS_LABELS: Record<VenueBookingStatus, string> = {
 export function VenueBookingStatusBadge({ status }: { status: VenueBookingStatus }) {
   return (
     <span
-      className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${VENUE_BOOKING_STATUS_CLASSES[status]}`}
+      className={`inline-block rounded-full border px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${VENUE_BOOKING_STATUS_CLASSES[status]}`}
     >
       {VENUE_BOOKING_STATUS_LABELS[status]}
     </span>

@@ -16,6 +16,8 @@ export type ActiveVenueBooking = {
   // Only meaningful while status is "on_hold" — the deadline by which the
   // coordinator must confirm or the hold lapses on its own.
   expiresAt: string | null;
+  // SPM-82: set when this booking was requested to replace a disrupted one.
+  replacesBookingId: string | null;
 };
 
 function operationError(message: string) {
@@ -45,13 +47,21 @@ function effectiveBookingStatus(
  * SPM-24: an event's current active (Pending/Approved/On Hold) venue
  * booking, if any — AC04 means there is at most one, so a coordinator sees
  * either that one request or the suggestion list, never both.
+ *
+ * SPM-82: while a replacement for a disrupted booking is pending, the event
+ * briefly has two active bookings (the disrupted original and the pending
+ * replacement). This returns the most recently requested one, so the
+ * replacement is the "current request" the coordinator can withdraw; the
+ * disrupted original is shown separately from its disruption.
  */
 export async function getActiveVenueBooking(eventId: string): Promise<ActiveVenueBooking | null> {
   const { data, error } = await supabase
     .from("venue_bookings")
-    .select("id, venue_id, starts_at, ends_at, status, expires_at, venues (name)")
+    .select("id, venue_id, starts_at, ends_at, status, expires_at, replaces_booking_id, venues (name)")
     .eq("event_id", eventId)
     .in("status", ["pending", "approved", "on_hold"])
+    .order("requested_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) throw operationError("This event's venue booking status is unavailable.");
@@ -65,6 +75,7 @@ export async function getActiveVenueBooking(eventId: string): Promise<ActiveVenu
     endsAt: data.ends_at,
     status: effectiveBookingStatus(data.status, data.expires_at),
     expiresAt: data.expires_at,
+    replacesBookingId: data.replaces_booking_id,
   };
 }
 
@@ -122,6 +133,27 @@ export async function submitVenueBookingRequest(
   const { data } = await apiFetch("/venue-bookings/submit", {
     method: "POST",
     body: JSON.stringify({ eventId, venueId }),
+  });
+
+  return data as string;
+}
+
+/**
+ * SPM-82: request a replacement for a disrupted booking. The period (and the
+ * event's attendance and the booking's main-venue flag) are copied from the
+ * disrupted booking server-side; only the new venue is chosen. Surfaces the
+ * database's own message (not the assigned coordinator, already a pending
+ * replacement, capacity below attendance, venue unavailable, ...). Goes
+ * through the backend for the same reason as submitVenueBookingRequest: it
+ * notifies Venue Staff.
+ */
+export async function requestReplacementVenue(
+  bookingId: string,
+  venueId: string,
+): Promise<string> {
+  const { data } = await apiFetch(`/venue-bookings/${bookingId}/replacement`, {
+    method: "POST",
+    body: JSON.stringify({ venueId }),
   });
 
   return data as string;
@@ -190,6 +222,12 @@ export type VenueBookingRequestSummary = {
   eventExpectedAttendance: number | null;
   requestedByName: string | null;
   decidedByName: string | null;
+  // SPM-82: the disrupted booking this one replaces, and where it was.
+  replacesBookingId: string | null;
+  replacesVenueName: string | null;
+  // SPM-82: requirements (layout, accessibility) the replacement venue does not
+  // appear to meet. Guidance for Venue Staff, not a block.
+  advisoryNotes: string | null;
 };
 
 const VENUE_BOOKING_REQUEST_SELECT = `
@@ -206,7 +244,9 @@ const VENUE_BOOKING_REQUEST_SELECT = `
   event_id,
   events (title, expected_attendance),
   requested_by:profiles!venue_bookings_requested_by_fkey (full_name),
-  decided_by:profiles!venue_bookings_decided_by_fkey (full_name)
+  decided_by:profiles!venue_bookings_decided_by_fkey (full_name),
+  replaces_booking_id,
+  advisory_notes
 `;
 
 function toVenueBookingRequestSummary(
@@ -225,6 +265,8 @@ function toVenueBookingRequestSummary(
     events: { title: string; expected_attendance: number | null } | null;
     requested_by: { full_name: string } | null;
     decided_by: { full_name: string } | null;
+    replaces_booking_id: string | null;
+    advisory_notes: string | null;
   },
 ): VenueBookingRequestSummary {
   return {
@@ -244,7 +286,26 @@ function toVenueBookingRequestSummary(
     eventExpectedAttendance: row.events?.expected_attendance ?? null,
     requestedByName: row.requested_by?.full_name ?? null,
     decidedByName: row.decided_by?.full_name ?? null,
+    replacesBookingId: row.replaces_booking_id,
+    replacesVenueName: null,
+    advisoryNotes: row.advisory_notes,
   };
+}
+
+/**
+ * SPM-82: names the venue each replacement replaces, from the same list, so
+ * no self-join is needed. A booking whose original is not in the list (RLS
+ * hides it, or it is a one-off lookup) is left without a name.
+ */
+function withReplacedVenueNames(
+  bookings: VenueBookingRequestSummary[],
+): VenueBookingRequestSummary[] {
+  const venueNameById = new Map(bookings.map((booking) => [booking.id, booking.venueName]));
+  return bookings.map((booking) =>
+    booking.replacesBookingId
+      ? { ...booking, replacesVenueName: venueNameById.get(booking.replacesBookingId) ?? null }
+      : booking,
+  );
 }
 
 /**
@@ -261,7 +322,7 @@ export async function listVenueBookingRequests(): Promise<VenueBookingRequestSum
 
   if (error) throw new Error("Venue booking requests are unavailable.");
 
-  return (data ?? []).map(toVenueBookingRequestSummary);
+  return withReplacedVenueNames((data ?? []).map(toVenueBookingRequestSummary));
 }
 
 /**
@@ -284,7 +345,7 @@ export async function listVenueBookingsForEvent(
 
   if (error) throw new Error("This event's venue booking history is unavailable.");
 
-  return (data ?? []).map(toVenueBookingRequestSummary);
+  return withReplacedVenueNames((data ?? []).map(toVenueBookingRequestSummary));
 }
 
 export async function getVenueBookingRequest(

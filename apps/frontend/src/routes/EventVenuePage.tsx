@@ -1,4 +1,5 @@
-import { ArrowLeft } from "lucide-react";
+import { VENUE_BLOCK_REASON_CATEGORY_LABELS, VENUE_DISRUPTION_STATE_LABELS } from "@spm/shared";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
@@ -10,6 +11,10 @@ import {
   type EventDetail,
 } from "@/features/event-requests/services/event-details";
 import { VenueBookingStatusBadge } from "@/features/venues/components/venue-booking-status-badge";
+import {
+  listVenueDisruptionsForCoordinator,
+  type VenueDisruption,
+} from "@/features/venues/services/venue-disruptions";
 import {
   confirmVenueBookingHold,
   getActiveVenueBooking,
@@ -38,6 +43,8 @@ export function EventVenuePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [activeBooking, setActiveBooking] = useState<ActiveVenueBooking | null>();
+  // SPM-82: this event's disrupted venue booking, if one still needs a replacement.
+  const [disruption, setDisruption] = useState<VenueDisruption>();
   const [withdrawing, setWithdrawing] = useState(false);
   const [withdrawError, setWithdrawError] = useState<string>();
   const [confirming, setConfirming] = useState(false);
@@ -48,11 +55,19 @@ export function EventVenuePage() {
   function loadAll(id: string) {
     let active = true;
     setLoading(true);
-    Promise.all([loadEventDetail(id), getActiveVenueBooking(id)])
-      .then(([detail, booking]) => {
+    Promise.all([
+      loadEventDetail(id),
+      getActiveVenueBooking(id),
+      // Non-critical: without it the page simply behaves as it did before SPM-82.
+      listVenueDisruptionsForCoordinator().catch(() => [] as VenueDisruption[]),
+    ])
+      .then(([detail, booking, disruptions]) => {
         if (!active) return;
         setEvent(detail);
         setActiveBooking(booking);
+        setDisruption(
+          disruptions.find((item) => item.eventId === id && item.state !== "resolved"),
+        );
       })
       .catch((loadError: unknown) => {
         if (active) {
@@ -84,7 +99,12 @@ export function EventVenuePage() {
     setWithdrawError(undefined);
     try {
       await withdrawVenueBookingRequest(activeBooking.id);
-      setActiveBooking(null);
+      if (activeBooking.replacesBookingId && eventId) {
+        // The disrupted original is still there; reload to offer a new replacement.
+        loadAll(eventId);
+      } else {
+        setActiveBooking(null);
+      }
     } catch (err) {
       setWithdrawError(
         err instanceof Error ? err.message : "This venue booking request could not be withdrawn.",
@@ -200,10 +220,42 @@ export function EventVenuePage() {
                   </dl>
                 </section>
 
-                {activeBooking && (
+                {disruption && (
+                  <section
+                    aria-label="Disrupted venue booking"
+                    className="mt-4 rounded-2xl border border-red-200 bg-red-50/40 p-6"
+                  >
+                    <h2 className="flex items-center gap-2 text-sm font-semibold tracking-wide text-red-900 uppercase">
+                      <AlertTriangle className="size-4 text-red-600" aria-hidden="true" />
+                      Disrupted venue booking
+                    </h2>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium text-slate-900">{disruption.venueName}</span>
+                      <span className="inline-block rounded-full border border-red-200 bg-white px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-red-800">
+                        {VENUE_DISRUPTION_STATE_LABELS[disruption.state]}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-600">
+                      {dateTimeFormatter.format(new Date(disruption.bookingStartsAt))}
+                      {" – "}
+                      {dateTimeFormatter.format(new Date(disruption.bookingEndsAt))}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {VENUE_BLOCK_REASON_CATEGORY_LABELS[disruption.blockReasonCategory]}
+                      {disruption.blockReason ? ` – ${disruption.blockReason}` : ""}
+                    </p>
+                    <p className="mt-3 text-sm text-slate-700">
+                      {disruption.state === "replacement_requested"
+                        ? "A replacement has been requested. This booking stays until Venue Staff approve it."
+                        : "The venue became unavailable. The event has not been cancelled; choose a different venue for the same period below."}
+                    </p>
+                  </section>
+                )}
+
+                {activeBooking && disruption?.state !== "replacement_required" && (
                   <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
                     <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
-                      Current request
+                      {activeBooking.replacesBookingId ? "Replacement request" : "Current request"}
                     </h2>
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       <VenueBookingStatusBadge status={activeBooking.status} />
@@ -268,7 +320,16 @@ export function EventVenuePage() {
                 )}
                 <SuggestedVenuesPanel
                   event={event}
-                  hasActiveBooking={Boolean(activeBooking) && activeBooking?.status !== "expired"}
+                  hasActiveBooking={
+                    disruption?.state === "replacement_required"
+                      ? false
+                      : Boolean(activeBooking) && activeBooking?.status !== "expired"
+                  }
+                  replacing={
+                    disruption?.state === "replacement_required"
+                      ? { bookingId: disruption.bookingId, venueId: disruption.venueId }
+                      : undefined
+                  }
                 />
               </div>
             </div>

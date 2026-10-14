@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   graphql_public: {
     Tables: {
@@ -1304,6 +1304,7 @@ export type Database = {
       }
       venue_bookings: {
         Row: {
+          advisory_notes: string | null
           decided_at: string | null
           decided_by: string | null
           decision_notes: string | null
@@ -1312,8 +1313,10 @@ export type Database = {
           expires_at: string | null
           held_by: string | null
           id: string
+          is_main_venue: boolean
           needs_review: boolean
           needs_review_reason: string | null
+          replaces_booking_id: string | null
           requested_at: string
           requested_by: string
           starts_at: string
@@ -1321,6 +1324,7 @@ export type Database = {
           venue_id: string
         }
         Insert: {
+          advisory_notes?: string | null
           decided_at?: string | null
           decided_by?: string | null
           decision_notes?: string | null
@@ -1329,8 +1333,10 @@ export type Database = {
           expires_at?: string | null
           held_by?: string | null
           id?: string
+          is_main_venue?: boolean
           needs_review?: boolean
           needs_review_reason?: string | null
+          replaces_booking_id?: string | null
           requested_at?: string
           requested_by: string
           starts_at: string
@@ -1338,6 +1344,7 @@ export type Database = {
           venue_id: string
         }
         Update: {
+          advisory_notes?: string | null
           decided_at?: string | null
           decided_by?: string | null
           decision_notes?: string | null
@@ -1346,8 +1353,10 @@ export type Database = {
           expires_at?: string | null
           held_by?: string | null
           id?: string
+          is_main_venue?: boolean
           needs_review?: boolean
           needs_review_reason?: string | null
+          replaces_booking_id?: string | null
           requested_at?: string
           requested_by?: string
           starts_at?: string
@@ -1374,6 +1383,13 @@ export type Database = {
             columns: ["held_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "venue_bookings_replaces_booking_id_fkey"
+            columns: ["replaces_booking_id"]
+            isOneToOne: false
+            referencedRelation: "venue_bookings"
             referencedColumns: ["id"]
           },
           {
@@ -1654,6 +1670,10 @@ export type Database = {
         }
         Returns: Record<string, unknown>
       }
+      clear_block_disruptions: {
+        Args: { p_block_id: string; p_block_removed: boolean }
+        Returns: number
+      }
       complete_event: { Args: { p_event_id: string }; Returns: Json }
       confirm_venue_booking_hold: {
         Args: { p_actor_id?: string; p_booking_id: string }
@@ -1768,6 +1788,7 @@ export type Database = {
         Args: { p_reason: string; p_reservation_ids: string[] }
         Returns: undefined
       }
+      format_sg_time: { Args: { p_at: string }; Returns: string }
       list_auto_event_coordinator_reassignments: {
         Args: { p_event_id: string }
         Returns: {
@@ -1807,15 +1828,6 @@ export type Database = {
         }
         Returns: Json
       }
-      reassign_event_coordinator: {
-        Args: {
-          p_actor_id?: string
-          p_event_id: string
-          p_new_coordinator_id: string
-          p_reason: string
-        }
-        Returns: Json
-      }
       preview_venue_block_impact: {
         Args: { p_ends_at: string; p_starts_at: string; p_venue_id: string }
         Returns: {
@@ -1829,6 +1841,15 @@ export type Database = {
           status: Database["public"]["Enums"]["request_status"]
           venue_name: string
         }[]
+      }
+      reassign_event_coordinator: {
+        Args: {
+          p_actor_id?: string
+          p_event_id: string
+          p_new_coordinator_id: string
+          p_reason: string
+        }
+        Returns: Json
       }
       recheck_all_venue_conflicts: {
         Args: { p_actor_id?: string }
@@ -1866,6 +1887,10 @@ export type Database = {
           p_question: string
         }
         Returns: Json
+      }
+      request_replacement_venue: {
+        Args: { p_actor_id?: string; p_booking_id: string; p_venue_id: string }
+        Returns: string
       }
       reservation_snapshot: {
         Args: {
@@ -1963,6 +1988,20 @@ export type Database = {
       validate_operating_hours: {
         Args: { p_operating_hours: Json }
         Returns: string
+      }
+      venue_block_affected_bookings: {
+        Args: { p_ends_at: string; p_starts_at: string; p_venue_id: string }
+        Returns: {
+          booking_id: string
+          coordinator_id: string
+          coordinator_name: string
+          ends_at: string
+          event_id: string
+          event_title: string
+          starts_at: string
+          status: Database["public"]["Enums"]["request_status"]
+          venue_name: string
+        }[]
       }
       venue_booking_fits_operating_hours: {
         Args: { p_ends_at: string; p_starts_at: string; p_venue_id: string }

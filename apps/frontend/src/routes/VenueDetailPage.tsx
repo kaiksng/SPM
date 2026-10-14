@@ -9,6 +9,7 @@ import { loadEventDetail, type EventDetail } from "@/features/event-requests/ser
 import {
   checkVenueBookingAvailability,
   getActiveVenueBooking,
+  requestReplacementVenue,
   submitVenueBookingRequest,
 } from "@/features/venues/services/venue-bookings";
 import { getVenueLayoutImage } from "@/features/venues/utils/venue-layout-image";
@@ -49,6 +50,10 @@ export function VenueDetailPage() {
   const forEventId = searchParams.get("forEvent");
   const exploreOnly = searchParams.get("explore") === "1";
   const fromSearch = searchParams.get("fromSearch") === "1";
+  // SPM-82: set when the coordinator is choosing a replacement for a
+  // disrupted booking. The request then replaces that booking instead of
+  // being a new request, so the event's existing booking does not block it.
+  const replacesBookingId = searchParams.get("replaces");
   // Carried over from SuggestedVenuesPanel's own availability tag — a UX
   // convenience only, not a security boundary: submitVenueBookingRequest
   // re-validates everything server-side regardless of what's passed here.
@@ -140,8 +145,12 @@ export function VenueDetailPage() {
         // (status computed as "expired" for display, per
         // effectiveBookingStatus) so it can be shown as such — it isn't
         // actually blocking anymore, so it must not count as "active" here.
-        setActiveBooking(Boolean(booking) && booking?.status !== "expired");
-        if (detail.status !== "planning" || !detail.startsAt || !detail.endsAt) {
+        setActiveBooking(Boolean(booking) && booking?.status !== "expired" && !replacesBookingId);
+        // A replacement is also allowed for a Confirmed event (approving it
+        // returns the event to Planning); a new request only for Planning.
+        const requestableStatus =
+          detail.status === "planning" || (Boolean(replacesBookingId) && detail.status === "confirmed");
+        if (!requestableStatus || !detail.startsAt || !detail.endsAt) {
           setAvailabilityError("This event is not ready for a venue request.");
           return;
         }
@@ -163,7 +172,7 @@ export function VenueDetailPage() {
     return () => {
       active = false;
     };
-  }, [forEventId, venueId]);
+  }, [forEventId, venueId, replacesBookingId]);
 
   async function handleRecheckConflicts() {
     if (!venueId) return;
@@ -192,7 +201,11 @@ export function VenueDetailPage() {
     setRequesting(true);
     setRequestError(undefined);
     try {
-      await submitVenueBookingRequest(forEventId, venueId);
+      if (replacesBookingId) {
+        await requestReplacementVenue(replacesBookingId, venueId);
+      } else {
+        await submitVenueBookingRequest(forEventId, venueId);
+      }
       navigate(`/events/${forEventId}/venue`);
     } catch (submitError) {
       setRequestError(
@@ -429,12 +442,14 @@ export function VenueDetailPage() {
                       isBookable ? "text-primary" : "text-slate-500"
                     }`}
                   >
-                    Request this venue
+                    {replacesBookingId ? "Request this venue as a replacement" : "Request this venue"}
                   </h2>
                   <p className={`mt-2 text-sm ${isBookable ? "text-primary" : "text-slate-600"}`}>
                     {isBookable ? (
                       forEvent
-                        ? `Review the details above, then confirm to request this venue for "${forEvent.title}".`
+                        ? replacesBookingId
+                          ? `Review the details above, then confirm to request this venue as the replacement for the disrupted booking of "${forEvent.title}". It keeps the same period.`
+                          : `Review the details above, then confirm to request this venue for "${forEvent.title}".`
                         : "Review the details above, then confirm to submit the request."
                     ) : activeBooking ? "This event already has an active venue request. You can review venues, but cannot submit another request while it remains active." : exploreOnly ? "This result is for review only. If you searched another time, discuss a schedule change with the organiser before requesting a venue for that time." : availabilityError || (availabilityStatus && availabilityStatus !== "available" ? `This venue was marked ${VENUE_AVAILABILITY_LABELS[availabilityStatus]}.` : "Checking current availability…")}
                   </p>
@@ -450,7 +465,7 @@ export function VenueDetailPage() {
                   )}
                   <div className="mt-4 flex gap-2">
                     <Button type="button" disabled={!isBookable || requesting} onClick={handleRequestVenue}>
-                      {requesting ? "Requesting…" : "Request venue"}
+                      {requesting ? "Requesting…" : replacesBookingId ? "Request replacement" : "Request venue"}
                     </Button>
                     <Link
                       to={`/events/${forEventId}/venue`}

@@ -28,7 +28,20 @@ import {
  * ?forEvent= param) to review the full venue entry before confirming the
  * actual booking request there — this panel itself never submits one.
  */
-export function SuggestedVenuesPanel({ event, hasActiveBooking }: { event: EventDetail; hasActiveBooking: boolean }) {
+export function SuggestedVenuesPanel({
+  event,
+  hasActiveBooking,
+  replacing,
+}: {
+  event: EventDetail;
+  hasActiveBooking: boolean;
+  /**
+   * SPM-82: set while the coordinator is choosing a replacement for a
+   * disrupted booking. The disrupted venue is left out of the results, and
+   * "View details" carries the booking so the request replaces it.
+   */
+  replacing?: { bookingId: string; venueId: string };
+}) {
   const eventId = event.id;
   const location = useLocation();
   const [venues, setVenues] = useState<VenueSummary[]>();
@@ -58,6 +71,9 @@ export function SuggestedVenuesPanel({ event, hasActiveBooking }: { event: Event
     };
   }, [eventId]);
 
+  // SPM-82: the disrupted venue is never offered as its own replacement.
+  const suggestedVenues = (venues ?? []).filter((venue) => venue.id !== replacing?.venueId);
+
   return (
     <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
       <div className="flex items-center justify-between gap-3">
@@ -74,7 +90,7 @@ export function SuggestedVenuesPanel({ event, hasActiveBooking }: { event: Event
       </div>
 
       {manualSearch ? (
-        <ManualVenueSearch event={event} hasActiveBooking={hasActiveBooking} />
+        <ManualVenueSearch event={event} hasActiveBooking={hasActiveBooking} replacing={replacing} />
       ) : (
         <>
           {error && (
@@ -85,12 +101,18 @@ export function SuggestedVenuesPanel({ event, hasActiveBooking }: { event: Event
 
           {!error && venues === undefined && <LoadingGrid />}
 
-          {!error && venues && venues.length === 0 && <NoMatchingVenues />}
+          {!error && venues && suggestedVenues.length === 0 && <NoMatchingVenues />}
 
-          {!error && venues && venues.length > 0 && (
+          {!error && venues && suggestedVenues.length > 0 && (
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              {venues.map((venue) => (
-                <SuggestedVenueCard key={venue.id} eventId={eventId} venue={venue} exploreOnly={hasActiveBooking} />
+              {suggestedVenues.map((venue) => (
+                <SuggestedVenueCard
+                  key={venue.id}
+                  eventId={eventId}
+                  venue={venue}
+                  exploreOnly={hasActiveBooking}
+                  replacingBookingId={replacing?.bookingId}
+                />
               ))}
             </div>
           )}
@@ -107,7 +129,17 @@ const AVAILABILITY_CLASSES: Record<VenueAvailabilityStatus, string> = {
   blocked: "border-red-200 bg-red-50 text-red-700",
 };
 
-function SuggestedVenueCard({ eventId, venue, exploreOnly }: { eventId: string; venue: VenueSummary; exploreOnly: boolean }) {
+function SuggestedVenueCard({
+  eventId,
+  venue,
+  exploreOnly,
+  replacingBookingId,
+}: {
+  eventId: string;
+  venue: VenueSummary;
+  exploreOnly: boolean;
+  replacingBookingId?: string;
+}) {
   return (
     <article className="flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)]">
       <div className="flex items-start justify-between gap-2">
@@ -145,7 +177,7 @@ function SuggestedVenueCard({ eventId, venue, exploreOnly }: { eventId: string; 
         Setup {venue.setupTimeMinutes ?? 0} min &middot; Turnaround {venue.turnaroundTimeMinutes ?? 0} min
       </p>
       <Link
-        to={`/venues/${venue.id}?forEvent=${eventId}${venue.availabilityStatus ? `&status=${venue.availabilityStatus}` : ""}${exploreOnly ? "&explore=1" : ""}`}
+        to={`/venues/${venue.id}?forEvent=${eventId}${venue.availabilityStatus ? `&status=${venue.availabilityStatus}` : ""}${exploreOnly ? "&explore=1" : ""}${replacingBookingId ? `&replaces=${replacingBookingId}` : ""}`}
         className="mt-auto self-start rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
       >
         View details

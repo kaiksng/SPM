@@ -50,8 +50,13 @@ vi.mock("@/features/event-requests/services/equipment", () => ({
   loadEquipmentHistory: (...args: unknown[]) => loadEquipmentHistoryMock(...args),
 }));
 
+const listVenueBookingsForEventMock = vi.fn();
+const listVenueDisruptionsMock = vi.fn();
+vi.mock("@/features/venues/services/venue-disruptions", () => ({
+  listVenueDisruptionsForCoordinator: (...args: unknown[]) => listVenueDisruptionsMock(...args),
+}));
 vi.mock("@/features/venues/services/venue-bookings", () => ({
-  listVenueBookingsForEvent: vi.fn().mockResolvedValue([]),
+  listVenueBookingsForEvent: (...args: unknown[]) => listVenueBookingsForEventMock(...args),
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -86,12 +91,117 @@ beforeEach(() => {
   listEventDecisionsMock.mockReset().mockResolvedValue([]);
   listEventStatusHistoryMock.mockReset().mockResolvedValue([]);
   loadEquipmentHistoryMock.mockReset().mockResolvedValue([]);
+  listVenueBookingsForEventMock.mockReset().mockResolvedValue([]);
+  listVenueDisruptionsMock.mockReset().mockResolvedValue([]);
   loadEventDetailMock.mockReset().mockResolvedValue({
     assignedCoordinatorId: "20000000-0000-0000-0000-000000000002",
   });
 });
 
+const baseBooking = {
+  startsAt: "2099-04-06T02:00:00.000Z",
+  endsAt: "2099-04-06T04:00:00.000Z",
+  decidedAt: null,
+  decisionNotes: null,
+  expiresAt: null,
+  venueLayouts: [],
+  eventId: "event-1",
+  eventTitle: "Career Fair",
+  eventExpectedAttendance: 50,
+  requestedByName: "Priya",
+  decidedByName: null,
+  advisoryNotes: null,
+};
+
 describe("EventHistoryPage", () => {
+  // SPM-82 AC09: the disrupted booking and its replacement are linked and visible.
+  describe("venue booking replacements", () => {
+    const original = {
+      ...baseBooking, id: "booking-1", status: "cancelled" as const, venueId: "venue-1",
+      venueName: "Auditorium", requestedAt: "2099-04-01T00:00:00.000Z",
+      replacesBookingId: null, replacesVenueName: null,
+    };
+    const replacement = {
+      ...baseBooking, id: "booking-2", status: "approved" as const, venueId: "venue-2",
+      venueName: "Grand Hall", requestedAt: "2099-04-02T00:00:00.000Z",
+      replacesBookingId: "booking-1", replacesVenueName: "Auditorium",
+    };
+
+    it("links an approved replacement and the booking it replaced in both directions", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([original, replacement]);
+      renderPage();
+
+      expect(await screen.findByText("Replaced by the booking at Grand Hall")).toBeInTheDocument();
+      expect(screen.getByText("Replacement for the disrupted booking at Auditorium")).toBeInTheDocument();
+    });
+
+    it("says a replacement was requested, not made, while it is still pending", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([
+        { ...original, status: "approved" as const },
+        { ...replacement, status: "pending" as const },
+      ]);
+      renderPage();
+
+      expect(await screen.findByText("Replacement requested at Grand Hall")).toBeInTheDocument();
+      expect(screen.queryByText(/Replaced by the booking/)).not.toBeInTheDocument();
+    });
+
+    it("does not claim the original was replaced after a rejected or withdrawn attempt", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([
+        { ...original, status: "approved" as const },
+        { ...replacement, status: "rejected" as const, decidedAt: "2099-04-03T00:00:00.000Z" },
+      ]);
+      renderPage();
+
+      await screen.findByText("Grand Hall");
+      expect(screen.queryByText(/Replaced by the booking/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Replacement requested at/)).not.toBeInTheDocument();
+      // The attempt itself is still listed with what it was for.
+      expect(screen.getByText("Replacement for the disrupted booking at Auditorium")).toBeInTheDocument();
+    });
+
+    // SPM-83: the booking keeps its own status, so the disruption is shown beside it.
+    it("flags a booking that is currently disrupted beside its own status", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([{ ...original, status: "approved" as const }]);
+      listVenueDisruptionsMock.mockResolvedValue([
+        { eventId: "event-1", bookingId: "booking-1", state: "replacement_required" },
+      ]);
+      renderPage();
+
+      expect(await screen.findByText("Confirmed Booking")).toBeInTheDocument();
+      expect(screen.getByText("Disrupted")).toBeInTheDocument();
+    });
+
+    it("does not flag a booking whose disruption is resolved, or one on another event", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([{ ...original, status: "approved" as const }]);
+      listVenueDisruptionsMock.mockResolvedValue([
+        { eventId: "event-1", bookingId: "booking-1", state: "resolved" },
+        { eventId: "other-event", bookingId: "booking-1", state: "replacement_required" },
+      ]);
+      renderPage();
+
+      await screen.findByText("Confirmed Booking");
+      expect(screen.queryByText("Disrupted")).not.toBeInTheDocument();
+    });
+
+    it("still lists the bookings when the disruptions cannot be loaded", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([{ ...original, status: "approved" as const }]);
+      listVenueDisruptionsMock.mockRejectedValue(new Error("boom"));
+      renderPage();
+
+      expect(await screen.findByText("Confirmed Booking")).toBeInTheDocument();
+      expect(screen.queryByText("Disrupted")).not.toBeInTheDocument();
+    });
+
+    it("shows nothing extra for an ordinary booking", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([{ ...original, status: "approved" as const }]);
+      renderPage();
+
+      await screen.findByText("Auditorium");
+      expect(screen.queryByText(/Replace/)).not.toBeInTheDocument();
+    });
+  });
+
   it("links back to the main events page", async () => {
     renderPage();
 

@@ -33,6 +33,7 @@ function disruption(overrides: Partial<VenueDisruption> = {}): VenueDisruption {
     blockEndsAt: "2099-04-25T06:00:00.000Z",
     flaggedAt: "2099-04-01T00:00:00.000Z",
     clearedAt: null,
+    replacementBookingId: null,
     state: "replacement_required",
     ...overrides,
   };
@@ -103,7 +104,7 @@ describe("AffectedVenueBookings", () => {
     expect(within(section).getByText(/have not been cancelled/)).toBeInTheDocument();
     const table = within(section).getByRole("table");
     expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
-      "Event", "Venue", "Booking period", "Reason", "Status",
+      "Event", "Venue", "Booking period", "Reason", "Status", "Action",
     ]);
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(2);
@@ -112,6 +113,23 @@ describe("AffectedVenueBookings", () => {
     expect(within(rows[0]!).getByText("Maintenance – Air-conditioning repair")).toBeInTheDocument();
     expect(within(rows[0]!).getByText("Replacement Required")).toBeInTheDocument();
     expect(within(rows[1]!).getByText("Replacement Requested")).toBeInTheDocument();
+  });
+
+  // SPM-82: the table is the way into replacing a disrupted booking.
+  it("offers Find replacement for an open row, View request once one is pending, and nothing for resolved", async () => {
+    const user = userEvent.setup();
+    renderPanel([
+      disruption({ id: "a" }),
+      disruption({ id: "b", eventId: "e-2", eventTitle: "Workshop", state: "replacement_requested", replacementBookingId: "r-1" }),
+      disruption({ id: "c", eventId: "e-3", eventTitle: "Old Event", state: "resolved", clearedAt: daysAgo(2) }),
+    ]);
+
+    expect(screen.getByRole("link", { name: "Find replacement" })).toHaveAttribute("href", "/events/e-1/venue");
+    expect(screen.getByRole("link", { name: "View request" })).toHaveAttribute("href", "/events/e-2/venue");
+
+    await user.click(screen.getByRole("button", { name: "Show resolved (1)" }));
+    const resolvedRow = screen.getByText("Old Event").closest("tr")!;
+    expect(within(resolvedRow).queryByRole("link", { name: /replacement|request/i })).not.toBeInTheDocument();
   });
 
   // SPM-83: Resolved stays reachable but out of the way.

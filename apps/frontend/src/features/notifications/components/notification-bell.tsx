@@ -36,6 +36,11 @@ const COORDINATOR_VENUE_DISRUPTION_TYPES = new Set<NotificationType>([
   "venue_disruption_cleared",
 ]);
 
+// A venue booking decision (approved or rejected, including for a
+// replacement): the change history lists each booking with its outcome and,
+// for a rejection, the reason Venue Staff gave.
+const VENUE_DECISION_TYPES = new Set<NotificationType>(["venue_decision"]);
+
 // Venue-staff-facing: see the comment below on why these go to
 // /venue-requests, same as "venue_request".
 const VENUE_STAFF_REQUEST_TYPES = new Set<NotificationType>([
@@ -65,6 +70,7 @@ function notificationDestination(notification: NotificationSummary): string | un
   if (VENUE_STAFF_REQUEST_TYPES.has(notification.type)) return "/venue-requests";
   if (VENUE_STAFF_CONFLICT_TYPES.has(notification.type)) return "/flagged-bookings";
   if (!notification.eventId) return undefined;
+  if (VENUE_DECISION_TYPES.has(notification.type)) return `/events/${notification.eventId}/history`;
   if (
     COORDINATOR_VENUE_HOLD_TYPES.has(notification.type) ||
     COORDINATOR_VENUE_DISRUPTION_TYPES.has(notification.type)
