@@ -66,4 +66,10 @@ When a coordinator removes an equipment request that has a live reservation, the
 - **Release is allowed for Pending Safety Check events** too, for these and ordinary reservations. `release_equipment_reservation` has no event-status rule; only reserving, changing and re-checking are limited to Requested, Planning and Confirmed.
 - No database change. Tests: `reserve_equipment.test.sql` (releasing a removed-request reservation; release allowed and change refused during Pending Safety Check), `equipment-availability.test.ts`, `request-groups.test.ts`, `EquipmentPage.test.tsx`.
 
-**Known limit:** cancelling or completing an event does not release its reservations, so their units stay held. That needs its own fix.
+## Reservations released when the event ends (15 October 2026)
+
+Bug: cancelling, completing or rejecting an event left its approved reservations in place. They still counted against stock for every other event, and the ended event no longer appeared on the Event requests page, so nobody could release them.
+
+- `202610150002_release_reservations_when_event_ends.sql` adds a trigger: when an event becomes Cancelled, Completed or Rejected, each live reservation is released (status `cancelled`, `released_at`, flag cleared) and logged in `equipment_reservation_events` as `released` with the reason "The event was cancelled / completed / rejected" (AC5). The actor is whoever made the change, or none when it came through the backend's service client.
+- The migration also releases, once, any reservations already stuck on events that ended before the fix.
+- Tests: `release_reservations_when_event_ends.test.sql` (10 checks).

@@ -1926,6 +1926,10 @@ export type Database = {
         Args: { p_reason?: string; p_reservation_id: string }
         Returns: string
       }
+      release_reservations_for_ended_event: {
+        Args: { p_event_id: string; p_reason: string }
+        Returns: undefined
+      }
       remove_equipment_unavailability: {
         Args: { p_unavailability_id: string }
         Returns: string
