@@ -77,7 +77,7 @@ function SelectItem({
       <SelectPrimitive.ItemIndicator className="flex size-4 items-center justify-center">
         <Check className="size-4" />
       </SelectPrimitive.ItemIndicator>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      <SelectPrimitive.ItemText className="min-w-0 flex-1">{children}</SelectPrimitive.ItemText>
     </SelectPrimitive.Item>
   );
 }

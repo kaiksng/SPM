@@ -83,7 +83,7 @@ export function AssignCoordinatorDialog({
             items={Object.fromEntries(
               selectableCoordinators.map((coordinator) => [
                 coordinator.id,
-                coordinator.fullName ?? "Unnamed coordinator",
+                describeCoordinator(coordinator),
               ]),
             )}
           >
@@ -92,8 +92,17 @@ export function AssignCoordinatorDialog({
             </SelectTrigger>
             <SelectContent>
               {selectableCoordinators.map((coordinator) => (
-                <SelectItem key={coordinator.id} value={coordinator.id}>
-                  {coordinator.fullName ?? "Unnamed coordinator"}
+                <SelectItem
+                  key={coordinator.id}
+                  value={coordinator.id}
+                  className="border-b border-slate-100 last:border-b-0"
+                >
+                  <span className="flex w-full flex-1 items-center justify-between gap-3">
+                    <span>{coordinator.fullName ?? "Unnamed coordinator"}</span>{" "}
+                    <span className="text-xs whitespace-nowrap text-slate-400">
+                      {coordinator.activeEventCount} active
+                    </span>
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -130,4 +139,10 @@ export function AssignCoordinatorDialog({
       </form>
     </Modal>
   );
+}
+
+function describeCoordinator(coordinator: CoordinatorOption) {
+  const name = coordinator.fullName ?? "Unnamed coordinator";
+  const count = coordinator.activeEventCount;
+  return `${name} — ${count} active event${count === 1 ? "" : "s"}`;
 }

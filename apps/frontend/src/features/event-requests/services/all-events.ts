@@ -1,4 +1,15 @@
+import { eventStatuses } from "@spm/shared";
+
 import { supabase } from "@/lib/supabase-client";
+
+/**
+ * Statuses that still count as a coordinator's active workload — the same
+ * exclusion list reassign_event_coordinator uses to decide which events can
+ * be (re)assigned, so the two stay in step automatically.
+ */
+const ACTIVE_EVENT_STATUSES = eventStatuses.filter(
+  (status) => !["draft", "rejected", "cancelled", "completed"].includes(status),
+);
 
 export type LeadEventSummary = {
   id: string;
@@ -64,9 +75,14 @@ export async function listAllEvents() {
 export type CoordinatorOption = {
   id: string;
   fullName: string | null;
+  activeEventCount: number;
 };
 
-/** The roster of Event Coordinators the Lead can assign an event to. */
+/**
+ * The roster of Event Coordinators the Lead can assign an event to, each
+ * with their current count of active events (AC: "Each coordinator option
+ * shows that coordinator's current number of active events").
+ */
 export async function listCoordinators() {
   const { data, error } = await supabase
     .from("profiles")
@@ -76,8 +92,28 @@ export async function listCoordinators() {
 
   if (error) throw new Error("We couldn't load the list of coordinators.");
 
+  const { data: activeEvents, error: activeEventsError } = await supabase
+    .from("events")
+    .select("assigned_coordinator_id")
+    .in("status", ACTIVE_EVENT_STATUSES);
+
+  if (activeEventsError) throw new Error("We couldn't load the list of coordinators.");
+
+  const activeCounts = new Map<string, number>();
+  for (const event of activeEvents) {
+    if (!event.assigned_coordinator_id) continue;
+    activeCounts.set(
+      event.assigned_coordinator_id,
+      (activeCounts.get(event.assigned_coordinator_id) ?? 0) + 1,
+    );
+  }
+
   return data.map(
-    (row): CoordinatorOption => ({ id: row.id, fullName: row.full_name }),
+    (row): CoordinatorOption => ({
+      id: row.id,
+      fullName: row.full_name,
+      activeEventCount: activeCounts.get(row.id) ?? 0,
+    }),
   );
 }
 
