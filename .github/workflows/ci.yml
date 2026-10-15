@@ -35,6 +35,9 @@ jobs:
       - run: pnpm --filter @spm/backend test
       - run: pnpm --filter @spm/frontend test
       - run: pnpm build:backend
+      # Same steps as `pnpm check`, so a local pass means a CI pass. Needs no
+      # secrets: the Supabase values only matter when the built app runs.
+      - run: pnpm build:frontend
 
   # Browser journeys against the production frontend build (vite preview).
   # Secrets are scoped to the steps that need them, never the whole job.
@@ -71,7 +74,8 @@ jobs:
           retention-days: 7
 
   # Migrations and pgTAP/RLS tests on a throwaway local database — never the
-  # shared hosted project. `supabase start` applies every migration.
+  # shared hosted project. Docker runs on GitHub's runner; nobody on the team
+  # needs it locally.
   database:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -80,5 +84,8 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: 2.116.0
-      - run: supabase start
+      # Postgres only (applies every migration). pgTAP needs nothing else, so
+      # this skips Studio, Storage, Realtime, Edge Functions and Analytics —
+      # the setup Supabase's own CI testing guide uses.
+      - run: supabase db start
       - run: supabase test db
