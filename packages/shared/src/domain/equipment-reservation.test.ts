@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { describeEquipmentReservationEvent, isEquipmentReservationAction } from "./equipment-reservation";
+import {
+  describeEquipmentReservationEvent,
+  isEquipmentReservationAction,
+  isEquipmentReservationAllowed,
+} from "./equipment-reservation";
 
 describe("equipment reservation history", () => {
   it("describes each action", () => {
@@ -19,6 +23,12 @@ describe("equipment reservation history", () => {
     expect(describeEquipmentReservationEvent("flagged_for_recheck", { reason: "The event date or time changed" })).toBe(
       "The event date or time changed",
     );
+  });
+
+  it("allows reservation changes only for Requested, Planning and Confirmed events", () => {
+    expect(["requested", "planning", "confirmed"].every(isEquipmentReservationAllowed)).toBe(true);
+    expect(isEquipmentReservationAllowed("pending_safety_check")).toBe(false);
+    expect(isEquipmentReservationAllowed("completed")).toBe(false);
   });
 
   it("recognises the stored actions", () => {

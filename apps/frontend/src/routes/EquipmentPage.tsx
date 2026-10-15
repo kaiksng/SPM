@@ -3,7 +3,10 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
-import { TechnicalSupportEquipment } from "@/features/equipment/components/technical-support-equipment";
+import {
+  TechnicalSupportEquipment,
+  type EquipmentSection,
+} from "@/features/equipment/components/technical-support-equipment";
 import { ListToolbar } from "@/features/workspace/components/list-toolbar";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
@@ -13,9 +16,30 @@ function canRequestEquipment(role: string | undefined) {
   return role === "event_coordinator";
 }
 
-export function EquipmentPage() {
-  usePageTitle("Equipment");
+const sectionHeadings: Readonly<Record<EquipmentSection, { title: string; description: string }>> = {
+  requests: {
+    title: "Event requests",
+    description: "Reserve the equipment events have requested, and track how arranging it is going.",
+  },
+  inventory: { title: "Inventory", description: "Every equipment item and unit in the catalogue." },
+  unavailability: {
+    title: "Unavailability",
+    description: "Repairs, maintenance and losses that take equipment out of service.",
+  },
+};
+
+/**
+ * Technical Support Staff see one of three sections (Event requests,
+ * Inventory, Unavailability), each its own page in the top bar. Other roles
+ * see the plain Equipment page.
+ */
+export function EquipmentPage({ section = "requests" }: { section?: EquipmentSection }) {
   const { profile } = useAuth();
+  const isSupportStaff = profile?.role === "technical_support_staff";
+  const heading = isSupportStaff
+    ? sectionHeadings[section]
+    : { title: "Equipment", description: "Reserve and track technical equipment here." };
+  usePageTitle(heading.title);
   const [searchQuery, setSearchQuery] = useState("");
 
   return (
@@ -27,15 +51,14 @@ export function EquipmentPage() {
               Equipment workspace
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-slate-950">
-              Equipment
+              {heading.title}
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              Reserve and track technical equipment here.
-            </p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{heading.description}</p>
           </header>
 
-          {profile?.role === "technical_support_staff" ? (
-            <TechnicalSupportEquipment />
+          {isSupportStaff ? (
+            // Keyed so moving between sections starts each one fresh.
+            <TechnicalSupportEquipment key={section} section={section} />
           ) : (
             <>
               <ListToolbar

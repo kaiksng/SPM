@@ -1,7 +1,12 @@
 import {
+  equipmentArrangementStatuses,
+  equipmentArrangementStatusLabels,
   equipmentAvailabilityStatusLabels,
   equipmentShortage,
+  isEquipmentReservationAllowed,
   overallEquipmentAvailability,
+  type EquipmentArrangementFormValues,
+  type EquipmentArrangementStatus,
   type EquipmentAvailabilityStatus,
 } from "@spm/shared";
 import { CalendarDays, Search } from "lucide-react";
@@ -9,6 +14,8 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ArrangementDialog } from "@/features/equipment/components/arrangement-dialog";
+import { ArrangementBadge, ArrangementDetails } from "@/features/equipment/components/equipment-arrangement";
 import {
   ReservationDialog,
   type ReservationAction,
@@ -17,6 +24,11 @@ import type {
   EquipmentAvailabilityResult,
   EventEquipmentAvailability,
 } from "@/features/equipment/services/equipment-availability";
+import {
+  arrangementStatusCounts,
+  arrangementStatusesLoaded,
+  eventsWithArrangementStatus,
+} from "@/features/equipment/utils/request-groups";
 import { StatusBadge } from "@/features/event-requests/components/status-badges";
 import { cn } from "@/lib/utils";
 
@@ -42,10 +54,12 @@ type Handlers = {
   onReserve: (requirementId: string, quantity: number) => Promise<void>;
   onChange: (reservationId: string, quantity: number) => Promise<void>;
   onRelease: (reservationId: string, reason: string) => Promise<void>;
+  /** SPM-28: record a new arrangement status and note. */
+  onUpdateArrangement: (requirementId: string, values: EquipmentArrangementFormValues) => Promise<void>;
 };
 
 type PendingAction = {
-  action: ReservationAction;
+  action: ReservationAction | "arrangement";
   event: EventEquipmentAvailability;
   result: EquipmentAvailabilityResult;
 };
@@ -53,16 +67,20 @@ type PendingAction = {
 /**
  * SPM-31: each open event's requested equipment against what can be
  * provided — and, from here, reserving it, changing or releasing the
- * reservation, and re-checking one flagged after a change.
+ * reservation, re-checking one flagged after a change, and (SPM-28)
+ * updating its arrangement status and note. Items are sorted into tabs by
+ * arrangement status (Not started / In progress / Arranged / Issue), each
+ * shown under its event.
  */
 export function EventEquipmentAvailabilityList({
   events,
   onReserve,
   onChange,
   onRelease,
+  onUpdateArrangement,
 }: { events: EventEquipmentAvailability[] } & Handlers) {
   const [query, setQuery] = useState("");
-  const [shortagesOnly, setShortagesOnly] = useState(false);
+  const [tab, setTab] = useState<EquipmentArrangementStatus>("not_started");
   const [pending, setPending] = useState<PendingAction>();
   const [rowError, setRowError] = useState<{ requirementId: string; message: string }>();
 
@@ -80,14 +98,14 @@ export function EventEquipmentAvailabilityList({
   }
 
   const search = query.trim().toLowerCase();
-  const visible = events.filter((event) => {
-    if (search && !event.title.toLowerCase().includes(search)) return false;
-    if (shortagesOnly) {
-      const overall = overallEquipmentAvailability(event.results.map((result) => result.status));
-      return overall !== "available";
-    }
-    return true;
-  });
+  const searched = search ? events.filter((event) => event.title.toLowerCase().includes(search)) : events;
+  // Without the statuses (e.g. the SPM-28 migration isn't applied), every
+  // item is listed untabbed rather than hidden.
+  const tabbed = arrangementStatusesLoaded(searched);
+  const counts = arrangementStatusCounts(searched);
+  const visible = tabbed
+    ? eventsWithArrangementStatus(searched, tab)
+    : searched.map((event) => ({ event, results: event.results }));
 
   return (
     <div>
@@ -106,29 +124,53 @@ export function EventEquipmentAvailabilityList({
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
-          <input
-            type="checkbox"
-            className="size-4 accent-primary"
-            checked={shortagesOnly}
-            onChange={(event) => setShortagesOnly(event.target.checked)}
-          />
-          Only events with a shortage
-        </label>
       </div>
+
+      {tabbed && (
+        <div role="tablist" aria-label="Arrangement status" className="mt-5 flex flex-wrap gap-2">
+          {equipmentArrangementStatuses.map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className={cn(
+                "flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+                tab === key
+                  ? "border-primary bg-primary text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-primary/40 hover:text-slate-900",
+              )}
+            >
+              {equipmentArrangementStatusLabels[key]}
+              <span
+                className={cn(
+                  "rounded-full px-1.5 text-xs font-semibold",
+                  tab === key ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600",
+                )}
+              >
+                {counts[key]}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {visible.length === 0 ? (
         <p className="mt-6 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
           {events.length === 0
             ? "No open events have requested equipment."
-            : "No events match your filters."}
+            : search && searched.length === 0
+              ? "No events match your search."
+              : emptyTabMessages[tab]}
         </p>
       ) : (
         <ul className="mt-5 space-y-4">
-          {visible.map((event) => (
+          {visible.map(({ event, results }) => (
             <EventCard
               key={event.id}
               event={event}
+              results={results}
               rowError={rowError}
               onAction={(action, result) => {
                 setRowError(undefined);
@@ -140,7 +182,20 @@ export function EventEquipmentAvailabilityList({
         </ul>
       )}
 
-      {pending && (
+      {pending?.action === "arrangement" && pending.result.arrangement && (
+        <ArrangementDialog
+          eventTitle={pending.event.title}
+          equipmentName={pending.result.equipmentName}
+          arrangement={pending.result.arrangement}
+          onCancel={() => setPending(undefined)}
+          onSave={async (values) => {
+            await onUpdateArrangement(pending.result.requirementId, values);
+            setPending(undefined);
+          }}
+        />
+      )}
+
+      {pending && pending.action !== "arrangement" && (
         <ReservationDialog
           action={pending.action}
           eventTitle={pending.event.title}
@@ -159,6 +214,13 @@ export function EventEquipmentAvailabilityList({
   );
 }
 
+const emptyTabMessages: Readonly<Record<EquipmentArrangementStatus, string>> = {
+  not_started: "Every requested item has been started on.",
+  in_progress: "Nothing is in progress.",
+  arranged: "Nothing has been arranged yet.",
+  issue: "No items have an issue.",
+};
+
 /** Not available, or reserved but flagged for re-checking. */
 function needsAttention(result: EquipmentAvailabilityResult) {
   return result.status !== "available" || Boolean(result.reservation?.needsRecheck);
@@ -166,15 +228,19 @@ function needsAttention(result: EquipmentAvailabilityResult) {
 
 function EventCard({
   event,
+  results,
   rowError,
   onAction,
   onRecheck,
 }: {
   event: EventEquipmentAvailability;
+  /** The event's items in the selected tab; the header still summarises them all. */
+  results: EquipmentAvailabilityResult[];
   rowError?: { requirementId: string; message: string };
-  onAction: (action: ReservationAction, result: EquipmentAvailabilityResult) => void;
+  onAction: (action: PendingAction["action"], result: EquipmentAvailabilityResult) => void;
   onRecheck: (result: EquipmentAvailabilityResult) => void;
 }) {
+  const reservationsAllowed = isEquipmentReservationAllowed(event.status);
   const shortCount = event.results.filter(needsAttention).length;
   const reservedCount = event.results.filter((result) => result.reservation).length;
   const worst = overallEquipmentAvailability(event.results.map((result) => result.status));
@@ -207,10 +273,11 @@ function EventCard({
         </div>
       </div>
       <ul className="divide-y divide-slate-100">
-        {event.results.map((result) => (
+        {results.map((result) => (
           <ResultRow
             key={result.requirementId}
             result={result}
+            reservationsAllowed={reservationsAllowed}
             error={rowError?.requirementId === result.requirementId ? rowError.message : undefined}
             onAction={(action) => onAction(action, result)}
             onRecheck={() => onRecheck(result)}
@@ -223,17 +290,27 @@ function EventCard({
 
 function ResultRow({
   result,
+  reservationsAllowed,
   error,
   onAction,
   onRecheck,
 }: {
   result: EquipmentAvailabilityResult;
+  /** False while the event awaits its safety check: the database refuses reservation changes. */
+  reservationsAllowed: boolean;
   error?: string;
-  onAction: (action: ReservationAction) => void;
+  onAction: (action: PendingAction["action"]) => void;
   onRecheck: () => void;
 }) {
   const shortage = equipmentShortage(result);
   const { reservation } = result;
+  // The check leaves an item's own reservation out of its figures, so a
+  // reserved item doesn't report itself as short. What's still free in the
+  // pool counts it: a reservation covers its request's whole period, so it
+  // adds to the busiest moment exactly.
+  const ownReserved = reservation?.quantity ?? 0;
+  const poolReserved = result.reservedQuantity + ownReserved;
+  const poolAvailable = Math.max(result.availableQuantity - ownReserved, 0);
   const canReserve =
     !reservation && result.status !== "unknown" && result.availableQuantity > 0 && !result.itemRetired;
 
@@ -254,6 +331,13 @@ function ResultRow({
               Retired
             </span>
           )}
+          {result.arrangement ? (
+            <ArrangementBadge arrangement={result.arrangement} />
+          ) : (
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+              Arrangement status unavailable
+            </span>
+          )}
         </div>
         <p className="mt-1 text-slate-600">{formatPeriod(result.requiredFrom, result.requiredUntil)}</p>
         {result.technicalRequirements && (
@@ -264,7 +348,7 @@ function ResultRow({
         )}
         {result.status !== "unknown" && (
           <p className="mt-1 text-xs text-slate-500">
-            {result.totalUnits} in service · {result.reservedQuantity} reserved ·{" "}
+            {result.totalUnits} in service · {poolReserved} reserved ·{" "}
             {result.unavailableQuantity} out of service during this period
           </p>
         )}
@@ -287,6 +371,7 @@ function ResultRow({
             )}
           </div>
         )}
+        {result.arrangement && <ArrangementDetails arrangement={result.arrangement} />}
         {error && (
           <p role="alert" className="mt-2 text-red-700">
             {error}
@@ -302,25 +387,38 @@ function ResultRow({
         ) : (
           <>
             <span className="text-slate-900">
-              <span className="font-semibold">{result.availableQuantity}</span> available
+              <span className="font-semibold">{poolAvailable}</span> available
             </span>
+            {reservation && (
+              <span className="text-xs text-slate-500">{reservation.quantity} reserved for this event</span>
+            )}
             {shortage !== null && shortage > 0 && !reservation && (
               <span className="font-medium text-red-700">Short by {shortage}</span>
             )}
           </>
         )}
         <div className="mt-1 flex flex-wrap justify-end gap-1.5">
-          {canReserve && (
+          {result.arrangement && (
+            <Button type="button" size="sm" variant="outline" onClick={() => onAction("arrangement")}>
+              Update arrangement
+            </Button>
+          )}
+          {!reservationsAllowed && (canReserve || reservation) && (
+            <span className="max-w-56 text-right text-xs text-slate-500">
+              Reservations can't be changed while the event awaits its safety check
+            </span>
+          )}
+          {reservationsAllowed && canReserve && (
             <Button type="button" size="sm" onClick={() => onAction("reserve")}>
               Reserve
             </Button>
           )}
-          {reservation?.needsRecheck && (
+          {reservationsAllowed && reservation?.needsRecheck && (
             <Button type="button" size="sm" onClick={onRecheck}>
               Re-check
             </Button>
           )}
-          {reservation && (
+          {reservationsAllowed && reservation && (
             <>
               <Button type="button" size="sm" variant="outline" onClick={() => onAction("change")}>
                 Change

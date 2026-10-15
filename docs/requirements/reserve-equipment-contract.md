@@ -41,6 +41,8 @@
   - **Re-check** appears on a flagged reservation, with the flag's reason shown.
 
   Each event card shows "N of M reserved"; flagged items count as needing attention.
+
+  On a reserved item, the "reserved" and "available" figures include its own reservation (e.g. 100 in service, 7 reserved here: "93 available · 7 reserved for this event"). The database leaves the item's own reservation out, so its status and "Short by" stay correct; the page adds it back for display (15 October 2026).
 - **Event → Planning → Equipment** (`/events/:id/equipment`). The sidebar step that used to say "Coming soon" now opens the event's arrangements (AC1):
   - each requested item marked Reserved, Needs re-check (with the reason) or Not reserved yet;
   - for reservations, who reserved how many, for which period and when;

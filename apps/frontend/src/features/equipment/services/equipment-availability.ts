@@ -1,12 +1,21 @@
 import {
+  automaticEquipmentArrangementStatus,
+  currentEquipmentArrangement,
+  isEquipmentReservationAllowed,
   isEquipmentAvailabilityStatus,
+  type EquipmentArrangementState,
   type EquipmentAvailabilityStatus,
 } from "@spm/shared";
 
+import { loadEquipmentArrangementStatuses } from "@/features/equipment/services/equipment-arrangement-status";
 import { supabase } from "@/lib/supabase-client";
 
-/** Events whose equipment Technical Support Staff still need to arrange. */
-const OPEN_STATUSES = ["requested", "planning", "confirmed"] as const;
+/**
+ * Events whose equipment Technical Support Staff still need to arrange.
+ * Pending Safety Check events are listed for their arrangement status
+ * (SPM-28), but the database refuses reservation changes for them.
+ */
+const OPEN_STATUSES = ["requested", "planning", "pending_safety_check", "confirmed"] as const;
 
 export type EquipmentAvailabilityResult = {
   requirementId: string;
@@ -32,6 +41,12 @@ export type EquipmentAvailabilityResult = {
     reservedByName: string | null;
     reservedAt: string | null;
   } | null;
+  /**
+   * SPM-28: the arrangement status, note and history — worked out from the
+   * reservation and availability until staff set one by hand — or null when
+   * the statuses could not be loaded.
+   */
+  arrangement: EquipmentArrangementState | null;
 };
 
 export type EventEquipmentAvailability = {
@@ -58,15 +73,20 @@ export async function listEventEquipmentAvailability(): Promise<EventEquipmentAv
   if (error) throw new Error("We couldn't load events that need equipment.");
   if (events.length === 0) return [];
 
-  const { data: rows, error: checkError } = await supabase.rpc("check_event_equipment_availability", {
-    p_event_ids: events.map((event) => event.id),
-  });
+  const eventIds = events.map((event) => event.id);
+  const [{ data: rows, error: checkError }, arrangements] = await Promise.all([
+    supabase.rpc("check_event_equipment_availability", { p_event_ids: eventIds }),
+    // The arrangement statuses are extra detail: if they can't be loaded
+    // (e.g. the SPM-28 migration isn't applied yet), the rest still shows.
+    loadEquipmentArrangementStatuses(eventIds).catch(() => null),
+  ]);
 
   if (checkError) throw new Error("We couldn't check equipment availability.");
 
+  const eventStatusById = new Map(events.map((event) => [event.id, event.status]));
   const resultsByEvent = new Map<string, EquipmentAvailabilityResult[]>();
   for (const row of rows ?? []) {
-    const result: EquipmentAvailabilityResult = {
+    const result: Omit<EquipmentAvailabilityResult, "arrangement"> = {
       requirementId: row.requirement_id,
       equipmentItemId: row.equipment_item_id,
       equipmentName: row.equipment_name,
@@ -94,7 +114,18 @@ export async function listEventEquipmentAvailability(): Promise<EventEquipmentAv
             }
           : null,
     };
-    resultsByEvent.set(row.event_id, [...(resultsByEvent.get(row.event_id) ?? []), result]);
+    const automatic = automaticEquipmentArrangementStatus({
+      requestedQuantity: result.requestedQuantity,
+      reservation: result.reservation,
+      canReserveInFull:
+        result.status === "available" &&
+        !result.itemRetired &&
+        isEquipmentReservationAllowed(eventStatusById.get(row.event_id) ?? ""),
+    });
+    const arrangement = arrangements
+      ? (arrangements.get(row.requirement_id) ?? currentEquipmentArrangement([], automatic))
+      : null;
+    resultsByEvent.set(row.event_id, [...(resultsByEvent.get(row.event_id) ?? []), { ...result, arrangement }]);
   }
 
   return events.map((event) => ({

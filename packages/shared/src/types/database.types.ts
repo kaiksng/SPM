@@ -151,6 +151,58 @@ export type Database = {
           },
         ]
       }
+      equipment_arrangement_updates: {
+        Row: {
+          event_id: string
+          id: number
+          note: string | null
+          requirement_id: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          event_id: string
+          id?: never
+          note?: string | null
+          requirement_id: string
+          status: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          event_id?: string
+          id?: never
+          note?: string | null
+          requirement_id?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "equipment_arrangement_updates_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_arrangement_updates_requirement_id_fkey"
+            columns: ["requirement_id"]
+            isOneToOne: false
+            referencedRelation: "event_equipment_requirements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "equipment_arrangement_updates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       equipment_items: {
         Row: {
           category: string | null
@@ -1963,6 +2015,10 @@ export type Database = {
       submit_venue_booking_request: {
         Args: { p_actor_id?: string; p_event_id: string; p_venue_id: string }
         Returns: string
+      }
+      update_equipment_arrangement: {
+        Args: { p_note?: string; p_requirement_id: string; p_status: string }
+        Returns: number
       }
       update_equipment_item: {
         Args: {

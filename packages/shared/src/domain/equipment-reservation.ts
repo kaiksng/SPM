@@ -24,6 +24,15 @@ export function isEquipmentReservationAction(value: string): value is EquipmentR
   return (equipmentReservationActions as readonly string[]).includes(value);
 }
 
+/**
+ * Event statuses for which reservations can be made, changed or re-checked.
+ * Mirrors public.lock_requirement_for_reservation (202610061002), which is
+ * authoritative. Pending Safety Check is not one of them.
+ */
+export function isEquipmentReservationAllowed(eventStatus: string) {
+  return eventStatus === "requested" || eventStatus === "planning" || eventStatus === "confirmed";
+}
+
 type Snapshot = { quantity?: unknown };
 
 function quantityOf(value: unknown) {

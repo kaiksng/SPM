@@ -1,16 +1,16 @@
 import {
-  overallEquipmentAvailability,
-  equipmentUnavailabilityStatus,
   equipmentUnitLabel,
   type EquipmentItemFormValues,
   type EquipmentUnavailabilityFormValues,
 } from "@spm/shared";
 import { Boxes, ChevronRight, CircleAlert, Plus } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { EquipmentInventory } from "@/features/equipment/components/equipment-inventory";
 import { EventEquipmentAvailabilityList } from "@/features/equipment/components/event-equipment-availability";
+import { updateEquipmentArrangement } from "@/features/equipment/services/equipment-arrangement-status";
 import {
   changeEquipmentReservation,
   listEventEquipmentAvailability,
@@ -42,17 +42,24 @@ import { currentOutages } from "@/features/equipment/utils/inventory-status";
 import { Modal } from "@/features/event-requests/components/modal";
 import { cn } from "@/lib/utils";
 
-type Tab = "requests" | "inventory" | "unavailability";
+/** The three Technical Support Staff sections, each its own page in the top bar. */
+export type EquipmentSection = "requests" | "inventory" | "unavailability";
 
-/** The Technical Support Staff view of the Equipment page. */
-export function TechnicalSupportEquipment() {
+const unavailabilityFilters: readonly UnavailabilityFilter[] = ["all", "in_progress", "upcoming", "finished", "removed"];
+
+/** The Technical Support Staff view of one Equipment section. */
+export function TechnicalSupportEquipment({ section }: { section: EquipmentSection }) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [records, setRecords] = useState<EquipmentUnavailabilityRecord[]>([]);
-  const [tab, setTab] = useState<Tab>("requests");
   const [eventAvailability, setEventAvailability] = useState<EventEquipmentAvailability[]>([]);
-  const [historyFilter, setHistoryFilter] = useState<UnavailabilityFilter>("all");
+  // "Out of service now" on Inventory links here filtered to records in progress.
+  const requestedFilter = searchParams.get("filter");
+  const [historyFilter, setHistoryFilter] = useState<UnavailabilityFilter>(
+    unavailabilityFilters.find((filter) => filter === requestedFilter) ?? "all",
+  );
   const [recording, setRecording] = useState(false);
-  const historyRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
@@ -86,10 +93,10 @@ export function TechnicalSupportEquipment() {
   // Runs a write, then reloads. A failed write throws to the caller (which
   // shows the error next to the control); a failed reload is reported here
   // without pretending the write failed.
-  async function write(action: () => Promise<unknown>, message: string) {
-    await action();
+  async function write<T>(action: () => Promise<T>, message: string | ((result: T) => string)) {
+    const result = await action();
     setError(undefined);
-    setNotice(message);
+    setNotice(typeof message === "function" ? message(result) : message);
     try {
       await refresh();
     } catch {
@@ -107,15 +114,6 @@ export function TechnicalSupportEquipment() {
     (sum, item) => sum + Math.min(quantityByItem.get(item.id) ?? 0, item.totalQuantity),
     0,
   );
-  const upcomingOrCurrent = records.filter((record) => {
-    const status = equipmentUnavailabilityStatus(record);
-    return status === "upcoming" || status === "in_progress";
-  }).length;
-
-  const eventsWithShortage = eventAvailability.filter(
-    (event) => overallEquipmentAvailability(event.results.map((result) => result.status)) !== "available",
-  ).length;
-
   const unitLabelById = new Map<string, string>();
   for (const item of items) {
     for (const unit of item.units) unitLabelById.set(unit.id, equipmentUnitLabel(item.code, unit.unitNumber));
@@ -123,21 +121,19 @@ export function TechnicalSupportEquipment() {
 
   return (
     <>
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <SummaryCard icon={<Boxes />} label="Equipment types" value={activeItems.length} />
-        <SummaryCard
-          icon={<CircleAlert />}
-          label="Out of service now"
-          value={outNow}
-          tone={outNow > 0 ? "warn" : undefined}
-          actionLabel="View records in progress"
-          onClick={() => {
-            setTab("unavailability");
-            setHistoryFilter("in_progress");
-            requestAnimationFrame(() => historyRef.current?.scrollIntoView?.({ behavior: "smooth" }));
-          }}
-        />
-      </div>
+      {section === "inventory" && (
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <SummaryCard icon={<Boxes />} label="Equipment types" value={activeItems.length} />
+          <SummaryCard
+            icon={<CircleAlert />}
+            label="Out of service now"
+            value={outNow}
+            tone={outNow > 0 ? "warn" : undefined}
+            actionLabel="View records in progress"
+            onClick={() => navigate("/equipment/unavailability?filter=in_progress")}
+          />
+        </div>
+      )}
 
       {(error || notice) && (
         <p
@@ -148,30 +144,8 @@ export function TechnicalSupportEquipment() {
         </p>
       )}
 
-      <div role="tablist" aria-label="Equipment sections" className="mt-7 flex gap-1 border-b border-slate-200">
-        <TabButton active={tab === "requests"} onClick={() => setTab("requests")}>
-          Event requests
-          {eventsWithShortage > 0 && (
-            <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
-              {eventsWithShortage}
-            </span>
-          )}
-        </TabButton>
-        <TabButton active={tab === "inventory"} onClick={() => setTab("inventory")}>
-          Inventory
-        </TabButton>
-        <TabButton active={tab === "unavailability"} onClick={() => setTab("unavailability")}>
-          Unavailability
-          {upcomingOrCurrent > 0 && (
-            <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
-              {upcomingOrCurrent}
-            </span>
-          )}
-        </TabButton>
-      </div>
-
-      {tab === "requests" ? (
-        <section role="tabpanel" aria-label="Event requests" className="mt-5">
+      {section === "requests" ? (
+        <section aria-label="Event requests" className="mt-6">
           <EventEquipmentAvailabilityList
             events={eventAvailability}
             onReserve={(requirementId, quantity) =>
@@ -183,10 +157,16 @@ export function TechnicalSupportEquipment() {
             onRelease={(reservationId, reason) =>
               write(() => releaseEquipmentReservation(reservationId, reason), "Reservation released.")
             }
+            onUpdateArrangement={(requirementId, values) =>
+              write(
+                () => updateEquipmentArrangement(requirementId, values),
+                (changed) => (changed ? "Arrangement updated." : "No changes to save."),
+              )
+            }
           />
         </section>
-      ) : tab === "inventory" ? (
-        <section role="tabpanel" aria-label="Inventory" className="mt-5">
+      ) : section === "inventory" ? (
+        <section aria-label="Inventory" className="mt-6">
           <EquipmentInventory
             items={items}
             records={records}
@@ -217,8 +197,8 @@ export function TechnicalSupportEquipment() {
           />
         </section>
       ) : (
-        <section role="tabpanel" aria-label="Unavailability" className="mt-5">
-          <div ref={historyRef} className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
+        <section aria-label="Unavailability" className="mt-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-slate-950">Unavailability records</h2>
@@ -326,30 +306,5 @@ function SummaryCard({
     </button>
   ) : (
     <div className={cardClass}>{content}</div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={cn(
-        "-mb-px flex items-center border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
-        active ? "border-primary text-primary" : "border-transparent text-slate-500 hover:text-slate-800",
-      )}
-    >
-      {children}
-    </button>
   );
 }

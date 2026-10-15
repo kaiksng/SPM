@@ -21,6 +21,10 @@ vi.mock("@/features/event-requests/services/event-details", () => ({
 vi.mock("@/features/event-requests/services/equipment-arrangements", () => ({
   listEquipmentArrangements: (...args: unknown[]) => listEquipmentArrangementsMock(...args),
 }));
+const loadEquipmentArrangementStatusesMock = vi.fn();
+vi.mock("@/features/equipment/services/equipment-arrangement-status", () => ({
+  loadEquipmentArrangementStatuses: (...args: unknown[]) => loadEquipmentArrangementStatusesMock(...args),
+}));
 
 import { EventEquipmentPage } from "./EventEquipmentPage";
 
@@ -65,6 +69,7 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  loadEquipmentArrangementStatusesMock.mockReset().mockResolvedValue(new Map());
   loadEventDetailMock.mockReset().mockResolvedValue({
     id: "event-1",
     title: "Spring Expo",
@@ -135,5 +140,74 @@ describe("EventEquipmentPage (equipment arrangements)", () => {
 
     expect(await screen.findByRole("navigation", { name: "Event lifecycle" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Back to event/ })).toHaveAttribute("href", "/events/event-1");
+  });
+});
+
+describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
+  const statuses = new Map([
+    [
+      "req-proj",
+      {
+        status: "issue",
+        note: "One projector is faulty",
+        updatedByName: "Lee Support",
+        updatedAt: "2099-06-22T02:00:00.000Z",
+        history: [
+          { id: 1, status: "in_progress", note: null, updatedByName: "Tess Support", updatedAt: "2099-06-21T02:00:00.000Z" },
+          { id: 2, status: "issue", note: "One projector is faulty", updatedByName: "Lee Support", updatedAt: "2099-06-22T02:00:00.000Z" },
+        ],
+      },
+    ],
+  ]);
+
+  it("shows the assigned coordinator each item's status, note and history (AC02/AC03)", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      ...(await loadEventDetailMock()),
+      assignedCoordinatorId: "coordinator-1",
+    });
+    loadEquipmentArrangementStatusesMock.mockResolvedValue(statuses);
+    renderPage();
+
+    const projector = (await screen.findByText("Projector × 3")).closest("li")!;
+    expect(loadEquipmentArrangementStatusesMock).toHaveBeenCalledWith(["event-1"]);
+    expect(within(projector).getByText("Arrangement: Issue")).toBeInTheDocument();
+    expect(within(projector).getByText(/One projector is faulty/, { selector: "p" })).toBeInTheDocument();
+    expect(within(projector).getByText(/Updated by Lee Support/)).toBeInTheDocument();
+    expect(within(projector).getByText("Arrangement history (2)")).toBeInTheDocument();
+
+    // Nobody set these, so they follow the reservation: a flagged one is an issue,
+    // and one whose reservation was released hasn't been started.
+    const mic = screen.getByText("Wireless microphone × 10").closest("li")!;
+    expect(within(mic).getByText(/Arrangement: Issue/)).toHaveTextContent("Arrangement: Issue (automatic)");
+    const tv = screen.getAllByText("TV / display monitor × 2")[0]!.closest("li")!;
+    expect(within(tv).getByText("Arrangement: Not started")).toBeInTheDocument();
+    // Read-only here: updating happens on the Technical Support Staff page.
+    expect(screen.queryByRole("button", { name: "Update arrangement" })).not.toBeInTheDocument();
+  });
+
+  it("still shows the reservations when the arrangement statuses can't be loaded", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      ...(await loadEventDetailMock()),
+      assignedCoordinatorId: "coordinator-1",
+    });
+    loadEquipmentArrangementStatusesMock.mockRejectedValue(new Error("We couldn't load the equipment arrangement statuses."));
+    renderPage();
+
+    const projector = (await screen.findByText("Projector × 3")).closest("li")!;
+    expect(within(projector).getByText(/3 reserved for/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Arrangement:/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("hides the status from anyone other than the assigned coordinator", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      ...(await loadEventDetailMock()),
+      assignedCoordinatorId: "coordinator-2",
+    });
+    loadEquipmentArrangementStatusesMock.mockResolvedValue(statuses);
+    renderPage();
+
+    expect(await screen.findByText("Projector × 3")).toBeInTheDocument();
+    expect(screen.queryByText(/^Arrangement:/)).not.toBeInTheDocument();
   });
 });

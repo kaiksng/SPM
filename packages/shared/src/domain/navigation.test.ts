@@ -23,10 +23,23 @@ describe("workspace navigation", () => {
     ]);
   });
 
-  it("gives technical support staff the equipment section", () => {
+  it("gives technical support staff event requests, inventory and unavailability", () => {
     expect(
-      getNavItemsForRole("technical_support_staff").map((item) => item.id),
-    ).toEqual(["equipment"]);
+      getNavItemsForRole("technical_support_staff").map((item) => [item.label, item.href]),
+    ).toEqual([
+      ["Event requests", "/equipment"],
+      ["Inventory", "/equipment/inventory"],
+      ["Unavailability", "/equipment/unavailability"],
+    ]);
+  });
+
+  it("keeps inventory and unavailability to technical support staff", () => {
+    for (const path of ["/equipment", "/equipment/inventory", "/equipment/unavailability"]) {
+      expect(isPathAllowedForRole(path, "technical_support_staff")).toBe(true);
+    }
+    expect(isPathAllowedForRole("/equipment", "event_coordinator")).toBe(true);
+    expect(isPathAllowedForRole("/equipment/inventory", "event_coordinator")).toBe(false);
+    expect(isPathAllowedForRole("/equipment/unavailability", "event_organiser")).toBe(false);
   });
 
   it("gives attendees only the browse events section", () => {

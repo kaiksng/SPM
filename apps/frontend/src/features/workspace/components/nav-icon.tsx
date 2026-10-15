@@ -1,8 +1,11 @@
 import type { NavItemId } from "@spm/shared";
 import {
+  Boxes,
   Building2,
   CalendarDays,
+  CircleAlert,
   ClipboardCheck,
+  ClipboardList,
   Compass,
   Flag,
   ShieldCheck,
@@ -15,6 +18,9 @@ const NAV_ICONS = {
   requests: ClipboardCheck,
   "flagged-bookings": Flag,
   equipment: Wrench,
+  "equipment-requests": ClipboardList,
+  "equipment-inventory": Boxes,
+  "equipment-unavailability": CircleAlert,
   "browse-events": Compass,
   "safety-checks": ShieldCheck,
 } as const satisfies Record<

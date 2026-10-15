@@ -32,14 +32,14 @@
 
 ## Page
 
-The `/equipment` page for Technical Support Staff now opens on an **Event requests** tab, which shows a count of events with a shortage.
+For Technical Support Staff, `/equipment` is the **Event requests** page (Inventory and Unavailability have their own pages in the top bar since 15 October 2026). Items are sorted into tabs by their SPM-28 arrangement status (Not started / In progress / Arranged / Issue), each showing its count and listing items under their event. Availability, shortages and reservations show inside each item's row. If the arrangement statuses can't be loaded, every item is listed without tabs.
 
 - It lists Requested, Planning and Confirmed events that have equipment requirements, soonest first.
 - **Each event card:** its status, its schedule, and an overall summary ("All equipment available" or "N of M items need attention").
 - **Each item on the card:** the requested quantity, the period, its technical requirements, the in service / reserved / out-of-service figures, and the result.
   - For a shortfall, it states "Short by N". That's the scenario: the shortage is visible before any reservation.
   - Unknown items say "Not in the catalogue — check manually".
-- **Filters:** search by event name, and "Only events with a shortage".
+- **Filters:** search by event name. (The old "Only events with a shortage" filter was removed when the tabs were added.)
 
 Availability reloads after any stock or outage change on the page.
 

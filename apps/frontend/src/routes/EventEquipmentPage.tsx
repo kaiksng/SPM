@@ -1,12 +1,19 @@
 import {
+  automaticEquipmentArrangementStatus,
+  currentEquipmentArrangement,
+  isEquipmentReservationAllowed,
   describeEquipmentReservationEvent,
   equipmentReservationActionLabels,
+  type EquipmentArrangementState,
 } from "@spm/shared";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import { buttonVariants } from "@/components/ui/button";
+import { useAuth } from "@/context/auth-context";
+import { ArrangementBadge, ArrangementDetails } from "@/features/equipment/components/equipment-arrangement";
+import { loadEquipmentArrangementStatuses } from "@/features/equipment/services/equipment-arrangement-status";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
 import {
   listEquipmentArrangements,
@@ -33,12 +40,18 @@ function formatPeriod(from: string | null, until: string | null) {
  * The "Equipment" sub-step of an event's Planning stage: each requested item
  * with the reservation Technical Support Staff made for it (who, when, how
  * many, for which period), any re-check flag, and the reservation history.
- * Read-only — reserving happens on the Technical Support Staff Equipment page.
+ * The assigned coordinator also sees each item's arrangement status, note
+ * and history (SPM-28). Read-only — reserving and arranging happen on the
+ * Technical Support Staff Equipment page.
  */
 export function EventEquipmentPage() {
   const { eventId } = useParams();
+  const { user } = useAuth();
   const [event, setEvent] = useState<EventDetail>();
   const [arrangements, setArrangements] = useState<EquipmentArrangement[]>([]);
+  const [arrangementStatuses, setArrangementStatuses] = useState<Map<string, EquipmentArrangementState> | null>(
+    new Map(),
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
 
@@ -48,11 +61,18 @@ export function EventEquipmentPage() {
     if (!eventId) return;
     let active = true;
     setLoading(true);
-    Promise.all([loadEventDetail(eventId), listEquipmentArrangements(eventId)])
-      .then(([detail, rows]) => {
+    Promise.all([
+      loadEventDetail(eventId),
+      listEquipmentArrangements(eventId),
+      // Under RLS only the assigned coordinator gets rows; others get none.
+      // Extra detail: if it can't be loaded, the rest of the page still shows.
+      loadEquipmentArrangementStatuses([eventId]).catch(() => null),
+    ])
+      .then(([detail, rows, statuses]) => {
         if (!active) return;
         setEvent(detail);
         setArrangements(rows);
+        setArrangementStatuses(statuses);
       })
       .catch((loadError: unknown) => {
         if (active) {
@@ -81,6 +101,9 @@ export function EventEquipmentPage() {
     (arrangement) => arrangement.status === "reserved" && !arrangement.requirementId,
   );
   const released = arrangements.filter((arrangement) => arrangement.status === "released");
+  // SPM-28 visibility: the assigned coordinator. Anyone else who can open
+  // this page would see every item as Not started, so the status is hidden.
+  const showArrangementStatus = Boolean(arrangementStatuses && user && event?.assignedCoordinatorId === user.id);
 
   return (
     <RoleGate>
@@ -121,6 +144,23 @@ export function EventEquipmentPage() {
                           key={requirement.id}
                           requirement={requirement}
                           reservation={liveByRequirement.get(requirement.id)}
+                          arrangement={
+                            showArrangementStatus
+                              ? (arrangementStatuses?.get(requirement.id) ??
+                                currentEquipmentArrangement(
+                                  [],
+                                  // Stock levels aren't available to coordinators, so an
+                                  // unreserved catalogue item shows Not started here.
+                                  automaticEquipmentArrangementStatus({
+                                    requestedQuantity: requirement.quantity,
+                                    reservation: liveByRequirement.get(requirement.id) ?? null,
+                                    canReserveInFull:
+                                      requirement.equipmentItemId !== null &&
+                                      isEquipmentReservationAllowed(event.status),
+                                  }),
+                                ))
+                              : undefined
+                          }
                         />
                       ))}
                       {orphaned.map((reservation) => (
@@ -170,9 +210,12 @@ export function EventEquipmentPage() {
 function RequirementArrangement({
   requirement,
   reservation,
+  arrangement,
 }: {
   requirement: EquipmentRequirement;
   reservation?: EquipmentArrangement;
+  /** SPM-28 status, note and history; absent when the viewer may not see it. */
+  arrangement?: EquipmentArrangementState;
 }) {
   const state = !reservation ? "pending" : reservation.needsRecheck ? "recheck" : "reserved";
   return (
@@ -200,6 +243,12 @@ function RequirementArrangement({
         </span>
       </div>
       <p className="mt-1 text-slate-600">{formatPeriod(requirement.requiredFrom, requirement.requiredUntil)}</p>
+      {arrangement && (
+        <div className="mt-2">
+          <ArrangementBadge arrangement={arrangement} />
+          <ArrangementDetails arrangement={arrangement} />
+        </div>
+      )}
       {reservation && (
         <>
           <p className="mt-2 text-slate-800">

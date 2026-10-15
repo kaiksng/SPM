@@ -35,13 +35,15 @@ Requested by the product owner on 2026-10-06, as an addition to SPM-30.
 
 ## Page (`/equipment`, Technical Support Staff)
 
-- **Summary cards:** equipment types, available now, out of service now, retired types.
-- **Inventory tab:**
+Since 15 October 2026, Inventory and Unavailability are separate pages in the Technical Support Staff top bar (`/equipment/inventory`, `/equipment/unavailability`); `/equipment` itself is Event requests.
+
+- **Summary cards** (on Inventory): equipment types and out of service now. "Out of service now" opens Unavailability filtered to records in progress.
+- **Inventory page:**
   - search by name, code or unit ID (e.g. `mic-12`);
   - category filter and a "Show retired" toggle;
   - items grouped by category, each showing available / out now / in service, with Edit and Retire;
   - expand an item to see every unit by ID, filter units by status, retire or restore one, or add more.
-- **Unavailability tab:** the SPM-30 form, now with an optional unit picker (units already out for the period are greyed out), plus the record history, which shows any units named.
+- **Unavailability page:** the SPM-30 form, now with an optional unit picker (units already out for the period are greyed out), plus the record history, which shows any units named.
 
 ## Tests
 

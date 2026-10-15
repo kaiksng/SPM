@@ -6,6 +6,9 @@ export type NavItemId =
   | "requests"
   | "flagged-bookings"
   | "equipment"
+  | "equipment-requests"
+  | "equipment-inventory"
+  | "equipment-unavailability"
   | "browse-events"
   | "safety-checks";
 
@@ -25,6 +28,14 @@ const NAV_ITEMS: Record<NavItemId, NavItem> = {
     href: "/flagged-bookings",
   },
   equipment: { id: "equipment", label: "Equipment", href: "/equipment" },
+  // Technical Support Staff split the equipment area into three sections.
+  "equipment-requests": { id: "equipment-requests", label: "Event requests", href: "/equipment" },
+  "equipment-inventory": { id: "equipment-inventory", label: "Inventory", href: "/equipment/inventory" },
+  "equipment-unavailability": {
+    id: "equipment-unavailability",
+    label: "Unavailability",
+    href: "/equipment/unavailability",
+  },
   "browse-events": {
     id: "browse-events",
     label: "Browse Event",
@@ -41,7 +52,7 @@ const ROLE_NAV_ITEM_IDS = {
   event_organiser: ["events", "venues", "equipment"],
   event_coordinator: ["events", "venues", "equipment"],
   venue_staff: ["venues", "requests", "flagged-bookings"],
-  technical_support_staff: ["equipment"],
+  technical_support_staff: ["equipment-requests", "equipment-inventory", "equipment-unavailability"],
   attendee: ["browse-events"],
   // View-only for now: the Lead's dashboard is the shared "events" section,
   // just showing every event instead of one organiser's or coordinator's
@@ -78,7 +89,13 @@ export function isPathAllowedForRole(pathname: string, role: UserRole) {
   if (role === "event_coordinator_lead") {
     return LEAD_ALLOWED_EVENT_PATHS.some((pattern) => pattern.test(pathname));
   }
-  return getNavItemsForRole(role).some(
-    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+  // The most specific section a path belongs to decides: "/equipment/inventory"
+  // is the Inventory section, not a page inside "/equipment", so a role with
+  // only "/equipment" can't reach it.
+  const matches = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const longest = Math.max(
+    ...Object.values(NAV_ITEMS).map((item) => (matches(item.href) ? item.href.length : -1)),
   );
+  if (longest < 0) return false;
+  return getNavItemsForRole(role).some((item) => item.href.length === longest && matches(item.href));
 }
