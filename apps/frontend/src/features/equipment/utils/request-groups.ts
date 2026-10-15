@@ -8,12 +8,14 @@ import type {
 /**
  * The Event requests tabs follow each item's arrangement status (SPM-28):
  * Not started / In progress / Arranged / Issue. Availability and
- * reservations still show inside each item's row.
+ * reservations still show inside each item's row. A reservation whose
+ * request was removed needs releasing, so it is listed under Issue.
  */
 export function eventsWithArrangementStatus(events: EventEquipmentAvailability[], status: EquipmentArrangementStatus) {
   return events.flatMap((event) => {
     const results = event.results.filter((result) => result.arrangement?.status === status);
-    return results.length > 0 ? [{ event, results }] : [];
+    const orphanedReservations = status === "issue" ? (event.orphanedReservations ?? []) : [];
+    return results.length > 0 || orphanedReservations.length > 0 ? [{ event, results, orphanedReservations }] : [];
   });
 }
 
@@ -24,6 +26,7 @@ export function arrangementStatusCounts(
   const counts: Record<EquipmentArrangementStatus, number> = { not_started: 0, in_progress: 0, arranged: 0, issue: 0 };
   for (const event of events) {
     for (const result of event.results) if (result.arrangement) counts[result.arrangement.status] += 1;
+    counts.issue += event.orphanedReservations?.length ?? 0;
   }
   return counts;
 }

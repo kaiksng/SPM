@@ -50,7 +50,7 @@ Decisions agreed at refinement (15 October 2026):
   - Items are sorted into tabs by arrangement status: Not started (opens first), In progress, Arranged, Issue, each with a count. An item moves to its new tab when its status changes.
   - Each requested item shows an "Arrangement: …" badge, the latest note, "Updated by [name] · [time]", and a collapsible arrangement history.
   - **Update arrangement** opens a pop-up with the status and note, starting from the current values. "No changes to save." appears when nothing changed. A refusal from the database appears in the pop-up.
-  - Pending Safety Check events are now listed too. Their Reserve, Change, Re-check and Release actions are hidden with "Reservations can't be changed while the event awaits its safety check", because the reservation functions refuse them.
+  - Pending Safety Check events are now listed too. Their Reserve, Change and Re-check actions are hidden with "Can't reserve or change while the event awaits its safety check", because the reservation functions refuse them. Release stays available, since it only returns units to the pool.
 - **Event → Planning → Equipment** (`/events/:id/equipment`). The assigned coordinator sees each item's arrangement status, note and history, read-only. Other viewers don't see the status, rather than seeing every item as Not started.
 - Service: `features/equipment/services/equipment-arrangement-status.ts`. It calls Supabase directly. No backend route is needed, because no notification is created.
 

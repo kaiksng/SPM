@@ -56,3 +56,14 @@
 - `apps/frontend/src/routes/EquipmentPage.test.tsx` ("reserving equipment").
 - `apps/frontend/src/routes/EventEquipmentPage.test.tsx`.
 - `EventDetailPage.test.tsx` was updated for the Equipment sidebar link.
+
+## Reservations whose request was removed (15 October 2026)
+
+When a coordinator removes an equipment request that has a live reservation, the reservation is flagged "The equipment request was removed" (AC4) but still holds its units. It has no request row, so it used to be missing from the Technical Support Staff Event requests page, and nobody there could release it.
+
+- The Event requests page now also loads live reservations with no request on open events (`listOrphanedReservations` in `equipment-availability.ts`), including events with no requests left.
+- They appear under the **Issue** tab on the event's card as "[item] × N reserved", with the flag, "Still held from the available pool until released", and a **Release** button (with an optional reason). Change and Re-check aren't offered, because `change_equipment_reservation` refuses a reservation without a request.
+- **Release is allowed for Pending Safety Check events** too, for these and ordinary reservations. `release_equipment_reservation` has no event-status rule; only reserving, changing and re-checking are limited to Requested, Planning and Confirmed.
+- No database change. Tests: `reserve_equipment.test.sql` (releasing a removed-request reservation; release allowed and change refused during Pending Safety Check), `equipment-availability.test.ts`, `request-groups.test.ts`, `EquipmentPage.test.tsx`.
+
+**Known limit:** cancelling or completing an event does not release its reservations, so their units stay held. That needs its own fix.

@@ -1,6 +1,6 @@
 begin;
 
-select plan(30);
+select plan(36);
 
 -- Reserve equipment for an event (202610061002_reserve_equipment.sql).
 
@@ -256,6 +256,48 @@ select is(
 select ok(
   (select count(*) from public.equipment_reservation_events) > 0,
   'the coordinator can read the reservation history'
+);
+
+-- A reservation whose request was removed still holds stock, so Technical
+-- Support Staff must be able to find it and release it.
+select set_config('request.jwt.claims', '{"sub":"e6000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(
+  (
+    select count(*)::integer from public.equipment_reservations r
+    join public.events e on e.id = r.event_id
+    where r.status = 'approved' and r.requirement_id is null and e.status = 'planning'
+  ),
+  1,
+  'staff can see the live reservation left by a removed request'
+);
+select lives_ok(
+  $$select public.release_equipment_reservation((select id from v_ids where name = 'res-60'), 'Request removed')$$,
+  'staff can release a reservation whose request was removed (AC5)'
+);
+select is(
+  (select row(status::text, needs_recheck) from public.equipment_reservations where id = (select id from v_ids where name = 'res-60')),
+  row('cancelled'::text, false),
+  'the released reservation no longer holds stock or needs a re-check'
+);
+
+-- Releasing stays open while the event awaits its safety check, even though
+-- reserving and changing are refused then.
+select lives_ok(
+  $$insert into v_ids select 'res-safety', public.reserve_equipment((select id from v_ids where name = 'req-1'), 1)$$,
+  'staff reserve one projector while the event is in Planning'
+);
+reset role;
+update public.events set status = 'pending_safety_check' where id = (select id from v_ids where name = 'event');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"e6000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select throws_ok(
+  $$select public.change_equipment_reservation((select id from v_ids where name = 'res-safety'), 1)$$,
+  '23514', 'Equipment can only be reserved for a Requested, Planning or Confirmed event',
+  'a reservation cannot be changed while the event awaits its safety check'
+);
+select lives_ok(
+  $$select public.release_equipment_reservation((select id from v_ids where name = 'res-safety'), null)$$,
+  'a reservation can still be released while the event awaits its safety check'
 );
 
 select * from finish();

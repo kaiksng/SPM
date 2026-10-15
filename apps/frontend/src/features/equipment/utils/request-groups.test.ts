@@ -68,4 +68,22 @@ describe("arrangement status tabs (SPM-28)", () => {
     expect(arrangementStatusesLoaded(events)).toBe(true);
     expect(arrangementStatusesLoaded([event("expo", [result("a", null)])])).toBe(false);
   });
+
+  it("puts reservations whose request was removed under Issue", () => {
+    const orphan = {
+      id: "res-orphan",
+      equipmentName: "Projector",
+      quantity: 5,
+      startsAt: "2099-01-01T01:00:00Z",
+      endsAt: "2099-01-01T05:00:00Z",
+      recheckReason: "The equipment request was removed",
+      reservedByName: null,
+      reservedAt: null,
+    };
+    const withOrphan = [{ ...event("gala", []), orphanedReservations: [orphan] }];
+
+    expect(arrangementStatusCounts(withOrphan)).toEqual({ not_started: 0, in_progress: 0, arranged: 0, issue: 1 });
+    expect(eventsWithArrangementStatus(withOrphan, "issue").map(({ event, orphanedReservations }) => [event.id, orphanedReservations.length])).toEqual([["gala", 1]]);
+    expect(eventsWithArrangementStatus(withOrphan, "not_started")).toEqual([]);
+  });
 });

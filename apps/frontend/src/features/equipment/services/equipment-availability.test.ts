@@ -41,37 +41,36 @@ const checkRow = (requirementId: string) => ({
   reserved_at: null,
 });
 
+type EventRow = { id: string; title: string; status: string; starts_at: string | null; ends_at: string | null };
+
+/** The events query and the removed-request reservations query each get their own result. */
+function mockTables(events: EventRow[], orphanRows: unknown[] = []) {
+  const eventsQuery = queryBuilder({ data: events, error: null });
+  const reservationsQuery = queryBuilder({ data: orphanRows, error: null });
+  fromMock.mockImplementation((table: string) => (table === "events" ? eventsQuery : reservationsQuery));
+  return { eventsQuery, reservationsQuery };
+}
+
 beforeEach(() => {
   fromMock.mockReset();
   rpcMock.mockReset();
   loadStatusesMock.mockReset();
-  fromMock.mockReturnValue(
-    queryBuilder({
-      data: [{ id: "event-1", title: "Spring Expo", status: "pending_safety_check", starts_at: null, ends_at: null }],
-      error: null,
-    }),
-  );
+  mockTables([{ id: "event-1", title: "Spring Expo", status: "pending_safety_check", starts_at: null, ends_at: null }]);
   rpcMock.mockResolvedValue({ data: [checkRow("req-1"), checkRow("req-2")], error: null });
 });
 
 describe("listEventEquipmentAvailability (SPM-28)", () => {
   it("lists Pending Safety Check events too", async () => {
-    const query = queryBuilder({ data: [], error: null });
-    fromMock.mockReturnValue(query);
+    const { eventsQuery } = mockTables([]);
 
     await listEventEquipmentAvailability();
 
-    expect(query.in).toHaveBeenCalledWith("status", ["requested", "planning", "pending_safety_check", "confirmed"]);
+    expect(eventsQuery.in).toHaveBeenCalledWith("status", ["requested", "planning", "pending_safety_check", "confirmed"]);
   });
 
   // AC02: until staff set a status, it follows the reservation and availability.
   it("works out each item's status until staff set one by hand", async () => {
-    fromMock.mockReturnValue(
-      queryBuilder({
-        data: [{ id: "event-1", title: "Spring Expo", status: "planning", starts_at: null, ends_at: null }],
-        error: null,
-      }),
-    );
+    mockTables([{ id: "event-1", title: "Spring Expo", status: "planning", starts_at: null, ends_at: null }]);
     const reserved = (quantity: number, needsRecheck = false) => ({
       reservation_id: "res",
       reservation_quantity: quantity,
@@ -122,5 +121,46 @@ describe("listEventEquipmentAvailability (SPM-28)", () => {
 
     expect(event?.results).toHaveLength(2);
     expect(event?.results.every((result) => result.arrangement === null)).toBe(true);
+  });
+
+  // AC4/AC5: a reservation left by a removed request still holds stock, so it is listed to be released.
+  it("lists reservations whose request was removed, including events with no requests left", async () => {
+    loadStatusesMock.mockResolvedValue(new Map());
+    const orphan = (id: string, eventId: string, title: string, startsAt: string) => ({
+      id,
+      quantity: 5,
+      starts_at: "2099-01-01T01:00:00Z",
+      ends_at: "2099-01-01T05:00:00Z",
+      recheck_reason: "The equipment request was removed",
+      decided_at: "2098-12-01T00:00:00Z",
+      equipment_item: { name: "Projector" },
+      reserved_by: { full_name: "Tess Support" },
+      event: { id: eventId, title, status: "planning", starts_at: startsAt, ends_at: null },
+    });
+    const { reservationsQuery } = mockTables(
+      [{ id: "event-1", title: "Spring Expo", status: "planning", starts_at: "2099-01-02T00:00:00Z", ends_at: null }],
+      [orphan("res-1", "event-1", "Spring Expo", "2099-01-02T00:00:00Z"), orphan("res-2", "event-2", "Old Gala", "2099-01-01T00:00:00Z")],
+    );
+
+    const events = await listEventEquipmentAvailability();
+
+    expect(fromMock).toHaveBeenCalledWith("equipment_reservations");
+    expect(reservationsQuery.eq).toHaveBeenCalledWith("status", "approved");
+    expect(reservationsQuery.is).toHaveBeenCalledWith("requirement_id", null);
+    // Soonest first; the event with no requests left is still listed.
+    expect(events.map((event) => [event.id, event.orphanedReservations?.map((reservation) => reservation.id)])).toEqual([
+      ["event-2", ["res-2"]],
+      ["event-1", ["res-1"]],
+    ]);
+    expect(events[0]?.orphanedReservations?.[0]).toEqual({
+      id: "res-2",
+      equipmentName: "Projector",
+      quantity: 5,
+      startsAt: "2099-01-01T01:00:00Z",
+      endsAt: "2099-01-01T05:00:00Z",
+      recheckReason: "The equipment request was removed",
+      reservedByName: "Tess Support",
+      reservedAt: "2098-12-01T00:00:00Z",
+    });
   });
 });

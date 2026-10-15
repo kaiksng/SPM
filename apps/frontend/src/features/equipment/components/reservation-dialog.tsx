@@ -150,3 +150,87 @@ export function ReservationDialog({
     </Modal>
   );
 }
+
+/**
+ * Release a reservation whose equipment request was removed. It has no
+ * request to change it against, so releasing is the only action; the
+ * release and its reason go into the reservation history.
+ */
+export function ReleaseReservationDialog({
+  eventTitle,
+  equipmentName,
+  quantity,
+  startsAt,
+  endsAt,
+  onCancel,
+  onConfirm,
+}: {
+  eventTitle: string;
+  equipmentName: string;
+  quantity: number;
+  startsAt: string;
+  endsAt: string;
+  onCancel: () => void;
+  onConfirm: (reason: string) => Promise<void>;
+}) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const cancel = useStableCallback(() => {
+    if (!busy) onCancel();
+  });
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError(undefined);
+    try {
+      await onConfirm(reason);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "This could not be saved.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal titleId="release-reservation-title" title={`Release ${equipmentName} reservation`} onCancel={cancel}>
+      <form onSubmit={submit} noValidate className="mt-3 space-y-4 text-sm">
+        <dl className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt className="text-xs font-medium tracking-wide text-slate-500 uppercase">{eventTitle}</dt>
+          <dd className="mt-1 text-slate-700">
+            {dateFormat.format(new Date(startsAt))} – {dateFormat.format(new Date(endsAt))}
+          </dd>
+        </dl>
+        <p className="text-slate-600">
+          The equipment request was removed, so the {quantity} reserved will return to the available pool. The release
+          is recorded in the reservation history.
+        </p>
+        <div>
+          <label htmlFor="orphan-release-reason" className="mb-1 block font-medium text-slate-900">
+            Reason <span className="font-normal text-slate-500">(optional)</span>
+          </label>
+          <Input
+            id="orphan-release-reason"
+            value={reason}
+            maxLength={300}
+            placeholder="e.g. Request removed by the coordinator"
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </div>
+        {error && (
+          <p role="alert" className="text-red-700">
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="destructive" disabled={busy}>
+            {busy ? "Saving…" : "Release"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}

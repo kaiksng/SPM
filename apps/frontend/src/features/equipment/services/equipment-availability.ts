@@ -49,6 +49,22 @@ export type EquipmentAvailabilityResult = {
   arrangement: EquipmentArrangementState | null;
 };
 
+/**
+ * A live reservation whose equipment request was removed (it is flagged
+ * "The equipment request was removed"). It still holds stock, but has no
+ * request row to show it under, so it's listed separately to be released.
+ */
+export type OrphanedReservation = {
+  id: string;
+  equipmentName: string;
+  quantity: number;
+  startsAt: string;
+  endsAt: string;
+  recheckReason: string | null;
+  reservedByName: string | null;
+  reservedAt: string | null;
+};
+
 export type EventEquipmentAvailability = {
   id: string;
   title: string;
@@ -56,21 +72,34 @@ export type EventEquipmentAvailability = {
   startsAt: string | null;
   endsAt: string | null;
   results: EquipmentAvailabilityResult[];
+  /** Reservations left behind by a removed request; absent means none. */
+  orphanedReservations?: OrphanedReservation[];
 };
 
 /**
  * SPM-31: every open event that has equipment requirements, each with an
  * availability result per requested item. The calculation itself is
- * public.check_event_equipment_availability (202610061001).
+ * public.check_event_equipment_availability (202610061001). Events also
+ * carry any reservation whose request was removed, so staff can release it.
  */
 export async function listEventEquipmentAvailability(): Promise<EventEquipmentAvailability[]> {
-  const { data: events, error } = await supabase
-    .from("events")
-    .select("id, title, status, starts_at, ends_at, event_equipment_requirements!inner (id)")
-    .in("status", [...OPEN_STATUSES])
-    .order("starts_at", { ascending: true, nullsFirst: false });
+  const [{ data: requestingEvents, error }, orphans] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, title, status, starts_at, ends_at, event_equipment_requirements!inner (id)")
+      .in("status", [...OPEN_STATUSES])
+      .order("starts_at", { ascending: true, nullsFirst: false }),
+    listOrphanedReservations(),
+  ]);
 
   if (error) throw new Error("We couldn't load events that need equipment.");
+
+  // An event whose every request was removed can still hold a reservation.
+  const events = [...requestingEvents];
+  for (const { event } of orphans) {
+    if (!events.some((existing) => existing.id === event.id)) events.push({ ...event, event_equipment_requirements: [] });
+  }
+  events.sort((left, right) => (left.starts_at ?? "￿").localeCompare(right.starts_at ?? "￿"));
   if (events.length === 0) return [];
 
   const eventIds = events.map((event) => event.id);
@@ -135,6 +164,48 @@ export async function listEventEquipmentAvailability(): Promise<EventEquipmentAv
     startsAt: event.starts_at,
     endsAt: event.ends_at,
     results: resultsByEvent.get(event.id) ?? [],
+    orphanedReservations: orphans.filter((orphan) => orphan.event.id === event.id).map((orphan) => orphan.reservation),
+  }));
+}
+
+/**
+ * Live reservations on open events whose request was removed. They still
+ * count against stock (equipment_commitment_peaks) until released.
+ */
+async function listOrphanedReservations() {
+  const { data, error } = await supabase
+    .from("equipment_reservations")
+    .select(
+      `
+        id,
+        quantity,
+        starts_at,
+        ends_at,
+        recheck_reason,
+        decided_at,
+        equipment_item:equipment_items (name),
+        reserved_by:profiles!equipment_reservations_decided_by_fkey (full_name),
+        event:events!equipment_reservations_event_id_fkey!inner (id, title, status, starts_at, ends_at)
+      `,
+    )
+    .eq("status", "approved")
+    .is("requirement_id", null)
+    .in("event.status", [...OPEN_STATUSES]);
+
+  if (error) throw new Error("We couldn't load reservations whose request was removed.");
+
+  return data.map((row) => ({
+    event: row.event,
+    reservation: {
+      id: row.id,
+      equipmentName: row.equipment_item?.name ?? "Equipment",
+      quantity: row.quantity,
+      startsAt: row.starts_at,
+      endsAt: row.ends_at,
+      recheckReason: row.recheck_reason,
+      reservedByName: row.reserved_by?.full_name ?? null,
+      reservedAt: row.decided_at,
+    } satisfies OrphanedReservation,
   }));
 }
 

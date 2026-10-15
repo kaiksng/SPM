@@ -768,6 +768,50 @@ describe("EquipmentPage reserving equipment", () => {
     { id: "event-expo", title: "Spring Expo", status: "planning", startsAt: hours(24), endsAt: hours(28), results },
   ];
 
+  // AC4/AC5: a reservation whose request was removed still holds stock; staff find it under Issue and release it.
+  it("lists a reservation whose request was removed under Issue and releases it", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue([
+      {
+        id: "event-expo",
+        title: "Spring Expo",
+        status: "planning",
+        startsAt: hours(24),
+        endsAt: hours(28),
+        results: [],
+        orphanedReservations: [
+          {
+            id: "res-orphan",
+            equipmentName: "Projector",
+            quantity: 5,
+            startsAt: hours(24),
+            endsAt: hours(28),
+            recheckReason: "The equipment request was removed",
+            reservedByName: "Tess Support",
+            reservedAt: hours(-1),
+          },
+        ],
+      },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByRole("tab", { name: /^Issue/ })).toHaveTextContent("1");
+    await user.click(screen.getByRole("tab", { name: /^Issue/ }));
+    const row = (await screen.findByText("Projector × 5 reserved")).closest("li")!;
+    expect(row).toHaveTextContent("Needs re-check: The equipment request was removed");
+    expect(row).toHaveTextContent("Still held from the available pool until released · reserved by Tess Support");
+    expect(within(row).queryByRole("button", { name: "Change" })).not.toBeInTheDocument();
+
+    await user.click(within(row).getByRole("button", { name: "Release" }));
+    const dialog = screen.getByRole("dialog", { name: "Release Projector reservation" });
+    expect(within(dialog).getByText(/the 5 reserved will return to the available pool/)).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText(/Reason/), "Request removed");
+    await user.click(within(dialog).getByRole("button", { name: "Release" }));
+
+    await waitFor(() => expect(releaseEquipmentReservationMock).toHaveBeenCalledWith("res-orphan", "Request removed"));
+    expect(await screen.findByText("Reservation released.")).toBeInTheDocument();
+  });
+
   it("reserves an item, defaulting to what can be provided (AC1)", async () => {
     listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([base]));
     const user = userEvent.setup();
@@ -1134,7 +1178,7 @@ describe("EquipmentPage arrangement status (SPM-28)", () => {
     expect(within(row).getByRole("button", { name: "Reserve" })).toBeInTheDocument();
   });
 
-  it("lists Pending Safety Check events for arranging, without reservation actions", async () => {
+  it("lists Pending Safety Check events for arranging, allowing only Release", async () => {
     listEventEquipmentAvailabilityMock.mockResolvedValue(
       eventWith(
         [
@@ -1155,9 +1199,10 @@ describe("EquipmentPage arrangement status (SPM-28)", () => {
     expect(screen.queryByRole("button", { name: "Reserve" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Change" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Re-check" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Release" })).not.toBeInTheDocument();
+    // Releasing only gives units back, so it stays available.
+    expect(screen.getByRole("button", { name: "Release" })).toBeInTheDocument();
     expect(
-      screen.getAllByText("Reservations can't be changed while the event awaits its safety check"),
+      screen.getAllByText("Can't reserve or change while the event awaits its safety check"),
     ).toHaveLength(2);
   });
 });

@@ -17,12 +17,14 @@ import { Input } from "@/components/ui/input";
 import { ArrangementDialog } from "@/features/equipment/components/arrangement-dialog";
 import { ArrangementBadge, ArrangementDetails } from "@/features/equipment/components/equipment-arrangement";
 import {
+  ReleaseReservationDialog,
   ReservationDialog,
   type ReservationAction,
 } from "@/features/equipment/components/reservation-dialog";
 import type {
   EquipmentAvailabilityResult,
   EventEquipmentAvailability,
+  OrphanedReservation,
 } from "@/features/equipment/services/equipment-availability";
 import {
   arrangementStatusCounts,
@@ -82,6 +84,7 @@ export function EventEquipmentAvailabilityList({
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<EquipmentArrangementStatus>("not_started");
   const [pending, setPending] = useState<PendingAction>();
+  const [releasing, setReleasing] = useState<{ event: EventEquipmentAvailability; reservation: OrphanedReservation }>();
   const [rowError, setRowError] = useState<{ requirementId: string; message: string }>();
 
   async function recheck(result: EquipmentAvailabilityResult) {
@@ -105,7 +108,11 @@ export function EventEquipmentAvailabilityList({
   const counts = arrangementStatusCounts(searched);
   const visible = tabbed
     ? eventsWithArrangementStatus(searched, tab)
-    : searched.map((event) => ({ event, results: event.results }));
+    : searched.map((event) => ({
+        event,
+        results: event.results,
+        orphanedReservations: event.orphanedReservations ?? [],
+      }));
 
   return (
     <div>
@@ -166,11 +173,13 @@ export function EventEquipmentAvailabilityList({
         </p>
       ) : (
         <ul className="mt-5 space-y-4">
-          {visible.map(({ event, results }) => (
+          {visible.map(({ event, results, orphanedReservations }) => (
             <EventCard
               key={event.id}
               event={event}
               results={results}
+              orphanedReservations={orphanedReservations}
+              onReleaseOrphan={(reservation) => setReleasing({ event, reservation })}
               rowError={rowError}
               onAction={(action, result) => {
                 setRowError(undefined);
@@ -191,6 +200,21 @@ export function EventEquipmentAvailabilityList({
           onSave={async (values) => {
             await onUpdateArrangement(pending.result.requirementId, values);
             setPending(undefined);
+          }}
+        />
+      )}
+
+      {releasing && (
+        <ReleaseReservationDialog
+          eventTitle={releasing.event.title}
+          equipmentName={releasing.reservation.equipmentName}
+          quantity={releasing.reservation.quantity}
+          startsAt={releasing.reservation.startsAt}
+          endsAt={releasing.reservation.endsAt}
+          onCancel={() => setReleasing(undefined)}
+          onConfirm={async (reason) => {
+            await onRelease(releasing.reservation.id, reason);
+            setReleasing(undefined);
           }}
         />
       )}
@@ -229,6 +253,8 @@ function needsAttention(result: EquipmentAvailabilityResult) {
 function EventCard({
   event,
   results,
+  orphanedReservations,
+  onReleaseOrphan,
   rowError,
   onAction,
   onRecheck,
@@ -236,6 +262,9 @@ function EventCard({
   event: EventEquipmentAvailability;
   /** The event's items in the selected tab; the header still summarises them all. */
   results: EquipmentAvailabilityResult[];
+  /** Reservations whose request was removed; they still hold stock until released. */
+  orphanedReservations: OrphanedReservation[];
+  onReleaseOrphan: (reservation: OrphanedReservation) => void;
   rowError?: { requirementId: string; message: string };
   onAction: (action: PendingAction["action"], result: EquipmentAvailabilityResult) => void;
   onRecheck: (result: EquipmentAvailabilityResult) => void;
@@ -283,6 +312,13 @@ function EventCard({
             onRecheck={() => onRecheck(result)}
           />
         ))}
+        {orphanedReservations.map((reservation) => (
+          <OrphanedReservationRow
+            key={reservation.id}
+            reservation={reservation}
+            onRelease={() => onReleaseOrphan(reservation)}
+          />
+        ))}
       </ul>
     </li>
   );
@@ -296,7 +332,7 @@ function ResultRow({
   onRecheck,
 }: {
   result: EquipmentAvailabilityResult;
-  /** False while the event awaits its safety check: the database refuses reservation changes. */
+  /** False while the event awaits its safety check: the database refuses reserving, changing and re-checking. */
   reservationsAllowed: boolean;
   error?: string;
   onAction: (action: PendingAction["action"]) => void;
@@ -405,7 +441,7 @@ function ResultRow({
           )}
           {!reservationsAllowed && (canReserve || reservation) && (
             <span className="max-w-56 text-right text-xs text-slate-500">
-              Reservations can't be changed while the event awaits its safety check
+              Can't reserve or change while the event awaits its safety check
             </span>
           )}
           {reservationsAllowed && canReserve && (
@@ -419,16 +455,54 @@ function ResultRow({
             </Button>
           )}
           {reservationsAllowed && reservation && (
-            <>
-              <Button type="button" size="sm" variant="outline" onClick={() => onAction("change")}>
-                Change
-              </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => onAction("release")}>
-                Release
-              </Button>
-            </>
+            <Button type="button" size="sm" variant="outline" onClick={() => onAction("change")}>
+              Change
+            </Button>
+          )}
+          {/* Releasing gives units back, so it stays open whatever the event's status. */}
+          {reservation && (
+            <Button type="button" size="sm" variant="ghost" onClick={() => onAction("release")}>
+              Release
+            </Button>
           )}
         </div>
+      </div>
+    </li>
+  );
+}
+
+/**
+ * A reservation whose request was removed: it still holds stock, so staff
+ * see it here and can release it. Changing or re-checking it isn't
+ * possible without a request (change_equipment_reservation refuses).
+ */
+function OrphanedReservationRow({
+  reservation,
+  onRelease,
+}: {
+  reservation: OrphanedReservation;
+  onRelease: () => void;
+}) {
+  return (
+    <li className="grid gap-3 bg-amber-50/60 px-5 py-4 text-sm sm:grid-cols-[1fr_auto] sm:items-start">
+      <div className="min-w-0">
+        <span className="font-medium text-slate-900">
+          {reservation.equipmentName} × {reservation.quantity} reserved
+        </span>
+        <p className="mt-1 text-slate-600">{formatPeriod(reservation.startsAt, reservation.endsAt)}</p>
+        <p className="mt-1 text-amber-900">
+          Needs re-check: {reservation.recheckReason ?? "The equipment request was removed"}
+        </p>
+        <p className="mt-0.5 text-xs text-slate-500">
+          Still held from the available pool until released
+          {reservation.reservedByName ? ` · reserved by ${reservation.reservedByName}` : ""}
+          {reservation.reservedAt ? ` · ${dateFormat.format(new Date(reservation.reservedAt))}` : ""}
+        </p>
+      </div>
+      <div className="flex flex-col items-start gap-1 sm:items-end">
+        <Button type="button" size="sm" variant="outline" onClick={onRelease}>
+          Release
+        </Button>
       </div>
     </li>
   );
