@@ -11,10 +11,14 @@ export const venueSuggestionsRouter = Router();
 
 const eventIdParamsSchema = z.object({ eventId: z.uuid() });
 
+// Must match the role list in public.can_view_event — when that function
+// changes, update this too (it drifted once: Leads were added to
+// can_view_event in 202610050002 but not here, so Leads got 403).
 const STAFF_ROLES = new Set([
   "event_coordinator",
   "venue_staff",
   "technical_support_staff",
+  "event_coordinator_lead",
 ]);
 
 /**

@@ -149,7 +149,7 @@ pnpm db:push
 pnpm db:types
 ```
 
-Commit the migration and regenerated `database.types.ts` (in `packages/shared/src/types/database.types.ts`) together. CI validates migrations against a temporary database so the shared team data is never reset.
+Commit the migration and regenerated `database.types.ts` (in `packages/shared/src/types/database.types.ts`) together, then run `pnpm check` and fix any type errors in the same commit. CI validates migrations against a temporary database so the shared team data is never reset.
 
 ## Definition of Done
 

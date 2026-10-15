@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const listVenueBookingRequestsMock = vi.fn();
 const decideVenueBookingRequestMock = vi.fn();
 const listVenueDisruptionsMock = vi.fn();
+const placeVenueBookingHoldMock = vi.fn();
 
 vi.mock("@/context/auth-context", () => ({
   useAuth: () => ({ profile: { full_name: "Sam Staff", role: "venue_staff" }, user: { id: "staff-1" }, loading: false, session: {} }),
@@ -14,7 +15,7 @@ vi.mock("@/context/auth-context", () => ({
 vi.mock("@/features/venues/services/venue-bookings", () => ({
   listVenueBookingRequests: (...args: unknown[]) => listVenueBookingRequestsMock(...args),
   decideVenueBookingRequest: (...args: unknown[]) => decideVenueBookingRequestMock(...args),
-  placeVenueBookingHold: vi.fn(),
+  placeVenueBookingHold: (...args: unknown[]) => placeVenueBookingHoldMock(...args),
 }));
 
 vi.mock("@/features/venues/services/venue-disruptions", () => ({
@@ -77,6 +78,7 @@ beforeEach(() => {
   listVenueBookingRequestsMock.mockReset();
   decideVenueBookingRequestMock.mockReset().mockResolvedValue(undefined);
   listVenueDisruptionsMock.mockReset().mockResolvedValue([]);
+  placeVenueBookingHoldMock.mockReset().mockResolvedValue(undefined);
 });
 
 describe("VenueRequestsPage", () => {
@@ -329,4 +331,217 @@ describe("VenueRequestsPage", () => {
 
     expect(await screen.findByText("Venue booking requests are unavailable.")).toBeInTheDocument();
   });
+
+  it("falls back to a generic message when the load fails without an Error", async () => {
+    listVenueBookingRequestsMock.mockRejectedValue("boom");
+    renderPage();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't load venue booking requests.");
+  });
+
+  it("shows a loading state, then the empty state when nobody has requested a venue", async () => {
+    let finish!: (value: unknown[]) => void;
+    listVenueBookingRequestsMock.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    renderPage();
+
+    expect(screen.getByLabelText("Loading requests")).toBeInTheDocument();
+
+    finish([]);
+
+    expect(await screen.findByRole("heading", { name: "No venue booking requests" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Loading requests")).not.toBeInTheDocument();
+  });
+
+  // Placing a request on hold pauses it with a deadline instead of deciding.
+  describe("place on hold", () => {
+    function setDeadline(value: string) {
+      // datetime-local takes the whole value at once (partial keystrokes aren't valid dates).
+      fireEvent.change(within(screen.getByRole("dialog")).getByLabelText("Expires at"), { target: { value } });
+    }
+
+    it("places the hold on the selected request and shows it as On Hold with its deadline", async () => {
+      const user = userEvent.setup();
+      listVenueBookingRequestsMock.mockResolvedValue([ordinary]);
+      renderPage();
+
+      await user.click(within(await screen.findByRole("article")).getByRole("button", { name: "Place on hold" }));
+      const dialog = screen.getByRole("dialog", { name: "Place this request on hold" });
+      expect(within(dialog).getByText("Evening Talk · Seminar Room")).toBeInTheDocument();
+      setDeadline("2099-04-05T09:00");
+      await user.click(within(dialog).getByRole("button", { name: "Place on hold" }));
+
+      // Singapore 09:00 is 01:00 UTC.
+      expect(placeVenueBookingHoldMock).toHaveBeenCalledWith("booking-3", "2099-04-05T01:00:00.000Z");
+      const card = screen.getByRole("article");
+      expect(await within(card).findByText("On Hold")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(within(card).getByText("Hold expires")).toBeInTheDocument();
+      expect(within(card).getByText(formatDateTime(new Date("2099-04-05T01:00:00.000Z")))).toBeInTheDocument();
+      expect(within(card).getByText(/Waiting on the coordinator to confirm/)).toBeInTheDocument();
+      expect(within(card).queryByRole("button", { name: "Place on hold" })).not.toBeInTheDocument();
+      // An On Hold request is still waiting for a decision.
+      expect(screen.getByRole("button", { name: "Needs decision (1)" })).toBeInTheDocument();
+    });
+
+    // SPM-82: the hold applies to the proposed replacement, not the disrupted original.
+    it("places the hold on a proposed replacement", async () => {
+      const user = userEvent.setup();
+      listVenueBookingRequestsMock.mockResolvedValue([original, replacement]);
+      renderPage();
+
+      const proposed = await screen.findByRole("region", { name: "Proposed replacement" });
+      await user.click(within(proposed).getByRole("button", { name: "Place on hold" }));
+      expect(within(screen.getByRole("dialog")).getByText("Career Fair · Grand Hall")).toBeInTheDocument();
+      setDeadline("2099-04-05T09:00");
+      await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Place on hold" }));
+
+      expect(placeVenueBookingHoldMock).toHaveBeenCalledWith("booking-2", "2099-04-05T01:00:00.000Z");
+      const held = await screen.findByRole("region", { name: "Proposed replacement" });
+      expect(await within(held).findByText(/^On hold until/)).toHaveTextContent(
+        `On hold until ${formatDateTime(new Date("2099-04-05T01:00:00.000Z"))}. Waiting on the coordinator to confirm.`,
+      );
+      expect(within(held).queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    });
+
+    it("keeps the dialog open with the database's reason when the hold is refused", async () => {
+      const user = userEvent.setup();
+      placeVenueBookingHoldMock.mockRejectedValue(new Error("The hold must expire before the requested period starts"));
+      listVenueBookingRequestsMock.mockResolvedValue([ordinary]);
+      renderPage();
+
+      await user.click(within(await screen.findByRole("article")).getByRole("button", { name: "Place on hold" }));
+      setDeadline("2099-04-07T09:00");
+      await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Place on hold" }));
+
+      expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent(
+        "The hold must expire before the requested period starts",
+      );
+      expect(within(screen.getByRole("article")).getByText("Pending")).toBeInTheDocument();
+    });
+
+    it("closes without placing a hold on Cancel", async () => {
+      const user = userEvent.setup();
+      listVenueBookingRequestsMock.mockResolvedValue([ordinary]);
+      renderPage();
+
+      await user.click(within(await screen.findByRole("article")).getByRole("button", { name: "Place on hold" }));
+      await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(placeVenueBookingHoldMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("request states", () => {
+    it("shows an On Hold request's deadline, still waiting for a decision, without decision buttons", async () => {
+      listVenueBookingRequestsMock.mockResolvedValue([{ ...ordinary, status: "on_hold" as const, expiresAt: "2099-04-05T01:00:00.000Z" }]);
+      renderPage();
+
+      const card = await screen.findByRole("article");
+      expect(within(card).getByText("On Hold")).toBeInTheDocument();
+      expect(within(card).getByText(formatDateTime(new Date("2099-04-05T01:00:00.000Z")))).toBeInTheDocument();
+      expect(within(card).getByText(/This request still blocks other bookings for this period/)).toBeInTheDocument();
+      expect(within(card).queryByRole("button", { name: /Approve|Reject|Place on hold/ })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Needs decision (1)" })).toBeInTheDocument();
+    });
+
+    it("files an Expired request under Decided and says the venue is free again", async () => {
+      const user = userEvent.setup();
+      listVenueBookingRequestsMock.mockResolvedValue([{ ...ordinary, status: "expired" as const, expiresAt: "2099-04-02T01:00:00.000Z" }]);
+      renderPage();
+
+      expect(await screen.findByText("Nothing is waiting for a decision.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Decided (1)" }));
+
+      const card = screen.getByRole("article");
+      expect(within(card).getByText("Expired")).toBeInTheDocument();
+      expect(
+        within(card).getByText("This request lapsed without confirmation. The venue is available again."),
+      ).toBeInTheDocument();
+      expect(within(card).queryByText("Hold expires")).not.toBeInTheDocument();
+    });
+
+    it("shows who rejected a request, when, and why", async () => {
+      const user = userEvent.setup();
+      listVenueBookingRequestsMock.mockResolvedValue([
+        {
+          ...ordinary,
+          status: "rejected" as const,
+          decidedByName: "Sam Staff",
+          decidedAt: "2099-04-02T03:00:00.000Z",
+          decisionNotes: "Hall is under renovation",
+        },
+      ]);
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: "Decided (1)" }));
+
+      const card = screen.getByRole("article");
+      expect(within(card).getByText(`Sam Staff · ${formatDateTime(new Date("2099-04-02T03:00:00.000Z"))}`)).toBeInTheDocument();
+      expect(within(card).getByText("Reason for rejection")).toBeInTheDocument();
+      expect(within(card).getByText("Hall is under renovation")).toBeInTheDocument();
+    });
+  });
+
+  describe("approve and reject", () => {
+    it("requires a reason before rejecting, then moves the request to Decided with that reason", async () => {
+      const user = userEvent.setup();
+      listVenueBookingRequestsMock.mockResolvedValue([ordinary]);
+      renderPage();
+
+      await user.click(within(await screen.findByRole("article")).getByRole("button", { name: "Reject" }));
+      const dialog = screen.getByRole("dialog", { name: "Reject venue booking request" });
+      await user.click(within(dialog).getByRole("button", { name: "Reject request" }));
+
+      expect(within(dialog).getByRole("alert")).toHaveTextContent(
+        "Explain the reason for rejecting this venue booking request.",
+      );
+      expect(decideVenueBookingRequestMock).not.toHaveBeenCalled();
+
+      await user.type(within(dialog).getByLabelText("Reason for rejecting"), "  Hall is under renovation  ");
+      await user.click(within(dialog).getByRole("button", { name: "Reject request" }));
+
+      expect(decideVenueBookingRequestMock).toHaveBeenCalledWith("booking-3", "rejected", "Hall is under renovation");
+      expect(await screen.findByText("Nothing is waiting for a decision.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Decided (1)" }));
+      expect(within(screen.getByRole("article")).getByText("Hall is under renovation")).toBeInTheDocument();
+    });
+
+    it("approves an ordinary request without notes", async () => {
+      const user = userEvent.setup();
+      listVenueBookingRequestsMock.mockResolvedValue([ordinary]);
+      renderPage();
+
+      await user.click(within(await screen.findByRole("article")).getByRole("button", { name: "Approve" }));
+      await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Approve request" }));
+
+      expect(decideVenueBookingRequestMock).toHaveBeenCalledWith("booking-3", "approved", "");
+      await user.click(await screen.findByRole("button", { name: "Decided (1)" }));
+      expect(within(screen.getByRole("article")).getByText("Confirmed Booking")).toBeInTheDocument();
+    });
+
+    it("keeps the dialog open with the error when the decision fails", async () => {
+      const user = userEvent.setup();
+      decideVenueBookingRequestMock.mockRejectedValue(new Error("This request is no longer Pending"));
+      listVenueBookingRequestsMock.mockResolvedValue([ordinary]);
+      renderPage();
+
+      await user.click(within(await screen.findByRole("article")).getByRole("button", { name: "Approve" }));
+      await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Approve request" }));
+
+      expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent(
+        "This request is no longer Pending",
+      );
+      expect(within(screen.getByRole("article")).getByText("Pending")).toBeInTheDocument();
+    });
+  });
 });
+
+// Same formatter as the page, so expected dates don't depend on the machine's time zone.
+function formatDateTime(date: Date) {
+  return new Intl.DateTimeFormat("en-SG", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Singapore",
+  }).format(date);
+}
