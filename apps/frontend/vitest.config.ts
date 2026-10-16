@@ -2,6 +2,11 @@ import path from "node:path";
 
 import { defineConfig } from "vitest/config";
 
+// The app's users are in Singapore, and tests that turn stored UTC times into
+// the browser-local values a datetime-local input shows assume UTC+8. Pin it
+// so they give the same result on a laptop and on a UTC CI runner.
+process.env.TZ = "Asia/Singapore";
+
 export default defineConfig({
   resolve: {
     alias: {
