@@ -819,7 +819,7 @@ describe("EventHistoryPage", () => {
       authState.profile = { full_name: "Joyce Coordinator", role: "event_coordinator" };
     });
 
-    it("lists each addition, change and removal with actor and time (AC07)", async () => {
+    it("lists each addition, change and removal with actor and time (SPM-27 AC07)", async () => {
       loadEquipmentHistoryMock.mockResolvedValue([
         {
           id: 1,
@@ -864,7 +864,7 @@ describe("EventHistoryPage", () => {
       expect(await screen.findByText("No equipment changes recorded yet.")).toBeInTheDocument();
     });
 
-    it("is not shown to the organiser (AC08)", async () => {
+    it("is not shown to the organiser", async () => {
       authState.profile = { full_name: "Jasmine", role: "event_organiser" };
 
       renderPage();

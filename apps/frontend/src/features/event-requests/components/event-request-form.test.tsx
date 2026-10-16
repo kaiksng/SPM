@@ -8,6 +8,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { loadEquipmentCatalogue } from "@/features/event-requests/services/equipment";
+
 import { EventRequestForm } from "./event-request-form";
 
 const MICROPHONE_ID = "a0000000-0000-0000-0000-000000000001";
@@ -276,7 +278,46 @@ describe("EventRequestForm draft mode", () => {
 });
 
 describe("EventRequestForm equipment requirements", () => {
-  it("offers only catalogue equipment, grouped by category (AC02)", async () => {
+  // SPM-27 AC02: a retired item is not offered for a new requirement, but stays
+  // visible on a requirement that already uses it.
+  it("does not offer a retired item, except on the row that already uses it", async () => {
+    vi.mocked(loadEquipmentCatalogue).mockResolvedValueOnce([
+      { id: MICROPHONE_ID, name: "Wireless microphone", category: "Audio", retired: false },
+      { id: PROJECTOR_ID, name: "Old projector", category: "Visual", retired: true },
+    ]);
+    const user = userEvent.setup();
+    render(
+      <EventRequestForm
+        initialValues={values({
+          title: "Catalogue",
+          equipment: [
+            {
+              id: "requirement-1",
+              equipmentItemId: PROJECTOR_ID,
+              legacyName: "",
+              quantity: "1",
+              requiredFrom: "2099-04-01T08:00",
+              requiredUntil: "2099-04-01T14:00",
+              notes: "",
+            },
+          ],
+        })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await screen.findByRole("option", { name: "Old projector (no longer offered)" });
+    await user.click(screen.getByRole("button", { name: "Add equipment" }));
+
+    const [existingRow, newRow] = screen.getAllByLabelText(/^Equipment/);
+    expect(existingRow).toHaveValue(PROJECTOR_ID);
+    expect(newRow!.querySelector(`option[value="${PROJECTOR_ID}"]`)).toBeNull();
+    expect(newRow!.querySelector(`option[value="${MICROPHONE_ID}"]`)).not.toBeNull();
+  });
+
+  // SPM-27 AC02: equipment comes from the catalogue, grouped by category.
+  it("offers only catalogue equipment, grouped by category (SPM-27 AC02)", async () => {
     const user = userEvent.setup();
     render(
       <EventRequestForm initialValues={values({ title: "Catalogue" })} onSave={vi.fn()} onCancel={vi.fn()} />,
@@ -310,7 +351,7 @@ describe("EventRequestForm equipment requirements", () => {
     expect(screen.getByLabelText(/^Required until/)).toHaveValue("2099-04-01T12:00");
   });
 
-  it("identifies every missing mandatory equipment field and does not save (AC06)", async () => {
+  it("identifies every missing mandatory equipment field and does not save (SPM-27 AC03/AC06)", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     render(
@@ -362,7 +403,7 @@ describe("EventRequestForm equipment requirements", () => {
     );
   });
 
-  it("keeps a legacy free-text entry or replaces it with catalogue equipment (AC13)", async () => {
+  it("keeps a legacy free-text entry or replaces it with catalogue equipment", async () => {
     const user = userEvent.setup();
     render(
       <EventRequestForm

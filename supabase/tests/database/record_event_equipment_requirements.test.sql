@@ -1,6 +1,6 @@
 begin;
 
-select plan(40);
+select plan(43);
 
 -- Record Equipment Requirements for an Event
 -- (202610050004_record_event_equipment_requirements.sql).
@@ -52,7 +52,7 @@ select is(
 select is(
   (select category from public.equipment_items where name = 'Wireless microphone'),
   'Audio',
-  'catalogue items carry a category such as Audio (AC02)'
+  'catalogue items carry a category such as Audio (SPM-27 AC02)'
 );
 
 -- The parts of a draft that never change in this test. Each call adds its
@@ -78,7 +78,7 @@ select set_config(
   true
 );
 
--- AC01/AC05: the period runs 08:00-14:00 around a 10:00-12:00 event, to
+-- SPM-27 AC01/AC05: the period runs 08:00-14:00 around a 10:00-12:00 event, to
 -- cover setup and cleanup.
 select lives_ok(
   $$insert into eq_ids (name, id)
@@ -93,7 +93,7 @@ select lives_ok(
         )
       ))
     )$$,
-  'the organiser can record catalogue equipment with a period wider than the event (AC01/AC05)'
+  'the organiser can record catalogue equipment with a period wider than the event (SPM-27 AC01, SPM-27 AC05)'
 );
 
 insert into eq_ids (name, id)
@@ -114,10 +114,10 @@ select is(
     '2099-04-01T14:00:00+08:00'::timestamptz,
     'XLR to the mixer'::text
   ),
-  'every recorded field is stored, and the name mirrors the catalogue (AC01)'
+  'every recorded field is stored, and the name mirrors the catalogue (SPM-27 AC01)'
 );
 -- History is read as the table owner here: the organiser cannot see it
--- (AC08, checked separately below).
+-- (who can read it is checked separately below).
 reset role;
 select is(
   (
@@ -126,11 +126,11 @@ select is(
     where requirement_id = (select id from eq_ids where name = 'first')
   ),
   row('added'::text, 'e1000000-0000-0000-0000-000000000001'::uuid, 'Audio'::text, '2'::text),
-  'adding equipment records the actor and a snapshot (AC07)'
+  'adding equipment records the actor and a snapshot (SPM-27 AC07)'
 );
 set local role authenticated;
 
--- AC02/AC03/AC04/AC06: invalid equipment saves nothing.
+-- SPM-27 AC02/AC03/AC04/AC06: invalid equipment saves nothing.
 select throws_ok(
   $$select public.save_event_draft(
       (select payload from eq_base) || '{"equipment":[{"equipmentName":"Microphone","quantity":"1"}]}'::jsonb,
@@ -138,7 +138,7 @@ select throws_ok(
     )$$,
   '23514',
   'Choose equipment from the catalogue for equipment item 1',
-  'free-text equipment is rejected (AC02)'
+  'free-text equipment is rejected (SPM-27 AC02)'
 );
 select throws_ok(
   format(
@@ -150,7 +150,7 @@ select throws_ok(
   ),
   '23514',
   'Equipment quantity must be a positive whole number',
-  'a zero quantity is rejected (AC04)'
+  'a zero quantity is rejected (SPM-27 AC04)'
 );
 select throws_ok(
   format(
@@ -162,7 +162,7 @@ select throws_ok(
   ),
   '23514',
   'Equipment quantity must be a positive whole number',
-  'a fractional quantity is rejected (AC04)'
+  'a fractional quantity is rejected (SPM-27 AC04)'
 );
 select throws_ok(
   format(
@@ -174,7 +174,7 @@ select throws_ok(
   ),
   '23514',
   'Enter when equipment item 1 is required from and until',
-  'a missing period end is rejected (AC03)'
+  'a missing period end is rejected (SPM-27 AC03)'
 );
 select throws_ok(
   format(
@@ -186,7 +186,7 @@ select throws_ok(
   ),
   '23514',
   'Equipment item 1 must be required until a time after it is required from',
-  'a period that does not end after it starts is rejected (AC05)'
+  'a period that does not end after it starts is rejected (SPM-27 AC05)'
 );
 select throws_ok(
   $$select public.save_event_draft(
@@ -195,7 +195,7 @@ select throws_ok(
     )$$,
   '23514',
   'Equipment item 1 is not in the equipment catalogue',
-  'an item outside the catalogue is rejected (AC02)'
+  'an item outside the catalogue is rejected (SPM-27 AC02)'
 );
 select throws_ok(
   format(
@@ -221,7 +221,7 @@ select is(
     )
   ),
   row(1, 1),
-  'none of the rejected saves changed the equipment or its history (AC06)'
+  'none of the rejected saves changed the equipment or its history (SPM-27 AC06)'
 );
 set local role authenticated;
 
@@ -301,7 +301,7 @@ select lives_ok(
   'the assigned coordinator approves the event into Planning'
 );
 
--- AC11 + AC10: the assigned coordinator changes the quantity and adds the
+-- SPM-27 AC09: the assigned coordinator changes the quantity and adds the
 -- same catalogue item a second time, for a different period.
 select lives_ok(
   format(
@@ -315,7 +315,7 @@ select lives_ok(
     (select id from eq_ids where name = 'first'),
     (select id from eq_ids where name = 'microphone')
   ),
-  'the assigned coordinator can update and add equipment while Planning (AC11)'
+  'the assigned coordinator can update and add equipment while Planning (SPM-27 AC09)'
 );
 select is(
   (
@@ -324,7 +324,7 @@ select is(
       and equipment_item_id = (select id from eq_ids where name = 'microphone')
   ),
   2,
-  'the same catalogue item can appear twice on one event (AC10)'
+  'the same catalogue item can appear twice on one event'
 );
 select is(
   (select quantity from public.event_equipment_requirements where id = (select id from eq_ids where name = 'first')),
@@ -338,7 +338,7 @@ select is(
     where requirement_id = (select id from eq_ids where name = 'first') and change_type = 'changed'
   ),
   row('2'::text, '3'::text, 'e1000000-0000-0000-0000-000000000002'::uuid),
-  'the change records previous and new values and the coordinator as actor (AC07)'
+  'the change records previous and new values and the coordinator as actor (SPM-27 AC07)'
 );
 
 insert into eq_ids (name, id)
@@ -366,10 +366,29 @@ select results_eq(
     (select id from eq_ids where name = 'event')
   ),
   array['added', 'changed', 'added', 'removed'],
-  'every addition, change and removal is kept in sequence (AC07)'
+  'every addition, change and removal is kept in sequence (SPM-27 AC07)'
 );
 
--- AC12: a coordinator who is not assigned cannot save.
+-- SPM-27 AC02: the coordinator cannot add free-text equipment either.
+select throws_ok(
+  $$select public.update_event_as_coordinator(
+      (select id from eq_ids where name = 'event'),
+      (select payload from eq_base) || '{"equipment":[{"equipmentName":"Microphone","quantity":"1","requiredFrom":"2099-04-01T08:00:00+08:00","requiredUntil":"2099-04-01T14:00:00+08:00"}]}'::jsonb
+    )$$,
+  '23514',
+  'Choose equipment from the catalogue for equipment item 1',
+  'free-text equipment is rejected from the coordinator (SPM-27 AC02)'
+);
+
+-- What SPM-27 AC10's refused save must leave untouched.
+reset role;
+create temporary table eq_before as
+select
+  (select count(*) from public.event_equipment_requirements where event_id = (select id from eq_ids where name = 'event')) as requirements,
+  (select count(*) from public.event_equipment_changes where event_id = (select id from eq_ids where name = 'event')) as changes;
+set local role authenticated;
+
+-- SPM-27 AC10: a coordinator who is not assigned cannot save.
 select set_config(
   'request.jwt.claims',
   '{"sub":"e1000000-0000-0000-0000-000000000003","role":"authenticated"}',
@@ -382,14 +401,26 @@ select throws_ok(
     )$$,
   '42501',
   'Only the assigned coordinator can update this event',
-  'an unassigned coordinator cannot save equipment (AC12)'
+  'an unassigned coordinator cannot save equipment (SPM-27 AC10)'
 );
+reset role;
+select is(
+  (
+    select row(
+      (select count(*) from public.event_equipment_requirements where event_id = (select id from eq_ids where name = 'event')),
+      (select count(*) from public.event_equipment_changes where event_id = (select id from eq_ids where name = 'event'))
+    )
+  ),
+  (select row(requirements, changes) from eq_before),
+  'the refused save left the equipment and its history unchanged (SPM-27 AC10)'
+);
+set local role authenticated;
 
--- AC08: who can read the history.
+-- who can read the history.
 select is(
   (select count(*)::integer from public.event_equipment_changes),
   0,
-  'an unassigned coordinator sees no equipment history (AC08)'
+  'an unassigned coordinator sees no equipment history'
 );
 
 select set_config(
@@ -400,7 +431,7 @@ select set_config(
 select is(
   (select count(*)::integer from public.event_equipment_changes),
   0,
-  'the organiser sees no equipment history (AC08)'
+  'the organiser sees no equipment history'
 );
 
 select set_config(
@@ -414,7 +445,7 @@ select is(
     where event_id = (select id from eq_ids where name = 'event')
   ),
   4,
-  'the assigned coordinator sees the full equipment history (AC08)'
+  'the assigned coordinator sees the full equipment history'
 );
 
 select set_config(
@@ -428,7 +459,7 @@ select is(
     where event_id = (select id from eq_ids where name = 'event')
   ),
   4,
-  'Technical Support Staff see the full equipment history (AC08)'
+  'Technical Support Staff see the full equipment history'
 );
 select is(
   (select full_name from public.profiles where id = 'e1000000-0000-0000-0000-000000000002'),
@@ -442,10 +473,10 @@ select is(
 );
 select lives_ok(
   $$insert into public.equipment_items (name, category, code, total_quantity) values ('Spotlight', 'Lighting', 'spot', 4)$$,
-  'Technical Support Staff maintain the catalogue (AC09)'
+  'Technical Support Staff maintain the catalogue (SPM-27 AC08)'
 );
 
--- AC13: a legacy free-text row (saved before the catalogue) can be kept
+-- a legacy free-text row (saved before the catalogue) can be kept
 -- unchanged, then replaced with a catalogue item.
 reset role;
 alter table public.event_equipment_requirements disable trigger event_equipment_requirements_guard;
@@ -474,7 +505,7 @@ select lives_ok(
     (select id from eq_ids where name = 'microphone'),
     (select id from eq_ids where name = 'legacy')
   ),
-  'a legacy entry sent by id alone is kept (AC13)'
+  'a legacy entry sent by id alone is kept'
 );
 select is(
   (
@@ -482,7 +513,7 @@ select is(
     from public.event_equipment_requirements where id = (select id from eq_ids where name = 'legacy')
   ),
   row(null::uuid, 'Old projector'::text, 'VGA only'::text),
-  'the kept legacy entry is unchanged (AC13)'
+  'the kept legacy entry is unchanged'
 );
 select lives_ok(
   format(
@@ -498,7 +529,7 @@ select lives_ok(
     (select id from eq_ids where name = 'legacy'),
     (select id from eq_ids where name = 'projector')
   ),
-  'a legacy entry can be replaced with a catalogue item (AC13)'
+  'a legacy entry can be replaced with a catalogue item'
 );
 select is(
   (
@@ -508,14 +539,25 @@ select is(
     where r.id = (select id from eq_ids where name = 'legacy')
   ),
   row('Projector'::text, 'Old projector'::text, 'Projector'::text),
-  'the replacement is recorded as a change from the legacy name (AC13/AC07)'
+  'the replacement is recorded as a change from the legacy name (SPM-27 AC07)'
 );
 
 select throws_ok(
   $$insert into public.equipment_items (name, category, code, total_quantity) values ('Fog machine', 'Lighting', 'fog', 1)$$,
   '42501',
   null,
-  'a coordinator cannot add to the catalogue (AC09)'
+  'a coordinator cannot add to the catalogue (SPM-27 AC08)'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"e1000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select throws_ok(
+  $$insert into public.equipment_items (name, category, code, total_quantity) values ('Fog machine', 'Lighting', 'fog', 1)$$,
+  '42501',
+  null,
+  'an organiser cannot add to the catalogue (SPM-27 AC08)'
 );
 
 -- A discarded draft takes its equipment with it without tripping the

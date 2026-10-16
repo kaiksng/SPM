@@ -145,7 +145,7 @@ describe("equipment requirement validation", () => {
     });
   });
 
-  it.each(["0", "-1", "1.5", "two"])("rejects quantity %s (AC04)", (quantity) => {
+  it.each(["0", "-1", "1.5", "two"])("rejects quantity %s (SPM-27 AC04)", (quantity) => {
     expect(equipmentErrors({ quantity })).toEqual({
       "equipment.0.quantity": "Enter a positive whole number",
     });
@@ -160,7 +160,7 @@ describe("equipment requirement validation", () => {
     },
   );
 
-  it("allows the period to extend beyond the event for setup and cleanup (AC05)", () => {
+  it("allows the period to extend beyond the event for setup and cleanup (SPM-27 AC05)", () => {
     const result = eventDraftSchema.safeParse(
       draft({
         startsAt: "2099-04-01T10:00",
@@ -178,13 +178,13 @@ describe("equipment requirement validation", () => {
     ]);
   });
 
-  it("accepts the same catalogue item more than once (AC10)", () => {
+  it("accepts the same catalogue item more than once", () => {
     expect(
       eventDraftSchema.safeParse(draft({ equipment: [validItem, { ...validItem }] })).success,
     ).toBe(true);
   });
 
-  it("keeps a legacy free-text entry without catalogue rules (AC13)", () => {
+  it("keeps a legacy free-text entry without catalogue rules", () => {
     const legacy = {
       ...emptyEquipmentRequirement(),
       id: "22222222-2222-2222-2222-222222222222",
