@@ -1,6 +1,6 @@
 begin;
 
-select plan(25);
+select plan(29);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -306,6 +306,44 @@ select throws_ok(
   '23514',
   'Only a Requested event can be cancelled before it is decided',
   'AC02: once the coordinator has decided, the event can no longer be cancelled this way'
+);
+
+-- Event E: cancelled while still in the Lead's unassigned queue — no
+-- coordinator yet (202610160001; this used to fail a check constraint).
+select lives_ok(
+  $$insert into cer_event_ids
+    select 'event-e', public.save_event_draft(
+      '{
+        "title":"[CER] Event E",
+        "purpose":"Cancel event request test.",
+        "description":"An event cancelled before assignment.",
+        "expectedAttendance":"15",
+        "startsAt":"2099-05-05T10:00:00+08:00",
+        "endsAt":"2099-05-05T12:00:00+08:00",
+        "venue":{"preferredLocation":"Main Hall","facilities":[]},
+        "equipment":[],
+        "registration":{"required":false,"waitlistEnabled":false},
+        "requirementsAcknowledged":true
+      }'::jsonb
+    )$$,
+  'the organiser can save Event E as a draft'
+);
+select lives_ok(
+  format($$select public.submit_event_request(%L::uuid)$$, (select id from cer_event_ids where label = 'event-e')),
+  'Event E can be submitted'
+);
+select lives_ok(
+  format($$select public.cancel_event_request(%L::uuid)$$, (select id from cer_event_ids where label = 'event-e')),
+  'AC01/AC02: the organiser can cancel a Requested event no coordinator has been assigned to yet'
+);
+select is(
+  (
+    select row(status::text, assigned_coordinator_id)
+    from public.events
+    where id = (select id from cer_event_ids where label = 'event-e')
+  ),
+  row('cancelled'::text, null::uuid),
+  'AC04: the unassigned event is Cancelled and stays unassigned'
 );
 
 select * from finish();
