@@ -2,16 +2,18 @@ begin;
 
 -- SPM-6 "A coordinator can explicitly close/resolve a clarification
 -- request, after which approval or rejection becomes available again."
--- event_clarifications.test.sql already covers requesting, responding,
--- explicitly resolving, and reopening a new round *after* an explicit
--- resolve (its "AC06"/"AC07" rounds). It never exercises the specific
--- regression 202609180003_reopen_clarification_after_answer.sql fixes:
--- asking a new round while the current one is merely *answered* (not yet
--- explicitly resolved) must itself auto-resolve the answered round, the
--- same way decide_event_request tolerates an answered-but-unresolved one
--- rather than requiring an explicit close first.
+-- event_clarifications.test.sql covers requesting, responding, explicitly
+-- resolving, and reopening a new round *after* an explicit resolve.
+-- event_decisions.test.sql *also* already proves the core regression
+-- 202609180003_reopen_clarification_after_answer.sql fixes -- "a new round
+-- can be opened while the previous one is only answered" and "opening the
+-- new round implicitly resolved the answered one" -- as an incidental part
+-- of its own SPM-7 fixture setup. So that mechanism is already covered;
+-- this file only adds what neither of those asserts: *who* the auto-resolve
+-- is attributed to, and that the new round is a genuinely distinct, freshly
+-- open row rather than a reuse of the old one.
 
-select plan(6);
+select plan(4);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -90,34 +92,22 @@ select is(
   'setup: round 1 is answered but not yet explicitly resolved'
 );
 
--- The coordinator asks a second round WITHOUT resolving round 1 first.
--- This must succeed, not throw "A clarification is already open for this
--- event" -- that message is reserved for a genuinely open (unanswered)
--- round.
+-- The coordinator asks a second round WITHOUT resolving round 1 first
+-- (setup only -- that this succeeds and auto-resolves round 1 is already
+-- proven by event_decisions.test.sql).
 select set_config(
   'request.jwt.claims',
   '{"sub":"86000000-0000-0000-0000-000000000003","role":"authenticated"}',
   true
 );
-select lives_ok(
-  format(
-    $$insert into spm6_ids
-      select 'clarification-2', (public.request_event_clarification(
-        %L::uuid,
-        'One more thing -- can you confirm the headcount?',
-        array['expectedAttendance']::text[]
-      ) ->> 'id')::uuid$$,
-    (select id from spm6_ids where label = 'event-a')
-  ),
-  'SPM-6: asking a new round while the previous one is merely answered succeeds'
-);
+insert into spm6_ids
+select 'clarification-2', (public.request_event_clarification(
+  (select id from spm6_ids where label = 'event-a'),
+  'One more thing -- can you confirm the headcount?',
+  array['expectedAttendance']::text[]
+) ->> 'id')::uuid;
 
--- Round 1 was auto-resolved by asking again, not left dangling.
-select is(
-  (select status::text from public.clarifications where id = (select id from spm6_ids where label = 'clarification-1')),
-  'resolved',
-  'SPM-6: the answered round is auto-resolved by the new request'
-);
+-- Who the auto-resolve is attributed to is the genuinely new assertion.
 select is(
   (select resolved_by from public.clarifications where id = (select id from spm6_ids where label = 'clarification-1')),
   '86000000-0000-0000-0000-000000000003'::uuid,
