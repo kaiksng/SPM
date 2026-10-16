@@ -680,6 +680,49 @@ describe("EventHistoryPage", () => {
     });
   });
 
+  describe("SPM-12: who changed the status", () => {
+    const change = {
+      id: 1,
+      fromStatus: "requested",
+      toStatus: "planning",
+      changedAt: "2026-09-14T12:00:00.000Z",
+    };
+
+    // SPM-12 AC03: the person who made a change is named.
+    it("names the person who changed the status", async () => {
+      listEventStatusHistoryMock.mockResolvedValue([
+        { ...change, changedById: "coordinator-1", changedByName: "Joyce" },
+      ]);
+
+      renderPage();
+
+      expect(await screen.findByText("14 Sept 2026, 8:00 pm · Joyce")).toBeInTheDocument();
+    });
+
+    // SPM-12 AC03: a change no person made is shown as a system action.
+    it("shows a change with no actor as a system action", async () => {
+      listEventStatusHistoryMock.mockResolvedValue([
+        { ...change, changedById: null, changedByName: null },
+      ]);
+
+      renderPage();
+
+      expect(await screen.findByText("14 Sept 2026, 8:00 pm · System")).toBeInTheDocument();
+    });
+
+    // A person whose name this viewer cannot read is not mislabelled as the system.
+    it("does not call a person the system when their name is hidden", async () => {
+      listEventStatusHistoryMock.mockResolvedValue([
+        { ...change, changedById: "venue-staff-1", changedByName: null },
+      ]);
+
+      renderPage();
+
+      expect(await screen.findByText("14 Sept 2026, 8:00 pm")).toBeInTheDocument();
+      expect(screen.queryByText(/System/)).not.toBeInTheDocument();
+    });
+  });
+
   // SPM-10 AC04: a facility added or removed is listed like any other change.
   it("lists facility changes in the Planning section", async () => {
     listEventDecisionsMock.mockResolvedValue([

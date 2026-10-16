@@ -413,6 +413,36 @@ describe("EventDetailPage", () => {
     expect(screen.queryByText("Student Leadership Summit 2")).not.toBeInTheDocument();
   });
 
+  // SPM-12 AC02: whoever can view the event sees its current status.
+  describe("SPM-12: the event's current status", () => {
+    const EVENT_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
+
+    afterEach(() => {
+      authState.user.id = "20000000-0000-0000-0000-000000000002";
+    });
+
+    it.each([
+      ["organiser", "event_organiser", event.organiserId],
+      ["assigned coordinator", "event_coordinator", event.assignedCoordinatorId],
+      ["Event Coordinator Lead", "event_coordinator_lead", "30000000-0000-0000-0000-000000000009"],
+    ])("shows the %s the event's current status", async (_who, role, userId) => {
+      authState.profile.role = role;
+      authState.user.id = userId;
+      loadEventDetailMock.mockResolvedValue({ ...event, id: EVENT_ID, status: "pending_safety_check" });
+
+      render(
+        <MemoryRouter initialEntries={[`/events/${EVENT_ID}`]}>
+          <Routes>
+            <Route path="events/:eventId" element={<EventDetailPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+      expect(screen.getByText("pending safety check")).toBeInTheDocument();
+    });
+  });
+
   describe("SPM-11: blocking direct edits on finalised events", () => {
     const finalisedStatuses = ["confirmed", "completed", "rejected", "cancelled"];
     const changeRequestMessage = /submit a change request instead of editing it directly/;
