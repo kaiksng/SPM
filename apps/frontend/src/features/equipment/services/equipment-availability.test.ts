@@ -15,7 +15,12 @@ vi.mock("@/features/equipment/services/equipment-arrangement-status", () => ({
   loadEquipmentArrangementStatuses: (...args: unknown[]) => loadStatusesMock(...args),
 }));
 
-import { listEventEquipmentAvailability } from "./equipment-availability";
+import {
+  changeEquipmentReservation,
+  listEventEquipmentAvailability,
+  releaseEquipmentReservation,
+  reserveEquipment,
+} from "./equipment-availability";
 
 const checkRow = (requirementId: string) => ({
   requirement_id: requirementId,
@@ -171,5 +176,104 @@ describe("listEventEquipmentAvailability (SPM-28)", () => {
       reservedByName: "Tess Support",
       reservedAt: "2098-12-01T00:00:00Z",
     });
+  });
+});
+
+describe("reserving equipment (SPM-32)", () => {
+  // SPM-32 AC01: a reservation is shown in the event's arrangements with its
+  // quantity, the staff member and when; a flag and its reason come with it (AC04).
+  it("shows each reservation with its quantity, who made it, when, and any re-check flag", async () => {
+    mockTables([{ id: "event-1", title: "Spring Expo", status: "planning", starts_at: null, ends_at: null }]);
+    loadStatusesMock.mockResolvedValue(new Map());
+    rpcMock.mockResolvedValue({
+      data: [
+        {
+          ...checkRow("reserved"),
+          reserved_quantity: 3,
+          reservation_id: "reservation-1",
+          reservation_quantity: 3,
+          reservation_needs_recheck: true,
+          reservation_recheck_reason: "The event's date or time changed",
+          reserved_by_name: "Sam Support",
+          reserved_at: "2099-03-01T02:00:00Z",
+        },
+        checkRow("not-reserved"),
+      ],
+      error: null,
+    });
+
+    const [event] = await listEventEquipmentAvailability();
+
+    expect(event?.results[0]?.reservation).toEqual({
+      id: "reservation-1",
+      quantity: 3,
+      needsRecheck: true,
+      recheckReason: "The event's date or time changed",
+      reservedByName: "Sam Support",
+      reservedAt: "2099-03-01T02:00:00Z",
+    });
+    expect(event?.results[1]?.reservation).toBeNull();
+  });
+
+  // SPM-32 AC01: staff reserve a quantity of a requested item; the database
+  // records the event, item, period, staff member and time.
+  it("reserves the requested item and quantity", async () => {
+    rpcMock.mockResolvedValue({ data: "reservation-1", error: null });
+
+    await reserveEquipment("requirement-1", 3);
+
+    expect(rpcMock).toHaveBeenCalledWith("reserve_equipment", {
+      p_requirement_id: "requirement-1",
+      p_quantity: 3,
+    });
+  });
+
+  // SPM-32 AC02: more than is available is refused, saying how many are.
+  it("passes on the database's refusal, which states the available quantity", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { code: "23514", message: "Only 40 available for this period" },
+    });
+
+    await expect(reserveEquipment("requirement-1", 60)).rejects.toThrow(
+      "Only 40 available for this period",
+    );
+  });
+
+  // SPM-32 AC05: changing a reservation; with the same quantity it re-checks a
+  // flagged one (AC04).
+  it("changes a reservation's quantity, or re-checks it with the same quantity", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: null });
+
+    await changeEquipmentReservation("reservation-1", 2);
+
+    expect(rpcMock).toHaveBeenCalledWith("change_equipment_reservation", {
+      p_reservation_id: "reservation-1",
+      p_quantity: 2,
+    });
+  });
+
+  // SPM-32 AC05: releasing returns the quantity to the pool; the reason is recorded.
+  it.each([
+    ["with its trimmed reason", "  Event moved online  ", "Event moved online"],
+    ["with no reason when none was given", "   ", undefined],
+  ])("releases a reservation %s", async (_label, reason, sent) => {
+    rpcMock.mockResolvedValue({ data: null, error: null });
+
+    await releaseEquipmentReservation("reservation-1", reason);
+
+    expect(rpcMock).toHaveBeenCalledWith("release_equipment_reservation", {
+      p_reservation_id: "reservation-1",
+      p_reason: sent,
+    });
+  });
+
+  it.each([
+    ["changing", () => changeEquipmentReservation("reservation-1", 80), "Only 60 available for this period"],
+    ["releasing", () => releaseEquipmentReservation("reservation-1", ""), "Only Technical Support Staff can release equipment reservations"],
+  ])("passes on the database's refusal when %s", async (_label, action, message) => {
+    rpcMock.mockResolvedValue({ data: null, error: { code: "23514", message } });
+
+    await expect(action()).rejects.toThrow(message);
   });
 });

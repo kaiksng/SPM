@@ -106,7 +106,7 @@ beforeEach(() => {
 });
 
 describe("EventEquipmentPage (equipment arrangements)", () => {
-  it("shows each requested item with what was reserved, by whom and when (AC1)", async () => {
+  it("shows each requested item with what was reserved, by whom and when (SPM-32 AC01)", async () => {
     renderPage();
 
     const projector = (await screen.findByText("Projector × 3")).closest("li")!;
@@ -114,7 +114,7 @@ describe("EventEquipmentPage (equipment arrangements)", () => {
     expect(projector).toHaveTextContent(/3 reserved for .* by Tess Support on/);
   });
 
-  it("flags a reservation that needs re-checking (AC4)", async () => {
+  it("flags a reservation that needs re-checking (SPM-32 AC04)", async () => {
     renderPage();
 
     const mic = (await screen.findByText("Wireless microphone × 10")).closest("li")!;
@@ -122,7 +122,7 @@ describe("EventEquipmentPage (equipment arrangements)", () => {
     expect(mic).toHaveTextContent("The event date or time changed");
   });
 
-  it("shows an item that is not reserved yet, and keeps released reservations on record (AC5)", async () => {
+  it("shows an item that is not reserved yet, and keeps released reservations on record (SPM-32 AC05)", async () => {
     const user = userEvent.setup();
     renderPage();
 

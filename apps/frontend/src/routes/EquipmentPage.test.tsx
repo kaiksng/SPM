@@ -855,7 +855,7 @@ describe("EquipmentPage reserving equipment", () => {
     expect(await screen.findByText("Reservation released.")).toBeInTheDocument();
   });
 
-  it("reserves an item, defaulting to what can be provided (AC1)", async () => {
+  it("reserves an item, defaulting to what can be provided (SPM-32 AC01)", async () => {
     listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([base]));
     const user = userEvent.setup();
     renderPage();
@@ -870,7 +870,7 @@ describe("EquipmentPage reserving equipment", () => {
     expect(await screen.findByText("Equipment reserved.")).toBeInTheDocument();
   });
 
-  it("shows the rejection and the available quantity when there are not enough (AC2)", async () => {
+  it("shows the rejection and the available quantity when there are not enough (SPM-32 AC02)", async () => {
     listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([base]));
     reserveEquipmentMock.mockRejectedValue(new Error("Only 40 available for this period"));
     const user = userEvent.setup();
@@ -944,7 +944,7 @@ describe("EquipmentPage reserving equipment", () => {
     expect(row).not.toHaveTextContent(/Short by/);
   });
 
-  it("flags a reservation that needs re-checking, and re-checks it (AC4)", async () => {
+  it("flags a reservation that needs re-checking, and re-checks it (SPM-32 AC04)", async () => {
     listEventEquipmentAvailabilityMock.mockResolvedValue(
       eventWith([
         {
@@ -965,7 +965,7 @@ describe("EquipmentPage reserving equipment", () => {
     await waitFor(() => expect(changeEquipmentReservationMock).toHaveBeenCalledWith("res-1", 40));
   });
 
-  it("changes a reservation's quantity (AC5)", async () => {
+  it("changes a reservation's quantity (SPM-32 AC05)", async () => {
     listEventEquipmentAvailabilityMock.mockResolvedValue(
       eventWith([
         {
@@ -989,7 +989,7 @@ describe("EquipmentPage reserving equipment", () => {
     await waitFor(() => expect(changeEquipmentReservationMock).toHaveBeenCalledWith("res-1", 30));
   });
 
-  it("releases a reservation with a reason (AC5)", async () => {
+  it("releases a reservation with a reason (SPM-32 AC05)", async () => {
     listEventEquipmentAvailabilityMock.mockResolvedValue(
       eventWith([
         {

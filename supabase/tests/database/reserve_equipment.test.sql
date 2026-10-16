@@ -51,7 +51,7 @@ select set_config('request.jwt.claims', '{"sub":"e6000000-0000-0000-0000-0000000
 -- AC1.
 select lives_ok(
   $$insert into v_ids select 'res-60', public.reserve_equipment((select id from v_ids where name = 'req-60'), 60)$$,
-  'staff reserve 60 projectors when enough are available (AC1)'
+  'staff reserve 60 projectors when enough are available (SPM-32 AC01)'
 );
 select is(
   (
@@ -63,7 +63,7 @@ select is(
     '2099-07-01T10:00:00+08:00'::timestamptz, '2099-07-01T14:00:00+08:00'::timestamptz,
     'approved'::text, 'e6000000-0000-0000-0000-000000000001'::uuid, true
   ),
-  'the event, equipment, quantity, period, staff member and time are recorded (AC1)'
+  'the event, equipment, quantity, period, staff member and time are recorded (SPM-32 AC01)'
 );
 select is(
   (select row(action, actor) from public.equipment_reservation_events where reservation_id = (select id from v_ids where name = 'res-60')),
@@ -90,7 +90,7 @@ select throws_ok(
 select throws_ok(
   $$select public.reserve_equipment((select id from v_ids where name = 'req-50'), 50)$$,
   '23514', 'Only 40 available for this period',
-  'a reservation over availability is rejected, stating what is available (AC2)'
+  'a reservation over availability is rejected, stating what is available (SPM-32 AC02)'
 );
 
 -- AC3: the reserved 60 no longer count for an overlapping check.
@@ -101,7 +101,7 @@ select is(
     where requirement_id = (select id from v_ids where name = 'req-50')
   ),
   row(40, 'partially_available'::text),
-  'an overlapping check no longer counts the reserved quantity (AC3)'
+  'an overlapping check no longer counts the reserved quantity (SPM-32 AC03)'
 );
 select is(
   (
@@ -135,7 +135,7 @@ select set_config('request.jwt.claims', '{"sub":"e6000000-0000-0000-0000-0000000
 select is(
   (select row(needs_recheck, recheck_reason) from public.equipment_reservations where id = (select id from v_ids where name = 'res-60')),
   row(true, 'The requested quantity changed from 60 to 65'::text),
-  'a changed requirement marks its reservation for re-checking (AC4)'
+  'a changed requirement marks its reservation for re-checking (SPM-32 AC04)'
 );
 select is(
   (select needs_recheck from public.equipment_reservations where id = (select id from v_ids where name = 'res-40')),
@@ -151,7 +151,7 @@ select set_config('request.jwt.claims', '{"sub":"e6000000-0000-0000-0000-0000000
 select is(
   (select row(needs_recheck, recheck_reason) from public.equipment_reservations where id = (select id from v_ids where name = 'res-40')),
   row(true, 'The event date or time changed'::text),
-  'a changed event date or time marks its reservations for re-checking (AC4)'
+  'a changed event date or time marks its reservations for re-checking (SPM-32 AC04)'
 );
 select is(
   (select count(*)::integer from public.equipment_reservation_events where action = 'flagged_for_recheck'),
@@ -197,7 +197,7 @@ select is(
     where reservation_id = (select id from v_ids where name = 'res-60') order by id desc limit 1
   ),
   row('changed'::text, '60'::text, '55'::text),
-  'the change is logged with previous and new quantity (AC5)'
+  'the change is logged with previous and new quantity (SPM-32 AC05)'
 );
 select is(
   (
@@ -206,7 +206,7 @@ select is(
     where requirement_id = (select id from v_ids where name = 'req-1')
   ),
   5,
-  'the 5 given back return to the pool (AC5)'
+  'the 5 given back return to the pool (SPM-32 AC05)'
 );
 
 -- AC5: releasing.
@@ -226,7 +226,7 @@ select is(
     where requirement_id = (select id from v_ids where name = 'req-1')
   ),
   45,
-  'released units return to the pool (AC5)'
+  'released units return to the pool (SPM-32 AC05)'
 );
 select is(
   (
@@ -235,7 +235,7 @@ select is(
     where reservation_id = (select id from v_ids where name = 'res-40') order by id desc limit 1
   ),
   row('released'::text, 'Organiser no longer needs them'::text),
-  'the release is logged with its reason (AC5)'
+  'the release is logged with its reason (SPM-32 AC05)'
 );
 
 -- A removed request flags its reservation.
@@ -243,7 +243,7 @@ reset role;
 delete from public.event_equipment_requirements where id = (select id from v_ids where name = 'req-60');
 set local role authenticated;
 
--- The assigned coordinator can see the arrangements and their history (AC1).
+-- The assigned coordinator can see the arrangements and their history (SPM-32 AC01).
 select set_config('request.jwt.claims', '{"sub":"e6000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is(
   (
@@ -251,7 +251,7 @@ select is(
     from public.equipment_reservations where id = (select id from v_ids where name = 'res-60')
   ),
   row(true, 'The equipment request was removed'::text, null::uuid),
-  'a removed request flags its reservation, visible to the coordinator (AC1/AC4)'
+  'a removed request flags its reservation, visible to the coordinator (SPM-32 AC01/AC04)'
 );
 select ok(
   (select count(*) from public.equipment_reservation_events) > 0,
@@ -272,7 +272,7 @@ select is(
 );
 select lives_ok(
   $$select public.release_equipment_reservation((select id from v_ids where name = 'res-60'), 'Request removed')$$,
-  'staff can release a reservation whose request was removed (AC5)'
+  'staff can release a reservation whose request was removed (SPM-32 AC05)'
 );
 select is(
   (select row(status::text, needs_recheck) from public.equipment_reservations where id = (select id from v_ids where name = 'res-60')),
