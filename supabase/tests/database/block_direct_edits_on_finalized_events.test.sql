@@ -1,6 +1,6 @@
 begin;
 
-select plan(11);
+select plan(12);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -14,6 +14,48 @@ values
     'finalized-coordinator@example.test',
     '{"full_name":"Finalized Coordinator","role":"event_coordinator"}'::jsonb
   );
+
+-- 202610050003: submitting no longer assigns a coordinator; the Event
+-- Coordinator Lead does. This helper has the Lead assign the coordinator the
+-- old automatic assignment would have picked (least active requests, then
+-- lowest id), so the checks below keep their original meaning.
+insert into auth.users (id, email, raw_user_meta_data)
+values (
+  'eeeeeeee-0000-0000-0000-0000000000ad',
+  'pgtap-lead@example.test',
+  '{"full_name":"pgTAP Lead","role":"event_coordinator_lead"}'::jsonb
+);
+
+create function pg_temp.lead_assigns_coordinator(p_event_id uuid)
+returns uuid
+language plpgsql
+security definer
+as $helper$
+declare
+  saved_claims text := current_setting('request.jwt.claims', true);
+  coordinator_id uuid;
+begin
+  select p.id into coordinator_id
+  from public.profiles p
+  where p.role = 'event_coordinator'::public.user_role
+  order by (
+    select count(*) from public.events e
+    where e.assigned_coordinator_id = p.id
+      and e.status in ('requested', 'submitted', 'clarification_requested', 'under_review', 'approved')
+  ) asc, p.id asc
+  limit 1;
+
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"eeeeeeee-0000-0000-0000-0000000000ad","role":"authenticated"}',
+    true
+  );
+  perform public.reassign_event_coordinator(p_event_id, coordinator_id, '');
+  perform set_config('request.jwt.claims', saved_claims, true);
+  return coordinator_id;
+end;
+$helper$;
+
 
 set local role authenticated;
 select set_config(
@@ -46,6 +88,10 @@ select lives_ok(
   format($$select public.submit_event_request(%L::uuid)$$, (select id from bde_event_ids)),
   'the event can be submitted'
 );
+select lives_ok(
+  format($$select pg_temp.lead_assigns_coordinator(%L::uuid)$$, (select id from bde_event_ids)),
+  'the Lead assigns the next available coordinator'
+);
 
 select set_config(
   'request.jwt.claims',
@@ -64,6 +110,8 @@ select lives_ok(
 -- confirmation is unbuilt) — set it directly, as test setup, the same way
 -- other tests seed state that has no RPC of its own yet.
 reset role;
+-- Planning must pass Pending Safety Check before Confirmed (202610100002).
+update public.events set status = 'pending_safety_check' where id = (select id from bde_event_ids);
 update public.events set status = 'confirmed' where id = (select id from bde_event_ids);
 set local role authenticated;
 

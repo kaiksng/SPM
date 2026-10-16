@@ -1,6 +1,12 @@
 begin;
 
-select plan(19);
+-- SPM-10: a coordinator updates a Planning event's editable requirements
+-- through update_event_as_coordinator. Overview, schedule and registration
+-- are locked (AC01); a request touching a locked field saves nothing (AC02);
+-- venue and equipment stay editable (AC03); and each changed field is audited
+-- once, with its previous value, new value, actor and time (AC04-AC06).
+
+select plan(38);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -13,7 +19,20 @@ values
     '80000000-0000-0000-0000-000000000002',
     'planning-coordinator-a@example.test',
     '{"full_name":"Planning Coordinator A","role":"event_coordinator"}'::jsonb
+  ),
+  (
+    '80000000-0000-0000-0000-000000000003',
+    'planning-coordinator-b@example.test',
+    '{"full_name":"Planning Coordinator B","role":"event_coordinator"}'::jsonb
+  ),
+  (
+    '80000000-0000-0000-0000-000000000004',
+    'planning-lead@example.test',
+    '{"full_name":"Planning Lead","role":"event_coordinator_lead"}'::jsonb
   );
+
+insert into public.equipment_items (name, category, code, total_quantity)
+values ('SPM10 Microphone', 'Audio', 'spm10-mic', 5);
 
 set local role authenticated;
 select set_config(
@@ -22,45 +41,64 @@ select set_config(
   true
 );
 
-create temporary table pcp_event_ids (id uuid);
+create temporary table pcp_ids (name text primary key, id uuid);
+create temporary table pcp_payloads (name text primary key, payload jsonb);
 
--- Every call below resubmits title/purpose/description/eventType/
--- expectedAttendance/startsAt/endsAt/registration unchanged from this
--- baseline — those are the fields 202609150008 locks once Planning. Only
--- venue and equipment vary between calls.
+-- The event as submitted. Every later call starts from this payload and
+-- changes only what that check is about.
+insert into pcp_payloads (name, payload)
+values (
+  'base',
+  '{
+    "title":"Original Title",
+    "purpose":"Original purpose",
+    "description":"A test event for coordinator planning updates.",
+    "eventType":"Workshop",
+    "expectedAttendance":"80",
+    "startsAt":"2099-04-01T10:00:00+08:00",
+    "endsAt":"2099-04-01T12:00:00+08:00",
+    "venue":{
+      "preferredLocation":"Main Hall",
+      "minimumCapacity":"60",
+      "accessibilityNotes":"Ramp access",
+      "layoutNotes":"Theatre",
+      "facilities":["Parking"]
+    },
+    "equipment":[],
+    "registration":{
+      "required":true,
+      "opensAt":"2099-03-01T09:00:00+08:00",
+      "closesAt":"2099-03-20T17:00:00+08:00",
+      "capacity":"70",
+      "waitlistEnabled":true
+    },
+    "requirementsAcknowledged":true
+  }'::jsonb
+);
+
 select lives_ok(
-  $$insert into pcp_event_ids
-    select public.save_event_draft(
-      '{
-        "title":"Original Title",
-        "purpose":"Original purpose",
-        "description":"A test event for coordinator planning updates.",
-        "expectedAttendance":"80",
-        "startsAt":"2099-04-01T10:00:00+08:00",
-        "endsAt":"2099-04-01T12:00:00+08:00",
-        "venue":{"preferredLocation":"Main Hall","facilities":[]},
-        "equipment":[],
-        "registration":{"required":false,"waitlistEnabled":false},
-        "requirementsAcknowledged":true
-      }'::jsonb
-    )$$,
+  $$insert into pcp_ids
+    select 'event', public.save_event_draft((select payload from pcp_payloads where name = 'base'))$$,
   'the organiser can save a complete draft'
 );
 select lives_ok(
-  format($$select public.submit_event_request(%L::uuid)$$, (select id from pcp_event_ids)),
+  format($$select public.submit_event_request(%L::uuid)$$, (select id from pcp_ids where name = 'event')),
   'the event can be submitted'
 );
 
--- A second coordinator, added after assignment, so they are never
--- accountable for this event and are not "the assigned coordinator" for it.
-reset role;
-insert into auth.users (id, email, raw_user_meta_data)
-values (
-  '80000000-0000-0000-0000-000000000003',
-  'planning-coordinator-b@example.test',
-  '{"full_name":"Planning Coordinator B","role":"event_coordinator"}'::jsonb
+-- Submission no longer assigns a coordinator (202610050003); the Lead does.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"80000000-0000-0000-0000-000000000004","role":"authenticated"}',
+  true
 );
-set local role authenticated;
+select lives_ok(
+  format(
+    $$select public.reassign_event_coordinator(%L::uuid, '80000000-0000-0000-0000-000000000002'::uuid, '')$$,
+    (select id from pcp_ids where name = 'event')
+  ),
+  'the Lead assigns coordinator A'
+);
 
 select set_config(
   'request.jwt.claims',
@@ -71,11 +109,9 @@ select set_config(
 -- The write path only opens once the event is Planning, not while Requested.
 select throws_ok(
   format(
-    $$select public.update_event_as_coordinator(
-      %L::uuid,
-      '{"title":"Too Early","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
-    )$$,
-    (select id from pcp_event_ids)
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select payload from pcp_payloads where name = 'base')
   ),
   '23514',
   'Only a Planning event can be updated this way',
@@ -85,150 +121,326 @@ select throws_ok(
 select lives_ok(
   format(
     $$select public.decide_event_request(%L::uuid, 'approved'::public.event_decision_type, 'Looks ready.')$$,
-    (select id from pcp_event_ids)
+    (select id from pcp_ids where name = 'event')
   ),
   'the assigned coordinator can approve the complete request'
 );
 select is(
-  (select status::text from public.events where id = (select id from pcp_event_ids)),
+  (select status::text from public.events where id = (select id from pcp_ids where name = 'event')),
   'planning',
   'the event has moved to Planning'
 );
 
--- 202609150008: overview, schedule and registration are locked once
--- Planning — one representative field from each group.
+-- SPM-10 AC01: each locked field, changed on its own, is rejected with a
+-- message naming it.
 select throws_ok(
   format(
-    $$select public.update_event_as_coordinator(
-      %L::uuid,
-      '{"title":"Renamed Event","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
-    )$$,
-    (select id from pcp_event_ids)
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select payload || '{"title":"Renamed Event"}' from pcp_payloads where name = 'base')
   ),
   '23514',
   'Event name is locked once the event reaches Planning',
-  'the event name is locked once Planning is reached'
+  'SPM-10 AC01: the event name is locked'
 );
 select throws_ok(
   format(
-    $$select public.update_event_as_coordinator(
-      %L::uuid,
-      '{"title":"Original Title","purpose":"A different purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
-    )$$,
-    (select id from pcp_event_ids)
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select payload || '{"purpose":"A different purpose"}' from pcp_payloads where name = 'base')
   ),
   '23514',
   'Purpose is locked once the event reaches Planning',
-  'purpose is locked once Planning is reached'
+  'SPM-10 AC01: the purpose is locked'
 );
 select throws_ok(
   format(
-    $$select public.update_event_as_coordinator(
-      %L::uuid,
-      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"500","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
-    )$$,
-    (select id from pcp_event_ids)
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select payload || '{"description":"A different description."}' from pcp_payloads where name = 'base')
+  ),
+  '23514',
+  'Description is locked once the event reaches Planning',
+  'SPM-10 AC01: the description is locked'
+);
+select throws_ok(
+  format(
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select payload || '{"eventType":"Seminar"}' from pcp_payloads where name = 'base')
+  ),
+  '23514',
+  'Event category is locked once the event reaches Planning',
+  'SPM-10 AC01: the event category is locked'
+);
+select throws_ok(
+  format(
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select payload || '{"expectedAttendance":"500"}' from pcp_payloads where name = 'base')
   ),
   '23514',
   'Expected attendance is locked once the event reaches Planning',
-  'expected attendance (overview) is locked once Planning is reached'
+  'SPM-10 AC01: the expected attendance is locked'
 );
 select throws_ok(
   format(
-    $$select public.update_event_as_coordinator(
-      %L::uuid,
-      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T11:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
-    )$$,
-    (select id from pcp_event_ids)
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select payload || '{"startsAt":"2099-04-01T11:00:00+08:00"}' from pcp_payloads where name = 'base')
   ),
   '23514',
   'Start time is locked once the event reaches Planning',
-  'the schedule (start time) is locked once Planning is reached'
+  'SPM-10 AC01: the start time is locked'
 );
 select throws_ok(
   format(
-    $$select public.update_event_as_coordinator(
-      %L::uuid,
-      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":true,"capacity":"50","waitlistEnabled":false}}'::jsonb
-    )$$,
-    (select id from pcp_event_ids)
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select payload || '{"endsAt":"2099-04-01T13:00:00+08:00"}' from pcp_payloads where name = 'base')
+  ),
+  '23514',
+  'End time is locked once the event reaches Planning',
+  'SPM-10 AC01: the end time is locked'
+);
+select throws_ok(
+  format(
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select jsonb_set(payload, '{registration,required}', 'false') from pcp_payloads where name = 'base')
   ),
   '23514',
   'Registration details are locked once the event reaches Planning',
-  'registration is locked once Planning is reached'
+  'SPM-10 AC01: whether registration is required is locked'
+);
+select throws_ok(
+  format(
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select jsonb_set(payload, '{registration,opensAt}', '"2099-03-02T09:00:00+08:00"') from pcp_payloads where name = 'base')
+  ),
+  '23514',
+  'Registration details are locked once the event reaches Planning',
+  'SPM-10 AC01: the registration opening time is locked'
+);
+select throws_ok(
+  format(
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select jsonb_set(payload, '{registration,closesAt}', '"2099-03-21T17:00:00+08:00"') from pcp_payloads where name = 'base')
+  ),
+  '23514',
+  'Registration details are locked once the event reaches Planning',
+  'SPM-10 AC01: the registration closing time is locked'
+);
+select throws_ok(
+  format(
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select jsonb_set(payload, '{registration,capacity}', '"90"') from pcp_payloads where name = 'base')
+  ),
+  '23514',
+  'Registration details are locked once the event reaches Planning',
+  'SPM-10 AC01: the registration capacity is locked'
+);
+select throws_ok(
+  format(
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select jsonb_set(payload, '{registration,waitlistEnabled}', 'false') from pcp_payloads where name = 'base')
+  ),
+  '23514',
+  'Registration details are locked once the event reaches Planning',
+  'SPM-10 AC01: whether the waitlist is enabled is locked'
 );
 
--- AC01: one field changed in one save (venue, still open to the
--- coordinator) records previous value, new value, actor and timestamp.
-select lives_ok(
+-- The edits SPM-10 AC03 allows: every venue field and the equipment list.
+insert into pcp_payloads (name, payload)
+select
+  'updated',
+  payload
+    || jsonb_build_object(
+      'venue', jsonb_build_object(
+        'preferredLocation', 'North',
+        'minimumCapacity', '75',
+        'accessibilityNotes', 'Step-free entrance',
+        'layoutNotes', 'Classroom',
+        'facilities', jsonb_build_array('Parking', 'Gym')
+      ),
+      'equipment', jsonb_build_array(jsonb_build_object(
+        'id', null,
+        'equipmentItemId', (select id from public.equipment_items where code = 'spm10-mic'),
+        'quantity', '2',
+        'requiredFrom', '2099-04-01T10:00:00+08:00',
+        'requiredUntil', '2099-04-01T12:00:00+08:00',
+        'notes', null
+      ))
+    )
+from pcp_payloads
+where name = 'base';
+
+-- SPM-10 AC02: the allowed edits above, sent together with one locked
+-- change, are rejected in full.
+select throws_ok(
   format(
-    $$select public.update_event_as_coordinator(
-      %L::uuid,
-      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Auditorium","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
-    )$$,
-    (select id from pcp_event_ids)
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select payload || '{"title":"Renamed Event"}' from pcp_payloads where name = 'updated')
   ),
-  'the coordinator can still update venue while overview/schedule/registration stay locked'
+  '23514',
+  'Event name is locked once the event reaches Planning',
+  'SPM-10 AC02: a request that changes a locked field is rejected'
 );
 select is(
   (
-    select row(field_name, previous_value, new_value, changed_by)
-    from public.event_field_changes
-    where event_id = (select id from pcp_event_ids)
+    select row(preferred_location, minimum_capacity, accessibility_notes, layout_notes)
+    from public.event_venue_requirements
+    where event_id = (select id from pcp_ids where name = 'event')
   ),
-  row('venue.preferredLocation'::text, 'Main Hall'::text, 'Auditorium'::text, '80000000-0000-0000-0000-000000000002'::uuid),
-  'AC01: the change records the previous value, new value and actor'
-);
-
--- AC02: multiple still-open fields changed in one save are logged as
--- separate entries.
-select lives_ok(
-  format(
-    $$select public.update_event_as_coordinator(
-      %L::uuid,
-      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Auditorium","minimumCapacity":"200","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
-    )$$,
-    (select id from pcp_event_ids)
-  ),
-  'the coordinator can change several still-open fields in one save'
+  row('Main Hall'::text, 60, 'Ramp access'::text, 'Theatre'::text),
+  'SPM-10 AC02: none of the venue changes in the rejected request were saved'
 );
 select results_eq(
   format(
-    $$select field_name from public.event_field_changes
-      where event_id = %L::uuid and field_name <> 'venue.preferredLocation'
-      order by changed_at asc, id asc$$,
-    (select id from pcp_event_ids)
+    $$select facility_name from public.event_required_facilities where event_id = %L::uuid order by facility_name$$,
+    (select id from pcp_ids where name = 'event')
   ),
-  array['venue.minimumCapacity'],
-  'AC02: the newly changed field is logged as its own entry'
+  array['Parking'],
+  'SPM-10 AC02: the facility change in the rejected request was not saved'
+);
+select is(
+  (select count(*)::integer from public.event_equipment_requirements where event_id = (select id from pcp_ids where name = 'event')),
+  0,
+  'SPM-10 AC02: the equipment in the rejected request was not added'
+);
+select is(
+  (select count(*)::integer from public.event_field_changes where event_id = (select id from pcp_ids where name = 'event')),
+  0,
+  'SPM-10 AC02: a rejected request records no field changes'
 );
 
--- AC03: resubmitting with no actual changes creates no new entries.
-select is(
-  (
-    select count(*)::integer from public.event_field_changes
-    where event_id = (select id from pcp_event_ids)
-  ),
-  2,
-  'sanity check: two entries recorded so far'
-);
+-- SPM-10 AC03: the same edits, without the locked change, are saved.
 select lives_ok(
   format(
-    $$select public.update_event_as_coordinator(
-      %L::uuid,
-      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Auditorium","minimumCapacity":"200","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
-    )$$,
-    (select id from pcp_event_ids)
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select payload from pcp_payloads where name = 'updated')
+  ),
+  'SPM-10 AC03: the coordinator can update venue and equipment while Planning'
+);
+select is(
+  (
+    select row(preferred_location, minimum_capacity, accessibility_notes, layout_notes)
+    from public.event_venue_requirements
+    where event_id = (select id from pcp_ids where name = 'event')
+  ),
+  row('North'::text, 75, 'Step-free entrance'::text, 'Classroom'::text),
+  'SPM-10 AC03: every venue requirement was updated'
+);
+select results_eq(
+  format(
+    $$select facility_name from public.event_required_facilities where event_id = %L::uuid order by facility_name$$,
+    (select id from pcp_ids where name = 'event')
+  ),
+  array['Gym', 'Parking'],
+  'SPM-10 AC03: the required facilities were updated'
+);
+select is(
+  (
+    select row(equipment_name, quantity)
+    from public.event_equipment_requirements
+    where event_id = (select id from pcp_ids where name = 'event')
+  ),
+  row('SPM10 Microphone'::text, 2),
+  'SPM-10 AC03: the equipment requirement was added'
+);
+select is(
+  (select title from public.events where id = (select id from pcp_ids where name = 'event')),
+  'Original Title',
+  'SPM-10 AC03: the locked fields keep their values'
+);
+
+-- SPM-10 AC04: a changed venue field records its previous value, new value,
+-- actor and time (now() is this transaction's time).
+select is(
+  (
+    select row(previous_value, new_value, changed_by, changed_at)
+    from public.event_field_changes
+    where event_id = (select id from pcp_ids where name = 'event')
+      and field_name = 'venue.preferredLocation'
+  ),
+  row('Main Hall'::text, 'North'::text, '80000000-0000-0000-0000-000000000002'::uuid, now()),
+  'SPM-10 AC04: the venue change records previous value, new value, actor and time'
+);
+-- SPM-10 AC04: an equipment change is recorded the same way.
+select is(
+  (
+    select row(change_type, previous_value, new_value ->> 'quantity', changed_by, changed_at)
+    from public.event_equipment_changes
+    where event_id = (select id from pcp_ids where name = 'event')
+  ),
+  row('added'::text, null::jsonb, '2'::text, '80000000-0000-0000-0000-000000000002'::uuid, now()),
+  'SPM-10 AC04: the equipment change records new value, actor and time'
+);
+-- SPM-10 AC04 known gap: facilities are venue requirements, but a facility
+-- change is not recorded anywhere yet. Reported as a TODO until it is.
+select todo('Facility changes are not audited yet', 1);
+select ok(
+  exists (
+    select 1 from public.event_field_changes
+    where event_id = (select id from pcp_ids where name = 'event')
+      and field_name like 'venue.facilities%'
+  ),
+  'SPM-10 AC04: the facility change is recorded'
+);
+
+-- SPM-10 AC05: the four venue fields changed in that one save are four
+-- separate entries, each with its own values.
+select set_eq(
+  format(
+    $$select field_name, previous_value, new_value from public.event_field_changes where event_id = %L::uuid$$,
+    (select id from pcp_ids where name = 'event')
+  ),
+  $$values
+    ('venue.preferredLocation', 'Main Hall', 'North'),
+    ('venue.minimumCapacity', '60', '75'),
+    ('venue.accessibilityNotes', 'Ramp access', 'Step-free entrance'),
+    ('venue.layoutNotes', 'Theatre', 'Classroom')$$,
+  'SPM-10 AC05: each field changed in one save is its own audit entry'
+);
+
+-- SPM-10 AC06: saving again with nothing changed (the equipment row is now
+-- referenced by its id) records nothing.
+update pcp_payloads
+set payload = jsonb_set(
+  payload,
+  '{equipment,0,id}',
+  to_jsonb((select id::text from public.event_equipment_requirements where event_id = (select id from pcp_ids where name = 'event')))
+)
+where name = 'updated';
+
+select lives_ok(
+  format(
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select payload from pcp_payloads where name = 'updated')
   ),
   'saving unchanged values succeeds'
 );
 select is(
-  (
-    select count(*)::integer from public.event_field_changes
-    where event_id = (select id from pcp_event_ids)
-  ),
-  2,
-  'AC03: no new entries are created when nothing actually changed'
+  (select count(*)::integer from public.event_field_changes where event_id = (select id from pcp_ids where name = 'event')),
+  4,
+  'SPM-10 AC06: no new field entries when nothing actually changed'
+);
+select is(
+  (select count(*)::integer from public.event_equipment_changes where event_id = (select id from pcp_ids where name = 'event')),
+  1,
+  'SPM-10 AC06: no new equipment entries when nothing actually changed'
+);
+select is(
+  (select count(*)::integer from public.event_equipment_requirements where event_id = (select id from pcp_ids where name = 'event')),
+  1,
+  'SPM-10 AC06: the unchanged equipment row is kept, not duplicated'
 );
 
 -- Authorisation: a coordinator not assigned to this event cannot update it.
@@ -239,11 +451,9 @@ select set_config(
 );
 select throws_ok(
   format(
-    $$select public.update_event_as_coordinator(
-      %L::uuid,
-      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Hijacked Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
-    )$$,
-    (select id from pcp_event_ids)
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select jsonb_set(payload, '{venue,preferredLocation}', '"East"') from pcp_payloads where name = 'updated')
   ),
   '42501',
   'Only the assigned coordinator can update this event',
@@ -259,11 +469,9 @@ select set_config(
 );
 select throws_ok(
   format(
-    $$select public.update_event_as_coordinator(
-      %L::uuid,
-      '{"title":"Original Title","purpose":"Original purpose","description":"A test event for coordinator planning updates.","expectedAttendance":"80","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Organiser Edit","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}'::jsonb
-    )$$,
-    (select id from pcp_event_ids)
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select jsonb_set(payload, '{venue,preferredLocation}', '"East"') from pcp_payloads where name = 'updated')
   ),
   '42501',
   'Only the assigned coordinator can update this event',

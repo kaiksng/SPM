@@ -1,6 +1,6 @@
 begin;
 
-select plan(32);
+select plan(36);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -14,6 +14,48 @@ values
     'decide-coordinator-a@example.test',
     '{"full_name":"Decide Coordinator A","role":"event_coordinator"}'::jsonb
   );
+
+-- 202610050003: submitting no longer assigns a coordinator; the Event
+-- Coordinator Lead does. This helper has the Lead assign the coordinator the
+-- old automatic assignment would have picked (least active requests, then
+-- lowest id), so the checks below keep their original meaning.
+insert into auth.users (id, email, raw_user_meta_data)
+values (
+  'eeeeeeee-0000-0000-0000-0000000000ad',
+  'pgtap-lead@example.test',
+  '{"full_name":"pgTAP Lead","role":"event_coordinator_lead"}'::jsonb
+);
+
+create function pg_temp.lead_assigns_coordinator(p_event_id uuid)
+returns uuid
+language plpgsql
+security definer
+as $helper$
+declare
+  saved_claims text := current_setting('request.jwt.claims', true);
+  coordinator_id uuid;
+begin
+  select p.id into coordinator_id
+  from public.profiles p
+  where p.role = 'event_coordinator'::public.user_role
+  order by (
+    select count(*) from public.events e
+    where e.assigned_coordinator_id = p.id
+      and e.status in ('requested', 'submitted', 'clarification_requested', 'under_review', 'approved')
+  ) asc, p.id asc
+  limit 1;
+
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"eeeeeeee-0000-0000-0000-0000000000ad","role":"authenticated"}',
+    true
+  );
+  perform public.reassign_event_coordinator(p_event_id, coordinator_id, '');
+  perform set_config('request.jwt.claims', saved_claims, true);
+  return coordinator_id;
+end;
+$helper$;
+
 
 -- Switches request.jwt.claims to whichever coordinator assign_event_coordinator
 -- actually picked for a given event, so later tests don't have to hand-track
@@ -68,6 +110,10 @@ select lives_ok(
 select lives_ok(
   format($$select public.submit_event_request(%L::uuid)$$, (select id from pb06_event_ids where label = 'event-1')),
   'the event can be submitted'
+);
+select lives_ok(
+  format($$select pg_temp.lead_assigns_coordinator(%L::uuid)$$, (select id from pb06_event_ids where label = 'event-1')),
+  'the Lead assigns the next available coordinator'
 );
 
 -- A second coordinator, never assigned to event-1 (it existed alone at
@@ -249,6 +295,10 @@ select lives_ok(
   format($$select public.submit_event_request(%L::uuid)$$, (select id from pb06_event_ids where label = 'event-3')),
   'the third event can be submitted'
 );
+select lives_ok(
+  format($$select pg_temp.lead_assigns_coordinator(%L::uuid)$$, (select id from pb06_event_ids where label = 'event-3')),
+  'the Lead assigns the next available coordinator'
+);
 select pg_temp.act_as_assigned_coordinator('event-3');
 select lives_ok(
   format(
@@ -295,6 +345,10 @@ select lives_ok(
 select lives_ok(
   format($$select public.submit_event_request(%L::uuid)$$, (select id from pb06_event_ids where label = 'event-4')),
   'the fourth event can be submitted'
+);
+select lives_ok(
+  format($$select pg_temp.lead_assigns_coordinator(%L::uuid)$$, (select id from pb06_event_ids where label = 'event-4')),
+  'the Lead assigns the next available coordinator'
 );
 -- No clarification involved: the organiser can freely edit a Requested event
 -- (PB-03 AC07) and here blanks out purpose, leaving the event incomplete.
@@ -399,6 +453,10 @@ select lives_ok(
 select lives_ok(
   format($$select public.submit_event_request(%L::uuid)$$, (select id from pb06_event_ids where label = 'event-2')),
   'the second event can be submitted'
+);
+select lives_ok(
+  format($$select pg_temp.lead_assigns_coordinator(%L::uuid)$$, (select id from pb06_event_ids where label = 'event-2')),
+  'the Lead assigns the next available coordinator'
 );
 
 select pg_temp.act_as_assigned_coordinator('event-2');

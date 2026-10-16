@@ -1,6 +1,6 @@
 begin;
 
-select plan(23);
+select plan(26);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -26,6 +26,48 @@ values
     'spm24b-venue-staff-b@example.test',
     '{"full_name":"SPM24b Venue Staff B","role":"venue_staff"}'::jsonb
   );
+
+-- 202610050003: submitting no longer assigns a coordinator; the Event
+-- Coordinator Lead does. This helper has the Lead assign the coordinator the
+-- old automatic assignment would have picked (least active requests, then
+-- lowest id), so the checks below keep their original meaning.
+insert into auth.users (id, email, raw_user_meta_data)
+values (
+  'eeeeeeee-0000-0000-0000-0000000000ad',
+  'pgtap-lead@example.test',
+  '{"full_name":"pgTAP Lead","role":"event_coordinator_lead"}'::jsonb
+);
+
+create function pg_temp.lead_assigns_coordinator(p_event_id uuid)
+returns uuid
+language plpgsql
+security definer
+as $helper$
+declare
+  saved_claims text := current_setting('request.jwt.claims', true);
+  coordinator_id uuid;
+begin
+  select p.id into coordinator_id
+  from public.profiles p
+  where p.role = 'event_coordinator'::public.user_role
+  order by (
+    select count(*) from public.events e
+    where e.assigned_coordinator_id = p.id
+      and e.status in ('requested', 'submitted', 'clarification_requested', 'under_review', 'approved')
+  ) asc, p.id asc
+  limit 1;
+
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"eeeeeeee-0000-0000-0000-0000000000ad","role":"authenticated"}',
+    true
+  );
+  perform public.reassign_event_coordinator(p_event_id, coordinator_id, '');
+  perform set_config('request.jwt.claims', saved_claims, true);
+  return coordinator_id;
+end;
+$helper$;
+
 
 set local role authenticated;
 select set_config(
@@ -85,6 +127,10 @@ select lives_ok(
   format($$select public.submit_event_request(%L::uuid)$$, (select id from sb_event_ids where label = 'event-a')),
   'Event A can be submitted'
 );
+select lives_ok(
+  format($$select pg_temp.lead_assigns_coordinator(%L::uuid)$$, (select id from sb_event_ids where label = 'event-a')),
+  'the Lead assigns the next available coordinator'
+);
 
 -- Event B: Saturday 11 Apr 2099 — outside Room A's Monday-Friday days.
 select lives_ok(
@@ -108,6 +154,10 @@ select lives_ok(
 select lives_ok(
   format($$select public.submit_event_request(%L::uuid)$$, (select id from sb_event_ids where label = 'event-b')),
   'Event B can be submitted'
+);
+select lives_ok(
+  format($$select pg_temp.lead_assigns_coordinator(%L::uuid)$$, (select id from sb_event_ids where label = 'event-b')),
+  'the Lead assigns the next available coordinator'
 );
 
 -- Event C: same Monday 6 Apr 2099, 10:00-12:00 slot as Event A — used for
@@ -134,6 +184,10 @@ select lives_ok(
 select lives_ok(
   format($$select public.submit_event_request(%L::uuid)$$, (select id from sb_event_ids where label = 'event-c')),
   'Event C can be submitted'
+);
+select lives_ok(
+  format($$select pg_temp.lead_assigns_coordinator(%L::uuid)$$, (select id from sb_event_ids where label = 'event-c')),
+  'the Lead assigns the next available coordinator'
 );
 
 select set_config(
@@ -213,7 +267,7 @@ select throws_ok(
     (select id from sb_venue_ids where label = 'room-a')
   ),
   '23514',
-  'This event''s schedule falls outside the venue''s operating days or hours',
+  'This event''s schedule, including setup and turnaround time, falls outside the venue''s operating days or hours.',
   'AC07: a Saturday event against a Monday-Friday venue is blocked'
 );
 
@@ -234,6 +288,9 @@ select is(
 );
 
 -- Every venue-staff profile is notified of the new request, not just one.
+-- Read as the superuser: RLS shows each user only their own notifications,
+-- so the coordinator could never see venue staff's.
+reset role;
 select is(
   (
     select count(*)::int
@@ -255,6 +312,7 @@ select ok(
   ),
   'the notification names the requested venue'
 );
+set local role authenticated;
 
 -- AC03: Room A already has an overlapping Pending booking (booking-1, same
 -- Monday 10:00-12:00 slot) — Event C has no active booking of its own, so
@@ -266,7 +324,7 @@ select throws_ok(
     (select id from sb_venue_ids where label = 'room-a')
   ),
   '23514',
-  'This venue already has a Pending or Approved booking for part of this event''s schedule',
+  'This venue is already occupied from 10:00 AM on 06 Apr to 12:00 PM on 06 Apr (including setup and turnaround), which overlaps your requested period.',
   'AC03: an overlapping request against an already-Pending venue period is rejected'
 );
 
@@ -289,7 +347,7 @@ select throws_ok(
     (select id from sb_venue_ids where label = 'room-b')
   ),
   '23514',
-  'This venue is unavailable for part of this event''s schedule',
+  'This venue is unavailable for part of this event''s schedule, including setup and turnaround time.',
   'AC03: a request overlapping a venue block is rejected'
 );
 

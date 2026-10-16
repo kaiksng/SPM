@@ -1,6 +1,6 @@
 begin;
 
-select plan(14);
+select plan(18);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -14,6 +14,48 @@ values
     'cvba-coordinator@example.test',
     '{"full_name":"CVBA Coordinator","role":"event_coordinator"}'::jsonb
   );
+
+-- 202610050003: submitting no longer assigns a coordinator; the Event
+-- Coordinator Lead does. This helper has the Lead assign the coordinator the
+-- old automatic assignment would have picked (least active requests, then
+-- lowest id), so the checks below keep their original meaning.
+insert into auth.users (id, email, raw_user_meta_data)
+values (
+  'eeeeeeee-0000-0000-0000-0000000000ad',
+  'pgtap-lead@example.test',
+  '{"full_name":"pgTAP Lead","role":"event_coordinator_lead"}'::jsonb
+);
+
+create function pg_temp.lead_assigns_coordinator(p_event_id uuid)
+returns uuid
+language plpgsql
+security definer
+as $helper$
+declare
+  saved_claims text := current_setting('request.jwt.claims', true);
+  coordinator_id uuid;
+begin
+  select p.id into coordinator_id
+  from public.profiles p
+  where p.role = 'event_coordinator'::public.user_role
+  order by (
+    select count(*) from public.events e
+    where e.assigned_coordinator_id = p.id
+      and e.status in ('requested', 'submitted', 'clarification_requested', 'under_review', 'approved')
+  ) asc, p.id asc
+  limit 1;
+
+  perform set_config(
+    'request.jwt.claims',
+    '{"sub":"eeeeeeee-0000-0000-0000-0000000000ad","role":"authenticated"}',
+    true
+  );
+  perform public.reassign_event_coordinator(p_event_id, coordinator_id, '');
+  perform set_config('request.jwt.claims', saved_claims, true);
+  return coordinator_id;
+end;
+$helper$;
+
 
 set local role authenticated;
 select set_config(
@@ -75,6 +117,10 @@ select lives_ok(
   format($$select public.submit_event_request(%L::uuid)$$, (select id from cvba_event_ids where label = 'event-a')),
   'Event A can be submitted'
 );
+select lives_ok(
+  format($$select pg_temp.lead_assigns_coordinator(%L::uuid)$$, (select id from cvba_event_ids where label = 'event-a')),
+  'the Lead assigns the next available coordinator'
+);
 
 -- Event B: same Monday, 12:30-14:00 — AC2's second request.
 select lives_ok(
@@ -99,9 +145,13 @@ select lives_ok(
   format($$select public.submit_event_request(%L::uuid)$$, (select id from cvba_event_ids where label = 'event-b')),
   'Event B can be submitted'
 );
+select lives_ok(
+  format($$select pg_temp.lead_assigns_coordinator(%L::uuid)$$, (select id from cvba_event_ids where label = 'event-b')),
+  'the Lead assigns the next available coordinator'
+);
 
--- Event C: Monday, 12:45-14:00 — AC3's exact-touch case (starts exactly
--- when Event A's effective window ends: 12:45).
+-- Event C: Monday, 13:15-14:00 — AC3's exact-touch case: with Room A's 30-min
+-- setup its effective window starts at 12:45, exactly when Event A's ends.
 select lives_ok(
   $$insert into cvba_event_ids
     select 'event-c', public.save_event_draft(
@@ -110,7 +160,7 @@ select lives_ok(
         "purpose":"Third test event.",
         "description":"A test event.",
         "expectedAttendance":"10",
-        "startsAt":"2099-04-06T12:45:00+08:00",
+        "startsAt":"2099-04-06T13:15:00+08:00",
         "endsAt":"2099-04-06T14:00:00+08:00",
         "venue":{"preferredLocation":"Main Hall","facilities":[]},
         "equipment":[],
@@ -123,6 +173,10 @@ select lives_ok(
 select lives_ok(
   format($$select public.submit_event_request(%L::uuid)$$, (select id from cvba_event_ids where label = 'event-c')),
   'Event C can be submitted'
+);
+select lives_ok(
+  format($$select pg_temp.lead_assigns_coordinator(%L::uuid)$$, (select id from cvba_event_ids where label = 'event-c')),
+  'the Lead assigns the next available coordinator'
 );
 
 -- Event D: Monday, 10:00-12:00 — Room B's AC6 case (fits the event's own
@@ -148,6 +202,10 @@ select lives_ok(
 select lives_ok(
   format($$select public.submit_event_request(%L::uuid)$$, (select id from cvba_event_ids where label = 'event-d')),
   'Event D can be submitted'
+);
+select lives_ok(
+  format($$select pg_temp.lead_assigns_coordinator(%L::uuid)$$, (select id from cvba_event_ids where label = 'event-d')),
+  'the Lead assigns the next available coordinator'
 );
 
 select set_config(
