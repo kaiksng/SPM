@@ -4,5 +4,8 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
+    // Only the TypeScript sources. `pnpm build:backend` also compiles the test
+    // files into dist/, and those stale copies must never be run as tests.
+    include: ["src/**/*.test.ts"],
   },
 });
