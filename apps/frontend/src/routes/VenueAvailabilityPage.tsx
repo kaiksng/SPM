@@ -371,7 +371,7 @@ export function VenueAvailabilityPage() {
 
               <div className="mt-6 flex flex-wrap gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-medium text-slate-600">
                 <Legend swatchClassName="border border-slate-200 bg-white" label="Available" square />
-                <Legend swatchClassName="border border-amber-200 bg-amber-50" label="Pending" />
+                <Legend swatchClassName="border border-amber-200 bg-amber-50" label="Pending Booking" />
                 <Legend swatchClassName="border border-indigo-200 bg-indigo-50" label="On Hold" />
                 <Legend
                   swatchClassName="border border-emerald-200 bg-emerald-50"

@@ -20,6 +20,13 @@ function request(overrides: Partial<VenueBookingRequestSummary> = {}): VenueBook
     eventId: "e-1",
     eventTitle: "Career Fair",
     eventExpectedAttendance: 50,
+    eventVenueRequirements: {
+      preferredLocation: null,
+      minimumCapacity: null,
+      accessibilityNotes: null,
+      layoutNotes: null,
+      facilities: [],
+    },
     requestedByName: "Priya Coordinator",
     decidedByName: null,
     replacesBookingId: null,

@@ -146,6 +146,8 @@ describe("listVenueAvailability", () => {
     });
   });
 
+  // SPM-24 AC03 + AC07: only Pending, Approved and On Hold bookings occupy a
+  // period; a withdrawn (Cancelled), Rejected or Expired one leaves it Available.
   it("reads this venue's active bookings and its non-removed blocks", async () => {
     const queries = givenAvailability({ data: [], error: null });
 
@@ -157,6 +159,16 @@ describe("listVenueAvailability", () => {
     expect(queries.venue_unavailability!.is).toHaveBeenCalledWith("removed_at", null);
   });
 
+  // SPM-24 AC01: a submitted request shows its period as a Pending Booking.
+  it("shows a Pending request's period as pending", async () => {
+    givenAvailability({ data: [bookingRow({ status: "pending" })], error: null });
+
+    const [period] = await listVenueAvailability("venue-1", VIEWER_ID);
+
+    expect(period).toMatchObject({ type: "pending", label: "Leadership Summit" });
+  });
+
+  // SPM-24 AC07: an Approved booking shows as Confirmed.
   it("maps a booking with its event, organiser, coordinator and whether it is the viewer's", async () => {
     givenAvailability({ data: [bookingRow({ status: "approved" })], error: null });
 
@@ -194,6 +206,7 @@ describe("listVenueAvailability", () => {
     expect(period).toMatchObject({ label: "Booking", organiserName: null, coordinatorName: null });
   });
 
+  // SPM-24 AC07: an operational block shows as Blocked.
   it.each([
     ["its reason", "Annual maintenance", "Annual maintenance"],
     ["a placeholder when the reason is blank", "   ", "Reason not recorded"],

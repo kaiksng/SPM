@@ -11,14 +11,14 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import { ApiError, apiFetch } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase-client";
 
-// AC08's four venue-period states — purely booking/block-derived, not
+// The venue-period states (SPM-24 AC07) — purely booking/block-derived, not
 // operating-hours fit (that's a separate concern enforced only when a
 // request is actually submitted).
 export type VenueAvailabilityStatus = "available" | "pending" | "confirmed" | "blocked";
 
 export const VENUE_AVAILABILITY_LABELS: Record<VenueAvailabilityStatus, string> = {
   available: "Available",
-  pending: "Pending",
+  pending: "Pending Booking",
   confirmed: "Confirmed",
   blocked: "Blocked",
 };

@@ -1,6 +1,6 @@
 begin;
 
-select plan(26);
+select plan(32);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -248,7 +248,7 @@ select set_config(
   true
 );
 
--- AC02: missing mandatory information (no venue selected).
+-- SPM-24 AC05: a request must name the venue.
 select throws_ok(
   format(
     $$select public.submit_venue_booking_request(%L::uuid, null)$$,
@@ -256,10 +256,10 @@ select throws_ok(
   ),
   '23514',
   'Select a venue before submitting',
-  'AC02: a request with no venue selected is blocked'
+  'SPM-24 AC05: a request with no venue selected is blocked'
 );
 
--- AC07: Event B falls on a Saturday, outside Room A's Monday-Friday hours.
+-- SPM-24 AC06: Event B falls on a Saturday, outside Room A's Monday-Friday hours.
 select throws_ok(
   format(
     $$select public.submit_venue_booking_request(%L::uuid, %L::uuid)$$,
@@ -268,10 +268,10 @@ select throws_ok(
   ),
   '23514',
   'This event''s schedule, including setup and turnaround time, falls outside the venue''s operating days or hours.',
-  'AC07: a Saturday event against a Monday-Friday venue is blocked'
+  'SPM-24 AC06: a Saturday event against a Monday-Friday venue is blocked'
 );
 
--- AC01: the happy path.
+-- SPM-24 AC01: the happy path.
 create temporary table sb_booking_ids (label text primary key, id uuid);
 select lives_ok(
   $$insert into sb_booking_ids
@@ -279,12 +279,29 @@ select lives_ok(
       (select id from sb_event_ids where label = 'event-a'),
       (select id from sb_venue_ids where label = 'room-a')
     )$$,
-  'AC01: a complete, available request succeeds'
+  'SPM-24 AC01: a complete, available request succeeds'
 );
 select is(
   (select status::text from public.venue_bookings where id = (select id from sb_booking_ids where label = 'booking-1')),
   'pending',
-  'AC01: the new request''s status is Pending'
+  'SPM-24 AC01: the new request''s status is Pending'
+);
+
+-- SPM-24 AC05: the request refers to the event and venue, and its period is
+-- the event's own schedule (attendance and venue requirements are read from
+-- the event).
+select is(
+  (
+    select row(event_id, venue_id, starts_at, ends_at)
+    from public.venue_bookings
+    where id = (select id from sb_booking_ids where label = 'booking-1')
+  ),
+  (
+    select row(e.id, (select id from sb_venue_ids where label = 'room-a'), e.starts_at, e.ends_at)
+    from public.events e
+    where e.id = (select id from sb_event_ids where label = 'event-a')
+  ),
+  'SPM-24 AC05: the request references the event, the venue and the event''s exact period'
 );
 
 -- Every venue-staff profile is notified of the new request, not just one.
@@ -314,9 +331,9 @@ select ok(
 );
 set local role authenticated;
 
--- AC03: Room A already has an overlapping Pending booking (booking-1, same
+-- SPM-24 AC02: Room A already has an overlapping Pending booking (booking-1, same
 -- Monday 10:00-12:00 slot) — Event C has no active booking of its own, so
--- this reaches the venue-side conflict check rather than AC04's.
+-- this reaches the venue-side conflict check, not the one-request-per-event one.
 select throws_ok(
   format(
     $$select public.submit_venue_booking_request(%L::uuid, %L::uuid)$$,
@@ -325,10 +342,10 @@ select throws_ok(
   ),
   '23514',
   'This venue is already occupied from 10:00 AM on 06 Apr to 12:00 PM on 06 Apr (including setup and turnaround), which overlaps your requested period.',
-  'AC03: an overlapping request against an already-Pending venue period is rejected'
+  'SPM-24 AC02: an overlapping request against an already-Pending venue period is rejected'
 );
 
--- AC03: an operational block on Room B, set directly (no UI/RPC creates one
+-- SPM-24 AC02: an operational block on Room B, set directly (no UI/RPC creates one
 -- for this test — venue staff manage blocks through their own, unrelated
 -- write path).
 reset role;
@@ -348,10 +365,15 @@ select throws_ok(
   ),
   '23514',
   'This venue is unavailable for part of this event''s schedule, including setup and turnaround time.',
-  'AC03: a request overlapping a venue block is rejected'
+  'SPM-24 AC02: a request overlapping a venue block is rejected'
+);
+select is(
+  (select count(*)::integer from public.venue_bookings where event_id = (select id from sb_event_ids where label = 'event-c')),
+  0,
+  'SPM-24 AC02: a refused request creates no booking at all'
 );
 
--- AC04: Event A already has an active (Pending) booking — a second request
+-- One active request per event: Event A already has an active (Pending) booking — a second request
 -- for the same event, even against a different venue, is rejected.
 select throws_ok(
   format(
@@ -361,29 +383,43 @@ select throws_ok(
   ),
   '23514',
   'This event already has an active venue booking request',
-  'AC04: a second active request for the same event is rejected'
+  'a second active request for the same event is rejected'
 );
 
--- AC05: withdraw the Pending booking from Event A.
+-- SPM-24 AC03: withdraw the Pending booking from Event A.
 select lives_ok(
   format($$select public.withdraw_venue_booking_request(%L::uuid)$$, (select id from sb_booking_ids where label = 'booking-1')),
-  'AC05: the requesting coordinator can withdraw their own Pending request'
+  'SPM-24 AC03: the requesting coordinator can withdraw their own Pending request'
 );
 select is(
   (select status::text from public.venue_bookings where id = (select id from sb_booking_ids where label = 'booking-1')),
   'cancelled',
-  'AC05: the withdrawn request''s status is Cancelled'
+  'SPM-24 AC03: the withdrawn request''s status is Cancelled'
 );
 
--- AC05: withdrawing again (no longer Pending) is refused.
+-- SPM-24 AC03: the period is released — another event can now have the slot
+-- Event A gave up (an event's own booking never blocks itself, so only a
+-- different event shows this).
+select is(
+  (
+    select (public.check_venue_booking_availability(
+      (select id from sb_venue_ids where label = 'room-a'),
+      (select id from sb_event_ids where label = 'event-c')
+    ) ->> 'available')::boolean
+  ),
+  true,
+  'SPM-24 AC03: after withdrawal the period is Available to another event'
+);
+
+-- SPM-24 AC03: withdrawing again (no longer Pending) is refused.
 select throws_ok(
   format($$select public.withdraw_venue_booking_request(%L::uuid)$$, (select id from sb_booking_ids where label = 'booking-1')),
   '23514',
   'Only a Pending venue booking request can be withdrawn',
-  'AC05: a non-Pending request cannot be withdrawn again'
+  'SPM-24 AC03: a non-Pending request cannot be withdrawn again'
 );
 
--- AC05 downstream: the event-level restriction is released — Event A can
+-- SPM-24 AC03 downstream: the event-level restriction is released — Event A can
 -- now submit a fresh request.
 select lives_ok(
   format(
@@ -391,7 +427,46 @@ select lives_ok(
     (select id from sb_event_ids where label = 'event-a'),
     (select id from sb_venue_ids where label = 'room-a')
   ),
-  'AC05: after withdrawal, Event A can submit a new venue booking request'
+  'SPM-24 AC03: after withdrawal, Event A can submit a new venue booking request'
+);
+
+-- SPM-24 AC02: an On Hold or Approved booking blocks the period as much as a
+-- Pending one. Event A's new request is moved on directly (Venue Staff's own
+-- hold and decision paths have their own tests).
+reset role;
+update public.venue_bookings
+set status = 'on_hold', expires_at = now() + interval '2 days'
+where event_id = (select id from sb_event_ids where label = 'event-a') and status = 'pending';
+set local role authenticated;
+select throws_ok(
+  format(
+    $$select public.submit_venue_booking_request(%L::uuid, %L::uuid)$$,
+    (select id from sb_event_ids where label = 'event-c'),
+    (select id from sb_venue_ids where label = 'room-a')
+  ),
+  '23514',
+  'This venue is already occupied from 10:00 AM on 06 Apr to 12:00 PM on 06 Apr (including setup and turnaround), which overlaps your requested period.',
+  'SPM-24 AC02: an On Hold booking blocks an overlapping request'
+);
+reset role;
+update public.venue_bookings
+set status = 'approved', expires_at = null
+where event_id = (select id from sb_event_ids where label = 'event-a') and status = 'on_hold';
+set local role authenticated;
+select throws_ok(
+  format(
+    $$select public.submit_venue_booking_request(%L::uuid, %L::uuid)$$,
+    (select id from sb_event_ids where label = 'event-c'),
+    (select id from sb_venue_ids where label = 'room-a')
+  ),
+  '23514',
+  'This venue is already occupied from 10:00 AM on 06 Apr to 12:00 PM on 06 Apr (including setup and turnaround), which overlaps your requested period.',
+  'SPM-24 AC02: an Approved booking blocks an overlapping request'
+);
+select is(
+  (select count(*)::integer from public.venue_bookings where event_id = (select id from sb_event_ids where label = 'event-c')),
+  0,
+  'SPM-24 AC02: the refused requests created no booking'
 );
 
 select * from finish();

@@ -123,6 +123,7 @@ describe("EventVenuePage", () => {
     expect(screen.getByText("Suggested venues")).toBeInTheDocument();
   });
 
+  // SPM-24 AC03: only a Pending request can be withdrawn.
   it("does not offer a Withdraw action for an Approved request", async () => {
     getActiveVenueBookingMock.mockResolvedValue({
       id: "booking-1",
@@ -139,6 +140,7 @@ describe("EventVenuePage", () => {
     expect(screen.queryByRole("button", { name: "Withdraw request" })).not.toBeInTheDocument();
   });
 
+  // SPM-24 AC03: withdrawing a Pending request releases the event to look for a venue again.
   it("withdraws the request and shows suggestions again", async () => {
     getActiveVenueBookingMock.mockResolvedValueOnce({
       id: "booking-1",
