@@ -406,6 +406,9 @@ describe("EventHistoryPage", () => {
     expect(screen.queryByText("Lifecycle")).not.toBeInTheDocument();
   });
 
+  // SPM-09: As an Event Coordinator, I want to view the latest requirements and full
+  // change history for an event I'm assigned to, so that I can confirm all internal
+  // teams are working from the current agreed information.
   describe("SPM-09: viewing an event's change history", () => {
     const COORDINATOR_ID = "20000000-0000-0000-0000-000000000002";
     const OTHER_COORDINATOR_ID = "20000000-0000-0000-0000-000000000099";
@@ -480,7 +483,7 @@ describe("EventHistoryPage", () => {
       authState.user.id = COORDINATOR_ID;
     });
 
-    // AC02: an unassigned coordinator is denied, whatever the event's status, even
+    // SPM-09 AC02: an unassigned coordinator is denied, whatever the event's status, even
     // though the history services returned rows.
     it.each(lifecycleStatuses)(
       "denies a coordinator who is not assigned to a %s event",
@@ -501,7 +504,7 @@ describe("EventHistoryPage", () => {
       },
     );
 
-    // AC02 (inverse): the assigned coordinator is not denied in any status.
+    // SPM-09 AC02 (inverse): the assigned coordinator is not denied in any status.
     it.each(lifecycleStatuses)(
       "shows the assigned coordinator the history of a %s event",
       async (status) => {
@@ -516,7 +519,7 @@ describe("EventHistoryPage", () => {
       },
     );
 
-    // AC03: edits made before approval do not count as changes since approval.
+    // SPM-09 AC03: edits made before approval do not count as changes since approval.
     it("says no changes have been made since approval when every edit came before it", async () => {
       listClarificationsMock.mockResolvedValue([answeredClarification]);
       listEventDecisionsMock.mockResolvedValue([approval]);
@@ -540,7 +543,7 @@ describe("EventHistoryPage", () => {
       expect(planning.querySelector("ol")).toBeNull();
     });
 
-    // AC03: the message replaces the list only while there are no planning edits.
+    // SPM-09 AC03: the message replaces the list only while there are no planning edits.
     it("lists planning edits instead of the no-changes message once a field is edited", async () => {
       listEventDecisionsMock.mockResolvedValue([approval]);
       loadEventFieldHistoryMock.mockResolvedValue(planningEdits);
@@ -551,7 +554,7 @@ describe("EventHistoryPage", () => {
       expect(section("Planning")).not.toHaveTextContent("No changes have been made");
     });
 
-    // AC03: "since approval" needs an approval — a rejection does not open the Planning stage.
+    // SPM-09 AC03: "since approval" needs an approval — a rejection does not open the Planning stage.
     it("does not show a Planning section for a rejected event", async () => {
       listEventDecisionsMock.mockResolvedValue([
         { ...approval, decision: "rejected" as const, rationale: "Not feasible." },
@@ -564,7 +567,7 @@ describe("EventHistoryPage", () => {
       expect(screen.queryByText(/No changes have been made since/)).not.toBeInTheDocument();
     });
 
-    // AC04: the organiser is exempt from AC02 even though another coordinator is assigned.
+    // SPM-09 AC04: the organiser is exempt from AC02 even though another coordinator is assigned.
     it.each(["requested", "planning", "confirmed", "cancelled"])(
       "shows the organiser the change history of their own %s event",
       async (status) => {
@@ -586,7 +589,7 @@ describe("EventHistoryPage", () => {
       },
     );
 
-    // AC05: the three stages appear as Lifecycle, then Pre-Approved, then Planning.
+    // SPM-09 AC05: the three stages appear as Lifecycle, then Pre-Approved, then Planning.
     it("groups the history into Lifecycle, Pre-Approved and Planning, in that order", async () => {
       listEventStatusHistoryMock.mockResolvedValue(statusChanges);
       listClarificationsMock.mockResolvedValue([answeredClarification]);
@@ -602,7 +605,7 @@ describe("EventHistoryPage", () => {
       expect(headings.slice(0, 3)).toEqual(["Lifecycle", "Pre-Approved", "Planning"]);
     });
 
-    // AC05: each lifecycle entry, oldest first, with previous state, new state, actor and time.
+    // SPM-09 AC05: each lifecycle entry, oldest first, with previous state, new state, actor and time.
     it("lists lifecycle entries chronologically with previous and new status, actor and time", async () => {
       listEventStatusHistoryMock.mockResolvedValue(statusChanges);
 
@@ -617,7 +620,7 @@ describe("EventHistoryPage", () => {
       ]);
     });
 
-    // AC05: each planning entry, oldest first, with previous value, new value, actor and time.
+    // SPM-09 AC05: each planning entry, oldest first, with previous value, new value, actor and time.
     it("lists planning entries chronologically with previous and new value, actor and time", async () => {
       listEventDecisionsMock.mockResolvedValue([approval]);
       loadEventFieldHistoryMock.mockResolvedValue(planningEdits);
@@ -635,7 +638,7 @@ describe("EventHistoryPage", () => {
       );
     });
 
-    // AC05: clarification rounds, oldest first; each edit made during a round shows its
+    // SPM-09 AC05: clarification rounds, oldest first; each edit made during a round shows its
     // previous value, new value, actor and time.
     it("lists Pre-Approved rounds chronologically with each edit's values, actor and time", async () => {
       listClarificationsMock.mockResolvedValue([

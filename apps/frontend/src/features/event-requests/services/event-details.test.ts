@@ -120,6 +120,7 @@ describe("loadEventDetail", () => {
     },
   );
 
+  // SPM-09 AC01: requirements the event never set still show, as "not set", not an error.
   it("falls back to empty requirements when the event has no venue or registration rows", async () => {
     fromMock.mockReturnValue(
       queryBuilder({
@@ -166,6 +167,7 @@ describe("loadEventDetail", () => {
     );
   });
 
+  // SPM-09 AC02: a refused or failed read shows the same access message, not a raw error.
   it("throws the access message when the query fails", async () => {
     fromMock.mockReturnValue(
       queryBuilder({ data: null, error: { code: "42501", message: "permission denied" } }),

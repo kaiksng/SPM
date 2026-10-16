@@ -153,6 +153,6 @@ Commit the migration and regenerated `database.types.ts` (in `packages/shared/sr
 
 ## Definition of Done
 
-A story is done only when its acceptance criteria are demonstrated, relevant tests pass, authorization is enforced in both the application and Supabase RLS, errors and empty states are handled, traceability is updated, and the reviewed pull request is merged.
+A story is done only when its acceptance criteria are demonstrated, relevant tests pass, authorization is enforced in both the application and Supabase RLS, errors and empty states are handled, tests are tagged with the acceptance criteria they cover, and the reviewed pull request is merged.
 
-See [System architecture](docs/architecture/README.md), [API contract](docs/api/openapi.yaml), and [Sprint 1 traceability](docs/requirements/sprint-1-traceability.md).
+See [System architecture](docs/architecture/README.md) and [API contract](docs/api/openapi.yaml).

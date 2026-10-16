@@ -14,7 +14,6 @@ ConnectSphere is an event-planning workspace for a school Scrum project (IS212).
 | `supabase/migrations` | Version-controlled schema. Business rules live in Postgres functions (RPC) protected by RLS |
 | `supabase/tests/database` | pgTAP database and RLS tests |
 | `tests/e2e` | Playwright browser journeys |
-| `docs/requirements` | Story contracts and acceptance criteria. Read the relevant one before changing a feature |
 
 Frontend code is organised by feature: `apps/frontend/src/features/<feature>/{components,services,hooks,utils}`. Pages live in `src/routes`.
 
@@ -53,7 +52,7 @@ pnpm db:test                              # pgTAP tests (needs Docker + local Su
 
 ## Working on a user story
 
-- **Requirements:** a story's user story and acceptance criteria are in the latest Jira CSV export (ask for the path); contracts and traceability notes for finished stories are in `docs/requirements`. Customer requirements change during the project, so don't rely on memory or old summaries. If a story conflicts with an earlier one or an existing test, raise it instead of choosing silently.
+- **Requirements:** a story's user story and acceptance criteria are in the latest Jira CSV export (ask for the path). Customer requirements change during the project, so don't rely on memory or old summaries. If a story conflicts with an earlier one or an existing test, raise it instead of choosing silently.
 - **Start from current code:** fetch and merge `origin/main` into your branch first. Other people merge schema and role changes constantly, and a stale checkout hides them. Verify a function signature or table in `supabase/migrations` before using it.
 - **Plan first** for anything non-trivial (new feature, schema change, several packages): read the contract and the code, propose the approach with any dependencies on other stories, and wait for confirmation.
 - **One story at a time.** Tag acceptance criteria in tests (`// AC03: ...`) so tests trace back to stories.

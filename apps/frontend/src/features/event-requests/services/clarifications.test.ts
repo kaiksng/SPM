@@ -25,6 +25,7 @@ describe("listClarifications", () => {
     expect(query.order).toHaveBeenCalledWith("requested_at", { ascending: true });
   });
 
+  // SPM-09 AC05: each Pre-Approved round carries when it was requested, answered and resolved.
   it("maps each round with when it was requested, answered and resolved", async () => {
     fromMock.mockReturnValue(
       queryBuilder({
@@ -58,6 +59,7 @@ describe("listClarifications", () => {
     ]);
   });
 
+  // SPM-09 AC05 (error case): a failed load gives a readable message, not a raw error.
   it("throws a readable error when the rounds cannot be loaded", async () => {
     fromMock.mockReturnValue(
       queryBuilder({ data: null, error: { code: "XX000", message: "connection reset" } }),

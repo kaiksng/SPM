@@ -77,6 +77,7 @@ describe("listEventStatusHistory", () => {
     await expect(listEventStatusHistory("event-1")).resolves.toEqual([]);
   });
 
+  // SPM-09 AC05 (error case): a failed load gives a readable message, not a raw error.
   it("throws a readable error when the history cannot be loaded", async () => {
     fromMock.mockReturnValue(
       queryBuilder({ data: null, error: { code: "XX000", message: "connection reset" } }),

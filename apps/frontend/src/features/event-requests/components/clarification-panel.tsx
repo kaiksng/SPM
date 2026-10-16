@@ -19,8 +19,8 @@ import { decideEvent } from "@/features/event-requests/services/decisions";
 
 /**
  * Clarification is only meaningful before a decision is made, and today
- * "Requested" is the only pre-decision status a request can sit in (see
- * docs/requirements — the review/decision statuses are a later slice), so
+ * "Requested" is the only pre-decision status a request can sit in (the
+ * review/decision statuses are a later slice), so
  * this renders nothing outside it.
  */
 export function ClarificationPanel({

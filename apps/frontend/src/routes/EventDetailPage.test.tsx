@@ -412,6 +412,9 @@ describe("EventDetailPage", () => {
     expect(screen.queryByText("Student Leadership Summit 2")).not.toBeInTheDocument();
   });
 
+  // SPM-09: As an Event Coordinator, I want to view the latest requirements and full
+  // change history for an event I'm assigned to, so that I can confirm all internal
+  // teams are working from the current agreed information.
   describe("SPM-09: viewing an event's latest requirements", () => {
     const lifecycleStatuses = [
       "requested",
@@ -432,7 +435,7 @@ describe("EventDetailPage", () => {
       authState.user.id = "20000000-0000-0000-0000-000000000002";
     });
 
-    // AC01: the assigned coordinator sees the current requirements in every lifecycle status.
+    // SPM-09 AC01: the assigned coordinator sees the current requirements in every lifecycle status.
     it.each(lifecycleStatuses)(
       "shows the assigned coordinator the current requirements of a %s event",
       async (status) => {
@@ -456,7 +459,7 @@ describe("EventDetailPage", () => {
       },
     );
 
-    // AC02: an unassigned coordinator is denied in every lifecycle status.
+    // SPM-09 AC02: an unassigned coordinator is denied in every lifecycle status.
     it.each(lifecycleStatuses)(
       "denies a coordinator who is not assigned to a %s event",
       async (status) => {
@@ -478,7 +481,7 @@ describe("EventDetailPage", () => {
       },
     );
 
-    // AC04: the organiser is exempt from AC02 — the assigned coordinator is someone else.
+    // SPM-09 AC04: the organiser is exempt from AC02 — the assigned coordinator is someone else.
     it.each(["requested", "planning", "confirmed", "cancelled"])(
       "shows the organiser the requirements of their own %s event",
       async (status) => {

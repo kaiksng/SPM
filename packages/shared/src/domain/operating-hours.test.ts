@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { formatOperatingHours } from "./operating-hours";
 
+// Not traced to a user story yet: added as an example for an untested module.
 describe("formatOperatingHours", () => {
   it("says the hours are not set when there are no periods", () => {
     expect(formatOperatingHours([])).toBe("Operating hours not set");

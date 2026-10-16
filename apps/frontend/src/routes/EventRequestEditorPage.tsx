@@ -29,8 +29,7 @@ import { RoleGate } from "@/routes/RoleGate";
 /**
  * PB-02 owns draft persistence ("draft" mode). PB-03 extends the same form
  * with a stricter schema and a submission action ("submit" mode) rather than
- * creating a second event-request page — see
- * docs/requirements/pb-02-event-request-form-contract.md.
+ * creating a second event-request page.
  */
 export function EventRequestEditorPage({
   mode = "draft",
