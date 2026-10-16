@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/features/venues/hooks/use-room-layout-options", () => ({
   useRoomLayoutOptions: () => ["Theatre", "Classroom", "Boardroom", "Banquet", "Open Floor", "Auditorium", "Exhibition"],
@@ -410,5 +410,90 @@ describe("EventDetailPage", () => {
       await screen.findByText("This event is unavailable or you do not have access to it."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Student Leadership Summit 2")).not.toBeInTheDocument();
+  });
+
+  describe("SPM-09: viewing an event's latest requirements", () => {
+    const lifecycleStatuses = [
+      "requested",
+      "planning",
+      "pending_safety_check",
+      "confirmed",
+      "completed",
+      "rejected",
+      "cancelled",
+    ];
+
+    /** The value shown under a label in a details list, e.g. "Expected attendance" → "120". */
+    function fieldValue(label: string) {
+      return screen.getByText(label, { selector: "dt" }).nextElementSibling?.textContent;
+    }
+
+    afterEach(() => {
+      authState.user.id = "20000000-0000-0000-0000-000000000002";
+    });
+
+    // AC01: the assigned coordinator sees the current requirements in every lifecycle status.
+    it.each(lifecycleStatuses)(
+      "shows the assigned coordinator the current requirements of a %s event",
+      async (status) => {
+        loadEventDetailMock.mockResolvedValue({
+          ...event,
+          status,
+          expectedAttendance: 150,
+          venue: { ...event.venue, preferredLocation: "Grand Hall" },
+          registration: { ...event.registration, capacity: 140 },
+        });
+
+        renderPage();
+
+        expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+        expect(fieldValue("Purpose")).toBe("All university student leaders workshop");
+        expect(fieldValue("Expected attendance")).toBe("150");
+        expect(screen.getByText("Grand Hall")).toBeInTheDocument();
+        expect(screen.queryByText("Main Auditorium")).not.toBeInTheDocument();
+        expect(fieldValue("Capacity")).toBe("140");
+        expect(fieldValue("Waitlist")).toBe("Enabled");
+      },
+    );
+
+    // AC02: an unassigned coordinator is denied in every lifecycle status.
+    it.each(lifecycleStatuses)(
+      "denies a coordinator who is not assigned to a %s event",
+      async (status) => {
+        loadEventDetailMock.mockResolvedValue({
+          ...event,
+          status,
+          assignedCoordinatorId: "20000000-0000-0000-0000-000000000099",
+          assignedCoordinatorName: "Someone Else",
+        });
+
+        renderPage();
+
+        expect(
+          await screen.findByText("This event is unavailable or you do not have access to it."),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("Student Leadership Summit 2")).not.toBeInTheDocument();
+        expect(screen.queryByText("All university student leaders workshop")).not.toBeInTheDocument();
+        expect(screen.queryByText("Purpose")).not.toBeInTheDocument();
+      },
+    );
+
+    // AC04: the organiser is exempt from AC02 — the assigned coordinator is someone else.
+    it.each(["requested", "planning", "confirmed", "cancelled"])(
+      "shows the organiser the requirements of their own %s event",
+      async (status) => {
+        authState.profile.role = "event_organiser";
+        authState.user.id = event.organiserId;
+        loadEventDetailMock.mockResolvedValue({ ...event, status });
+
+        renderPage();
+
+        expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+        expect(fieldValue("Purpose")).toBe("All university student leaders workshop");
+        expect(
+          screen.queryByText("This event is unavailable or you do not have access to it."),
+        ).not.toBeInTheDocument();
+      },
+    );
   });
 });

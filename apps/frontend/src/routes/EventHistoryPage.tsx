@@ -368,6 +368,12 @@ function FieldChangeLine({ change }: { change: EventFieldChange }) {
       {formatEventFieldChangeValue(change.fieldName, change.previousValue)}
       {" → "}
       {formatEventFieldChangeValue(change.fieldName, change.newValue)}
+      {/* SPM-09 AC05: like a Planning entry, show when and by whom. */}
+      <span className="text-xs text-slate-500">
+        {" · "}
+        {dateFormatter.format(new Date(change.changedAt))}
+        {change.changedByName ? ` · ${change.changedByName}` : ""}
+      </span>
     </li>
   );
 }
