@@ -55,34 +55,34 @@ select set_config(
   true
 );
 
--- AC01/AC02 validation.
+-- SPM-30 AC01/AC02 validation.
 select throws_ok(
   $$select public.record_equipment_unavailability(
       '00000000-0000-0000-0000-00000000dead', 1, 'Lamp replacement',
       now() + interval '1 day', now() + interval '2 days')$$,
   '23514', 'Choose equipment from the catalogue',
-  'equipment must come from the catalogue (AC01)'
+  'equipment must come from the catalogue (SPM-30 AC01)'
 );
 select throws_ok(
   $$select public.record_equipment_unavailability(
       (select id from u_ids where name = 'projector'), 0, 'Lamp replacement',
       now() + interval '1 day', now() + interval '2 days')$$,
   '23514', 'Quantity must be a positive whole number',
-  'quantity must be positive (AC01)'
+  'quantity must be positive (SPM-30 AC01)'
 );
 select throws_ok(
   $$select public.record_equipment_unavailability(
       (select id from u_ids where name = 'projector'), 1, '   ',
       now() + interval '1 day', now() + interval '2 days')$$,
   '23514', 'Enter a reason',
-  'a reason is required (AC01)'
+  'a reason is required (SPM-30 AC01)'
 );
 select throws_ok(
   $$select public.record_equipment_unavailability(
       (select id from u_ids where name = 'projector'), 1, 'Lamp replacement',
       now() + interval '2 days', now() + interval '2 days')$$,
   '23514', 'End time must be after start time',
-  'the end time must be later than the start time (AC02)'
+  'the end time must be later than the start time (SPM-30 AC02)'
 );
 
 -- A future record, an in-progress record and a past record.
@@ -90,7 +90,7 @@ select lives_ok(
   $$insert into u_ids select 'future', public.record_equipment_unavailability(
       (select id from u_ids where name = 'projector'), 2, '  Lamp replacement  ',
       now() + interval '1 day', now() + interval '2 days')$$,
-  'Technical Support Staff can record a future outage (AC01)'
+  'Technical Support Staff can record a future outage (SPM-30 AC01)'
 );
 select lives_ok(
   $$insert into u_ids select 'current', public.record_equipment_unavailability(
@@ -111,11 +111,11 @@ select is(
     from public.equipment_unavailability where id = (select id from u_ids where name = 'future')
   ),
   row(2, 'Lamp replacement'::text, 'e3000000-0000-0000-0000-000000000001'::uuid),
-  'the quantity, trimmed reason and recording actor are stored (AC01/AC06)'
+  'the quantity, trimmed reason and recording actor are stored (SPM-30 AC01/AC06)'
 );
 select ok(
   (select recorded_at is not null from public.equipment_unavailability where id = (select id from u_ids where name = 'future')),
-  'the recording time is stored (AC06)'
+  'the recording time is stored (SPM-30 AC06)'
 );
 
 -- Direct writes are not possible; history cannot be edited or deleted.
@@ -133,10 +133,10 @@ select lives_ok(
 select is(
   (select count(*)::integer from public.equipment_unavailability),
   3,
-  'but deletes nothing — history is retained (AC06)'
+  'but deletes nothing — history is retained (SPM-30 AC06)'
 );
 
--- AC05: ending early.
+-- SPM-30 AC05: ending early.
 select throws_ok(
   format($$select public.end_equipment_unavailability(%L)$$, (select id from u_ids where name = 'future')),
   '23514', 'This record has not started yet — remove it instead',
@@ -156,7 +156,7 @@ select set_config(
 );
 select lives_ok(
   format($$select public.end_equipment_unavailability(%L)$$, (select id from u_ids where name = 'current')),
-  'an in-progress record can be ended when the equipment returns (AC05)'
+  'an in-progress record can be ended when the equipment returns (SPM-30 AC05)'
 );
 select is(
   (
@@ -164,10 +164,10 @@ select is(
     from public.equipment_unavailability where id = (select id from u_ids where name = 'current')
   ),
   row('e3000000-0000-0000-0000-000000000002'::uuid, true, true, 'Sent for repair'::text),
-  'ending records who and when, and keeps the original reason (AC06)'
+  'ending records who and when, and keeps the original reason (SPM-30 AC06)'
 );
 
--- AC05: removing.
+-- SPM-30 AC05: removing.
 select throws_ok(
   format($$select public.remove_equipment_unavailability(%L)$$, (select id from u_ids where name = 'past')),
   '23514', 'Past records cannot be removed',
@@ -175,7 +175,7 @@ select throws_ok(
 );
 select lives_ok(
   format($$select public.remove_equipment_unavailability(%L)$$, (select id from u_ids where name = 'future')),
-  'a future record can be removed (AC05)'
+  'a future record can be removed (SPM-30 AC05)'
 );
 select is(
   (
@@ -183,7 +183,7 @@ select is(
     from public.equipment_unavailability where id = (select id from u_ids where name = 'future')
   ),
   row('e3000000-0000-0000-0000-000000000002'::uuid, true),
-  'removing records who and when, and keeps the record (AC06)'
+  'removing records who and when, and keeps the record (SPM-30 AC06)'
 );
 select throws_ok(
   format($$select public.remove_equipment_unavailability(%L)$$, (select id from u_ids where name = 'future')),
@@ -191,7 +191,7 @@ select throws_ok(
   'a record cannot be removed twice'
 );
 
--- AC06: staff can see who recorded, ended and removed records.
+-- SPM-30 AC06: staff can see who recorded, ended and removed records.
 select is(
   (select full_name from public.profiles where id = 'e3000000-0000-0000-0000-000000000001'),
   'Support A',

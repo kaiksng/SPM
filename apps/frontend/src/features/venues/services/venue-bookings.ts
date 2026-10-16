@@ -220,6 +220,8 @@ export type VenueBookingRequestSummary = {
   eventId: string;
   eventTitle: string;
   eventExpectedAttendance: number | null;
+  // SPM-24 AC05: what the event needs from the venue, for Venue Staff to assess it.
+  eventVenueRequirements: EventVenueRequirements;
   requestedByName: string | null;
   decidedByName: string | null;
   // SPM-82: the disrupted booking this one replaces, and where it was.
@@ -228,6 +230,14 @@ export type VenueBookingRequestSummary = {
   // SPM-82: requirements (layout, accessibility) the replacement venue does not
   // appear to meet. Guidance for Venue Staff, not a block.
   advisoryNotes: string | null;
+};
+
+export type EventVenueRequirements = {
+  preferredLocation: string | null;
+  minimumCapacity: number | null;
+  accessibilityNotes: string | null;
+  layoutNotes: string | null;
+  facilities: string[];
 };
 
 const VENUE_BOOKING_REQUEST_SELECT = `
@@ -242,7 +252,12 @@ const VENUE_BOOKING_REQUEST_SELECT = `
   venue_id,
   venues (name, venue_layouts (layout_name)),
   event_id,
-  events (title, expected_attendance),
+  events (
+    title,
+    expected_attendance,
+    event_venue_requirements (preferred_location, minimum_capacity, accessibility_notes, layout_notes),
+    event_required_facilities (facility_name)
+  ),
   requested_by:profiles!venue_bookings_requested_by_fkey (full_name),
   decided_by:profiles!venue_bookings_decided_by_fkey (full_name),
   replaces_booking_id,
@@ -262,7 +277,17 @@ function toVenueBookingRequestSummary(
     venue_id: string;
     venues: { name: string; venue_layouts: { layout_name: string }[] } | null;
     event_id: string;
-    events: { title: string; expected_attendance: number | null } | null;
+    events: {
+      title: string;
+      expected_attendance: number | null;
+      event_venue_requirements: {
+        preferred_location: string | null;
+        minimum_capacity: number | null;
+        accessibility_notes: string | null;
+        layout_notes: string | null;
+      } | null;
+      event_required_facilities: { facility_name: string }[];
+    } | null;
     requested_by: { full_name: string } | null;
     decided_by: { full_name: string } | null;
     replaces_booking_id: string | null;
@@ -284,6 +309,13 @@ function toVenueBookingRequestSummary(
     eventId: row.event_id,
     eventTitle: row.events?.title ?? "Unknown event",
     eventExpectedAttendance: row.events?.expected_attendance ?? null,
+    eventVenueRequirements: {
+      preferredLocation: row.events?.event_venue_requirements?.preferred_location ?? null,
+      minimumCapacity: row.events?.event_venue_requirements?.minimum_capacity ?? null,
+      accessibilityNotes: row.events?.event_venue_requirements?.accessibility_notes ?? null,
+      layoutNotes: row.events?.event_venue_requirements?.layout_notes ?? null,
+      facilities: (row.events?.event_required_facilities ?? []).map((facility) => facility.facility_name),
+    },
     requestedByName: row.requested_by?.full_name ?? null,
     decidedByName: row.decided_by?.full_name ?? null,
     replacesBookingId: row.replaces_booking_id,

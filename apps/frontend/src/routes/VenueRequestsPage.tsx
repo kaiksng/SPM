@@ -13,6 +13,7 @@ import {
   decideVenueBookingRequest,
   listVenueBookingRequests,
   placeVenueBookingHold,
+  type EventVenueRequirements,
   type VenueBookingDecision,
   type VenueBookingRequestSummary,
 } from "@/features/venues/services/venue-bookings";
@@ -428,6 +429,7 @@ function RequestCard({
                 : "Not provided"}
             </dd>
           </div>
+          <VenueRequirementFields requirements={request.eventVenueRequirements} />
           <div>
             <dt className="text-xs font-medium text-slate-400">Requested by</dt>
             <dd className="mt-1 text-sm text-slate-800">
@@ -647,6 +649,38 @@ function ReplacementCard({
         </details>
       )}
     </article>
+  );
+}
+
+/**
+ * SPM-24 AC05: what the event needs from the venue, so Venue Staff can judge
+ * whether to commit it. A requirement the organiser left blank reads "Not
+ * specified".
+ */
+function VenueRequirementFields({ requirements }: { requirements: EventVenueRequirements }) {
+  const fields: Array<[string, string | null]> = [
+    ["Preferred location", requirements.preferredLocation],
+    [
+      "Minimum capacity",
+      requirements.minimumCapacity != null ? `${requirements.minimumCapacity} people` : null,
+    ],
+    ["Room layout", requirements.layoutNotes],
+    [
+      "Required facilities",
+      requirements.facilities.length > 0 ? requirements.facilities.join(", ") : null,
+    ],
+    ["Accessibility needs", requirements.accessibilityNotes],
+  ];
+
+  return (
+    <>
+      {fields.map(([label, value]) => (
+        <div key={label}>
+          <dt className="text-xs font-medium text-slate-400">{label}</dt>
+          <dd className="mt-1 text-sm text-slate-800">{value ?? "Not specified"}</dd>
+        </div>
+      ))}
+    </>
   );
 }
 

@@ -37,7 +37,17 @@ function bookingRow(overrides: Record<string, unknown> = {}) {
     venue_id: "venue-1",
     venues: { name: "Auditorium", venue_layouts: [] },
     event_id: "event-1",
-    events: { title: "Career Fair", expected_attendance: 50 },
+    events: {
+      title: "Career Fair",
+      expected_attendance: 50,
+      event_venue_requirements: {
+        preferred_location: "Central Area",
+        minimum_capacity: 60,
+        accessibility_notes: "Step-free entrance",
+        layout_notes: "Theatre",
+      },
+      event_required_facilities: [{ facility_name: "Parking" }, { facility_name: "Pantry" }],
+    },
     requested_by: { full_name: "Priya" },
     decided_by: null,
     replaces_booking_id: null,
@@ -325,6 +335,13 @@ describe("getVenueBookingRequest", () => {
       eventId: "event-1",
       eventTitle: "Career Fair",
       eventExpectedAttendance: 50,
+      eventVenueRequirements: {
+        preferredLocation: "Central Area",
+        minimumCapacity: 60,
+        accessibilityNotes: "Step-free entrance",
+        layoutNotes: "Theatre",
+        facilities: ["Parking", "Pantry"],
+      },
       requestedByName: "Priya",
       decidedByName: "Sam Staff",
       replacesBookingId: "booking-0",
@@ -344,7 +361,32 @@ describe("getVenueBookingRequest", () => {
       venueLayouts: [],
       eventTitle: "Unknown event",
       eventExpectedAttendance: null,
+      eventVenueRequirements: {
+        preferredLocation: null,
+        minimumCapacity: null,
+        accessibilityNotes: null,
+        layoutNotes: null,
+        facilities: [],
+      },
       requestedByName: null,
+    });
+  });
+
+  // SPM-24 AC05: a request carries the event's venue requirements for Venue Staff.
+  it("loads the event's venue requirements with the request", async () => {
+    const query = queryBuilder({ data: bookingRow(), error: null });
+    fromMock.mockReturnValue(query);
+
+    const request = await getVenueBookingRequest("booking-1");
+
+    expect(query.select).toHaveBeenCalledWith(expect.stringContaining("event_venue_requirements"));
+    expect(query.select).toHaveBeenCalledWith(expect.stringContaining("event_required_facilities"));
+    expect(request.eventVenueRequirements).toEqual({
+      preferredLocation: "Central Area",
+      minimumCapacity: 60,
+      accessibilityNotes: "Step-free entrance",
+      layoutNotes: "Theatre",
+      facilities: ["Parking", "Pantry"],
     });
   });
 

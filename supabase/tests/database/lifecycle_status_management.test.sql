@@ -1,6 +1,6 @@
 begin;
 
-select plan(15);
+select plan(26);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -248,6 +248,122 @@ select throws_ok(
   'a Completed event cannot transition anywhere else'
 );
 set local role authenticated;
+
+-- SPM-12: an event's current lifecycle status.
+
+-- SPM-12 AC01: exactly eight statuses can be reached — the six the story
+-- lists plus Pending Safety Check and Cancelled, which later stories added.
+-- submitted, clarification_requested, under_review and approved are still
+-- enum values but no transition leads to them.
+select set_eq(
+  $$select 'draft'::text
+    union
+    select t.s::text
+    from unnest(enum_range(null::public.event_status)) as f(s),
+         unnest(enum_range(null::public.event_status)) as t(s)
+    where public.event_status_transition_allowed(f.s, t.s)$$,
+  array['draft', 'requested', 'planning', 'pending_safety_check', 'confirmed', 'completed', 'rejected', 'cancelled'],
+  'SPM-12 AC01: exactly the eight lifecycle statuses in use are reachable'
+);
+
+-- SPM-12 AC04: between those statuses, the database allows exactly the agreed
+-- transitions (mirrored in packages/shared/src/domain/event-status.ts).
+select set_eq(
+  $$select f.s::text || ' -> ' || t.s::text
+    from unnest(enum_range(null::public.event_status)) as f(s),
+         unnest(enum_range(null::public.event_status)) as t(s)
+    where public.event_status_transition_allowed(f.s, t.s)
+      and f.s::text = any (array['draft', 'requested', 'planning', 'pending_safety_check', 'confirmed', 'completed', 'rejected', 'cancelled'])$$,
+  array['draft -> requested', 'draft -> cancelled', 'requested -> planning', 'requested -> rejected', 'requested -> cancelled', 'planning -> pending_safety_check', 'planning -> cancelled', 'pending_safety_check -> confirmed', 'pending_safety_check -> planning', 'pending_safety_check -> cancelled', 'confirmed -> planning', 'confirmed -> completed', 'confirmed -> cancelled'],
+  'SPM-12 AC04: only the agreed transitions are allowed'
+);
+
+-- Three more events: two to decide the way the app does, one left as a Draft.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"a0000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select lives_ok(
+  $$insert into lsm_event_ids (label, id)
+    select label, public.save_event_draft(
+      '{"title":"Lifecycle Event","purpose":"SPM-12 test.","description":"A test event.","expectedAttendance":"20","startsAt":"2099-06-01T10:00:00+08:00","endsAt":"2099-06-01T12:00:00+08:00","venue":{"preferredLocation":"Main Hall","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false},"requirementsAcknowledged":true}'::jsonb
+    )
+    from unnest(array['approve-via-app', 'reject-via-app', 'draft-only']) as label$$,
+  'the organiser saves three more drafts'
+);
+select lives_ok(
+  $$select public.submit_event_request(id) from lsm_event_ids where label in ('approve-via-app', 'reject-via-app')$$,
+  'two of them are submitted'
+);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"eeeeeeee-0000-0000-0000-0000000000ad","role":"authenticated"}',
+  true
+);
+select lives_ok(
+  $$select public.reassign_event_coordinator(id, 'a0000000-0000-0000-0000-000000000002'::uuid, '')
+    from lsm_event_ids where label in ('approve-via-app', 'reject-via-app')$$,
+  'the Lead assigns coordinator A to both'
+);
+
+-- As the backend calls it: the service role, with the coordinator passed in.
+reset role;
+grant select on lsm_event_ids to service_role;
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select lives_ok(
+  format(
+    $$select public.decide_event_request(%L::uuid, 'approved'::public.event_decision_type, 'Looks ready.', 'a0000000-0000-0000-0000-000000000002'::uuid)$$,
+    (select id from lsm_event_ids where label = 'approve-via-app')
+  ),
+  'the backend approves one event for coordinator A'
+);
+select lives_ok(
+  format(
+    $$select public.decide_event_request(%L::uuid, 'rejected'::public.event_decision_type, 'Not feasible.', 'a0000000-0000-0000-0000-000000000002'::uuid)$$,
+    (select id from lsm_event_ids where label = 'reject-via-app')
+  ),
+  'the backend rejects the other for coordinator A'
+);
+reset role;
+
+-- SPM-12 AC03: both decisions record the previous status, new status, the
+-- coordinator who made them and the time (202610160006).
+select is(
+  (
+    select row(from_status, to_status, changed_by, changed_at)
+    from public.event_status_history
+    where event_id = (select id from lsm_event_ids where label = 'approve-via-app') and to_status = 'planning'
+  ),
+  row('requested'::public.event_status, 'planning'::public.event_status, 'a0000000-0000-0000-0000-000000000002'::uuid, now()),
+  'SPM-12 AC03: an approval made in the app records who approved it'
+);
+select is(
+  (
+    select row(from_status, to_status, changed_by, changed_at)
+    from public.event_status_history
+    where event_id = (select id from lsm_event_ids where label = 'reject-via-app') and to_status = 'rejected'
+  ),
+  row('requested'::public.event_status, 'rejected'::public.event_status, 'a0000000-0000-0000-0000-000000000002'::uuid, now()),
+  'SPM-12 AC03: a rejection made in the app records who rejected it'
+);
+
+-- SPM-12 AC04: an invalid transition is rejected and the status is unchanged.
+select throws_ok(
+  format(
+    $$update public.events set status = 'planning' where id = %L::uuid$$,
+    (select id from lsm_event_ids where label = 'draft-only')
+  ),
+  '23514',
+  'Invalid event status transition from draft to planning',
+  'SPM-12 AC04: a Draft cannot skip straight to Planning'
+);
+select is(
+  (select status::text from public.events where id = (select id from lsm_event_ids where label = 'draft-only')),
+  'draft',
+  'SPM-12 AC04: the rejected transition left the Draft unchanged'
+);
 
 select * from finish();
 rollback;

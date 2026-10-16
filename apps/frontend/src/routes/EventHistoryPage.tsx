@@ -519,6 +519,9 @@ function VenueBookingItem({
 }
 
 function StatusChangeItem({ change }: { change: EventStatusChange }) {
+  // SPM-12 AC03: a change no person made reads as a system action. A person
+  // whose name this viewer cannot see is left unnamed rather than mislabelled.
+  const actor = change.changedByName ?? (change.changedById ? null : "System");
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-sm">
       <div className="flex items-center gap-2">
@@ -534,7 +537,7 @@ function StatusChangeItem({ change }: { change: EventStatusChange }) {
       </div>
       <span className="text-xs text-slate-500">
         {dateFormatter.format(new Date(change.changedAt))}
-        {change.changedByName ? ` · ${change.changedByName}` : ""}
+        {actor ? ` · ${actor}` : ""}
       </span>
     </li>
   );

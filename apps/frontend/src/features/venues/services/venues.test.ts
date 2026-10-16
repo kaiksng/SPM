@@ -521,10 +521,11 @@ describe("listSuggestedVenues", () => {
 });
 
 describe("VENUE_AVAILABILITY_LABELS", () => {
+  // SPM-24 AC01 + AC07: a requested period reads as "Pending Booking".
   it("labels all four availability states", () => {
     expect(VENUE_AVAILABILITY_LABELS).toEqual({
       available: "Available",
-      pending: "Pending",
+      pending: "Pending Booking",
       confirmed: "Confirmed",
       blocked: "Blocked",
     });

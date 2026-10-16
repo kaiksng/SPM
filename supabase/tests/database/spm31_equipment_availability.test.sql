@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(13);
 
 -- SPM-31: Check equipment availability for an event's date and time
 -- (202610061001_spm31_equipment_availability.sql).
@@ -47,6 +47,8 @@ values ((select id from a_ids where name = 'event'), 'Old smoke machine', 1);
 alter table public.event_equipment_requirements enable trigger event_equipment_requirements_guard;
 insert into a_ids select 'req-legacy', id from public.event_equipment_requirements where equipment_name = 'Old smoke machine';
 
+-- SPM-30 AC04: active unavailability reduces what SPM-31 reports as available,
+-- and a removed record does not (the projector and smoke machine checks below).
 -- Projector commitments:
 --   approved reservation of 40, 09:00-11:00   -> counts (overlaps)
 --   pending reservation of 50, 10:00-14:00    -> ignored (not confirmed)
@@ -96,38 +98,38 @@ select lives_ok(
 select is(
   (select count(*)::integer from a_result),
   5,
-  'one result for each requested item (AC01)'
+  'one result for each requested item (SPM-31 AC01)'
 );
 
 -- Projector, 50 requested.
 select is(
   (select row(total_units, reserved_quantity, unavailable_quantity, available_quantity, status) from a_result where requirement_id = (select id from a_ids where name = 'req-proj-50')),
   row(100, 40, 30, 60, 'available'::text),
-  'confirmed reservations and outages reduce availability at their busiest moment (AC02/AC03)'
+  'confirmed reservations and outages reduce availability at their busiest moment (SPM-31 AC02/AC03)'
 );
 select is(
   (select technical_requirements from a_result where requirement_id = (select id from a_ids where name = 'req-proj-50')),
   'HDMI input',
-  'the required characteristics are returned with the result (AC01)'
+  'the required characteristics are returned with the result (SPM-31 AC01)'
 );
 select is(
   (select row(requested_quantity, required_from) from a_result where requirement_id = (select id from a_ids where name = 'req-proj-50')),
   row(50, '2099-06-01T10:00:00+08:00'::timestamptz),
-  'the requested quantity and period are returned (AC01)'
+  'the requested quantity and period are returned (SPM-31 AC01)'
 );
 
 -- Projector, 80 requested: only 60 are free.
 select is(
   (select row(available_quantity, status) from a_result where requirement_id = (select id from a_ids where name = 'req-proj-80')),
   row(60, 'partially_available'::text),
-  'fewer free than requested is Partially Available, with the free quantity (AC04)'
+  'fewer free than requested is Partially Available, with the free quantity (SPM-31 AC04)'
 );
 
 -- Smoke machine: both units out.
 select is(
   (select row(total_units, unavailable_quantity, available_quantity, status) from a_result where requirement_id = (select id from a_ids where name = 'req-smoke')),
   row(2, 2, 0, 'unavailable'::text),
-  'none free is Unavailable (AC03/AC04)'
+  'none free is Unavailable (SPM-31 AC03/AC04)'
 );
 
 -- Microphone: 99 of the 100 requested.
@@ -141,7 +143,7 @@ select is(
 select is(
   (select row(equipment_item_id, equipment_name, status) from a_result where requirement_id = (select id from a_ids where name = 'req-legacy')),
   row(null::uuid, 'Old smoke machine'::text, 'unknown'::text),
-  'an unknown equipment type is identified, not treated as available (AC05)'
+  'an unknown equipment type is identified, not treated as available (SPM-31 AC05)'
 );
 
 -- Retiring a named unit: it leaves the stock and stops counting as out,
@@ -174,6 +176,30 @@ select is(
   ),
   row(0, 30, 70, 'partially_available'::text),
   'a cancelled reservation no longer reduces availability'
+);
+
+-- SPM-31 AC03 + SPM-30 AC05: an outage ended early (the equipment returned)
+-- only counts until it was ended. 50 projectors out 11:30-14:00, ended at
+-- 12:00: they no longer overlap the 30 out 12:00-13:00, so the busiest moment
+-- is 50, leaving 50 (ignoring the early end would leave only 20).
+reset role;
+insert into public.equipment_unavailability (equipment_item_id, quantity, reason, starts_at, ends_at, recorded_by, ended_at, ended_by)
+values (
+  (select id from a_ids where name = 'proj'), 50, 'Lamp check',
+  '2099-06-01T11:30:00+08:00', '2099-06-01T14:00:00+08:00',
+  'e5000000-0000-0000-0000-000000000001',
+  '2099-06-01T12:00:00+08:00', 'e5000000-0000-0000-0000-000000000001'
+);
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"e5000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select is(
+  (
+    select row(unavailable_quantity, available_quantity, status)
+    from public.check_event_equipment_availability(array[(select id from a_ids where name = 'event')])
+    where requirement_id = (select id from a_ids where name = 'req-proj-80')
+  ),
+  row(50, 50, 'partially_available'::text),
+  'an outage ended early stops counting when it was ended (SPM-31 AC03)'
 );
 
 select * from finish();

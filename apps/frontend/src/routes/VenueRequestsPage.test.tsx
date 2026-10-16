@@ -36,6 +36,13 @@ const baseRequest = {
   eventId: "event-1",
   eventTitle: "Career Fair",
   eventExpectedAttendance: 50,
+  eventVenueRequirements: {
+    preferredLocation: null,
+    minimumCapacity: null,
+    accessibilityNotes: null,
+    layoutNotes: null,
+    facilities: [] as string[],
+  },
   requestedByName: "Priya Coordinator",
   decidedByName: null,
   replacesBookingId: null,
@@ -228,6 +235,43 @@ describe("VenueRequestsPage", () => {
     renderPage();
 
     expect(within(await screen.findByRole("article")).getAllByTestId("venue-thumbnail")).toHaveLength(1);
+  });
+
+  // SPM-24 AC05: Venue Staff see the period, attendance and venue requirements
+  // they need to assess the request.
+  it("shows the event's venue requirements on a request", async () => {
+    listVenueBookingRequestsMock.mockResolvedValue([
+      {
+        ...ordinary,
+        eventVenueRequirements: {
+          preferredLocation: "Central Area",
+          minimumCapacity: 60,
+          accessibilityNotes: "Step-free entrance",
+          layoutNotes: "Theatre",
+          facilities: ["Parking", "Pantry"],
+        },
+      },
+    ]);
+    renderPage();
+
+    const card = await screen.findByRole("article");
+    const value = (label: string) =>
+      within(card).getByText(label, { selector: "dt" }).nextElementSibling?.textContent;
+    expect(value("Requested period")).toBeTruthy();
+    expect(value("Expected attendance")).toBe("50 attendees");
+    expect(value("Preferred location")).toBe("Central Area");
+    expect(value("Minimum capacity")).toBe("60 people");
+    expect(value("Room layout")).toBe("Theatre");
+    expect(value("Required facilities")).toBe("Parking, Pantry");
+    expect(value("Accessibility needs")).toBe("Step-free entrance");
+  });
+
+  it("says when the event left a venue requirement blank", async () => {
+    listVenueBookingRequestsMock.mockResolvedValue([ordinary]);
+    renderPage();
+
+    const card = await screen.findByRole("article");
+    expect(within(card).getAllByText("Not specified")).toHaveLength(5);
   });
 
   it("flags an ordinary request that a venue block has disrupted", async () => {

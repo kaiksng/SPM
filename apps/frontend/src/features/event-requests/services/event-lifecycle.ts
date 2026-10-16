@@ -4,6 +4,8 @@ export type EventStatusChange = {
   id: number;
   fromStatus: string | null;
   toStatus: string;
+  /** null when no person made the change (a system action, SPM-12 AC03). */
+  changedById: string | null;
   changedByName: string | null;
   changedAt: string;
 };
@@ -21,7 +23,7 @@ export async function listEventStatusHistory(eventId: string): Promise<EventStat
   const { data, error } = await supabase
     .from("event_status_history")
     .select(
-      "id, from_status, to_status, changed_at, changed_by:profiles!event_status_history_changed_by_fkey (full_name)",
+      "id, from_status, to_status, changed_at, changed_by_id:changed_by, changed_by:profiles!event_status_history_changed_by_fkey (full_name)",
     )
     .eq("event_id", eventId)
     .order("changed_at", { ascending: true })
@@ -33,6 +35,7 @@ export async function listEventStatusHistory(eventId: string): Promise<EventStat
     id: row.id,
     fromStatus: row.from_status,
     toStatus: row.to_status,
+    changedById: row.changed_by_id,
     changedByName: row.changed_by?.full_name ?? null,
     changedAt: row.changed_at,
   }));

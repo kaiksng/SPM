@@ -28,7 +28,8 @@ describe("listEventStatusHistory", () => {
     ]);
   });
 
-  // SPM-09 AC05: every entry carries its previous status, new status, actor and time.
+  // SPM-09 AC05 + SPM-12 AC03: every entry carries its previous status, new status,
+  // actor (or none, for a system action) and time.
   it("maps each row to its previous and new status, actor and time", async () => {
     fromMock.mockReturnValue(
       queryBuilder({
@@ -38,6 +39,7 @@ describe("listEventStatusHistory", () => {
             from_status: null,
             to_status: "draft",
             changed_at: "2099-01-01T02:00:00.000Z",
+            changed_by_id: "organiser-1",
             changed_by: { full_name: "Jasmine" },
           },
           {
@@ -45,6 +47,7 @@ describe("listEventStatusHistory", () => {
             from_status: "requested",
             to_status: "planning",
             changed_at: "2099-01-02T02:00:00.000Z",
+            changed_by_id: null,
             changed_by: null,
           },
         ],
@@ -57,6 +60,7 @@ describe("listEventStatusHistory", () => {
         id: 1,
         fromStatus: null,
         toStatus: "draft",
+        changedById: "organiser-1",
         changedByName: "Jasmine",
         changedAt: "2099-01-01T02:00:00.000Z",
       },
@@ -64,6 +68,7 @@ describe("listEventStatusHistory", () => {
         id: 2,
         fromStatus: "requested",
         toStatus: "planning",
+        changedById: null,
         changedByName: null,
         changedAt: "2099-01-02T02:00:00.000Z",
       },

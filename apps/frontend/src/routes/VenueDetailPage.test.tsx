@@ -204,6 +204,7 @@ describe("VenueDetailPage", () => {
     expect(screen.queryByText("Request this venue")).not.toBeInTheDocument();
   });
 
+  // SPM-24 AC04: the request is made from the venue already reviewed, with no separate form.
   it("offers a Request this venue action for a coordinator with a forEvent param", async () => {
     renderPage("/venues/venue-1?forEvent=event-1");
 
@@ -220,6 +221,7 @@ describe("VenueDetailPage", () => {
     expect(screen.queryByText("Request this venue")).not.toBeInTheDocument();
   });
 
+  // SPM-24 AC04: one confirmation submits the request for this event and venue.
   it("submits the booking request and navigates back to the event's venue page", async () => {
     const user = userEvent.setup();
     renderPage("/venues/venue-1?forEvent=event-1");
@@ -300,6 +302,7 @@ describe("VenueDetailPage", () => {
     expect(screen.getByRole("button", { name: "Request venue" })).toBeDisabled();
   });
 
+  // SPM-24 AC02 + AC06: a refused request (conflict, block, outside hours) says why.
   it("shows the specific error identifying why the request failed", async () => {
     submitVenueBookingRequestMock.mockRejectedValue(
       new Error("This event already has an active venue booking request"),
