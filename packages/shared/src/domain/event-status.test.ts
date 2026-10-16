@@ -100,6 +100,7 @@ describe("isPlanningAllowed", () => {
 });
 
 describe("isDirectEditBlocked", () => {
+  // SPM-11 AC01: Confirmed, Completed, Rejected and Cancelled events are finalised.
   it("blocks direct edits once an event is finalised", () => {
     expect(isDirectEditBlocked("confirmed")).toBe(true);
     expect(isDirectEditBlocked("completed")).toBe(true);
@@ -112,5 +113,11 @@ describe("isDirectEditBlocked", () => {
     expect(isDirectEditBlocked("requested")).toBe(false);
     expect(isDirectEditBlocked("clarification_requested")).toBe(false);
     expect(isDirectEditBlocked("planning")).toBe(false);
+  });
+
+  // SPM-11 AC01 lists exactly four finalised statuses; Pending Safety Check is not
+  // one of them, even though it comes after Planning.
+  it("does not treat Pending Safety Check as finalised", () => {
+    expect(isDirectEditBlocked("pending_safety_check")).toBe(false);
   });
 });

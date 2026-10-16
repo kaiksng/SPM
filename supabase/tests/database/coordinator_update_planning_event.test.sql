@@ -6,7 +6,7 @@ begin;
 -- venue and equipment stay editable (AC03); and each changed field is audited
 -- once, with its previous value, new value, actor and time (AC04-AC06).
 
-select plan(38);
+select plan(45);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -80,6 +80,31 @@ select lives_ok(
   $$insert into pcp_ids
     select 'event', public.save_event_draft((select payload from pcp_payloads where name = 'base'))$$,
   'the organiser can save a complete draft'
+);
+
+-- 202610160003: an event's first save is not a change, so its initial
+-- facilities are not logged.
+select is(
+  (
+    select count(*)::integer from public.event_field_changes
+    where event_id = (select id from pcp_ids where name = 'event') and field_name = 'venue.facilities'
+  ),
+  0,
+  'SPM-10 AC04: an event''s first save logs no facility entries'
+);
+
+-- Deleting a draft removes its facilities too; the facility audit must not
+-- get in the way of that.
+insert into pcp_ids
+select 'draft-to-delete', public.save_event_draft((select payload from pcp_payloads where name = 'base'));
+select lives_ok(
+  format($$delete from public.events where id = %L::uuid$$, (select id from pcp_ids where name = 'draft-to-delete')),
+  'the organiser can still delete a draft that has facilities'
+);
+select is(
+  (select count(*)::integer from public.events where id = (select id from pcp_ids where name = 'draft-to-delete')),
+  0,
+  'the deleted draft is gone'
 );
 select lives_ok(
   format($$select public.submit_event_request(%L::uuid)$$, (select id from pcp_ids where name = 'event')),
@@ -382,20 +407,20 @@ select is(
   row('added'::text, null::jsonb, '2'::text, '80000000-0000-0000-0000-000000000002'::uuid, now()),
   'SPM-10 AC04: the equipment change records new value, actor and time'
 );
--- SPM-10 AC04 known gap: facilities are venue requirements, but a facility
--- change is not recorded anywhere yet. Reported as a TODO until it is.
-select todo('Facility changes are not audited yet', 1);
-select ok(
-  exists (
-    select 1 from public.event_field_changes
+-- SPM-10 AC04: an added facility is recorded the same way (202610160003).
+select is(
+  (
+    select row(previous_value, new_value, changed_by, changed_at)
+    from public.event_field_changes
     where event_id = (select id from pcp_ids where name = 'event')
-      and field_name like 'venue.facilities%'
+      and field_name = 'venue.facilities'
   ),
-  'SPM-10 AC04: the facility change is recorded'
+  row(null::text, 'Gym'::text, '80000000-0000-0000-0000-000000000002'::uuid, now()),
+  'SPM-10 AC04: the added facility records new value, actor and time'
 );
 
--- SPM-10 AC05: the four venue fields changed in that one save are four
--- separate entries, each with its own values.
+-- SPM-10 AC05: the four venue fields and the added facility changed in that
+-- one save are five separate entries, each with its own values.
 select set_eq(
   format(
     $$select field_name, previous_value, new_value from public.event_field_changes where event_id = %L::uuid$$,
@@ -405,7 +430,8 @@ select set_eq(
     ('venue.preferredLocation', 'Main Hall', 'North'),
     ('venue.minimumCapacity', '60', '75'),
     ('venue.accessibilityNotes', 'Ramp access', 'Step-free entrance'),
-    ('venue.layoutNotes', 'Theatre', 'Classroom')$$,
+    ('venue.layoutNotes', 'Theatre', 'Classroom'),
+    ('venue.facilities', null, 'Gym')$$,
   'SPM-10 AC05: each field changed in one save is its own audit entry'
 );
 
@@ -429,7 +455,7 @@ select lives_ok(
 );
 select is(
   (select count(*)::integer from public.event_field_changes where event_id = (select id from pcp_ids where name = 'event')),
-  4,
+  5,
   'SPM-10 AC06: no new field entries when nothing actually changed'
 );
 select is(
@@ -441,6 +467,48 @@ select is(
   (select count(*)::integer from public.event_equipment_requirements where event_id = (select id from pcp_ids where name = 'event')),
   1,
   'SPM-10 AC06: the unchanged equipment row is kept, not duplicated'
+);
+
+-- SPM-10 AC04: removing a facility is recorded too, and only that facility.
+select lives_ok(
+  format(
+    $$select public.update_event_as_coordinator(%L::uuid, %L::jsonb)$$,
+    (select id from pcp_ids where name = 'event'),
+    (select jsonb_set(payload, '{venue,facilities}', '["Gym"]') from pcp_payloads where name = 'updated')
+  ),
+  'the coordinator removes a facility'
+);
+select set_eq(
+  format(
+    $$select previous_value, new_value from public.event_field_changes
+      where event_id = %L::uuid and field_name = 'venue.facilities'$$,
+    (select id from pcp_ids where name = 'event')
+  ),
+  $$values (null, 'Gym'), ('Parking', null)$$,
+  'SPM-10 AC04: the removed facility is recorded; the kept one is not'
+);
+
+-- SPM-10 AC01: a direct table update cannot get round the locks either —
+-- coordinators have no direct update on events (202610160002).
+update public.events set title = 'Bypassed Title'
+where id = (select id from pcp_ids where name = 'event');
+select is(
+  (select title from public.events where id = (select id from pcp_ids where name = 'event')),
+  'Original Title',
+  'SPM-10 AC01: a direct update cannot change a locked field of a Planning event'
+);
+
+-- The same holds once the event moves on to Pending Safety Check.
+reset role;
+update public.events set status = 'pending_safety_check'
+where id = (select id from pcp_ids where name = 'event');
+set local role authenticated;
+update public.events set title = 'Bypassed Title'
+where id = (select id from pcp_ids where name = 'event');
+select is(
+  (select title from public.events where id = (select id from pcp_ids where name = 'event')),
+  'Original Title',
+  'a direct update cannot change a Pending Safety Check event either'
 );
 
 -- Authorisation: a coordinator not assigned to this event cannot update it.

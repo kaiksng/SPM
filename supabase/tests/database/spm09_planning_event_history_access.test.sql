@@ -1,6 +1,6 @@
 begin;
 
-select plan(7);
+select plan(14);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -99,6 +99,35 @@ select is(
   'the only coordinator is assigned'
 );
 
+-- Some history of every kind to read: approve into Planning, then change a
+-- venue field and add equipment.
+reset role;
+insert into public.equipment_items (name, category, code, total_quantity)
+values ('SPM09 Speaker', 'Audio', 'spm09-speaker', 2);
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+select lives_ok(
+  format(
+    $$select public.decide_event_request(%L::uuid, 'approved'::public.event_decision_type, 'Looks ready.')$$,
+    (select id from spm09_event_ids)
+  ),
+  'the assigned coordinator approves the event into Planning'
+);
+select lives_ok(
+  format(
+    $$select public.update_event_as_coordinator(%L::uuid, jsonb_set(%s::jsonb, '{equipment}', jsonb_build_array(jsonb_build_object(
+      'id', null, 'equipmentItemId', (select id from public.equipment_items where code = 'spm09-speaker'),
+      'quantity', '1', 'requiredFrom', '2099-04-01T10:00:00+08:00', 'requiredUntil', '2099-04-01T12:00:00+08:00', 'notes', null))))$$,
+    (select id from spm09_event_ids),
+    quote_literal('{"title":"[SPM09 Test] Event","purpose":"Original purpose","description":"A test event for SPM-09 history access.","expectedAttendance":"40","startsAt":"2099-04-01T10:00:00+08:00","endsAt":"2099-04-01T12:00:00+08:00","venue":{"preferredLocation":"Auditorium","facilities":[]},"equipment":[],"registration":{"required":false,"waitlistEnabled":false}}')
+  ),
+  'the coordinator changes the venue and adds equipment'
+);
+
 -- AC02/AC03: the assigned coordinator sees the lifecycle history.
 select set_config(
   'request.jwt.claims',
@@ -138,6 +167,16 @@ select is(
   0,
   'AC02: a coordinator not assigned to the event sees no lifecycle history'
 );
+select is(
+  (select count(*)::integer from public.event_field_changes where event_id = (select id from spm09_event_ids)),
+  0,
+  'SPM-09 AC02: a coordinator not assigned to the event sees no field changes'
+);
+select is(
+  (select count(*)::integer from public.event_equipment_changes where event_id = (select id from spm09_event_ids)),
+  0,
+  'SPM-09 AC02: a coordinator not assigned to the event sees no equipment changes'
+);
 
 -- The organiser is unaffected by this narrowing.
 select set_config(
@@ -151,6 +190,26 @@ select ok(
     where event_id = (select id from spm09_event_ids)
   ) > 0,
   'the organiser still sees the event''s lifecycle history'
+);
+
+-- 202610160004: the Event Coordinator Lead sees every kind of history, for
+-- any event, without being its coordinator.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"eeeeeeee-0000-0000-0000-0000000000ad","role":"authenticated"}',
+  true
+);
+select ok(
+  (select count(*)::integer from public.event_status_history where event_id = (select id from spm09_event_ids)) > 0,
+  'the Lead sees the event''s lifecycle history'
+);
+select ok(
+  (select count(*)::integer from public.event_field_changes where event_id = (select id from spm09_event_ids)) > 0,
+  'the Lead sees the event''s field changes'
+);
+select ok(
+  (select count(*)::integer from public.event_equipment_changes where event_id = (select id from spm09_event_ids)) > 0,
+  'the Lead sees the event''s equipment changes'
 );
 
 select * from finish();

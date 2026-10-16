@@ -1,6 +1,6 @@
 begin;
 
-select plan(31);
+select plan(32);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -331,12 +331,16 @@ select set_config(
   '{"sub":"50000000-0000-0000-0000-000000000002","role":"authenticated"}',
   true
 );
+-- As the superuser: coordinators cannot update events directly (202610160002),
+-- and this checks the database rule itself.
+reset role;
 select throws_ok(
   format($$update public.events set status = 'planning' where id = %L::uuid$$, (select id from pb05_event_ids)),
   '23514',
   'This event has an unresolved clarification and cannot be approved or rejected until it is closed',
   'AC05: approval is blocked while the clarification is unresolved'
 );
+set local role authenticated;
 
 -- Only the assigned coordinator may resolve.
 select set_config(
@@ -427,9 +431,17 @@ select is(
 );
 
 -- AC06: with every clarification resolved, a decision is no longer blocked.
+-- As the superuser: coordinators cannot update events directly (202610160002),
+-- and this checks the database rule itself.
+reset role;
 select lives_ok(
   format($$update public.events set status = 'planning' where id = %L::uuid$$, (select id from pb05_event_ids)),
   'AC06: approval succeeds once every clarification is resolved'
+);
+select is(
+  (select status::text from public.events where id = (select id from pb05_event_ids)),
+  'planning',
+  'AC06: the approved event is now Planning'
 );
 
 select * from finish();

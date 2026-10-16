@@ -16,7 +16,6 @@ select policies_are(
   'public',
   'events',
   array[
-    'coordinators manage assigned events',
     'events visible to participants',
     'organisers create their events',
     'organisers delete their drafts',

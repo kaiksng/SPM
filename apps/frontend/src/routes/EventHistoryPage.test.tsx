@@ -680,6 +680,87 @@ describe("EventHistoryPage", () => {
     });
   });
 
+  // SPM-10 AC04: a facility added or removed is listed like any other change.
+  it("lists facility changes in the Planning section", async () => {
+    listEventDecisionsMock.mockResolvedValue([
+      {
+        id: "decision-1",
+        decision: "approved" as const,
+        rationale: null,
+        decidedAt: "2026-09-14T12:00:00.000Z",
+        decidedByName: "Joyce",
+      },
+    ]);
+    loadEventFieldHistoryMock.mockResolvedValue([
+      {
+        id: 1,
+        fieldName: "venue.facilities",
+        previousValue: null,
+        newValue: "Gym",
+        changedByName: "Joyce",
+        changedAt: "2026-09-15T01:00:00.000Z",
+      },
+      {
+        id: 2,
+        fieldName: "venue.facilities",
+        previousValue: "Parking",
+        newValue: null,
+        changedByName: "Joyce",
+        changedAt: "2026-09-15T01:00:00.000Z",
+      },
+    ]);
+
+    renderPage();
+
+    const planning = (await screen.findByRole("heading", { level: 2, name: "Planning" })).closest(
+      "section",
+    )!;
+    const entries = within(planning).getAllByRole("listitem");
+    expect(entries[0]).toHaveTextContent("Required facility15 Sept 2026, 9:00 am · JoyceNot set → Gym");
+    expect(entries[1]).toHaveTextContent("Required facility15 Sept 2026, 9:00 am · JoyceParking → Not set");
+  });
+
+  // The Event Coordinator Lead oversees every event, so sees its full history
+  // without being its coordinator (202610160004).
+  describe("for the Event Coordinator Lead", () => {
+    const EVENT_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
+
+    afterEach(() => {
+      authState.profile = { full_name: "Joyce Coordinator", role: "event_coordinator" };
+    });
+
+    it("shows the history of an event assigned to another coordinator", async () => {
+      authState.profile = { full_name: "Lee Lead", role: "event_coordinator_lead" };
+      loadEventDetailMock.mockResolvedValue({
+        assignedCoordinatorId: "20000000-0000-0000-0000-000000000099",
+      });
+      listEventStatusHistoryMock.mockResolvedValue([
+        {
+          id: 1,
+          fromStatus: "requested",
+          toStatus: "planning",
+          changedByName: "Joyce",
+          changedAt: "2026-09-14T12:00:00.000Z",
+        },
+      ]);
+
+      render(
+        <MemoryRouter initialEntries={[`/events/${EVENT_ID}/history`]}>
+          <Routes>
+            <Route path="events/:eventId/history" element={<EventHistoryPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByRole("heading", { level: 2, name: "Lifecycle" })).toBeInTheDocument();
+      expect(
+        screen.queryByText("This event is unavailable or you do not have access to it."),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("14 Sept 2026, 8:00 pm · Joyce")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 2, name: "Equipment" })).toBeInTheDocument();
+    });
+  });
+
   describe("equipment history", () => {
     const microphone = {
       equipmentItemId: "item-1",

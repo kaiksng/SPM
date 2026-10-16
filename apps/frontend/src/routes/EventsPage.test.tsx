@@ -251,6 +251,7 @@ describe("EventsPage draft controls", () => {
     await waitFor(() => expect(cancelButton).toBeDisabled());
   });
 
+  // SPM-11 AC01 + AC02: no edit link, and a pointer to a change request instead.
   it.each(["confirmed", "completed", "rejected", "cancelled"])(
     "directs the organiser to a change request instead of editing a %s event",
     async (status) => {
