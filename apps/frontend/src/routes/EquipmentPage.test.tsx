@@ -572,6 +572,49 @@ describe("EquipmentPage unavailability (SPM-30)", () => {
     expect(await screen.findByText("Equipment returned to service.")).toBeInTheDocument();
   });
 
+  // SPM-30 AC05: a record entered for a period that has not started can be removed.
+  it("removes an upcoming record after confirmation (AC05)", async () => {
+    const upcoming = { ...inProgress, id: "record-upcoming", reason: "Booked for servicing", startsAt: hours(24), endsAt: hours(30) };
+    service.listEquipmentUnavailability.mockResolvedValue([upcoming]);
+    const user = userEvent.setup();
+    await renderUnavailability();
+
+    await user.click(await screen.findByRole("button", { name: "Remove" }));
+    const dialog = screen.getByRole("dialog", { name: "Remove this record?" });
+    await user.click(within(dialog).getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(service.removeEquipmentUnavailability).toHaveBeenCalledWith("record-upcoming"));
+    expect(await screen.findByText("Record removed.")).toBeInTheDocument();
+  });
+
+  // SPM-30 AC05: cancelling the confirmation changes nothing.
+  it("does not remove a record when the confirmation is cancelled", async () => {
+    const upcoming = { ...inProgress, id: "record-upcoming", startsAt: hours(24), endsAt: hours(30) };
+    service.listEquipmentUnavailability.mockResolvedValue([upcoming]);
+    const user = userEvent.setup();
+    await renderUnavailability();
+
+    await user.click(await screen.findByRole("button", { name: "Remove" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(service.removeEquipmentUnavailability).not.toHaveBeenCalled();
+  });
+
+  // SPM-30 AC01: the quantity must be a positive whole number.
+  it.each(["0", "1.5"])("refuses a quantity of %s without saving (AC01)", async (quantity) => {
+    const user = userEvent.setup();
+    await renderUnavailability();
+    const form = await openRecordForm(user);
+
+    await user.clear(within(form).getByLabelText("Quantity unavailable"));
+    await user.type(within(form).getByLabelText("Quantity unavailable"), quantity);
+    await user.click(within(form).getByRole("button", { name: /Record unavailability/ }));
+
+    expect(await within(form).findByText("Enter a positive whole number")).toBeInTheDocument();
+    expect(service.recordEquipmentUnavailability).not.toHaveBeenCalled();
+  });
+
   it("filters records by status and strikes through cancelled ones", async () => {
     const user = userEvent.setup();
     await renderUnavailability();

@@ -47,6 +47,8 @@ values ((select id from a_ids where name = 'event'), 'Old smoke machine', 1);
 alter table public.event_equipment_requirements enable trigger event_equipment_requirements_guard;
 insert into a_ids select 'req-legacy', id from public.event_equipment_requirements where equipment_name = 'Old smoke machine';
 
+-- SPM-30 AC04: active unavailability reduces what SPM-31 reports as available,
+-- and a removed record does not (the projector and smoke machine checks below).
 -- Projector commitments:
 --   approved reservation of 40, 09:00-11:00   -> counts (overlaps)
 --   pending reservation of 50, 10:00-14:00    -> ignored (not confirmed)
