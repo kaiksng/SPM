@@ -1,0 +1,18 @@
+-- Coordinators change an event only through the database functions built for
+-- it, never by a direct `update events ...` against PostgREST.
+--
+-- "coordinators manage assigned events" (202609060001, narrowed by
+-- 202609150007 and 202609190002) let the assigned coordinator update any
+-- column of their event unless it was Confirmed, Completed, Rejected or
+-- Cancelled. While an event was Planning or Pending Safety Check, a direct
+-- update could therefore rename it or move its schedule or registration,
+-- skipping the locks update_event_as_coordinator enforces (SPM-10 AC01) and
+-- the audit trail's intent.
+--
+-- Nothing depends on the policy: the frontend never updates `events`
+-- directly, the backend uses the service role, and every function that
+-- changes an event as a coordinator (update_event_as_coordinator,
+-- decide_event_request, complete_event, reassign_event_coordinator, ...) is
+-- SECURITY DEFINER and runs its own checks. Dropping it leaves the
+-- organiser's own policy ("organisers edit their drafts") unchanged.
+drop policy if exists "coordinators manage assigned events" on public.events;

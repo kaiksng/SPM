@@ -26,6 +26,11 @@ describe("eventFieldHistoryLabel", () => {
     expect(eventFieldHistoryLabel("venue.preferredLocation")).toBe("Preferred location");
   });
 
+  // SPM-10 AC04: facility changes are logged under their own field (202610160003).
+  it("labels a facility change", () => {
+    expect(eventFieldHistoryLabel("venue.facilities")).toBe("Required facility");
+  });
+
   it("falls back to the raw field name for an unknown field", () => {
     expect(eventFieldHistoryLabel("somethingUnexpected")).toBe("somethingUnexpected");
   });

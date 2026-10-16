@@ -142,7 +142,10 @@ select lives_ok(
 );
 
 -- Scenario: an invalid transition (skipping straight to Completed from
--- Planning) is rejected and the current status is unchanged.
+-- Planning) is rejected and the current status is unchanged. As the
+-- superuser: coordinators cannot update events directly (202610160002), and
+-- this checks the transition trigger itself.
+reset role;
 select throws_ok(
   format(
     $$update public.events set status = 'completed' where id = %L::uuid$$,
@@ -152,6 +155,7 @@ select throws_ok(
   'Invalid event status transition from planning to completed',
   'Scenario: Planning cannot jump straight to Completed'
 );
+set local role authenticated;
 select is(
   (select status::text from public.events where id = (select id from lsm_event_ids where label = 'event-1')),
   'planning',

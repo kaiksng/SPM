@@ -2,9 +2,10 @@
  * The fields PB-07's change history can report on — one entry per scalar
  * column the `record_event_field_change`/`record_event_venue_change`/
  * `record_event_registration_change` triggers watch in
- * `202609150003_pb07_event_field_history.sql`. Keep the two in step: the
- * database CHECK constraint on `event_field_changes.field_name` accepts
- * exactly this list.
+ * `202609150003_pb07_event_field_history.sql`, plus `venue.facilities`
+ * (`record_event_facility_change`, 202610160003: one entry per facility
+ * added or removed). Keep the two in step: the database CHECK constraint on
+ * `event_field_changes.field_name` accepts exactly this list.
  */
 export const eventFieldHistoryKeys = [
   "title",
@@ -18,6 +19,7 @@ export const eventFieldHistoryKeys = [
   "venue.minimumCapacity",
   "venue.accessibilityNotes",
   "venue.layoutNotes",
+  "venue.facilities",
   "registration.required",
   "registration.opensAt",
   "registration.closesAt",
@@ -40,6 +42,7 @@ export const eventFieldHistoryLabels: Readonly<Record<EventFieldHistoryKey, stri
   "venue.minimumCapacity": "Minimum capacity",
   "venue.accessibilityNotes": "Accessibility notes",
   "venue.layoutNotes": "Layout notes",
+  "venue.facilities": "Required facility",
   "registration.required": "Registration required",
   "registration.opensAt": "Registration opens",
   "registration.closesAt": "Registration closes",
