@@ -48,13 +48,13 @@ select set_config('request.jwt.claims', '{"sub":"e8000000-0000-0000-0000-0000000
 select throws_ok(
   $$select public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), 'arranged', 'Done')$$,
   '42501', 'Only Technical Support Staff can update equipment arrangements',
-  'the assigned coordinator cannot update an arrangement (AC06)'
+  'the assigned coordinator cannot update an arrangement (SPM-28 AC06)'
 );
 select set_config('request.jwt.claims', '{"sub":"e8000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok(
   $$select public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), 'arranged', 'Done')$$,
   '42501', 'Only Technical Support Staff can update equipment arrangements',
-  'the organiser cannot update an arrangement (AC06)'
+  'the organiser cannot update an arrangement (SPM-28 AC06)'
 );
 
 select set_config('request.jwt.claims', '{"sub":"e8000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
@@ -62,26 +62,26 @@ select throws_ok(
   $$insert into public.equipment_arrangement_updates (requirement_id, event_id, status, updated_by)
     values ((select id from v_ids where name = 'req-planning'), 'e8000000-0000-0000-0000-0000000000e1', 'arranged', auth.uid())$$,
   '42501', null,
-  'not even Technical Support Staff can write the table directly (AC06)'
+  'not even Technical Support Staff can write the table directly (SPM-28 AC06)'
 );
 
 -- AC02: no update yet means no entry (shown as Not started).
 select is(
   (select count(*)::integer from public.equipment_arrangement_updates where requirement_id = (select id from v_ids where name = 'req-planning')),
   0,
-  'a requirement starts with no arrangement entries (AC02)'
+  'a requirement starts with no arrangement entries (SPM-28 AC02)'
 );
 select is(
   public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), 'not_started', '  '),
   null,
-  'saving Not started with no note on a fresh requirement changes nothing (AC02)'
+  'saving Not started with no note on a fresh requirement changes nothing (SPM-28 AC02)'
 );
 
 -- AC03/AC04: an update records status, note, who and when.
 select isnt(
   public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), 'in_progress', '  Borrowing 2 from Block B  '),
   null,
-  'staff update the status and note (AC04)'
+  'staff update the status and note (SPM-28 AC04)'
 );
 select is(
   (
@@ -91,7 +91,7 @@ select is(
   ),
   row('in_progress'::text, 'Borrowing 2 from Block B'::text, 'e8000000-0000-0000-0000-000000000001'::uuid, true,
       'e8000000-0000-0000-0000-0000000000e1'::uuid),
-  'the status, trimmed note, actor, time and event are recorded (AC03)'
+  'the status, trimmed note, actor, time and event are recorded (SPM-28 AC03)'
 );
 
 -- Nothing changed: no new entry.
@@ -105,43 +105,43 @@ select is(
 select isnt(
   public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), 'in_progress', 'Block B said yes'),
   null,
-  'a note-only change is saved (AC04)'
+  'a note-only change is saved (SPM-28 AC04)'
 );
 
 -- AC05: repeated updates, including back to an earlier status, and clearing the note.
 select isnt(
   public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), 'arranged', 'Delivered'),
   null,
-  'the status moves on to Arranged (AC05)'
+  'the status moves on to Arranged (SPM-28 AC05)'
 );
 select isnt(
   public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), 'issue', 'One mic is faulty'),
   null,
-  'the status moves to Issue (AC05)'
+  'the status moves to Issue (SPM-28 AC05)'
 );
 select isnt(
   public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), 'in_progress', null),
   null,
-  'the status can go back to an earlier value, with the note cleared (AC05)'
+  'the status can go back to an earlier value, with the note cleared (SPM-28 AC05)'
 );
 select results_eq(
   $$select status, coalesce(note, '(none)') from public.equipment_arrangement_updates
     where requirement_id = (select id from v_ids where name = 'req-planning') order by id$$,
   $$values ('in_progress'::text, 'Borrowing 2 from Block B'::text), ('in_progress', 'Block B said yes'),
            ('arranged', 'Delivered'), ('issue', 'One mic is faulty'), ('in_progress', '(none)')$$,
-  'every update is kept, in order (AC03, AC05)'
+  'every update is kept, in order (SPM-28 AC03, AC05)'
 );
 
 -- AC01: only the fixed statuses; note limit.
 select throws_ok(
   $$select public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), 'reserved', null)$$,
   '23514', 'Choose an arrangement status',
-  'a status outside the list is refused (AC01)'
+  'a status outside the list is refused (SPM-28 AC01)'
 );
 select throws_ok(
   $$select public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), null, null)$$,
   '23514', 'Choose an arrangement status',
-  'a missing status is refused (AC01)'
+  'a missing status is refused (SPM-28 AC01)'
 );
 select throws_ok(
   $$select public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), 'arranged', repeat('a', 1001))$$,

@@ -69,6 +69,10 @@ describe("listEventEquipmentAvailability (SPM-28)", () => {
   });
 
   // AC02: until staff set a status, it follows the reservation and availability.
+  // SPM-28 AC02: until staff set one, the status is worked out — Arranged when
+  // reserved in full, In progress when partly, Issue when it needs re-checking or
+  // cannot be reserved in full (short, unavailable, unknown, retired), otherwise
+  // Not started. A status set by hand wins.
   it("works out each item's status until staff set one by hand", async () => {
     mockTables([{ id: "event-1", title: "Spring Expo", status: "planning", starts_at: null, ends_at: null }]);
     const reserved = (quantity: number, needsRecheck = false) => ({
@@ -85,6 +89,8 @@ describe("listEventEquipmentAvailability (SPM-28)", () => {
         { ...checkRow("flagged"), ...reserved(2, true) },
         { ...checkRow("short"), status: "partially_available", available_quantity: 1 },
         { ...checkRow("unknown"), status: "unknown", equipment_item_id: null },
+        { ...checkRow("none-free"), status: "unavailable", available_quantity: 0 },
+        { ...checkRow("retired"), item_retired: true },
       ],
       error: null,
     });
@@ -103,9 +109,12 @@ describe("listEventEquipmentAvailability (SPM-28)", () => {
       ["flagged", "issue", true],
       ["short", "issue", true],
       ["unknown", "issue", true],
+      ["none-free", "issue", true],
+      ["retired", "issue", true],
     ]);
   });
 
+  // SPM-28 AC02: an event awaiting its safety check cannot be reserved, so it is an Issue.
   it("treats an unreserved item on a Pending Safety Check event as an issue", async () => {
     loadStatusesMock.mockResolvedValue(new Map());
 
