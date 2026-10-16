@@ -1,0 +1,69 @@
+@startuml ConnectSphere_C4_Component
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+HIDE_STEREOTYPE()
+
+title ConnectSphere - C4 Component Diagram
+
+' ---------- People (top row) ----------
+Person(organiser, "Event Organiser", "Submits event requests")
+Person(coordinator, "Event Coordinator / Lead", "Reviews and plans events")
+Person(safetyOfficer, "Safety Officer", "Reviews event safety")
+Person(attendee, "Attendee", "Registers for events")
+
+' ---------- Application, grouped by function ----------
+Container_Boundary(app, "ConnectSphere Application (React + Express)") {
+  Boundary(eventArea, "Events") {
+    Component(events, "Event Request Management", "React, Express", "Drafts, submission, clarifications, approve/reject, history")
+    Component(coordination, "Event Coordination", "React", "Assign coordinators, plan events, manage event status")
+    Component(safety, "Safety Review", "React, Express", "Approve, request changes or reject safety arrangements")
+    Component(registration, "Event Registration", "React, Express", "Register, waiting list, withdraw, registration info")
+  }
+  Boundary(resourceArea, "Venues & Equipment") {
+    Component(bookings, "Venue Booking", "React, Express", "Booking requests, holds, approvals, conflicts")
+    Component(venues, "Venue Management", "React, Express", "Venue catalogue, blocks, availability, search")
+    Component(equipment, "Equipment Management", "React", "Catalogue, availability, reservations")
+  }
+  Boundary(platformArea, "Platform") {
+    Component(auth, "Authentication", "React, Express middleware", "Login, sign-up, role-based access")
+    Component(notifications, "Notifications", "React", "Updates about events and bookings")
+  }
+}
+
+Person(venueStaff, "Venue Staff", "Manages venues and bookings")
+Person(techSupport, "Technical Support Staff", "Manages equipment")
+
+ContainerDb(database, "Supabase Database", "PostgreSQL", "Stores all data; enforces business rules and access control")
+System_Ext(supabaseAuth, "Supabase Auth", "User accounts and login tokens")
+
+' ---------- Users ----------
+Rel_D(organiser, events, "Creates requests")
+Rel_D(coordinator, coordination, "Plans events")
+Rel_D(safetyOfficer, safety, "Reviews safety")
+Rel_D(attendee, registration, "Registers")
+Rel_U(venueStaff, venues, "Manages venues")
+Rel_U(techSupport, equipment, "Manages equipment")
+
+' ---------- Event workflow ----------
+Rel_R(events, coordination, "Approved events")
+Rel_R(coordination, safety, "Safety check")
+Rel_R(safety, registration, "Confirmed events")
+Rel_D(coordination, bookings, "Books venue")
+Rel_D(coordination, equipment, "Reserves equipment")
+Rel_R(bookings, venues, "Checks availability")
+
+' ---------- Data ----------
+Rel_D(app, database, "All components read and write via Supabase JS / RPC")
+Rel_D(auth, supabaseAuth, "Verifies users")
+
+Lay_R(database, supabaseAuth)
+
+' Custom legend (built-in SHOW_LEGEND also lists the boundary types)
+legend right
+<color:$LEGEND_TITLE_COLOR>**Legend**</color>
+|<$PERSON_BG_COLOR> <color:$PERSON_FONT_COLOR> person </color> |
+|<$CONTAINER_BG_COLOR> <color:$CONTAINER_FONT_COLOR> container </color> |
+|<$COMPONENT_BG_COLOR> <color:$COMPONENT_FONT_COLOR> component </color> |
+|<$EXTERNAL_SYSTEM_BG_COLOR> <color:$EXTERNAL_SYSTEM_FONT_COLOR> external system </color> |
+endlegend
+@enduml
