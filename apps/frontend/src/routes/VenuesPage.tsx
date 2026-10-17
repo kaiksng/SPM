@@ -3,6 +3,7 @@ import { Building2, FilePlus2, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { VenueCard } from "@/features/venues/components/venue-card";
@@ -10,6 +11,7 @@ import {
   countActiveVenueFilters,
   emptyVenueFilters,
   VenueFiltersPanel,
+  venueFilterChips,
   type VenueFilterValues,
 } from "@/features/venues/components/venue-filters";
 import { listVenues, type VenueSummary } from "@/features/venues/services/venues";
@@ -81,7 +83,7 @@ export function VenuesPage() {
             searchPlaceholder="Search venues"
             searchValue={searchQuery}
             onSearchChange={setSearchQuery}
-            filters={<VenueFiltersPanel value={filters} onChange={setFilters} />}
+            filters={null}
             action={
               canManageVenues ? (
                 <Link to="/venues/new" className={buttonVariants({ size: "sm" })}>
@@ -90,6 +92,8 @@ export function VenuesPage() {
               ) : undefined
             }
           />
+          <VenueFiltersPanel value={filters} onChange={setFilters} />
+          <ActiveFilterChips chips={venueFilterChips(filters, setFilters)} />
 
           {error && (
             <p

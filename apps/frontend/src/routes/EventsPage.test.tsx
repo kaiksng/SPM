@@ -150,6 +150,75 @@ describe("EventsPage draft controls", () => {
     expect(screen.queryByText("Kai Test Draft")).not.toBeInTheDocument();
   });
 
+  async function openEventFilters(user: ReturnType<typeof userEvent.setup>) {
+  }
+
+  it("narrows the list by status", async () => {
+    listEventRequestsMock.mockResolvedValue([draft, requested]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Kai Test Draft")).toBeInTheDocument();
+    await openEventFilters(user);
+    await user.click(screen.getByRole("radio", { name: "Pending" }));
+
+    expect(screen.queryByText("Kai Test Draft")).not.toBeInTheDocument();
+    expect(screen.getByText("Shernice Test Submission")).toBeInTheDocument();
+  });
+
+  it("narrows the list by date range and combines filters with search (AND)", async () => {
+    listEventRequestsMock.mockResolvedValue([draft, requested]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Shernice Test Submission");
+    await openEventFilters(user);
+    await user.type(screen.getByLabelText("From"), "2026-10-02");
+
+    // requested.startsAt is 2026-10-01, before the "From" date.
+    expect(screen.queryByText("Shernice Test Submission")).not.toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("From"));
+    await user.type(screen.getByLabelText("From"), "2026-09-30");
+    await user.type(screen.getByPlaceholderText("Search events"), "Draft");
+
+    // The date range now matches, but the search term doesn't (AND).
+    expect(screen.queryByText("Shernice Test Submission")).not.toBeInTheDocument();
+    expect(await screen.findByText("No matching events")).toBeInTheDocument();
+  });
+
+  it("shows a distinct no-match state with a clear-filters action, and clears back to the full list", async () => {
+    listEventRequestsMock.mockResolvedValue([draft, requested]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Kai Test Draft");
+    await openEventFilters(user);
+    await user.type(screen.getByLabelText("From"), "2099-01-01");
+
+    const noMatch = await screen.findByText("No matching events");
+    expect(screen.getByText(/adjust your filters/)).toBeInTheDocument();
+    await user.click(within(noMatch.closest("section")!).getByRole("button", { name: "Clear filters" }));
+
+    expect(await screen.findByText("Kai Test Draft")).toBeInTheDocument();
+    expect(screen.getByText("Shernice Test Submission")).toBeInTheDocument();
+  });
+
   // PB-03 AC04 and AC07.
   it("shows the submission time and a permitted edit action for a Requested event", async () => {
     listEventRequestsMock.mockResolvedValue([requested]);
@@ -161,7 +230,8 @@ describe("EventsPage draft controls", () => {
     );
 
     expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
-    expect(screen.getByText("Pending")).toBeInTheDocument();
+    // "Pending" also appears as an option in the new status filter's <select>.
+    expect(screen.getByText("Pending", { selector: "span" })).toBeInTheDocument();
     expect(screen.getByText(/^Submitted/)).toBeInTheDocument();
     // PB-04 AC02.
     expect(screen.getByText("Coordinator: Joyce Coordinator")).toBeInTheDocument();
@@ -505,7 +575,8 @@ describe("EventsPage coordinator view", () => {
     expect(
       screen.queryByText(/Organiser has addressed the clarification/),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Pending")).toBeInTheDocument();
+    // "Pending" also appears as an option in the new status filter's <select>.
+    expect(screen.getByText("Pending", { selector: "span" })).toBeInTheDocument();
     expect(screen.queryByText("Awaiting Organiser")).not.toBeInTheDocument();
   });
 
@@ -519,5 +590,75 @@ describe("EventsPage coordinator view", () => {
     );
 
     expect(await screen.findByText("No events assigned yet")).toBeInTheDocument();
+  });
+
+  const planningEvent = {
+    ...assignedEvent,
+    id: "assigned-2",
+    title: "Autumn Fair",
+    status: "planning",
+    startsAt: "2026-11-05T09:00:00.000Z",
+    endsAt: "2026-11-05T11:00:00.000Z",
+  };
+
+  it("narrows the assigned events list by status and date range, AND with search", async () => {
+    listAssignedEventsMock.mockResolvedValue([assignedEvent, planningEvent]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Autumn Fair")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Planning" }));
+
+    expect(screen.queryByText("Shernice Test Submission")).not.toBeInTheDocument();
+    expect(screen.getByText("Autumn Fair")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("From"), "2026-11-06");
+    expect(await screen.findByText("No matching events")).toBeInTheDocument();
+  });
+
+  it("shows a clear-filters action on zero matches and restores the list", async () => {
+    listAssignedEventsMock.mockResolvedValue([assignedEvent, planningEvent]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Shernice Test Submission");
+    await user.click(screen.getByRole("radio", { name: "Planning" }));
+    await user.type(screen.getByLabelText("From"), "2026-11-06");
+
+    const noMatch = await screen.findByText("No matching events");
+    await user.click(within(noMatch.closest("section")!).getByRole("button", { name: "Clear filters" }));
+
+    expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
+    expect(screen.getByText("Autumn Fair")).toBeInTheDocument();
+  });
+
+  it("shows a removable chip for the active status filter", async () => {
+    listAssignedEventsMock.mockResolvedValue([assignedEvent, planningEvent]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Autumn Fair");
+    await user.click(screen.getByRole("radio", { name: "Planning" }));
+
+    const chip = await screen.findByRole("button", { name: "Remove Planning filter" });
+    await user.click(chip);
+
+    expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove Planning filter" })).not.toBeInTheDocument();
   });
 });

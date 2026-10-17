@@ -26,6 +26,16 @@ export type InventoryItem = {
   units: EquipmentUnit[];
 };
 
+/** The catalogue's read-only, item-level fields — no per-unit or outage detail (RLS keeps those Technical Support Staff-only). */
+export type EquipmentCatalogueItem = {
+  id: string;
+  name: string;
+  category: string | null;
+  code: string;
+  totalQuantity: number;
+  retiredAt: string | null;
+};
+
 // PostgREST returns at most 1,000 rows per request; there are 100 units per
 // item, so units are read in pages.
 const PAGE_SIZE = 1000;
@@ -80,6 +90,26 @@ export async function listInventory(): Promise<InventoryItem[]> {
     totalQuantity: row.total_quantity,
     retiredAt: row.retired_at,
     units: unitsByItem.get(row.id) ?? [],
+  }));
+}
+
+/** Every catalogue item's name/category/code/quantity only — for roles other than Technical Support Staff, who can read equipment_items but not per-unit or outage detail. */
+export async function listEquipmentCatalogue(): Promise<EquipmentCatalogueItem[]> {
+  const { data, error } = await supabase
+    .from("equipment_items")
+    .select("id, name, category, code, total_quantity, retired_at")
+    .order("category", { ascending: true, nullsFirst: false })
+    .order("name", { ascending: true });
+
+  if (error) throw new Error("We couldn't load the equipment catalogue.");
+
+  return data.map((row) => ({
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    code: row.code,
+    totalQuantity: row.total_quantity,
+    retiredAt: row.retired_at,
   }));
 }
 

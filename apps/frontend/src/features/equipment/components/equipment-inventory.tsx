@@ -1,11 +1,20 @@
 import type { EquipmentItemFormValues, EquipmentUnavailabilityFormValues } from "@spm/shared";
 import { ChevronDown, Pencil, Plus, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
 
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ConfirmRetireDialog } from "@/features/equipment/components/confirm-retire-dialog";
 import { EquipmentItemDialog } from "@/features/equipment/components/equipment-item-dialog";
+import {
+  countActiveEquipmentFilters,
+  emptyEquipmentFilters,
+  equipmentFilterChips,
+  EquipmentFiltersPanel,
+  type EquipmentFilterValues,
+} from "@/features/equipment/components/equipment-filters";
 import { EquipmentUnavailabilityForm } from "@/features/equipment/components/equipment-unavailability-form";
 import { EquipmentUnitDialog } from "@/features/equipment/components/equipment-unit-dialog";
 import { EquipmentUnitGrid } from "@/features/equipment/components/equipment-unit-grid";
@@ -50,19 +59,32 @@ export function EquipmentInventory({
   const [confirmRetire, setConfirmRetire] = useState<InventoryItem>();
   const [bulkUnavailable, setBulkUnavailable] = useState<{ item: InventoryItem; unitIds: string[] }>();
   const [selectionResetKey, setSelectionResetKey] = useState(0);
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("");
-  const [showRetired, setShowRetired] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const [filters, setFilters] = useState<EquipmentFilterValues>(() => ({
+    category: searchParams.get("category") ?? "",
+    showRetired: searchParams.get("showRetired") === "1",
+  }));
   const [expandedId, setExpandedId] = useState<string>();
   const [dialog, setDialog] = useState<{ item?: InventoryItem }>();
   const [rowError, setRowError] = useState<{ itemId: string; message: string }>();
+
+  // Kept in the URL so it's still there when the user navigates away and back.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (filters.category) params.set("category", filters.category);
+    if (filters.showRetired) params.set("showRetired", "1");
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, filters]);
 
   const categories = [...new Set(items.map((item) => item.category ?? "Other"))].sort();
   const search = query.trim().toLowerCase();
   const visible = items.filter(
     (item) =>
-      (showRetired || !item.retiredAt) &&
-      (!category || (item.category ?? "Other") === category) &&
+      (filters.showRetired || !item.retiredAt) &&
+      (!filters.category || (item.category ?? "Other") === filters.category) &&
       (!search ||
         item.name.toLowerCase().includes(search) ||
         item.code.includes(search) ||
@@ -106,37 +128,30 @@ export function EquipmentInventory({
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        <select
-          aria-label="Filter by category"
-          value={category}
-          onChange={(event) => setCategory(event.target.value)}
-          className="border-input h-9 rounded-lg border bg-white px-2.5 text-sm focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <option value="">All categories</option>
-          {categories.map((value) => (
-            <option key={value} value={value}>
-              {value}
-            </option>
-          ))}
-        </select>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
-          <input
-            type="checkbox"
-            className="size-4 accent-primary"
-            checked={showRetired}
-            onChange={(event) => setShowRetired(event.target.checked)}
-          />
-          Show retired
-        </label>
         <Button type="button" onClick={() => setDialog({})}>
           <Plus /> Add equipment
         </Button>
       </div>
+      <EquipmentFiltersPanel value={filters} onChange={setFilters} categories={categories} />
+      <ActiveFilterChips chips={equipmentFilterChips(filters, setFilters)} />
 
       {visible.length === 0 ? (
-        <p className="mt-6 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
-          No equipment matches your search.
-        </p>
+        <div className="mt-6 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center">
+          <p className="text-sm text-slate-500">
+            No equipment matches your search{countActiveEquipmentFilters(filters) > 0 ? " or filters" : ""}.
+          </p>
+          {countActiveEquipmentFilters(filters) > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => setFilters(emptyEquipmentFilters)}
+            >
+              Clear filters
+            </Button>
+          )}
+        </div>
       ) : (
         <div className="mt-5 space-y-6">
           {[...groups].map(([group, groupItems]) => (

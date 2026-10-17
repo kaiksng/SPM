@@ -1,13 +1,19 @@
-import { FilePlus2, Wrench } from "lucide-react";
-import { useState } from "react";
+import { FilePlus2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { EquipmentCatalogue } from "@/features/equipment/components/equipment-catalogue";
+import type { EquipmentFilterValues } from "@/features/equipment/components/equipment-filters";
 import {
   TechnicalSupportEquipment,
   type EquipmentSection,
 } from "@/features/equipment/components/technical-support-equipment";
-import { ListToolbar } from "@/features/workspace/components/list-toolbar";
+import {
+  listEquipmentCatalogue,
+  type EquipmentCatalogueItem,
+} from "@/features/equipment/services/equipment-unavailability";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
@@ -40,7 +46,6 @@ export function EquipmentPage({ section = "requests" }: { section?: EquipmentSec
     ? sectionHeadings[section]
     : { title: "Equipment", description: "Reserve and track technical equipment here." };
   usePageTitle(heading.title);
-  const [searchQuery, setSearchQuery] = useState("");
 
   return (
     <RoleGate>
@@ -60,22 +65,7 @@ export function EquipmentPage({ section = "requests" }: { section?: EquipmentSec
             // Keyed so moving between sections starts each one fresh.
             <TechnicalSupportEquipment key={section} section={section} />
           ) : (
-            <>
-              <ListToolbar
-                searchPlaceholder="Search equipment"
-                searchValue={searchQuery}
-                onSearchChange={setSearchQuery}
-                action={
-                  canRequestEquipment(profile?.role) ? (
-                    <Button type="button" size="sm">
-                      <FilePlus2 /> Equipment request
-                    </Button>
-                  ) : undefined
-                }
-              />
-
-              <EmptyState />
-            </>
+            <CoordinatorEquipmentCatalogue canRequest={canRequestEquipment(profile?.role)} />
           )}
         </div>
       </div>
@@ -83,20 +73,85 @@ export function EquipmentPage({ section = "requests" }: { section?: EquipmentSec
   );
 }
 
-function EmptyState() {
-  return (
-    <section className="mt-7 grid min-h-80 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 text-center">
-      <div className="max-w-sm py-12">
-        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-accent text-primary">
-          <Wrench aria-hidden="true" />
-        </span>
-        <h2 className="mt-5 text-lg font-semibold text-slate-950">
-          No equipment yet
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-500">
-          Equipment will show up here once it&apos;s added to the system.
-        </p>
+/**
+ * The read-only catalogue for event organisers/coordinators — the only roles
+ * that currently land on /equipment. Rendered only inside RoleGate's
+ * children, so a blocked role never triggers the fetch.
+ */
+function CoordinatorEquipmentCatalogue({ canRequest }: { canRequest: boolean }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") ?? "");
+  const [filters, setFilters] = useState<EquipmentFilterValues>(() => ({
+    category: searchParams.get("category") ?? "",
+    showRetired: searchParams.get("showRetired") === "1",
+  }));
+  const [items, setItems] = useState<EquipmentCatalogueItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    let active = true;
+    listEquipmentCatalogue()
+      .then((result) => {
+        if (active) setItems(result);
+      })
+      .catch((loadError: unknown) => {
+        if (active) {
+          setError(
+            loadError instanceof Error ? loadError.message : "We couldn't load the equipment catalogue.",
+          );
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Kept in the URL so it's still there when the user navigates away and back.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchQuery) params.set("q", searchQuery);
+    if (filters.category) params.set("category", filters.category);
+    if (filters.showRetired) params.set("showRetired", "1");
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, filters]);
+
+  if (error) {
+    return (
+      <p role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        {error}
+      </p>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {[0, 1, 2].map((item) => (
+          <div key={item} className="h-20 animate-pulse rounded-xl bg-slate-200/70 motion-reduce:animate-none" />
+        ))}
       </div>
-    </section>
+    );
+  }
+
+  return (
+    <EquipmentCatalogue
+      items={items}
+      searchQuery={searchQuery}
+      onSearchChange={setSearchQuery}
+      filters={filters}
+      onFiltersChange={setFilters}
+      action={
+        canRequest ? (
+          <Button type="button" size="sm">
+            <FilePlus2 /> Equipment request
+          </Button>
+        ) : undefined
+      }
+    />
   );
 }
