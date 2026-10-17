@@ -267,7 +267,7 @@ select throws_ok(
     (select id from sb_venue_ids where label = 'room-a')
   ),
   '23514',
-  'This event''s schedule, including setup and turnaround time, falls outside the venue''s operating days or hours.',
+  'This booking''s period, including setup and turnaround time, falls outside the venue''s operating days or hours.',
   'SPM-24 AC06: a Saturday event against a Monday-Friday venue is blocked'
 );
 
@@ -364,7 +364,7 @@ select throws_ok(
     (select id from sb_venue_ids where label = 'room-b')
   ),
   '23514',
-  'This venue is unavailable for part of this event''s schedule, including setup and turnaround time.',
+  'This venue is unavailable for part of this booking''s period, including setup and turnaround time.',
   'SPM-24 AC02: a request overlapping a venue block is rejected'
 );
 select is(
@@ -373,8 +373,8 @@ select is(
   'SPM-24 AC02: a refused request creates no booking at all'
 );
 
--- One active request per event: Event A already has an active (Pending) booking — a second request
--- for the same event, even against a different venue, is rejected.
+-- SPM-85: Event A already has an active (Pending) booking, so a second request
+-- is an additional venue and must say what it is for (label, period, headcount).
 select throws_ok(
   format(
     $$select public.submit_venue_booking_request(%L::uuid, %L::uuid)$$,
@@ -382,13 +382,13 @@ select throws_ok(
     (select id from sb_venue_ids where label = 'room-b')
   ),
   '23514',
-  'This event already has an active venue booking request',
-  'a second active request for the same event is rejected'
+  'Give this booking a label, for example Breakout 1',
+  'SPM-85: a second request for the same event is an additional booking and needs its own details'
 );
 
 -- SPM-24 AC03: withdraw the Pending booking from Event A.
 select lives_ok(
-  format($$select public.withdraw_venue_booking_request(%L::uuid)$$, (select id from sb_booking_ids where label = 'booking-1')),
+  format($$select public.withdraw_venue_booking_request(%L::uuid, null, 'No longer needed')$$, (select id from sb_booking_ids where label = 'booking-1')),
   'SPM-24 AC03: the requesting coordinator can withdraw their own Pending request'
 );
 select is(
@@ -413,10 +413,10 @@ select is(
 
 -- SPM-24 AC03: withdrawing again (no longer Pending) is refused.
 select throws_ok(
-  format($$select public.withdraw_venue_booking_request(%L::uuid)$$, (select id from sb_booking_ids where label = 'booking-1')),
+  format($$select public.withdraw_venue_booking_request(%L::uuid, null, 'Again')$$, (select id from sb_booking_ids where label = 'booking-1')),
   '23514',
-  'Only a Pending venue booking request can be withdrawn',
-  'SPM-24 AC03: a non-Pending request cannot be withdrawn again'
+  'Only a Pending or Approved venue booking can be withdrawn or cancelled',
+  'SPM-24 AC03: a released request cannot be withdrawn again'
 );
 
 -- SPM-24 AC03 downstream: the event-level restriction is released — Event A can

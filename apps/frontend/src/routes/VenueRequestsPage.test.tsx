@@ -48,6 +48,15 @@ const baseRequest = {
   replacesBookingId: null,
   replacesVenueName: null,
   advisoryNotes: null,
+  label: "Main Programme",
+  expectedHeadcount: 50,
+  isMainVenue: true,
+  venueLocation: "City Hall",
+  venueAreaTags: [] as string[],
+  cancellationReason: null,
+  cancelledAt: null,
+  cancelledByName: null,
+  mainDesignatedAt: null,
 };
 
 // The disrupted original and the replacement requested for it.
@@ -104,7 +113,7 @@ describe("VenueRequestsPage", () => {
       // Newest first: the ordinary request is selected by default.
       const talk = within(list).getByRole("button", { name: /Evening Talk/ });
       expect(talk).toHaveAttribute("aria-current", "true");
-      expect(within(talk).getByText("Seminar Room")).toBeInTheDocument();
+      expect(within(talk).getByText("Main Programme · Seminar Room")).toBeInTheDocument();
 
       const fair = within(list).getByRole("button", { name: /Career Fair/ });
       expect(fair).not.toHaveAttribute("aria-current");
@@ -144,6 +153,49 @@ describe("VenueRequestsPage", () => {
 
       await user.click(screen.getByRole("button", { name: "← All requests" }));
       expect(list.className).not.toContain("hidden");
+    });
+  });
+
+  // SPM-85: Venue Staff see which booking of the event they are deciding.
+  describe("an additional venue booking", () => {
+    const breakout = {
+      ...ordinary, id: "booking-4", label: "Breakout 1", expectedHeadcount: 40, isMainVenue: false,
+      venueName: "Room 2.01", eventExpectedAttendance: 300,
+      advisoryNotes: "Location: this venue is at Bras Basah, but the event's main venue is at Marina Bay.",
+    };
+
+    it("AC09: names the booking's label and its own headcount", async () => {
+      listVenueBookingRequestsMock.mockResolvedValue([breakout]);
+      listVenueDisruptionsMock.mockResolvedValue([]);
+      renderPage();
+
+      expect(await screen.findByText("Breakout 1 · Room 2.01")).toBeInTheDocument();
+      expect(screen.getByText("Headcount for this booking")).toBeInTheDocument();
+      expect(screen.getByText("40 people")).toBeInTheDocument();
+      expect(screen.getByText("300 attendees")).toBeInTheDocument();
+    });
+
+    it("AC10: shows why the coordinator cancelled a booking", async () => {
+      listVenueBookingRequestsMock.mockResolvedValue([
+        { ...breakout, status: "cancelled" as const, decidedAt: "2099-04-02T00:00:00.000Z", decidedByName: "Staff", cancellationReason: "Speaker dropped out" },
+      ]);
+      listVenueDisruptionsMock.mockResolvedValue([]);
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: /^All/ }));
+      expect(await screen.findByText("Reason the coordinator gave for withdrawing or cancelling")).toBeInTheDocument();
+      expect(screen.getByText("Speaker dropped out")).toBeInTheDocument();
+    });
+
+    it("AC09: shows the location note without blocking the decision", async () => {
+      listVenueBookingRequestsMock.mockResolvedValue([breakout]);
+      listVenueDisruptionsMock.mockResolvedValue([]);
+      renderPage();
+
+      expect(await screen.findByText(/Check before deciding/)).toBeInTheDocument();
+      expect(screen.getByText(/main venue is at Marina Bay/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
     });
   });
 

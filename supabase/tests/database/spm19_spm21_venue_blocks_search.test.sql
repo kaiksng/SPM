@@ -62,7 +62,7 @@ select is((select count(*)::int from public.search_available_venues(
   'manual search excludes an overlapping active block');
 select throws_ok(format($$select public.submit_venue_booking_request(%L::uuid,
   'f3000000-0000-0000-0000-000000000010'::uuid)$$, (select id from spm19_event_id)),
-  '23514', 'This venue is unavailable for part of this event''s schedule, including setup and turnaround time.',
+  '23514', 'This venue is unavailable for part of this booking''s period, including setup and turnaround time.',
   'booking submission rejects an active block');
 
 select set_config('request.jwt.claims', '{"sub":"f3000000-0000-0000-0000-000000000003","role":"authenticated"}', true);

@@ -168,6 +168,35 @@ describe("NotificationBell", () => {
     );
   });
 
+  // Feedback: a withdrawn or cancelled booking is logged on the venue's Activity section.
+  it("routes a withdrawn or cancelled booking notification to that venue's Activity log", async () => {
+    listNotificationsMock.mockResolvedValue([
+      { ...VENUE_REQUEST_UNREAD, id: "n9", type: "venue_request_withdrawn" as const, title: "Venue booking cancelled", venueId: "venue-7" },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("Venue booking cancelled"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/venues/venue-7#activity");
+  });
+
+  it("falls back to the requests list when the venue is not known", async () => {
+    listNotificationsMock.mockResolvedValue([
+      { ...VENUE_REQUEST_UNREAD, id: "n10", type: "venue_request_withdrawn" as const, title: "Venue booking request withdrawn", venueId: null },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("Venue booking request withdrawn"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/venue-requests");
+  });
+
   // SPM-82: a venue decision (including a rejected replacement) opens the change
   // history, where the outcome and the rejection reason are listed.
   it("routes a venue decision notification to the event's change history", async () => {

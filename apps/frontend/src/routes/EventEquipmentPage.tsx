@@ -6,14 +6,13 @@ import {
   equipmentReservationActionLabels,
   type EquipmentArrangementState,
 } from "@spm/shared";
-import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 
-import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { ArrangementBadge, ArrangementDetails } from "@/features/equipment/components/equipment-arrangement";
 import { loadEquipmentArrangementStatuses } from "@/features/equipment/services/equipment-arrangement-status";
+import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
 import {
   listEquipmentArrangements,
@@ -109,9 +108,7 @@ export function EventEquipmentPage() {
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-5xl">
-          <Link to={`/events/${eventId}`} className={buttonVariants({ variant: "ghost", className: "-ml-2" })}>
-            <ArrowLeft /> Back to event
-          </Link>
+          <EventPageTopBar backTo={`/events/${eventId}`} backLabel="Back to event" eventId={eventId} />
 
           {loading ? (
             <div className="mt-7 h-96 animate-pulse rounded-2xl bg-slate-200/70 motion-reduce:animate-none" />

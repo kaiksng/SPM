@@ -32,6 +32,15 @@ function request(overrides: Partial<VenueBookingRequestSummary> = {}): VenueBook
     replacesBookingId: null,
     replacesVenueName: null,
     advisoryNotes: null,
+    label: "Main Programme",
+    expectedHeadcount: 50,
+    isMainVenue: true,
+    venueLocation: "City Hall",
+    venueAreaTags: [],
+    cancellationReason: null,
+    cancelledAt: null,
+    cancelledByName: null,
+    mainDesignatedAt: null,
     ...overrides,
   };
 }

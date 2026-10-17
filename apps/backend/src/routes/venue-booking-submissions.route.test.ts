@@ -47,6 +47,54 @@ describe("POST /venue-bookings/submit", () => {
     });
   });
 
+  it("AC02: passes an additional booking's own label, period, headcount and needs to the database", async () => {
+    rpcMock.mockResolvedValue({ data: "booking-2", error: null });
+
+    const response = await authedRequest({
+      eventId: EVENT_ID,
+      venueId: VENUE_ID,
+      details: {
+        label: "Breakout 1",
+        startsAt: "2099-04-06T10:00:00+08:00",
+        endsAt: "2099-04-06T11:30:00+08:00",
+        expectedHeadcount: 40,
+        layoutNotes: "Classroom",
+        requiredFacilities: ["Whiteboard"],
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(rpcMock).toHaveBeenCalledWith("submit_venue_booking_request", {
+      p_event_id: EVENT_ID,
+      p_venue_id: VENUE_ID,
+      p_actor_id: USER_ID,
+      p_label: "Breakout 1",
+      p_starts_at: "2099-04-06T10:00:00+08:00",
+      p_ends_at: "2099-04-06T11:30:00+08:00",
+      p_expected_headcount: 40,
+      p_layout_notes: "Classroom",
+      p_accessibility_notes: undefined,
+      p_required_facilities: ["Whiteboard"],
+    });
+  });
+
+  it("AC02: rejects invalid booking details before calling the database", async () => {
+    const response = await authedRequest({
+      eventId: EVENT_ID,
+      venueId: VENUE_ID,
+      details: {
+        label: " ",
+        startsAt: "2099-04-06T10:00:00+08:00",
+        endsAt: "2099-04-06T11:30:00+08:00",
+        expectedHeadcount: 40,
+      },
+    });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe("Give this booking a label, for example Breakout 1");
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
   it("rejects a request with no bearer token", async () => {
     const response = await request(createApp())
       .post("/venue-bookings/submit")
@@ -192,5 +240,65 @@ describe("POST /venue-bookings/:bookingId/replacement", () => {
     const response = await replacementRequest({ venueId: VENUE_ID });
 
     expect(response.status).toBe(500);
+  });
+});
+
+// SPM-85 AC10: withdraw a Pending booking or cancel an Approved one, with a reason.
+describe("POST /venue-bookings/:bookingId/withdraw", () => {
+  function withdrawRequest(body: unknown) {
+    return request(createApp())
+      .post(`/venue-bookings/${BOOKING_ID}/withdraw`)
+      .set("Authorization", "Bearer test-token")
+      .send(body as object);
+  }
+
+  beforeEach(() => {
+    rpcMock.mockReset();
+    getUserMock.mockReset();
+    getUserMock.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
+  });
+
+  it("passes the reason and the signed-in user to the database", async () => {
+    rpcMock.mockResolvedValue({ data: BOOKING_ID, error: null });
+
+    const response = await withdrawRequest({ reason: "  Speaker dropped out " });
+
+    expect(response.status).toBe(200);
+    expect(rpcMock).toHaveBeenCalledWith("withdraw_venue_booking_request", {
+      p_booking_id: BOOKING_ID,
+      p_actor_id: USER_ID,
+      p_reason: "Speaker dropped out",
+    });
+  });
+
+  it("rejects a request with no bearer token", async () => {
+    const response = await request(createApp())
+      .post(`/venue-bookings/${BOOKING_ID}/withdraw`)
+      .send({ reason: "x" });
+
+    expect(response.status).toBe(401);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("AC10: rejects a missing or blank reason before calling the database", async () => {
+    expect((await withdrawRequest({})).status).toBe(422);
+    expect((await withdrawRequest({ reason: "   " })).status).toBe(422);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("maps 42501 to a 403 and 23514 to a 422", async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: "42501", message: "Only the event's assigned coordinator can withdraw this request" },
+    });
+    expect((await withdrawRequest({ reason: "x" })).status).toBe(403);
+
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: { code: "23514", message: "This booking has a pending replacement. Withdraw the replacement first" },
+    });
+    const refused = await withdrawRequest({ reason: "x" });
+    expect(refused.status).toBe(422);
+    expect(refused.body.error).toContain("pending replacement");
   });
 });

@@ -9,6 +9,7 @@ export * from "./schemas/signup";
 export * from "./schemas/event-request";
 export * from "./schemas/venue";
 export * from "./schemas/venue-block";
+export * from "./schemas/venue-booking";
 export * from "./schemas/equipment-unavailability";
 export * from "./schemas/equipment-catalogue";
 export * from "./schemas/equipment-arrangement";

@@ -1,4 +1,4 @@
-import type { Database } from "@spm/shared";
+import type { Database, VenueBookingDetails } from "@spm/shared";
 
 import { apiFetch } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase-client";
@@ -97,10 +97,14 @@ export type VenueBookingAvailability = {
 export async function checkVenueBookingAvailability(
   venueId: string,
   eventId: string,
+  // SPM-85: an additional booking is checked for its own period (ISO strings);
+  // omitted, the event's own period is used.
+  period?: { startsAt: string; endsAt: string },
 ): Promise<VenueBookingAvailability> {
   const { data, error } = await supabase.rpc("check_venue_booking_availability", {
     p_venue_id: venueId,
     p_event_id: eventId,
+    ...(period && { p_starts_at: period.startsAt, p_ends_at: period.endsAt }),
   });
 
   if (error || !data) {
@@ -129,10 +133,13 @@ export async function checkVenueBookingAvailability(
 export async function submitVenueBookingRequest(
   eventId: string,
   venueId: string,
+  // SPM-85: the label, period, headcount and needs of an additional venue. The
+  // event's first booking sends none and takes them from the event.
+  details?: VenueBookingDetails,
 ): Promise<string> {
   const { data } = await apiFetch("/venue-bookings/submit", {
     method: "POST",
-    body: JSON.stringify({ eventId, venueId }),
+    body: JSON.stringify(details ? { eventId, venueId, details } : { eventId, venueId }),
   });
 
   return data as string;
@@ -165,10 +172,21 @@ export async function requestReplacementVenue(
  * profile, which inserts into `notifications` — no INSERT policy for
  * regular users — same reasoning as submitVenueBookingRequest above.
  */
-export async function withdrawVenueBookingRequest(bookingId: string): Promise<void> {
+export async function withdrawVenueBookingRequest(bookingId: string, reason: string): Promise<void> {
   await apiFetch(`/venue-bookings/${bookingId}/withdraw`, {
     method: "POST",
+    body: JSON.stringify({ reason }),
   });
+}
+
+/**
+ * SPM-85: the coordinator chooses which active booking is the event's main
+ * venue. No notification is created, so a direct RPC (not the backend) is
+ * enough; the database checks that the caller is the event's coordinator.
+ */
+export async function setMainVenueBooking(bookingId: string): Promise<void> {
+  const { error } = await supabase.rpc("set_main_venue_booking", { p_booking_id: bookingId });
+  if (error) throw operationError(error.message);
 }
 
 /**
@@ -230,6 +248,19 @@ export type VenueBookingRequestSummary = {
   // SPM-82: requirements (layout, accessibility) the replacement venue does not
   // appear to meet. Guidance for Venue Staff, not a block.
   advisoryNotes: string | null;
+  // SPM-85: each booking of an event has its own label and headcount, and one
+  // active booking is the event's main venue.
+  label: string;
+  expectedHeadcount: number | null;
+  isMainVenue: boolean;
+  venueLocation: string | null;
+  venueAreaTags: string[];
+  // SPM-85: why the coordinator withdrew or cancelled this booking, when, and who.
+  cancellationReason: string | null;
+  cancelledAt: string | null;
+  cancelledByName: string | null;
+  // SPM-85: when this booking last became the event's main venue.
+  mainDesignatedAt: string | null;
 };
 
 export type EventVenueRequirements = {
@@ -250,7 +281,7 @@ const VENUE_BOOKING_REQUEST_SELECT = `
   decision_notes,
   expires_at,
   venue_id,
-  venues (name, venue_layouts (layout_name)),
+  venues (name, location, area_tags, venue_layouts (layout_name)),
   event_id,
   events (
     title,
@@ -261,7 +292,17 @@ const VENUE_BOOKING_REQUEST_SELECT = `
   requested_by:profiles!venue_bookings_requested_by_fkey (full_name),
   decided_by:profiles!venue_bookings_decided_by_fkey (full_name),
   replaces_booking_id,
-  advisory_notes
+  advisory_notes,
+  label,
+  expected_headcount,
+  is_main_venue,
+  layout_notes,
+  accessibility_notes,
+  required_facilities,
+  cancellation_reason,
+  cancelled_at,
+  cancelled_by_profile:profiles!venue_bookings_cancelled_by_fkey (full_name),
+  main_designated_at
 `;
 
 function toVenueBookingRequestSummary(
@@ -275,7 +316,12 @@ function toVenueBookingRequestSummary(
     decision_notes: string | null;
     expires_at: string | null;
     venue_id: string;
-    venues: { name: string; venue_layouts: { layout_name: string }[] } | null;
+    venues: {
+      name: string;
+      location: string | null;
+      area_tags: string[] | null;
+      venue_layouts: { layout_name: string }[];
+    } | null;
     event_id: string;
     events: {
       title: string;
@@ -292,6 +338,16 @@ function toVenueBookingRequestSummary(
     decided_by: { full_name: string } | null;
     replaces_booking_id: string | null;
     advisory_notes: string | null;
+    label: string;
+    expected_headcount: number | null;
+    is_main_venue: boolean;
+    layout_notes: string | null;
+    accessibility_notes: string | null;
+    required_facilities: string[];
+    cancellation_reason: string | null;
+    cancelled_at: string | null;
+    cancelled_by_profile: { full_name: string } | null;
+    main_designated_at: string | null;
   },
 ): VenueBookingRequestSummary {
   return {
@@ -309,18 +365,30 @@ function toVenueBookingRequestSummary(
     eventId: row.event_id,
     eventTitle: row.events?.title ?? "Unknown event",
     eventExpectedAttendance: row.events?.expected_attendance ?? null,
+    // SPM-85: the room's own needs come from the booking (a breakout room needs
+    // different things from the main hall); where it is and its minimum size are
+    // still the event's.
     eventVenueRequirements: {
       preferredLocation: row.events?.event_venue_requirements?.preferred_location ?? null,
       minimumCapacity: row.events?.event_venue_requirements?.minimum_capacity ?? null,
-      accessibilityNotes: row.events?.event_venue_requirements?.accessibility_notes ?? null,
-      layoutNotes: row.events?.event_venue_requirements?.layout_notes ?? null,
-      facilities: (row.events?.event_required_facilities ?? []).map((facility) => facility.facility_name),
+      accessibilityNotes: row.accessibility_notes,
+      layoutNotes: row.layout_notes,
+      facilities: row.required_facilities ?? [],
     },
     requestedByName: row.requested_by?.full_name ?? null,
     decidedByName: row.decided_by?.full_name ?? null,
     replacesBookingId: row.replaces_booking_id,
     replacesVenueName: null,
     advisoryNotes: row.advisory_notes,
+    label: row.label,
+    expectedHeadcount: row.expected_headcount,
+    isMainVenue: row.is_main_venue,
+    venueLocation: row.venues?.location ?? null,
+    venueAreaTags: row.venues?.area_tags ?? [],
+    cancellationReason: row.cancellation_reason,
+    cancelledAt: row.cancelled_at,
+    cancelledByName: row.cancelled_by_profile?.full_name ?? null,
+    mainDesignatedAt: row.main_designated_at,
   };
 }
 
@@ -376,6 +444,27 @@ export async function listVenueBookingsForEvent(
     .order("requested_at", { ascending: true });
 
   if (error) throw new Error("This event's venue booking history is unavailable.");
+
+  return withReplacedVenueNames((data ?? []).map(toVenueBookingRequestSummary));
+}
+
+/**
+ * SPM-85: every booking ever made at one venue, newest first — the venue's
+ * Activity log for Venue Staff. RLS's "venue bookings visible to participants"
+ * already lets venue_staff read all bookings, so this reads straight through
+ * Supabase. Capped, since a busy venue accumulates bookings.
+ */
+export async function listVenueBookingsForVenue(
+  venueId: string,
+): Promise<VenueBookingRequestSummary[]> {
+  const { data, error } = await supabase
+    .from("venue_bookings")
+    .select(VENUE_BOOKING_REQUEST_SELECT)
+    .eq("venue_id", venueId)
+    .order("requested_at", { ascending: false })
+    .limit(100);
+
+  if (error) throw new Error("This venue's activity is unavailable.");
 
   return withReplacedVenueNames((data ?? []).map(toVenueBookingRequestSummary));
 }

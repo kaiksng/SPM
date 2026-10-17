@@ -362,7 +362,7 @@ select lives_ok(
   'AC4/AC7/AC8: the new coordinator can resolve Event B''s clarification -- it is now their responsibility'
 );
 select lives_ok(
-  format($$select public.withdraw_venue_booking_request(%L::uuid)$$, (select id from spm84_ids where label = 'booking-1')),
+  format($$select public.withdraw_venue_booking_request(%L::uuid, null, 'No longer needed')$$, (select id from spm84_ids where label = 'booking-1')),
   'AC4/AC7/AC8: the new coordinator can withdraw Event D''s venue booking -- it is now their responsibility'
 );
 
