@@ -1,9 +1,10 @@
 import { LOCATION_AREAS } from "@spm/shared";
-import { ChevronDown } from "lucide-react";
 
 import { AmenityPicker } from "@/components/ui/amenity-picker";
-import { Button } from "@/components/ui/button";
+import type { FilterChip } from "@/components/ui/active-filter-chips";
+import { FilterSection } from "@/components/ui/filter-section";
 import { Input } from "@/components/ui/input";
+import { PillToggleGroup } from "@/components/ui/pill-toggle-group";
 import { useRoomLayoutOptions } from "@/features/venues/hooks/use-room-layout-options";
 
 export type VenueFilterValues = {
@@ -29,7 +30,36 @@ export function countActiveVenueFilters(filters: VenueFilterValues): number {
   );
 }
 
-/** The catalogue's filter control, a <details> disclosure matching AmenityPicker's convention. */
+/** One removable chip per active filter — a facility chip per selected facility, not one combined chip. */
+export function venueFilterChips(
+  filters: VenueFilterValues,
+  onChange: (value: VenueFilterValues) => void,
+): FilterChip[] {
+  const chips: FilterChip[] = [];
+  if (filters.area) {
+    chips.push({ key: "area", label: filters.area, onRemove: () => onChange({ ...filters, area: "" }) });
+  }
+  if (filters.minCapacity) {
+    chips.push({
+      key: "minCapacity",
+      label: `Capacity ≥ ${filters.minCapacity}`,
+      onRemove: () => onChange({ ...filters, minCapacity: "" }),
+    });
+  }
+  for (const facility of filters.facilities) {
+    chips.push({
+      key: `facility-${facility}`,
+      label: facility,
+      onRemove: () => onChange({ ...filters, facilities: filters.facilities.filter((f) => f !== facility) }),
+    });
+  }
+  if (filters.layout) {
+    chips.push({ key: "layout", label: filters.layout, onRemove: () => onChange({ ...filters, layout: "" }) });
+  }
+  return chips;
+}
+
+/** The catalogue's filter control, an always-visible section below the search toolbar. */
 export function VenueFiltersPanel({
   value,
   onChange,
@@ -45,74 +75,52 @@ export function VenueFiltersPanel({
   }
 
   return (
-    <details className="rounded-lg border border-input bg-white">
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700">
-        Filters{activeCount > 0 ? ` (${activeCount})` : ""}
-        <ChevronDown className="size-4" aria-hidden="true" />
-      </summary>
-      <div className="grid w-80 gap-4 border-t border-input p-4 sm:w-96">
-        <div>
-          <label htmlFor="venue-filter-area" className="mb-1 block text-sm font-medium text-slate-700">
-            Area
-          </label>
-          <select
-            id="venue-filter-area"
-            value={value.area}
-            onChange={(event) => update("area", event.target.value)}
-            className="border-input h-8 w-full rounded-lg border bg-white px-2.5 text-sm"
-          >
-            <option value="">Any area</option>
-            {LOCATION_AREAS.map((area) => (
-              <option key={area} value={area}>
-                {area}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="venue-filter-capacity" className="mb-1 block text-sm font-medium text-slate-700">
-            Minimum capacity
-          </label>
-          <Input
-            id="venue-filter-capacity"
-            type="number"
-            min={0}
-            value={value.minCapacity}
-            onChange={(event) => update("minCapacity", event.target.value)}
-          />
-        </div>
-
-        <AmenityPicker
-          value={value.facilities}
-          onChange={(facilities) => update("facilities", facilities)}
-        />
-
-        <div>
-          <label htmlFor="venue-filter-layout" className="mb-1 block text-sm font-medium text-slate-700">
-            Room layout
-          </label>
-          <select
-            id="venue-filter-layout"
-            value={value.layout}
-            onChange={(event) => update("layout", event.target.value)}
-            className="border-input h-8 w-full rounded-lg border bg-white px-2.5 text-sm"
-          >
-            <option value="">Any layout</option>
-            {roomLayouts.map((layout) => (
-              <option key={layout} value={layout}>
-                {layout}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {activeCount > 0 && (
-          <Button type="button" variant="outline" size="sm" onClick={() => onChange(emptyVenueFilters)}>
-            Clear filters
-          </Button>
-        )}
+    <FilterSection activeCount={activeCount} onClear={() => onChange(emptyVenueFilters)}>
+      <div className="w-44">
+        <label htmlFor="venue-filter-area" className="mb-1.5 block text-sm font-medium text-slate-700">
+          Area
+        </label>
+        <select
+          id="venue-filter-area"
+          value={value.area}
+          onChange={(event) => update("area", event.target.value)}
+          className="border-input h-8 w-full rounded-lg border bg-white px-2.5 text-sm"
+        >
+          <option value="">Any area</option>
+          {LOCATION_AREAS.map((area) => (
+            <option key={area} value={area}>
+              {area}
+            </option>
+          ))}
+        </select>
       </div>
-    </details>
+
+      <div className="w-40">
+        <label htmlFor="venue-filter-capacity" className="mb-1.5 block text-sm font-medium text-slate-700">
+          Minimum capacity
+        </label>
+        <Input
+          id="venue-filter-capacity"
+          type="number"
+          min={0}
+          value={value.minCapacity}
+          onChange={(event) => update("minCapacity", event.target.value)}
+        />
+      </div>
+
+      <AmenityPicker
+        value={value.facilities}
+        onChange={(facilities) => update("facilities", facilities)}
+        className="w-64"
+      />
+
+      <PillToggleGroup
+        label="Room layout"
+        value={value.layout}
+        onChange={(layout) => update("layout", layout)}
+        options={roomLayouts.map((layout) => ({ value: layout, label: layout }))}
+        anyLabel="All layout"
+      />
+    </FilterSection>
   );
 }

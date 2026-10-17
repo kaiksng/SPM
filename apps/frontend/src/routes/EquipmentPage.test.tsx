@@ -15,6 +15,7 @@ vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
 
 const service = {
   listInventory: vi.fn(),
+  listEquipmentCatalogue: vi.fn(),
   listEquipmentUnavailability: vi.fn(),
   listOverlappingReservations: vi.fn(),
   recordEquipmentUnavailability: vi.fn(),
@@ -29,6 +30,7 @@ const service = {
 
 vi.mock("@/features/equipment/services/equipment-unavailability", () => ({
   listInventory: (...args: unknown[]) => service.listInventory(...args),
+  listEquipmentCatalogue: (...args: unknown[]) => service.listEquipmentCatalogue(...args),
   listEquipmentUnavailability: (...args: unknown[]) => service.listEquipmentUnavailability(...args),
   listOverlappingReservations: (...args: unknown[]) => service.listOverlappingReservations(...args),
   recordEquipmentUnavailability: (...args: unknown[]) => service.recordEquipmentUnavailability(...args),
@@ -140,6 +142,7 @@ beforeEach(() => {
   authState.profile = { full_name: "Tess Support", role: "technical_support_staff" };
   for (const mock of Object.values(service)) mock.mockReset().mockResolvedValue(undefined);
   service.listInventory.mockResolvedValue(inventory());
+  service.listEquipmentCatalogue.mockResolvedValue([]);
   service.listEquipmentUnavailability.mockResolvedValue([inProgress, removed]);
   service.listOverlappingReservations.mockResolvedValue([]);
   listEventEquipmentAvailabilityMock.mockReset().mockResolvedValue([]);
@@ -206,9 +209,42 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
     const user = userEvent.setup();
     await renderInventory();
 
-    await user.selectOptions(await screen.findByLabelText("Filter by category"), "Visual");
+    await user.click(screen.getByRole("radio", { name: "Visual" }));
     expect(screen.getByText("Projector")).toBeInTheDocument();
     expect(screen.queryByText("Wireless microphone")).not.toBeInTheDocument();
+  });
+
+  it("shows a removable chip for the active category filter", async () => {
+    const user = userEvent.setup();
+    await renderInventory();
+
+    await user.click(screen.getByRole("radio", { name: "Visual" }));
+
+    const chip = await screen.findByRole("button", { name: "Remove Visual filter" });
+    await user.click(chip);
+
+    expect(screen.getByText("Wireless microphone")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove Visual filter" })).not.toBeInTheDocument();
+  });
+
+  it("combines category and show-retired filters, and clears them from the no-match state", async () => {
+    const items = inventory();
+    items[1]!.retiredAt = hours(-5);
+    service.listInventory.mockResolvedValue(items);
+    const user = userEvent.setup();
+    await renderInventory();
+
+    await user.click(screen.getByRole("radio", { name: "Visual" }));
+
+    // Projector is retired and "Show retired" is off, so nothing in Visual matches.
+    expect(await screen.findByText(/No equipment matches your search or filters/)).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Show retired"));
+    expect(screen.getByText("Projector")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "All categories" }));
+    await user.click(screen.getByLabelText("Show retired"));
+    expect(screen.getByText("Wireless microphone")).toBeInTheDocument();
   });
 
   it("lists each unit by ID with the out-of-service one flagged", async () => {
@@ -1025,13 +1061,47 @@ describe("EquipmentPage reserving equipment", () => {
 });
 
 describe("EquipmentPage for other roles", () => {
-  it("keeps the existing view for a coordinator", () => {
+  it("shows the read-only catalogue for a coordinator, with no inventory tabs", async () => {
     authState.profile = { full_name: "Cory Coordinator", role: "event_coordinator" };
     renderPage();
 
-    expect(screen.getByText("No equipment yet")).toBeInTheDocument();
+    expect(await screen.findByText("No equipment yet")).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Inventory" })).not.toBeInTheDocument();
+    expect(service.listEquipmentCatalogue).toHaveBeenCalled();
     expect(service.listInventory).not.toHaveBeenCalled();
+  });
+
+  it("lists catalogue items by name, category and in-service quantity for a coordinator", async () => {
+    authState.profile = { full_name: "Cory Coordinator", role: "event_coordinator" };
+    service.listEquipmentCatalogue.mockResolvedValue([
+      { id: "item-mic", name: "Wireless microphone", category: "Audio", code: "mic", totalQuantity: 3, retiredAt: null },
+    ]);
+    renderPage();
+
+    expect(await screen.findByText("Wireless microphone")).toBeInTheDocument();
+    expect(screen.getByText("mic")).toBeInTheDocument();
+    expect(screen.getByText("3 in service")).toBeInTheDocument();
+  });
+
+  it("filters the coordinator's catalogue by category and search, with a distinct no-match state", async () => {
+    authState.profile = { full_name: "Cory Coordinator", role: "event_coordinator" };
+    service.listEquipmentCatalogue.mockResolvedValue([
+      { id: "item-mic", name: "Wireless microphone", category: "Audio", code: "mic", totalQuantity: 3, retiredAt: null },
+      { id: "item-proj", name: "Projector", category: "Visual", code: "proj", totalQuantity: 2, retiredAt: null },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("Wireless microphone");
+    await user.click(screen.getByRole("radio", { name: "Visual" }));
+
+    expect(screen.getByText("Projector")).toBeInTheDocument();
+    expect(screen.queryByText("Wireless microphone")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "All categories" }));
+    await user.type(screen.getByLabelText("Search equipment"), "no such item");
+
+    expect(await screen.findByText("No matching equipment")).toBeInTheDocument();
   });
 
   it("keeps a coordinator out of the Technical Support Staff inventory page", () => {
@@ -1040,6 +1110,7 @@ describe("EquipmentPage for other roles", () => {
 
     expect(screen.getByText("You don't have access to this page")).toBeInTheDocument();
     expect(service.listInventory).not.toHaveBeenCalled();
+    expect(service.listEquipmentCatalogue).not.toHaveBeenCalled();
   });
 });
 

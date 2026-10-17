@@ -97,8 +97,10 @@ function renderPageWithLocationSpy() {
   );
 }
 
-async function openFilters(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByText(/^Filters/));
+// Filters is now an always-visible section (no disclosure to open); kept so
+// call sites below don't need touching.
+async function openFilters(_user: ReturnType<typeof userEvent.setup>) {
+  await screen.findByRole("region", { name: "Filters" });
 }
 
 beforeEach(() => {
@@ -211,10 +213,28 @@ describe("VenuesPage filters", () => {
     await screen.findByText("Grand Auditorium");
 
     await openFilters(user);
-    await user.selectOptions(screen.getByLabelText("Room layout"), "Boardroom");
+    await user.click(screen.getByRole("radio", { name: "Boardroom" }));
 
     expect(screen.queryByText("Grand Auditorium")).not.toBeInTheDocument();
     expect(screen.getByText("Harbour Boardroom")).toBeInTheDocument();
+  });
+
+  it("shows a removable chip for each active filter", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Grand Auditorium");
+
+    await openFilters(user);
+    await user.click(screen.getByRole("radio", { name: "Boardroom" }));
+
+    const chip = await screen.findByRole("button", { name: "Remove Boardroom filter" });
+    expect(chip).toBeInTheDocument();
+    await user.click(chip);
+
+    expect(await screen.findByText("Grand Auditorium")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Remove Boardroom filter" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps active filters and search in the URL so going back restores them", async () => {

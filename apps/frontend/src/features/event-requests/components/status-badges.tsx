@@ -43,6 +43,15 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
+/** Same label as StatusBadge renders, for contexts (like a <select>) that can't rely on its CSS capitalize. */
+export function eventStatusLabel(status: string): string {
+  const base = STATUS_LABELS[status] ?? status.replaceAll("_", " ");
+  return base
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 /** A clarification is open: shown to the coordinator, who is waiting on the organiser. */
 export function AwaitingOrganiserBadge() {
   return (

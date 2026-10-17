@@ -1,6 +1,7 @@
 import {
   clarificationPermittedFieldLabels,
   isDirectEditBlocked,
+  isoToSingaporeLocal,
   type ClarificationPermittedField,
 } from "@spm/shared";
 import {
@@ -14,8 +15,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useSearchParams } from "react-router";
 
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -28,6 +30,13 @@ import {
 import { useAuth } from "@/context/auth-context";
 import { AssignCoordinatorDialog } from "@/features/event-requests/components/assign-coordinator-dialog";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
+import {
+  countActiveEventFilters,
+  emptyEventFilters,
+  eventFilterChips,
+  EventFiltersPanel,
+  type EventFilterValues,
+} from "@/features/event-requests/components/event-filters";
 import { EventHistoryButton } from "@/features/event-requests/components/event-history-link";
 import { EventStatusBadge, StatusBadge } from "@/features/event-requests/components/status-badges";
 import {
@@ -54,6 +63,7 @@ import {
   useVenueDisruptions,
 } from "@/features/venues/components/affected-venue-bookings";
 import { PagePlaceholder } from "@/features/workspace/components/page-placeholder";
+import { ListToolbar } from "@/features/workspace/components/list-toolbar";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
@@ -85,7 +95,15 @@ function OrganiserEventsView() {
   const [error, setError] = useState<string>();
   const [draftToDelete, setDraftToDelete] = useState<EventDraftSummary>();
   const [requestToCancel, setRequestToCancel] = useState<EventDraftSummary>();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") ?? "");
+  const [filters, setFilters] = useState<EventFilterValues>(() => eventFiltersFromParams(searchParams));
+
+  // Kept in the URL so it's still there when the user goes back from a detail page.
+  useEffect(() => {
+    setSearchParams(eventParamsFromFilters(searchQuery, filters), { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, filters]);
 
   useEffect(() => {
     if (!user) {
@@ -155,7 +173,8 @@ function OrganiserEventsView() {
   }
 
   const notice = (state as LocationState)?.notice;
-  const filteredEvents = filterEventsByTitle(events, searchQuery);
+  const filteredEvents = filterEvents(events, searchQuery, filters);
+  const statusOptions = [...new Set(events.map((event) => event.status))].sort();
 
   return (
     <RoleGate>
@@ -174,11 +193,19 @@ function OrganiserEventsView() {
             </p>
           </header>
 
-          <EventsToolbar
-            createHref="/events/new"
+          <ListToolbar
+            searchPlaceholder="Search events"
             searchValue={searchQuery}
             onSearchChange={setSearchQuery}
+            filters={null}
+            action={
+              <Link to="/events/new" className={buttonVariants({ size: "sm" })}>
+                <FilePlus2 /> New event
+              </Link>
+            }
           />
+          <EventFiltersPanel value={filters} onChange={setFilters} statusOptions={statusOptions} />
+          <ActiveFilterChips chips={eventFilterChips(filters, setFilters)} />
 
           {notice && (
             <p
@@ -202,7 +229,10 @@ function OrganiserEventsView() {
           ) : events.length === 0 ? (
             <EmptyState />
           ) : filteredEvents.length === 0 ? (
-            <NoSearchResults />
+            <NoMatchingEvents
+              filtersActive={countActiveEventFilters(filters) > 0}
+              onClearFilters={() => setFilters(emptyEventFilters)}
+            />
           ) : (
             <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {filteredEvents.map((event) => (
@@ -243,8 +273,16 @@ function CoordinatorEventsView() {
   const [events, setEvents] = useState<AssignedEventSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") ?? "");
+  const [filters, setFilters] = useState<EventFilterValues>(() => eventFiltersFromParams(searchParams));
   const { disruptions, error: disruptionError } = useVenueDisruptions();
+
+  // Kept in the URL so it's still there when the user goes back from a detail page.
+  useEffect(() => {
+    setSearchParams(eventParamsFromFilters(searchQuery, filters), { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, filters]);
   // Events with a venue disruption that still needs attention get a badge.
   const eventsWithVenueIssue = new Set(
     splitVenueDisruptions(disruptions).open.map((item) => item.eventId),
@@ -280,7 +318,8 @@ function CoordinatorEventsView() {
   }, [user]);
 
   const notice = (state as LocationState)?.notice;
-  const filteredEvents = filterEventsByTitle(events, searchQuery);
+  const filteredEvents = filterEvents(events, searchQuery, filters);
+  const statusOptions = [...new Set(events.map((event) => event.status))].sort();
 
   return (
     <RoleGate>
@@ -299,7 +338,14 @@ function CoordinatorEventsView() {
             </p>
           </header>
 
-          <EventsToolbar searchValue={searchQuery} onSearchChange={setSearchQuery} />
+          <ListToolbar
+            searchPlaceholder="Search events"
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            filters={null}
+          />
+          <EventFiltersPanel value={filters} onChange={setFilters} statusOptions={statusOptions} />
+          <ActiveFilterChips chips={eventFilterChips(filters, setFilters)} />
 
           {notice && (
             <p
@@ -323,7 +369,10 @@ function CoordinatorEventsView() {
           ) : events.length === 0 ? (
             <CoordinatorEmptyState />
           ) : filteredEvents.length === 0 ? (
-            <NoSearchResults />
+            <NoMatchingEvents
+              filtersActive={countActiveEventFilters(filters) > 0}
+              onClearFilters={() => setFilters(emptyEventFilters)}
+            />
           ) : (
             <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {filteredEvents.map((event) => (
@@ -598,7 +647,7 @@ function LeadEventsView() {
             queueEvents.length === 0 ? (
               <LeadEmptyState tab="queue" />
             ) : filteredQueueEvents.length === 0 ? (
-              <NoSearchResults />
+              <NoMatchingEvents />
             ) : (
               <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {filteredQueueEvents.map((event) => (
@@ -613,7 +662,7 @@ function LeadEventsView() {
           ) : oversightEvents.length === 0 ? (
             <LeadEmptyState tab="oversight" />
           ) : filteredOversightGroups.length === 0 ? (
-            <NoSearchResults />
+            <NoMatchingEvents />
           ) : (
             <div className="mt-7 space-y-8">
               {filteredOversightGroups.map((group) => (
@@ -700,7 +749,7 @@ function LeadTabButton({
   );
 }
 
-/** Case-insensitive substring match on title — the only field the search box filters by for now. */
+/** Case-insensitive substring match on title — used by LeadEventsView, which has its own ad hoc filters. */
 function filterEventsByTitle<T extends { title: string }>(
   events: T[],
   query: string,
@@ -710,7 +759,47 @@ function filterEventsByTitle<T extends { title: string }>(
   return events.filter((event) => event.title.toLowerCase().includes(trimmed));
 }
 
-function NoSearchResults() {
+/** An event must match the search term and every active filter category — used by the organiser and coordinator views. */
+function filterEvents<T extends { title: string; status: string; startsAt: string | null }>(
+  events: T[],
+  query: string,
+  filters: EventFilterValues,
+): T[] {
+  const trimmed = query.trim().toLowerCase();
+  return events.filter((event) => {
+    const matchesSearch = !trimmed || event.title.toLowerCase().includes(trimmed);
+    const matchesStatus = !filters.status || event.status === filters.status;
+    const eventDate = event.startsAt ? isoToSingaporeLocal(event.startsAt).slice(0, 10) : null;
+    const matchesFrom = !filters.dateFrom || (eventDate !== null && eventDate >= filters.dateFrom);
+    const matchesTo = !filters.dateTo || (eventDate !== null && eventDate <= filters.dateTo);
+    return matchesSearch && matchesStatus && matchesFrom && matchesTo;
+  });
+}
+
+function eventFiltersFromParams(params: URLSearchParams): EventFilterValues {
+  return {
+    status: params.get("status") ?? "",
+    dateFrom: params.get("dateFrom") ?? "",
+    dateTo: params.get("dateTo") ?? "",
+  };
+}
+
+function eventParamsFromFilters(query: string, filters: EventFilterValues): URLSearchParams {
+  const params = new URLSearchParams();
+  if (query) params.set("q", query);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
+  if (filters.dateTo) params.set("dateTo", filters.dateTo);
+  return params;
+}
+
+function NoMatchingEvents({
+  filtersActive,
+  onClearFilters,
+}: {
+  filtersActive?: boolean;
+  onClearFilters?: () => void;
+}) {
   return (
     <section className="mt-7 grid min-h-80 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 text-center">
       <div className="max-w-sm py-12">
@@ -719,8 +808,13 @@ function NoSearchResults() {
         </span>
         <h2 className="mt-5 text-lg font-semibold text-slate-950">No matching events</h2>
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          Try a different search term.
+          Try a different search term{filtersActive ? " or adjust your filters" : ""}.
         </p>
+        {filtersActive && onClearFilters && (
+          <Button type="button" variant="outline" className="mt-5" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        )}
       </div>
     </section>
   );

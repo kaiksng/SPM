@@ -119,7 +119,7 @@ export function EventDetailPage() {
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className={cn("mx-auto", role === "coordinator" ? "max-w-5xl" : "max-w-4xl")}>
-          <EventPageTopBar backTo="/events" backLabel="Back to events" eventId={eventId} />
+          <EventPageTopBar backTo="/events" backLabel="Back to events" eventId={eventId} useHistoryBack />
 
           {loading ? (
             <div className="mt-7 h-96 animate-pulse rounded-2xl bg-slate-200/70 motion-reduce:animate-none" />
