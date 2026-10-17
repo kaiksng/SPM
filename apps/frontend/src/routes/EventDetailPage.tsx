@@ -3,14 +3,14 @@ import {
   isDirectEditBlocked,
   type ClarificationPermittedField,
 } from "@spm/shared";
-import { ArrowLeft, CalendarDays } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
-import { EventHistoryButton } from "@/features/event-requests/components/event-history-link";
+import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
 import { EventStatusBadge, StatusBadge } from "@/features/event-requests/components/status-badges";
 import { EventStatusTimeline } from "@/features/event-requests/components/status-timeline";
@@ -42,7 +42,7 @@ function formatDateTime(value: string | null) {
  * as their own full-detail view. The Lead's view is strictly read-only: no
  * edit/complete actions and no clarification panel (mutating actions only
  * the organiser or assigned coordinator may take) — the Lead sees history
- * via EventHistoryButton/EventHistoryPage instead.
+ * via the top bar's Change history link/EventHistoryPage instead.
  */
 export function EventDetailPage() {
   const { eventId } = useParams();
@@ -119,12 +119,7 @@ export function EventDetailPage() {
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className={cn("mx-auto", role === "coordinator" ? "max-w-5xl" : "max-w-4xl")}>
-          <Link
-            to="/events"
-            className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
-          >
-            <ArrowLeft /> Back to events
-          </Link>
+          <EventPageTopBar backTo="/events" backLabel="Back to events" eventId={eventId} />
 
           {loading ? (
             <div className="mt-7 h-96 animate-pulse rounded-2xl bg-slate-200/70 motion-reduce:animate-none" />
@@ -279,10 +274,6 @@ export function EventDetailPage() {
                     <p className="mt-4 text-sm text-slate-500">Registration is not required</p>
                   )}
                 </section>
-  
-                <div className="mt-6">
-                  <EventHistoryButton eventId={event.id} />
-                </div>
   
                 {role !== "lead" && (
                   <ClarificationPanel

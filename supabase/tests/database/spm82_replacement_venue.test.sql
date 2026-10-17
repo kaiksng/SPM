@@ -35,6 +35,10 @@ insert into public.venue_bookings (id, event_id, venue_id, requested_by, starts_
   ('f8200000-0000-0000-0000-0000000000b4', 'f8200000-0000-0000-0000-0000000000e4', 'f8200000-0000-0000-0000-000000000010', 'f8200000-0000-0000-0000-000000000002', '2099-04-06T12:30:00+08:00', '2099-04-06T13:00:00+08:00', 'approved'),
   ('f8200000-0000-0000-0000-0000000000b5', 'f8200000-0000-0000-0000-0000000000e5', 'f8200000-0000-0000-0000-000000000010', 'f8200000-0000-0000-0000-000000000002', '2099-04-06T17:00:00+08:00', '2099-04-06T18:00:00+08:00', 'approved');
 
+-- SPM-85: a booking carries its own headcount; these bookings are for the whole event.
+update public.venue_bookings vb set expected_headcount = e.expected_attendance
+from public.events e where e.id = vb.event_id and vb.id::text like 'f8200000-%';
+
 create temporary table spm82_ids (label text primary key, id uuid);
 grant all on spm82_ids to authenticated;
 
@@ -103,11 +107,11 @@ select throws_ok($$select public.request_replacement_venue('f8200000-0000-0000-0
   '23514', 'This venue booking already has a pending replacement request',
   'AC03: only one pending replacement per disrupted booking');
 select throws_ok($$select public.submit_venue_booking_request('f8200000-0000-0000-0000-0000000000e1', 'f8200000-0000-0000-0000-000000000014')$$,
-  '23514', 'This event already has an active venue booking request',
-  'a normal venue request is still refused while the event has an active booking');
+  '23514', 'Give this booking a label, for example Breakout 1',
+  'a further venue request while the event has an active booking is an additional booking and needs its own details');
 
 -- ----------------------------------------------------------- withdrawing
-select lives_ok(format($$select public.withdraw_venue_booking_request(%L::uuid)$$, (select id from spm82_ids where label = 'r1')),
+select lives_ok(format($$select public.withdraw_venue_booking_request(%L::uuid, null, 'Changed our mind')$$, (select id from spm82_ids where label = 'r1')),
   'AC08: the coordinator withdraws the pending replacement');
 reset role;
 select is((select status::text from public.venue_bookings where id = (select id from spm82_ids where label = 'r1')), 'cancelled',
@@ -218,6 +222,9 @@ insert into public.event_venue_requirements (event_id, layout_notes, accessibili
   ('f8200000-0000-0000-0000-0000000000e4', 'Theatre', 'Wheelchair access');
 insert into public.venue_facilities (venue_id, facility_name) values
   ('f8200000-0000-0000-0000-000000000014', 'projector');
+update public.venue_bookings
+set required_facilities = array['Projector'], layout_notes = 'Theatre', accessibility_notes = 'Wheelchair access'
+where id = 'f8200000-0000-0000-0000-0000000000b4';
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"f8200000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 
@@ -230,7 +237,7 @@ select lives_ok($$insert into spm82_ids select 'r4', public.request_replacement_
   'f8200000-0000-0000-0000-0000000000b4', 'f8200000-0000-0000-0000-000000000014')$$,
   'a replacement can be requested for the second disrupted booking (required facility matched ignoring case)');
 reset role;
-select ok((select advisory_notes like '%Layout: the event asked for "Theatre"%' and advisory_notes like '%Accessibility: the event asked for "Wheelchair access"%'
+select ok((select advisory_notes like '%Layout: the booking asked for "Theatre"%' and advisory_notes like '%Accessibility: the booking asked for "Wheelchair access"%'
   from public.venue_bookings where id = (select id from spm82_ids where label = 'r4')),
   'AC04: layout and accessibility mismatches do not refuse the request but are recorded for Venue Staff');
 select is((select status::text from public.venue_bookings where id = (select id from spm82_ids where label = 'r4')), 'pending',

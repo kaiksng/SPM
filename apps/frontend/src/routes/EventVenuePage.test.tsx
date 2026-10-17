@@ -4,8 +4,10 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const loadEventDetailMock = vi.fn();
-const getActiveVenueBookingMock = vi.fn();
+const listVenueBookingsForEventMock = vi.fn();
 const withdrawVenueBookingRequestMock = vi.fn();
+const confirmVenueBookingHoldMock = vi.fn();
+const setMainVenueBookingMock = vi.fn();
 const listSuggestedVenuesMock = vi.fn();
 const listVenueDisruptionsMock = vi.fn();
 const authState = {
@@ -24,8 +26,10 @@ vi.mock("@/features/event-requests/services/event-details", () => ({
 }));
 
 vi.mock("@/features/venues/services/venue-bookings", () => ({
-  getActiveVenueBooking: (...args: unknown[]) => getActiveVenueBookingMock(...args),
+  listVenueBookingsForEvent: (...args: unknown[]) => listVenueBookingsForEventMock(...args),
   withdrawVenueBookingRequest: (...args: unknown[]) => withdrawVenueBookingRequestMock(...args),
+  confirmVenueBookingHold: (...args: unknown[]) => confirmVenueBookingHoldMock(...args),
+  setMainVenueBooking: (...args: unknown[]) => setMainVenueBookingMock(...args),
 }));
 
 vi.mock("@/features/venues/services/venue-disruptions", () => ({
@@ -46,6 +50,11 @@ vi.mock("@/features/venues/services/venues", () => ({
 // loads the real Supabase client, which throws without VITE_SUPABASE_URL.
 vi.mock("@/features/venues/services/venue-search", () => ({
   searchAvailableVenues: vi.fn().mockResolvedValue([]),
+}));
+
+// ManualVenueSearch reads the layout options from the catalogue.
+vi.mock("@/features/venues/hooks/use-room-layout-options", () => ({
+  useRoomLayoutOptions: () => ["Theatre", "Classroom"],
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -88,9 +97,45 @@ function renderPage() {
   );
 }
 
+function booking(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "booking-1",
+    status: "pending",
+    startsAt: "2099-04-06T02:00:00.000Z",
+    endsAt: "2099-04-06T04:00:00.000Z",
+    requestedAt: "2099-04-01T00:00:00.000Z",
+    decidedAt: null,
+    decisionNotes: null,
+    expiresAt: null,
+    venueId: "venue-1",
+    venueName: "Conference Room A",
+    venueLayouts: [],
+    eventId: "event-1",
+    eventTitle: "Career Fair",
+    eventExpectedAttendance: 200,
+    requestedByName: "Joyce",
+    decidedByName: null,
+    replacesBookingId: null,
+    replacesVenueName: null,
+    advisoryNotes: null,
+    label: "Main Programme",
+    expectedHeadcount: 200,
+    isMainVenue: true,
+    venueLocation: "Campus",
+    venueAreaTags: ["Marina Bay"],
+    cancellationReason: null,
+    cancelledAt: null,
+    cancelledByName: null,
+    mainDesignatedAt: null,
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   loadEventDetailMock.mockReset().mockResolvedValue(event);
-  getActiveVenueBookingMock.mockReset().mockResolvedValue(null);
+  listVenueBookingsForEventMock.mockReset().mockResolvedValue([]);
+  confirmVenueBookingHoldMock.mockReset().mockResolvedValue(undefined);
+  setMainVenueBookingMock.mockReset().mockResolvedValue(undefined);
   withdrawVenueBookingRequestMock.mockReset().mockResolvedValue(undefined);
   listSuggestedVenuesMock.mockReset().mockResolvedValue([]);
   listVenueDisruptionsMock.mockReset().mockResolvedValue([]);
@@ -104,59 +149,187 @@ describe("EventVenuePage", () => {
     expect(screen.queryByText("Current request")).not.toBeInTheDocument();
   });
 
-  it("shows the active request and keeps venue browsing available", async () => {
-    getActiveVenueBookingMock.mockResolvedValue({
-      id: "booking-1",
-      venueId: "venue-1",
-      venueName: "Conference Room A",
-      startsAt: "2099-04-06T02:00:00.000Z",
-      endsAt: "2099-04-06T04:00:00.000Z",
-      status: "pending",
-    });
+  it("AC08: lists the booking with its label, venue, period, headcount and status", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([booking()]);
 
     renderPage();
 
-    expect(await screen.findByText("Current request")).toBeInTheDocument();
-    expect(screen.getByText("Pending")).toBeInTheDocument();
-    expect(screen.getByText("Conference Room A")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Withdraw request" })).toBeInTheDocument();
-    expect(screen.getByText("Suggested venues")).toBeInTheDocument();
+    const list = await screen.findByRole("region", { name: "Venue bookings" });
+    expect(within(list).getByText("Main Programme")).toBeInTheDocument();
+    expect(within(list).getByText("Main venue")).toBeInTheDocument();
+    expect(within(list).getByText("Conference Room A")).toBeInTheDocument();
+    expect(within(list).getByText(/200 people/)).toBeInTheDocument();
+    expect(within(list).getByText("Pending")).toBeInTheDocument();
+    expect(within(list).getByRole("button", { name: "Withdraw request" })).toBeInTheDocument();
   });
 
-  // SPM-24 AC03: only a Pending request can be withdrawn.
-  it("does not offer a Withdraw action for an Approved request", async () => {
-    getActiveVenueBookingMock.mockResolvedValue({
-      id: "booking-1",
-      venueId: "venue-1",
-      venueName: "Conference Room A",
-      startsAt: "2099-04-06T02:00:00.000Z",
-      endsAt: "2099-04-06T04:00:00.000Z",
-      status: "approved",
-    });
+  it("AC01: offers Add another venue instead of the event's suggestions once a venue is booked", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([booking()]);
+
+    renderPage();
+
+    expect(await screen.findByRole("region", { name: "Add another venue" })).toBeInTheDocument();
+    expect(screen.queryByText("Suggested venues")).not.toBeInTheDocument();
+  });
+
+  it("AC08: lists every booking of the event, active ones first, and marks one as main", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([
+      booking({ id: "b-3", label: "Cancelled Room", venueName: "Room C", status: "cancelled", isMainVenue: false }),
+      booking({ id: "b-2", label: "Breakout 1", venueName: "Room 2.01", status: "approved", isMainVenue: false, expectedHeadcount: 40 }),
+      booking(),
+    ]);
+
+    renderPage();
+
+    const list = await screen.findByRole("region", { name: "Venue bookings" });
+    const items = within(list).getAllByRole("listitem");
+    expect(items).toHaveLength(3);
+    expect(items[0]).toHaveTextContent("Breakout 1");
+    expect(items[0]).toHaveTextContent("Confirmed Booking");
+    expect(items[0]).toHaveTextContent("40 people");
+    expect(items[1]).toHaveTextContent("Main Programme");
+    expect(items[2]).toHaveTextContent("Cancelled Room");
+    expect(within(list).getAllByText("Main venue")).toHaveLength(1);
+  });
+
+  // Feedback: the coordinator sees why Venue Staff rejected a booking.
+  it("shows who rejected a booking, when, and the reason", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([
+      booking(),
+      booking({
+        id: "booking-2", label: "Breakout 1", isMainVenue: false, status: "rejected",
+        decidedByName: "Sam Staff", decidedAt: "2099-04-02T00:00:00.000Z",
+        decisionNotes: "Room is reserved for exams",
+      }),
+    ]);
+
+    renderPage();
+
+    const list = await screen.findByRole("region", { name: "Venue bookings" });
+    expect(within(list).getByText(/Rejected by Sam Staff on/)).toBeInTheDocument();
+    expect(within(list).getByText(/Reason: Room is reserved for exams/)).toBeInTheDocument();
+  });
+
+  // SPM-24 AC03: only a Pending request can be withdrawn; an Approved booking is cancelled instead (SPM-85).
+  it("offers Cancel booking, not Withdraw, for an Approved booking", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([booking({ status: "approved" })]);
 
     renderPage();
 
     expect(await screen.findByText("Confirmed Booking")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Withdraw request" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel booking" })).toBeInTheDocument();
   });
 
-  // SPM-24 AC03: withdrawing a Pending request releases the event to look for a venue again.
-  it("withdraws the request and shows suggestions again", async () => {
-    getActiveVenueBookingMock.mockResolvedValueOnce({
-      id: "booking-1",
-      venueId: "venue-1",
-      venueName: "Conference Room A",
-      startsAt: "2099-04-06T02:00:00.000Z",
-      endsAt: "2099-04-06T04:00:00.000Z",
-      status: "pending",
-    });
+  // SPM-24 AC03: withdrawing releases only that booking; SPM-85 AC10: a reason is required.
+  it("AC10: asks for a reason before cancelling an Approved booking", async () => {
+    listVenueBookingsForEventMock
+      .mockResolvedValueOnce([booking({ status: "approved" }), booking({ id: "booking-2", label: "Breakout 1", isMainVenue: false, status: "approved" })])
+      .mockResolvedValue([booking({ status: "approved" }), booking({ id: "booking-2", label: "Breakout 1", isMainVenue: false, status: "cancelled", cancellationReason: "Room reserved" })]);
+    const user = userEvent.setup();
+    renderPage();
+
+    const list = await screen.findByRole("region", { name: "Venue bookings" });
+    const breakout = within(list).getAllByRole("listitem").find((item) => item.textContent?.includes("Breakout 1"))!;
+    await user.click(within(breakout).getByRole("button", { name: "Cancel booking" }));
+    expect(await screen.findByText("Cancel confirmed booking: Breakout 1")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+    expect(await screen.findByText("Give a reason for withdrawing or cancelling this venue booking.")).toBeInTheDocument();
+    expect(withdrawVenueBookingRequestMock).not.toHaveBeenCalled();
+
+    await user.type(screen.getByLabelText("Reason"), "Room reserved");
+    await user.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+
+    await waitFor(() => expect(withdrawVenueBookingRequestMock).toHaveBeenCalledWith("booking-2", "Room reserved"));
+    expect(await screen.findByText("Reason: Room reserved")).toBeInTheDocument();
+    // The main booking is untouched.
+    expect(within(await screen.findByRole("region", { name: "Venue bookings" })).getAllByText("Confirmed Booking")).toHaveLength(1);
+  });
+
+  it("AC10: shows the server's refusal inside the dialog", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([booking()]);
+    withdrawVenueBookingRequestMock.mockRejectedValue(new Error("This booking has a pending replacement. Withdraw the replacement first"));
     const user = userEvent.setup();
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Withdraw request" }));
+    await user.type(await screen.findByLabelText("Reason"), "x");
+    await user.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
 
-    await waitFor(() => expect(withdrawVenueBookingRequestMock).toHaveBeenCalledWith("booking-1"));
+    expect(await screen.findByText(/pending replacement/)).toBeInTheDocument();
+  });
+
+  // AC07: the coordinator can choose which booking is the main venue.
+  it("AC07: makes another booking the main venue", async () => {
+    const second = booking({ id: "booking-2", label: "Breakout 1", isMainVenue: false });
+    listVenueBookingsForEventMock
+      .mockResolvedValueOnce([booking(), second])
+      .mockResolvedValue([booking({ isMainVenue: false }), { ...second, isMainVenue: true }]);
+    const user = userEvent.setup();
+    renderPage();
+
+    const list = await screen.findByRole("region", { name: "Venue bookings" });
+    expect(within(list).getAllByRole("button", { name: "Make main venue" })).toHaveLength(1);
+    await user.click(within(list).getByRole("button", { name: "Make main venue" }));
+
+    await waitFor(() => expect(setMainVenueBookingMock).toHaveBeenCalledWith("booking-2"));
+    const items = within(await screen.findByRole("region", { name: "Venue bookings" })).getAllByRole("listitem");
+    expect(items.find((item) => item.textContent?.includes("Breakout 1"))).toHaveTextContent("Main venue");
+  });
+
+  // AC11: with the main booking gone, the coordinator is asked to choose another.
+  it("AC11: prompts to choose a main venue when the main booking is no longer active", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([
+      booking({ status: "cancelled" }),
+      booking({ id: "booking-2", label: "Breakout 1", isMainVenue: false }),
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText(/This event has no main venue/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Make main venue" })).toBeInTheDocument();
+  });
+
+  it("does not prompt while an active main booking exists", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([booking()]);
+
+    renderPage();
+
+    await screen.findByRole("region", { name: "Venue bookings" });
+    expect(screen.queryByText(/This event has no main venue/)).not.toBeInTheDocument();
+  });
+
+  it("AC10: withdraws only that booking and shows suggestions again when none is left", async () => {
+    listVenueBookingsForEventMock.mockResolvedValueOnce([booking()]).mockResolvedValue([booking({ status: "cancelled" })]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Withdraw request" }));
+    await user.type(await screen.findByLabelText("Reason"), "Speaker dropped out");
+    await user.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
+
+    await waitFor(() =>
+      expect(withdrawVenueBookingRequestMock).toHaveBeenCalledWith("booking-1", "Speaker dropped out"),
+    );
     expect(await screen.findByText("Suggested venues")).toBeInTheDocument();
+  });
+
+  it("AC01/AC05: Add another venue asks for a label and starts without the event's attendance", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([booking()]);
+    const user = userEvent.setup();
+    renderPage();
+
+    const panel = await screen.findByRole("region", { name: "Add another venue" });
+    await user.click(within(panel).getByRole("button", { name: "Add another venue" }));
+
+    expect(await screen.findByLabelText("Booking label *")).toHaveValue("");
+    expect(screen.getByLabelText("Number of people (minimum capacity) *")).toHaveValue(null);
+    // The main venue's area is the starting location.
+    expect(screen.getByLabelText("Location")).toHaveValue("Marina Bay");
+
+    await user.click(screen.getByRole("button", { name: "Search venues" }));
+    expect(await screen.findByText("Give this booking a label, for example Breakout 1")).toBeInTheDocument();
   });
 
   // ---- SPM-82: replacing a disrupted booking ----
@@ -179,26 +352,10 @@ describe("EventVenuePage", () => {
     replacementBookingId: null,
     state: "replacement_required" as const,
   };
-  const approvedOriginal = {
-    id: "booking-1",
-    venueId: "venue-1",
-    venueName: "Auditorium",
-    startsAt: "2099-04-06T02:00:00.000Z",
-    endsAt: "2099-04-06T04:00:00.000Z",
-    status: "approved",
-    expiresAt: null,
-    replacesBookingId: null,
-  };
-  const pendingReplacement = {
-    id: "booking-2",
-    venueId: "venue-2",
-    venueName: "Grand Hall",
-    startsAt: "2099-04-06T02:00:00.000Z",
-    endsAt: "2099-04-06T04:00:00.000Z",
-    status: "pending",
-    expiresAt: null,
-    replacesBookingId: "booking-1",
-  };
+  const approvedOriginal = booking({ venueName: "Auditorium", status: "approved" });
+  const pendingReplacement = booking({
+    id: "booking-2", venueId: "venue-2", venueName: "Grand Hall", replacesBookingId: "booking-1",
+  });
 
   function suggestedVenue(id: string, name: string) {
     return {
@@ -213,7 +370,7 @@ describe("EventVenuePage", () => {
   // venue; the disrupted venue itself is never offered, and each result carries
   // the booking so requesting it replaces that booking.
   it("shows the disrupted booking and offers other venues as its replacement", async () => {
-    getActiveVenueBookingMock.mockResolvedValue(approvedOriginal);
+    listVenueBookingsForEventMock.mockResolvedValue([approvedOriginal]);
     listVenueDisruptionsMock.mockResolvedValue([disruption]);
     listSuggestedVenuesMock.mockResolvedValue([
       suggestedVenue("venue-1", "Auditorium"),
@@ -227,9 +384,6 @@ describe("EventVenuePage", () => {
     expect(within(card).getByText("Replacement Required")).toBeInTheDocument();
     expect(within(card).getByText("Maintenance – Air-conditioning repair")).toBeInTheDocument();
     expect(within(card).getByText(/event has not been cancelled/)).toBeInTheDocument();
-    // The disrupted original is shown by that card, not as a "current request".
-    expect(screen.queryByText("Current request")).not.toBeInTheDocument();
-
     expect(await screen.findByText("Grand Hall")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Auditorium" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute(
@@ -241,7 +395,9 @@ describe("EventVenuePage", () => {
   // SPM-82 AC08: while a replacement is pending, the coordinator can withdraw it
   // and the original stays disrupted, so a new replacement can be chosen.
   it("shows a pending replacement next to the disrupted booking and lets it be withdrawn", async () => {
-    getActiveVenueBookingMock.mockResolvedValueOnce(pendingReplacement).mockResolvedValue(approvedOriginal);
+    listVenueBookingsForEventMock
+      .mockResolvedValueOnce([approvedOriginal, pendingReplacement])
+      .mockResolvedValue([approvedOriginal, { ...pendingReplacement, status: "cancelled" }]);
     listVenueDisruptionsMock
       .mockResolvedValueOnce([{ ...disruption, replacementBookingId: "booking-2", state: "replacement_requested" }])
       .mockResolvedValue([disruption]);
@@ -249,28 +405,30 @@ describe("EventVenuePage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Replacement request")).toBeInTheDocument();
-    expect(screen.getByText("Grand Hall")).toBeInTheDocument();
+    const bookingsList = await screen.findByRole("region", { name: "Venue bookings" });
+    expect(within(bookingsList).getByText("Replacement")).toBeInTheDocument();
+    expect(within(bookingsList).getByText("Grand Hall")).toBeInTheDocument();
     const card = screen.getByRole("region", { name: "Disrupted venue booking" });
     expect(within(card).getByText("Replacement Requested")).toBeInTheDocument();
     expect(within(card).getByText(/stays until Venue Staff approve it/)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Withdraw request" }));
+    await user.type(await screen.findByLabelText("Reason"), "Not needed");
+    await user.click(screen.getByRole("button", { name: "Confirm withdrawal" }));
 
-    await waitFor(() => expect(withdrawVenueBookingRequestMock).toHaveBeenCalledWith("booking-2"));
+    await waitFor(() => expect(withdrawVenueBookingRequestMock).toHaveBeenCalledWith("booking-2", "Not needed"));
     // The original is still disrupted, so the replacement choice is offered again.
     const refreshed = await screen.findByRole("region", { name: "Disrupted venue booking" });
     expect(within(refreshed).getByText("Replacement Required")).toBeInTheDocument();
-    expect(screen.queryByText("Replacement request")).not.toBeInTheDocument();
   });
 
   it("does not show a disruption that is already resolved", async () => {
-    getActiveVenueBookingMock.mockResolvedValue(pendingReplacement);
+    listVenueBookingsForEventMock.mockResolvedValue([pendingReplacement]);
     listVenueDisruptionsMock.mockResolvedValue([{ ...disruption, state: "resolved", clearedAt: "2099-04-02T00:00:00.000Z" }]);
 
     renderPage();
 
-    expect(await screen.findByText("Replacement request")).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Venue bookings" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Disrupted venue booking" })).not.toBeInTheDocument();
   });
 

@@ -15,6 +15,7 @@ vi.mock("@/lib/api-client", async (importOriginal) => {
 });
 
 import {
+  checkVenueBookingAvailability,
   confirmVenueBookingHold,
   getActiveVenueBooking,
   getVenueBookingRequest,
@@ -22,6 +23,9 @@ import {
   listVenueBookingsForEvent,
   placeVenueBookingHold,
   requestReplacementVenue,
+  setMainVenueBooking,
+  submitVenueBookingRequest,
+  withdrawVenueBookingRequest,
 } from "./venue-bookings";
 
 function bookingRow(overrides: Record<string, unknown> = {}) {
@@ -52,6 +56,16 @@ function bookingRow(overrides: Record<string, unknown> = {}) {
     decided_by: null,
     replaces_booking_id: null,
     advisory_notes: null,
+    label: "Main Programme",
+    expected_headcount: 50,
+    is_main_venue: true,
+    layout_notes: "Theatre",
+    accessibility_notes: "Step-free entrance",
+    required_facilities: ["Parking", "Pantry"],
+    cancellation_reason: null,
+    cancelled_at: null,
+    cancelled_by_profile: null,
+    main_designated_at: null,
     ...overrides,
   };
 }
@@ -80,6 +94,100 @@ describe("requestReplacementVenue", () => {
     await expect(requestReplacementVenue("booking-1", "venue-2")).rejects.toThrow(
       "pending replacement request",
     );
+  });
+});
+
+describe("submitVenueBookingRequest", () => {
+  it("sends only the event and venue for the event's first booking", async () => {
+    apiFetchMock.mockResolvedValue({ data: "booking-1" });
+
+    await expect(submitVenueBookingRequest("event-1", "venue-1")).resolves.toBe("booking-1");
+    expect(apiFetchMock).toHaveBeenCalledWith("/venue-bookings/submit", {
+      method: "POST",
+      body: JSON.stringify({ eventId: "event-1", venueId: "venue-1" }),
+    });
+  });
+
+  // SPM-85 AC02: an additional booking sends its own label, period, headcount and needs.
+  it("AC02: sends an additional booking's own details", async () => {
+    apiFetchMock.mockResolvedValue({ data: "booking-2" });
+    const details = {
+      label: "Breakout 1",
+      startsAt: "2099-04-06T02:00:00.000Z",
+      endsAt: "2099-04-06T03:30:00.000Z",
+      expectedHeadcount: 40,
+    };
+
+    await submitVenueBookingRequest("event-1", "venue-2", details);
+
+    expect(apiFetchMock).toHaveBeenCalledWith("/venue-bookings/submit", {
+      method: "POST",
+      body: JSON.stringify({ eventId: "event-1", venueId: "venue-2", details }),
+    });
+  });
+});
+
+describe("withdrawVenueBookingRequest", () => {
+  // SPM-85 AC10: a reason travels with the withdrawal or cancellation.
+  it("AC10: sends the reason to the booking's withdraw endpoint", async () => {
+    apiFetchMock.mockResolvedValue({ data: "booking-1" });
+
+    await withdrawVenueBookingRequest("booking-1", "Speaker dropped out");
+
+    expect(apiFetchMock).toHaveBeenCalledWith("/venue-bookings/booking-1/withdraw", {
+      method: "POST",
+      body: JSON.stringify({ reason: "Speaker dropped out" }),
+    });
+  });
+});
+
+describe("setMainVenueBooking", () => {
+  it("AC07: asks the database to make the booking the main venue", async () => {
+    rpcMock.mockResolvedValue({ data: "booking-2", error: null });
+
+    await setMainVenueBooking("booking-2");
+
+    expect(rpcMock).toHaveBeenCalledWith("set_main_venue_booking", { p_booking_id: "booking-2" });
+  });
+
+  it("surfaces the database's message when it is refused", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { message: "Only the assigned coordinator can change the main venue of this event" },
+    });
+
+    await expect(setMainVenueBooking("booking-2")).rejects.toThrow("Only the assigned coordinator");
+  });
+});
+
+describe("checkVenueBookingAvailability", () => {
+  it("checks the event's own period by default", async () => {
+    rpcMock.mockResolvedValue({ data: { available: true, reason: null }, error: null });
+
+    await checkVenueBookingAvailability("venue-1", "event-1");
+
+    expect(rpcMock).toHaveBeenCalledWith("check_venue_booking_availability", {
+      p_venue_id: "venue-1",
+      p_event_id: "event-1",
+    });
+  });
+
+  // SPM-85 AC04: an additional booking is checked for its own period.
+  it("AC04: checks a booking's own period when one is given", async () => {
+    rpcMock.mockResolvedValue({ data: { available: false, reason: "Occupied" }, error: null });
+
+    await expect(
+      checkVenueBookingAvailability("venue-1", "event-1", {
+        startsAt: "2099-04-06T02:00:00.000Z",
+        endsAt: "2099-04-06T03:30:00.000Z",
+      }),
+    ).resolves.toEqual({ available: false, reason: "Occupied" });
+    expect(rpcMock).toHaveBeenCalledWith("check_venue_booking_availability", {
+      p_venue_id: "venue-1",
+      p_event_id: "event-1",
+      p_starts_at: "2099-04-06T02:00:00.000Z",
+      p_ends_at: "2099-04-06T03:30:00.000Z",
+    });
   });
 });
 
@@ -133,6 +241,34 @@ describe("getActiveVenueBooking", () => {
 });
 
 describe("listVenueBookingsForEvent", () => {
+  // SPM-85 AC02/AC07/AC08: each booking carries its own label, headcount and main flag.
+  it("AC08: returns every booking with its label, headcount and main-venue flag", async () => {
+    fromMock.mockReturnValue(
+      queryBuilder({
+        data: [
+          bookingRow({ id: "main" }),
+          bookingRow({
+            id: "breakout",
+            label: "Breakout 1",
+            expected_headcount: 40,
+            is_main_venue: false,
+            venues: { name: "Room 2.01", location: "Convention", area_tags: ["Marina Bay"], venue_layouts: [] },
+          }),
+        ],
+        error: null,
+      }),
+    );
+
+    const bookings = await listVenueBookingsForEvent("event-1");
+
+    expect(bookings.map((b) => [b.label, b.expectedHeadcount, b.isMainVenue])).toEqual([
+      ["Main Programme", 50, true],
+      ["Breakout 1", 40, false],
+    ]);
+    expect(bookings[1]?.venueLocation).toBe("Convention");
+    expect(bookings[1]?.venueAreaTags).toEqual(["Marina Bay"]);
+  });
+
   // SPM-82 AC09: the replacement carries the link and the name of the venue it replaces.
   it("links a replacement to the booking it replaces and names that venue", async () => {
     fromMock.mockReturnValue(
@@ -347,13 +483,28 @@ describe("getVenueBookingRequest", () => {
       replacesBookingId: "booking-0",
       replacesVenueName: null,
       advisoryNotes: "Accessibility: no step-free access listed.",
+      label: "Main Programme",
+      expectedHeadcount: 50,
+      isMainVenue: true,
+      venueLocation: null,
+      venueAreaTags: [],
+      cancellationReason: null,
+      cancelledAt: null,
+      cancelledByName: null,
+      mainDesignatedAt: null,
     });
     expect(query.eq).toHaveBeenCalledWith("id", "booking-1");
   });
 
   it("uses readable fallbacks when related records are missing", async () => {
     fromMock.mockReturnValue(
-      queryBuilder({ data: bookingRow({ venues: null, events: null, requested_by: null }), error: null }),
+      queryBuilder({
+        data: bookingRow({
+          venues: null, events: null, requested_by: null,
+          layout_notes: null, accessibility_notes: null, required_facilities: [],
+        }),
+        error: null,
+      }),
     );
 
     expect(await getVenueBookingRequest("booking-1")).toMatchObject({
@@ -369,6 +520,30 @@ describe("getVenueBookingRequest", () => {
         facilities: [],
       },
       requestedByName: null,
+    });
+  });
+
+  // SPM-85: the layout, accessibility and facilities are the booking's own, so a
+  // breakout room is judged on what it needs, not on the main hall's needs.
+  it("AC02: takes the room's own layout, accessibility and facilities from the booking", async () => {
+    fromMock.mockReturnValue(
+      queryBuilder({
+        data: bookingRow({
+          label: "Breakout 1", is_main_venue: false,
+          layout_notes: "Classroom", accessibility_notes: null, required_facilities: ["Whiteboard"],
+        }),
+        error: null,
+      }),
+    );
+
+    const request = await getVenueBookingRequest("booking-1");
+
+    expect(request.eventVenueRequirements).toEqual({
+      preferredLocation: "Central Area",
+      minimumCapacity: 60,
+      accessibilityNotes: null,
+      layoutNotes: "Classroom",
+      facilities: ["Whiteboard"],
     });
   });
 

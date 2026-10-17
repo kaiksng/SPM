@@ -1,10 +1,10 @@
 import { getRoleDestination, type EventRequestFormValues } from "@spm/shared";
-import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
 import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
 import { EventRequestForm } from "@/features/event-requests/components/event-request-form";
 import {
   loadEventForCoordinatorEdit,
@@ -95,12 +95,11 @@ export function CoordinatorEventEditPage() {
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-5xl">
-          <Link
-            to={eventId ? `/events/${eventId}` : "/events"}
-            className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
-          >
-            <ArrowLeft /> Back to event
-          </Link>
+          <EventPageTopBar
+            backTo={eventId ? `/events/${eventId}` : "/events"}
+            backLabel="Back to event"
+            eventId={eventId}
+          />
           <header className="mt-6 border-b border-slate-200 pb-7">
             <h1 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-slate-950">
               Update event information

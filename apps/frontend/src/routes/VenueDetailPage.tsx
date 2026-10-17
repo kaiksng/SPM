@@ -1,4 +1,7 @@
-import { formatOperatingHours, hasPermission, isLocationArea } from "@spm/shared";
+import {
+  formatOperatingHours, hasPermission, isLocationArea, singaporeLocalToIso,
+  type VenueBookingDetails, type VenueSearchValues,
+} from "@spm/shared";
 import { ArrowLeft, Ban, Building2, CalendarClock, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
@@ -6,12 +9,16 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from "reac
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { loadEventDetail, type EventDetail } from "@/features/event-requests/services/event-details";
+import { BookingActivityList } from "@/features/venues/components/booking-activity-list";
 import {
   checkVenueBookingAvailability,
   getActiveVenueBooking,
+  listVenueBookingsForVenue,
   requestReplacementVenue,
   submitVenueBookingRequest,
+  type VenueBookingRequestSummary,
 } from "@/features/venues/services/venue-bookings";
+import { buildBookingActivity } from "@/features/venues/utils/booking-activity";
 import { getVenueLayoutImage } from "@/features/venues/utils/venue-layout-image";
 import {
   getVenue,
@@ -54,6 +61,9 @@ export function VenueDetailPage() {
   // disrupted booking. The request then replaces that booking instead of
   // being a new request, so the event's existing booking does not block it.
   const replacesBookingId = searchParams.get("replaces");
+  // SPM-85: set when the coordinator is adding another venue (a breakout room);
+  // the booking's own label, period, headcount and needs travel from the search.
+  const isAdditional = searchParams.get("additional") === "1";
   // Carried over from SuggestedVenuesPanel's own availability tag — a UX
   // convenience only, not a security boundary: submitVenueBookingRequest
   // re-validates everything server-side regardless of what's passed here.
@@ -64,6 +74,21 @@ export function VenueDetailPage() {
       : null;
   const navigate = useNavigate();
   const location = useLocation();
+  const additionalState = location.state as { venueSearch?: VenueSearchValues; bookingLabel?: string } | null;
+  const additionalDraft = isAdditional ? additionalState?.venueSearch : undefined;
+  const additionalLabel = additionalState?.bookingLabel?.trim() ?? "";
+  const additionalDetails: VenueBookingDetails | undefined =
+    additionalDraft && additionalLabel
+      ? {
+          label: additionalLabel,
+          startsAt: singaporeLocalToIso(additionalDraft.startsAt),
+          endsAt: singaporeLocalToIso(additionalDraft.endsAt),
+          expectedHeadcount: Number(additionalDraft.minimumCapacity),
+          layoutNotes: additionalDraft.layout || undefined,
+          accessibilityNotes: additionalDraft.accessibility.trim() || undefined,
+          requiredFacilities: additionalDraft.facilities,
+        }
+      : undefined;
   const { profile, user } = useAuth();
   const [venue, setVenue] = useState<VenueDetail>();
   const [loading, setLoading] = useState(true);
@@ -75,6 +100,8 @@ export function VenueDetailPage() {
   const [availabilityError, setAvailabilityError] = useState("");
   const [activeBooking, setActiveBooking] = useState(false);
   const [bufferTimeChanges, setBufferTimeChanges] = useState<VenueBufferTimeChange[]>([]);
+  // SPM-85: what happened to bookings at this venue, for Venue Staff.
+  const [venueBookings, setVenueBookings] = useState<VenueBookingRequestSummary[]>([]);
   const [rechecking, setRechecking] = useState(false);
   const [recheckMessage, setRecheckMessage] = useState<string>();
   const canManageVenues = hasPermission(profile?.role ?? "attendee", "manageVenue");
@@ -82,7 +109,7 @@ export function VenueDetailPage() {
     && forEvent?.assignedCoordinatorId === user?.id;
   const isBookable = availabilityChecked && !availabilityError && !exploreOnly && !activeBooking;
   const preferredLocation = forEvent?.venue.preferredLocation?.trim();
-  const differsFromPreferredLocation = Boolean(preferredLocation && venue
+  const differsFromPreferredLocation = Boolean(!isAdditional && preferredLocation && venue
     && (isLocationArea(preferredLocation)
       ? !(venue.areaTags?.includes(preferredLocation) ||
           (!venue.areaTags?.length && venue.location.toLocaleLowerCase().includes(preferredLocation.toLocaleLowerCase())))
@@ -134,6 +161,29 @@ export function VenueDetailPage() {
   }, [venueId, canManageVenues]);
 
   useEffect(() => {
+    if (!venueId || !canManageVenues) return;
+    let active = true;
+    listVenueBookingsForVenue(venueId)
+      .then((bookings) => {
+        if (active) setVenueBookings(bookings);
+      })
+      .catch(() => {
+        // Non-critical — the rest of the page works without the activity log.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [venueId, canManageVenues]);
+
+  // A notification can link straight to the Activity section (#activity).
+  useEffect(() => {
+    if (location.hash === "#activity" && venue) {
+      document.getElementById("activity")?.scrollIntoView({ block: "start" });
+    }
+  }, [location.hash, venue, venueBookings.length]);
+
+  useEffect(() => {
     if (!forEventId || !venueId) return;
     let active = true;
     setAvailabilityChecked(false);
@@ -145,7 +195,7 @@ export function VenueDetailPage() {
         // (status computed as "expired" for display, per
         // effectiveBookingStatus) so it can be shown as such — it isn't
         // actually blocking anymore, so it must not count as "active" here.
-        setActiveBooking(Boolean(booking) && booking?.status !== "expired" && !replacesBookingId);
+        setActiveBooking(Boolean(booking) && booking?.status !== "expired" && !replacesBookingId && !isAdditional);
         // A replacement is also allowed for a Confirmed event (approving it
         // returns the event to Planning); a new request only for Planning.
         const requestableStatus =
@@ -159,7 +209,25 @@ export function VenueDetailPage() {
         // and the server's real enforcement can never drift apart — and the
         // "Request venue" button stays disabled, with this exact reason
         // shown, until it's actually available.
-        const availability = await checkVenueBookingAvailability(venueId, forEventId);
+        if (isAdditional) {
+          if (!additionalDetails) {
+            setAvailabilityError("Describe this booking first: choose Add another venue on the event's Venue page.");
+            return;
+          }
+          if (venue && Number(venue.capacity) < additionalDetails.expectedHeadcount) {
+            setAvailabilityError(
+              `This venue's capacity (${venue.capacity}) is below this booking's expected headcount (${additionalDetails.expectedHeadcount}).`,
+            );
+            return;
+          }
+        }
+        const availability = await checkVenueBookingAvailability(
+          venueId,
+          forEventId,
+          isAdditional && additionalDetails
+            ? { startsAt: additionalDetails.startsAt, endsAt: additionalDetails.endsAt }
+            : undefined,
+        );
         if (active) {
           setAvailabilityChecked(availability.available);
           setAvailabilityError(availability.available ? "" : (availability.reason ?? "This venue is not available for the event's saved schedule."));
@@ -172,7 +240,8 @@ export function VenueDetailPage() {
     return () => {
       active = false;
     };
-  }, [forEventId, venueId, replacesBookingId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forEventId, venueId, replacesBookingId, isAdditional, venue?.capacity]);
 
   async function handleRecheckConflicts() {
     if (!venueId) return;
@@ -204,7 +273,11 @@ export function VenueDetailPage() {
       if (replacesBookingId) {
         await requestReplacementVenue(replacesBookingId, venueId);
       } else {
-        await submitVenueBookingRequest(forEventId, venueId);
+        if (isAdditional && additionalDetails) {
+          await submitVenueBookingRequest(forEventId, venueId, additionalDetails);
+        } else {
+          await submitVenueBookingRequest(forEventId, venueId);
+        }
       }
       navigate(`/events/${forEventId}/venue`);
     } catch (submitError) {
@@ -400,9 +473,31 @@ export function VenueDetailPage() {
                   venue_buffer_time_changes anyway, so gating the section on
                   canManageVenues matches what the query would return. */}
               {canManageVenues && (
+                <section
+                  id="activity"
+                  aria-label="Activity"
+                  className="mt-6 scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-6"
+                >
+                  <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
+                    Activity
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Bookings at this venue, newest first: requested, approved, rejected, withdrawn or cancelled, with the reasons given.
+                  </p>
+                  <div className="mt-4">
+                    <BookingActivityList
+                      entries={buildBookingActivity(venueBookings)}
+                      showEvent
+                      emptyText="No bookings have been requested at this venue yet."
+                    />
+                  </div>
+                </section>
+              )}
+
+              {canManageVenues && (
                 <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
                   <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
-                    Change history
+                    Setup and turnaround time history
                   </h2>
                   {bufferTimeChanges.length === 0 ? (
                     <p className="mt-4 text-sm text-slate-500">
@@ -442,12 +537,18 @@ export function VenueDetailPage() {
                       isBookable ? "text-primary" : "text-slate-500"
                     }`}
                   >
-                    {replacesBookingId ? "Request this venue as a replacement" : "Request this venue"}
+                    {replacesBookingId
+                      ? "Request this venue as a replacement"
+                      : isAdditional && additionalLabel
+                        ? `Request this venue as ${additionalLabel}`
+                        : "Request this venue"}
                   </h2>
                   <p className={`mt-2 text-sm ${isBookable ? "text-primary" : "text-slate-600"}`}>
                     {isBookable ? (
                       forEvent
-                        ? replacesBookingId
+                        ? isAdditional && additionalDetails
+                          ? `Review the details above, then confirm to request this venue as "${additionalDetails.label}" for "${forEvent.title}": ${dateTimeFormatter.format(new Date(additionalDetails.startsAt))} – ${dateTimeFormatter.format(new Date(additionalDetails.endsAt))}, ${additionalDetails.expectedHeadcount} people. It is decided separately from the event's other venues.`
+                          : replacesBookingId
                           ? `Review the details above, then confirm to request this venue as the replacement for the disrupted booking of "${forEvent.title}". It keeps the same period.`
                           : `Review the details above, then confirm to request this venue for "${forEvent.title}".`
                         : "Review the details above, then confirm to submit the request."
@@ -465,7 +566,7 @@ export function VenueDetailPage() {
                   )}
                   <div className="mt-4 flex gap-2">
                     <Button type="button" disabled={!isBookable || requesting} onClick={handleRequestVenue}>
-                      {requesting ? "Requesting…" : replacesBookingId ? "Request replacement" : "Request venue"}
+                      {requesting ? "Requesting…" : replacesBookingId ? "Request replacement" : isAdditional ? "Request additional venue" : "Request venue"}
                     </Button>
                     <Link
                       to={`/events/${forEventId}/venue`}

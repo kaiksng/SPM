@@ -67,6 +67,10 @@ const VENUE_STAFF_CONFLICT_TYPES = new Set<NotificationType>([
  * per-request route, so that's the target regardless of eventId.
  */
 function notificationDestination(notification: NotificationSummary): string | undefined {
+  // A withdrawn or cancelled booking is logged on the venue's Activity section.
+  if (notification.type === "venue_request_withdrawn" && notification.venueId) {
+    return `/venues/${notification.venueId}#activity`;
+  }
   if (VENUE_STAFF_REQUEST_TYPES.has(notification.type)) return "/venue-requests";
   if (VENUE_STAFF_CONFLICT_TYPES.has(notification.type)) return "/flagged-bookings";
   if (!notification.eventId) return undefined;

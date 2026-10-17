@@ -1356,66 +1356,100 @@ export type Database = {
       }
       venue_bookings: {
         Row: {
+          accessibility_notes: string | null
           advisory_notes: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           decided_at: string | null
           decided_by: string | null
           decision_notes: string | null
           ends_at: string
           event_id: string
+          expected_headcount: number | null
           expires_at: string | null
           held_by: string | null
           id: string
           is_main_venue: boolean
+          label: string
+          layout_notes: string | null
+          main_designated_at: string | null
           needs_review: boolean
           needs_review_reason: string | null
           replaces_booking_id: string | null
           requested_at: string
           requested_by: string
+          required_facilities: string[]
           starts_at: string
           status: Database["public"]["Enums"]["request_status"]
           venue_id: string
         }
         Insert: {
+          accessibility_notes?: string | null
           advisory_notes?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           decided_at?: string | null
           decided_by?: string | null
           decision_notes?: string | null
           ends_at: string
           event_id: string
+          expected_headcount?: number | null
           expires_at?: string | null
           held_by?: string | null
           id?: string
           is_main_venue?: boolean
+          label?: string
+          layout_notes?: string | null
+          main_designated_at?: string | null
           needs_review?: boolean
           needs_review_reason?: string | null
           replaces_booking_id?: string | null
           requested_at?: string
           requested_by: string
+          required_facilities?: string[]
           starts_at: string
           status?: Database["public"]["Enums"]["request_status"]
           venue_id: string
         }
         Update: {
+          accessibility_notes?: string | null
           advisory_notes?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           decided_at?: string | null
           decided_by?: string | null
           decision_notes?: string | null
           ends_at?: string
           event_id?: string
+          expected_headcount?: number | null
           expires_at?: string | null
           held_by?: string | null
           id?: string
           is_main_venue?: boolean
+          label?: string
+          layout_notes?: string | null
+          main_designated_at?: string | null
           needs_review?: boolean
           needs_review_reason?: string | null
           replaces_booking_id?: string | null
           requested_at?: string
           requested_by?: string
+          required_facilities?: string[]
           starts_at?: string
           status?: Database["public"]["Enums"]["request_status"]
           venue_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "venue_bookings_cancelled_by_fkey"
+            columns: ["cancelled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "venue_bookings_decided_by_fkey"
             columns: ["decided_by"]
@@ -1710,7 +1744,13 @@ export type Database = {
         }[]
       }
       check_venue_booking_availability: {
-        Args: { p_event_id: string; p_venue_id: string }
+        Args: {
+          p_ends_at?: string
+          p_event_id: string
+          p_exclude_booking_id?: string
+          p_starts_at?: string
+          p_venue_id: string
+        }
         Returns: Json
       }
       clean_equipment_item_fields: {
@@ -2012,12 +2052,27 @@ export type Database = {
         Args: { p_retired: boolean; p_unit_id: string }
         Returns: string
       }
+      set_main_venue_booking: {
+        Args: { p_actor_id?: string; p_booking_id: string }
+        Returns: string
+      }
       submit_event_request: {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json
       }
       submit_venue_booking_request: {
-        Args: { p_actor_id?: string; p_event_id: string; p_venue_id: string }
+        Args: {
+          p_accessibility_notes?: string
+          p_actor_id?: string
+          p_ends_at?: string
+          p_event_id: string
+          p_expected_headcount?: number
+          p_label?: string
+          p_layout_notes?: string
+          p_required_facilities?: string[]
+          p_starts_at?: string
+          p_venue_id: string
+        }
         Returns: string
       }
       update_equipment_arrangement: {
@@ -2076,7 +2131,7 @@ export type Database = {
         Returns: boolean
       }
       withdraw_venue_booking_request: {
-        Args: { p_actor_id?: string; p_booking_id: string }
+        Args: { p_actor_id?: string; p_booking_id: string; p_reason?: string }
         Returns: string
       }
     }
@@ -2352,3 +2407,4 @@ export const Constants = {
     },
   },
 } as const
+

@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -111,9 +112,92 @@ const baseBooking = {
   requestedByName: "Priya",
   decidedByName: null,
   advisoryNotes: null,
+  label: "Main Programme",
+  expectedHeadcount: 50,
+  isMainVenue: true,
+  venueLocation: "City Hall",
+  venueAreaTags: [] as string[],
+  cancellationReason: null,
+  cancelledAt: null,
+  cancelledByName: null,
+  mainDesignatedAt: null,
 };
 
 describe("EventHistoryPage", () => {
+  // SPM-85 AC12: every change to a booking is recorded with the booking's label,
+  // as one time-ordered log (newest first).
+  describe("venue booking activity", () => {
+    const main = {
+      ...baseBooking, id: "booking-1", status: "approved" as const, venueId: "venue-1",
+      venueName: "Main Hall", requestedAt: "2099-04-01T00:00:00.000Z",
+      replacesBookingId: null, replacesVenueName: null,
+      decidedAt: "2099-04-01T01:00:00.000Z", decidedByName: "Sam Staff",
+      mainDesignatedAt: "2099-04-01T00:00:00.000Z",
+    };
+    const breakout = {
+      ...baseBooking, id: "booking-2", status: "cancelled" as const, venueId: "venue-2",
+      venueName: "Room 2.01", requestedAt: "2099-04-02T00:00:00.000Z",
+      replacesBookingId: null, replacesVenueName: null, label: "Breakout 1", isMainVenue: false,
+      expectedHeadcount: 40, decidedAt: "2099-04-02T01:00:00.000Z", decidedByName: "Sam Staff",
+      cancelledAt: "2099-04-03T00:00:00.000Z", cancelledByName: "Priya",
+      cancellationReason: "Speaker dropped out",
+    };
+
+    it("AC12: names each entry by the booking's label and venue", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([main, breakout]);
+      renderPage();
+
+      const section = (await screen.findByRole("heading", { name: "Venue bookings" })).closest("section")!;
+      expect(within(section).getAllByText("Main Programme").length).toBeGreaterThan(0);
+      expect(within(section).getAllByText("Breakout 1").length).toBeGreaterThan(0);
+      expect(within(section).getAllByText("Main Hall").length).toBeGreaterThan(0);
+      expect(within(section).getAllByText("Room 2.01").length).toBeGreaterThan(0);
+    });
+
+    it("AC12: lists the steps newest first, so a cancellation comes before the request", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([breakout]);
+      renderPage();
+
+      const section = (await screen.findByRole("heading", { name: "Venue bookings" })).closest("section")!;
+      const titles = within(section).getAllByRole("listitem").map((item) => item.textContent ?? "");
+      expect(titles[0]).toContain("Cancelled");
+      expect(titles[1]).toContain("Approved");
+      expect(titles[2]).toContain("Requested");
+    });
+
+    it("AC12: records who cancelled a booking, and why", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([main, breakout]);
+      renderPage();
+
+      const cancelled = (await screen.findByText("Cancelled")).closest("li")!;
+      expect(within(cancelled).getByText("by Priya")).toBeInTheDocument();
+      expect(within(cancelled).getByText('Reason: "Speaker dropped out"')).toBeInTheDocument();
+    });
+
+    // Feedback: the rejection reason is part of the history too.
+    it("shows who rejected a booking and the reason", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([
+        { ...breakout, status: "rejected" as const, cancelledAt: null, cancelledByName: null,
+          cancellationReason: null, decisionNotes: "Room is reserved for exams" },
+      ]);
+      renderPage();
+
+      expect(await screen.findByText("Rejected")).toBeInTheDocument();
+      expect(screen.getByText('Reason: "Room is reserved for exams"')).toBeInTheDocument();
+    });
+
+    it("records when a booking became the main venue, but not for the first booking", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([
+        main,
+        { ...breakout, status: "approved" as const, cancelledAt: null, mainDesignatedAt: "2099-04-05T00:00:00.000Z" },
+      ]);
+      renderPage();
+
+      expect(await screen.findByText("Became the main venue")).toBeInTheDocument();
+      expect(screen.getAllByText("Became the main venue")).toHaveLength(1);
+    });
+  });
+
   // SPM-82 AC09: the disrupted booking and its replacement are linked and visible.
   describe("venue booking replacements", () => {
     const original = {
@@ -124,6 +208,7 @@ describe("EventHistoryPage", () => {
     const replacement = {
       ...baseBooking, id: "booking-2", status: "approved" as const, venueId: "venue-2",
       venueName: "Grand Hall", requestedAt: "2099-04-02T00:00:00.000Z",
+      decidedAt: "2099-04-03T00:00:00.000Z", decidedByName: "Sam Staff",
       replacesBookingId: "booking-1", replacesVenueName: "Auditorium",
     };
 
@@ -132,13 +217,13 @@ describe("EventHistoryPage", () => {
       renderPage();
 
       expect(await screen.findByText("Replaced by the booking at Grand Hall")).toBeInTheDocument();
-      expect(screen.getByText("Replacement for the disrupted booking at Auditorium")).toBeInTheDocument();
+      expect(screen.getByText(/Replacement for the disrupted booking at Auditorium/)).toBeInTheDocument();
     });
 
     it("says a replacement was requested, not made, while it is still pending", async () => {
       listVenueBookingsForEventMock.mockResolvedValue([
         { ...original, status: "approved" as const },
-        { ...replacement, status: "pending" as const },
+        { ...replacement, status: "pending" as const, decidedAt: null, decidedByName: null },
       ]);
       renderPage();
 
@@ -153,34 +238,34 @@ describe("EventHistoryPage", () => {
       ]);
       renderPage();
 
-      await screen.findByText("Grand Hall");
+      await screen.findAllByText("Grand Hall");
       expect(screen.queryByText(/Replaced by the booking/)).not.toBeInTheDocument();
       expect(screen.queryByText(/Replacement requested at/)).not.toBeInTheDocument();
       // The attempt itself is still listed with what it was for.
-      expect(screen.getByText("Replacement for the disrupted booking at Auditorium")).toBeInTheDocument();
+      expect(screen.getByText(/Replacement for the disrupted booking at Auditorium/)).toBeInTheDocument();
     });
 
-    // SPM-83: the booking keeps its own status, so the disruption is shown beside it.
-    it("flags a booking that is currently disrupted beside its own status", async () => {
+    // SPM-83: a venue block that disrupts a booking is part of its log.
+    it("logs a booking that is currently disrupted", async () => {
       listVenueBookingsForEventMock.mockResolvedValue([{ ...original, status: "approved" as const }]);
       listVenueDisruptionsMock.mockResolvedValue([
-        { eventId: "event-1", bookingId: "booking-1", state: "replacement_required" },
+        { eventId: "event-1", bookingId: "booking-1", state: "replacement_required", flaggedAt: "2099-04-04T00:00:00.000Z" },
       ]);
       renderPage();
 
-      expect(await screen.findByText("Confirmed Booking")).toBeInTheDocument();
-      expect(screen.getByText("Disrupted")).toBeInTheDocument();
+      expect(await screen.findByText("Disrupted")).toBeInTheDocument();
+      expect(screen.getByText(/The venue became unavailable/)).toBeInTheDocument();
     });
 
-    it("does not flag a booking whose disruption is resolved, or one on another event", async () => {
+    it("does not log a disruption that is resolved, or one on another event", async () => {
       listVenueBookingsForEventMock.mockResolvedValue([{ ...original, status: "approved" as const }]);
       listVenueDisruptionsMock.mockResolvedValue([
-        { eventId: "event-1", bookingId: "booking-1", state: "resolved" },
-        { eventId: "other-event", bookingId: "booking-1", state: "replacement_required" },
+        { eventId: "event-1", bookingId: "booking-1", state: "resolved", flaggedAt: "2099-04-04T00:00:00.000Z" },
+        { eventId: "other-event", bookingId: "booking-1", state: "replacement_required", flaggedAt: "2099-04-04T00:00:00.000Z" },
       ]);
       renderPage();
 
-      await screen.findByText("Confirmed Booking");
+      await screen.findAllByText("Auditorium");
       expect(screen.queryByText("Disrupted")).not.toBeInTheDocument();
     });
 
@@ -189,7 +274,7 @@ describe("EventHistoryPage", () => {
       listVenueDisruptionsMock.mockRejectedValue(new Error("boom"));
       renderPage();
 
-      expect(await screen.findByText("Confirmed Booking")).toBeInTheDocument();
+      expect((await screen.findAllByText("Auditorium")).length).toBeGreaterThan(0);
       expect(screen.queryByText("Disrupted")).not.toBeInTheDocument();
     });
 
@@ -197,8 +282,29 @@ describe("EventHistoryPage", () => {
       listVenueBookingsForEventMock.mockResolvedValue([{ ...original, status: "approved" as const }]);
       renderPage();
 
-      await screen.findByText("Auditorium");
+      await screen.findAllByText("Auditorium");
       expect(screen.queryByText(/Replace/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("filter", () => {
+    it("shows only the venue entries when Venue is chosen", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([
+        { ...baseBooking, id: "booking-1", status: "pending" as const, venueId: "venue-1",
+          venueName: "Main Hall", requestedAt: "2099-04-01T00:00:00.000Z", replacesBookingId: null, replacesVenueName: null },
+      ]);
+      const user = userEvent.setup();
+      renderPage();
+
+      await screen.findByRole("heading", { name: "Lifecycle" });
+      await user.click(screen.getByRole("button", { name: "Venue" }));
+
+      expect(screen.getByRole("heading", { name: "Venue bookings" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Lifecycle" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Venue" })).toHaveAttribute("aria-pressed", "true");
+
+      await user.click(screen.getByRole("button", { name: "All" }));
+      expect(screen.getByRole("heading", { name: "Lifecycle" })).toBeInTheDocument();
     });
   });
 

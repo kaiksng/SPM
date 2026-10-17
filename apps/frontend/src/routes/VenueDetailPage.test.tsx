@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import { singaporeLocalToIso } from "@spm/shared";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +10,7 @@ const loadEventDetailMock = vi.fn();
 const submitVenueBookingRequestMock = vi.fn();
 const requestReplacementVenueMock = vi.fn();
 const getActiveVenueBookingMock = vi.fn();
+const listVenueBookingsForVenueMock = vi.fn();
 const checkVenueBookingAvailabilityMock = vi.fn();
 const navigateMock = vi.fn();
 const authState = {
@@ -41,6 +43,7 @@ vi.mock("@/features/venues/services/venue-bookings", () => ({
   submitVenueBookingRequest: (...args: unknown[]) => submitVenueBookingRequestMock(...args),
   requestReplacementVenue: (...args: unknown[]) => requestReplacementVenueMock(...args),
   getActiveVenueBooking: (...args: unknown[]) => getActiveVenueBookingMock(...args),
+  listVenueBookingsForVenue: (...args: unknown[]) => listVenueBookingsForVenueMock(...args),
   checkVenueBookingAvailability: (...args: unknown[]) => checkVenueBookingAvailabilityMock(...args),
 }));
 
@@ -94,9 +97,9 @@ const event = {
   registration: { required: false, opensAt: null, closesAt: null, capacity: null, waitlistEnabled: false },
 };
 
-function renderPage(initialEntry: string) {
+function renderPage(initialEntry: string, state?: unknown) {
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
+    <MemoryRouter initialEntries={[state ? { pathname: initialEntry.split("?")[0], search: `?${initialEntry.split("?")[1] ?? ""}`, state } : initialEntry]}>
       <Routes>
         <Route path="venues/:venueId" element={<VenueDetailPage />} />
       </Routes>
@@ -111,6 +114,7 @@ beforeEach(() => {
   submitVenueBookingRequestMock.mockReset().mockResolvedValue("booking-1");
   requestReplacementVenueMock.mockReset().mockResolvedValue("replacement-1");
   getActiveVenueBookingMock.mockReset().mockResolvedValue(null);
+  listVenueBookingsForVenueMock.mockReset().mockResolvedValue([]);
   checkVenueBookingAvailabilityMock.mockReset().mockResolvedValue({ available: true, reason: null });
   navigateMock.mockReset();
   authState.profile.role = "event_coordinator";
@@ -161,7 +165,7 @@ describe("VenueDetailPage", () => {
     ]);
     renderPage("/venues/venue-1");
 
-    expect(await screen.findByText("Change history")).toBeInTheDocument();
+    expect(await screen.findByText("Setup and turnaround time history")).toBeInTheDocument();
     expect(await screen.findByText(/Turnaround time changed/)).toBeInTheDocument();
     expect(screen.getByText(/Setup time changed/)).toBeInTheDocument();
     expect(screen.getByText("0 min →")).toBeInTheDocument();
@@ -178,6 +182,48 @@ describe("VenueDetailPage", () => {
     expect(
       await screen.findByText("No setup or turnaround time changes recorded yet."),
     ).toBeInTheDocument();
+  });
+
+  // Feedback: Venue Staff get a per-venue log of what happened to its bookings.
+  describe("Activity (Venue Staff)", () => {
+    const booking = (overrides: Record<string, unknown> = {}) => ({
+      id: "booking-1", status: "cancelled", startsAt: "2099-04-06T02:00:00.000Z", endsAt: "2099-04-06T04:00:00.000Z",
+      requestedAt: "2099-04-01T00:00:00.000Z", decidedAt: "2099-04-01T01:00:00.000Z", decisionNotes: null,
+      expiresAt: null, venueId: "venue-1", venueName: "Auditorium", venueLayouts: [], eventId: "event-1",
+      eventTitle: "Career Fair", eventExpectedAttendance: 50, requestedByName: "Priya", decidedByName: "Sam Staff",
+      replacesBookingId: null, replacesVenueName: null, advisoryNotes: null, label: "Breakout 1",
+      expectedHeadcount: 40, isMainVenue: false, venueLocation: "Campus", venueAreaTags: [],
+      cancellationReason: "Speaker dropped out", cancelledAt: "2099-04-02T00:00:00.000Z",
+      cancelledByName: "Priya", mainDesignatedAt: null, ...overrides,
+    });
+
+    it("lists what happened to bookings at the venue, with the event and the reason", async () => {
+      authState.profile.role = "venue_staff";
+      listVenueBookingsForVenueMock.mockResolvedValue([booking()]);
+      renderPage("/venues/venue-1");
+
+      const section = await screen.findByRole("region", { name: "Activity" });
+      expect(await within(section).findByText("Cancelled")).toBeInTheDocument();
+      expect(within(section).getAllByText("Career Fair").length).toBeGreaterThan(0);
+      expect(within(section).getAllByText("Breakout 1").length).toBeGreaterThan(0);
+      expect(within(section).getByText('Reason: "Speaker dropped out"')).toBeInTheDocument();
+      expect(listVenueBookingsForVenueMock).toHaveBeenCalledWith("venue-1");
+    });
+
+    it("says so when nothing has been booked at the venue", async () => {
+      authState.profile.role = "venue_staff";
+      renderPage("/venues/venue-1");
+
+      expect(await screen.findByText("No bookings have been requested at this venue yet.")).toBeInTheDocument();
+    });
+
+    it("is not shown, or requested, for a coordinator", async () => {
+      renderPage("/venues/venue-1");
+
+      await screen.findByText("Setup time");
+      expect(screen.queryByRole("region", { name: "Activity" })).not.toBeInTheDocument();
+      expect(listVenueBookingsForVenueMock).not.toHaveBeenCalled();
+    });
   });
 
   // SPM-86 AC05: the history is Venue Staff only, so other roles never request it.
@@ -366,5 +412,81 @@ describe("VenueDetailPage", () => {
     renderPage("/venues/venue-1?forEvent=event-1&status=available");
 
     expect(await screen.findByRole("button", { name: "Request venue" })).toBeInTheDocument();
+  });
+
+  // ---- SPM-85: requesting a venue as an additional booking (breakout room) ----
+
+  const additionalState = {
+    additional: true,
+    bookingLabel: "Breakout 1",
+    venueSearch: {
+      startsAt: "2099-04-06T10:00",
+      endsAt: "2099-04-06T11:30",
+      minimumCapacity: "40",
+      location: "",
+      layout: "Classroom",
+      facilities: ["Whiteboard"],
+      accessibility: "",
+    },
+  };
+  const approvedMain = {
+    id: "booking-1", venueId: "venue-0", venueName: "Auditorium", status: "approved",
+    startsAt: "2099-04-06T02:00:00.000Z", endsAt: "2099-04-06T04:00:00.000Z", expiresAt: null,
+    replacesBookingId: null,
+  };
+
+  // AC01/AC02: the event's existing booking does not block an additional one, and the
+  // booking's own label, period, headcount and needs are what is requested.
+  it("AC01/AC02: requests the venue as an additional booking with its own details", async () => {
+    getActiveVenueBookingMock.mockResolvedValue(approvedMain);
+    const user = userEvent.setup();
+    renderPage("/venues/venue-1?forEvent=event-1&additional=1", additionalState);
+
+    expect(await screen.findByText("Request this venue as Breakout 1")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Request additional venue" }));
+
+    await waitFor(() => {
+      expect(submitVenueBookingRequestMock).toHaveBeenCalledWith("event-1", "venue-1", {
+        label: "Breakout 1",
+        startsAt: singaporeLocalToIso("2099-04-06T10:00"),
+        endsAt: singaporeLocalToIso("2099-04-06T11:30"),
+        expectedHeadcount: 40,
+        layoutNotes: "Classroom",
+        accessibilityNotes: undefined,
+        requiredFacilities: ["Whiteboard"],
+      });
+    });
+    expect(navigateMock).toHaveBeenCalledWith("/events/event-1/venue");
+  });
+
+  // AC04: availability is checked for the booking's own period, not the event's.
+  it("AC04: checks availability for the booking's own period", async () => {
+    renderPage("/venues/venue-1?forEvent=event-1&additional=1", additionalState);
+
+    await screen.findByText("Request this venue as Breakout 1");
+    await waitFor(() => {
+      expect(checkVenueBookingAvailabilityMock).toHaveBeenCalledWith("venue-1", "event-1", {
+        startsAt: singaporeLocalToIso("2099-04-06T10:00"),
+        endsAt: singaporeLocalToIso("2099-04-06T11:30"),
+      });
+    });
+  });
+
+  it("AC04: a venue smaller than the booking's headcount cannot be requested", async () => {
+    renderPage("/venues/venue-1?forEvent=event-1&additional=1", {
+      ...additionalState,
+      venueSearch: { ...additionalState.venueSearch, minimumCapacity: "300" },
+    });
+
+    expect(await screen.findByText(/capacity \(250\) is below this booking's expected headcount \(300\)/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Request additional venue" })).toBeDisabled();
+  });
+
+  it("asks the coordinator to describe the booking first when the details were lost", async () => {
+    renderPage("/venues/venue-1?forEvent=event-1&additional=1");
+
+    expect(await screen.findByText(/Describe this booking first/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Request additional venue" })).toBeDisabled();
+    expect(submitVenueBookingRequestMock).not.toHaveBeenCalled();
   });
 });

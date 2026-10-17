@@ -1,5 +1,6 @@
 import type { PostgrestError } from "@supabase/supabase-js";
 import { Router } from "express";
+import { venueBookingDetailsSchema } from "@spm/shared";
 import { z } from "zod";
 
 import { ApplicationError } from "../errors/application-error";
@@ -9,7 +10,13 @@ import { requireAuth } from "../middleware/auth";
 
 export const venueBookingSubmissionsRouter = Router();
 
-const submitBodySchema = z.object({ eventId: z.uuid(), venueId: z.uuid() });
+const submitBodySchema = z.object({
+  eventId: z.uuid(),
+  venueId: z.uuid(),
+  // SPM-85: present only for an additional venue; the event's first booking
+  // takes its label, period, headcount and needs from the event.
+  details: venueBookingDetailsSchema.optional(),
+});
 const bookingIdParamsSchema = z.object({ bookingId: z.uuid() });
 
 /**
@@ -24,13 +31,27 @@ venueBookingSubmissionsRouter.post(
   asyncHandler(async (req, res) => {
     const body = submitBodySchema.safeParse(req.body);
     if (!body.success) {
-      throw new ApplicationError("VALIDATION", "Select a venue to request");
+      const detailsIssue = body.error.issues.find((issue) => issue.path[0] === "details");
+      throw new ApplicationError(
+        "VALIDATION",
+        detailsIssue ? detailsIssue.message : "Select a venue to request",
+      );
     }
 
+    const details = body.data.details;
     const { data, error } = await getServiceClient().rpc("submit_venue_booking_request", {
       p_event_id: body.data.eventId,
       p_venue_id: body.data.venueId,
       p_actor_id: req.userId,
+      ...(details && {
+        p_label: details.label,
+        p_starts_at: details.startsAt,
+        p_ends_at: details.endsAt,
+        p_expected_headcount: details.expectedHeadcount,
+        p_layout_notes: details.layoutNotes,
+        p_accessibility_notes: details.accessibilityNotes,
+        p_required_facilities: details.requiredFacilities,
+      }),
     });
 
     if (error) throw mapSubmitError(error);
@@ -41,7 +62,8 @@ venueBookingSubmissionsRouter.post(
 
 /**
  * withdraw_venue_booking_request now notifies every venue-staff profile too,
- * same reasoning as the submit route above.
+ * same reasoning as the submit route above. SPM-85: it also cancels an Approved
+ * booking, and a reason is required for either.
  */
 venueBookingSubmissionsRouter.post(
   "/venue-bookings/:bookingId/withdraw",
@@ -52,9 +74,15 @@ venueBookingSubmissionsRouter.post(
       throw new ApplicationError("VALIDATION", "Enter a valid venue booking request id");
     }
 
+    const body = withdrawBodySchema.safeParse(req.body);
+    if (!body.success) {
+      throw new ApplicationError("VALIDATION", "Give a reason for withdrawing or cancelling this venue booking");
+    }
+
     const { data, error } = await getServiceClient().rpc("withdraw_venue_booking_request", {
       p_booking_id: params.data.bookingId,
       p_actor_id: req.userId,
+      p_reason: body.data.reason,
     });
 
     if (error) throw mapSubmitError(error);
@@ -62,6 +90,8 @@ venueBookingSubmissionsRouter.post(
     res.json({ data });
   }),
 );
+
+const withdrawBodySchema = z.object({ reason: z.string().trim().min(1).max(500) });
 
 const replacementBodySchema = z.object({ venueId: z.uuid() });
 

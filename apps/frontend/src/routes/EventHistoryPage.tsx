@@ -35,13 +35,13 @@ import {
   type EventFieldChange,
 } from "@/features/event-requests/services/field-history";
 import { formatEventFieldChangeValue } from "@/features/event-requests/utils/format-field-change-value";
-import { DisruptedPill } from "@/features/venues/components/disrupted-pill";
-import { VenueBookingStatusBadge } from "@/features/venues/components/venue-booking-status-badge";
+import { BookingActivityList } from "@/features/venues/components/booking-activity-list";
 import { listVenueDisruptionsForCoordinator } from "@/features/venues/services/venue-disruptions";
 import {
   listVenueBookingsForEvent,
   type VenueBookingRequestSummary,
 } from "@/features/venues/services/venue-bookings";
+import { buildBookingActivity } from "@/features/venues/utils/booking-activity";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
@@ -73,7 +73,8 @@ export function EventHistoryPage() {
   );
   const [venueBookings, setVenueBookings] = useState<VenueBookingRequestSummary[]>([]);
   // SPM-83: bookings of this event that a venue block currently disrupts.
-  const [disruptedBookingIds, setDisruptedBookingIds] = useState<Set<string>>(new Set());
+  const [openDisruptions, setOpenDisruptions] = useState<{ bookingId: string; flaggedAt: string }[]>([]);
+  const [filter, setFilter] = useState<HistoryFilter>("all");
   const [approvedAt, setApprovedAt] = useState<string>();
   const [event, setEvent] = useState<EventDetail>();
   const [error, setError] = useState<string>();
@@ -123,12 +124,10 @@ export function EventHistoryPage() {
           setApprovedAt(decisions.find((d) => d.decision === "approved")?.decidedAt);
           setStatusHistory(statusRows);
           setVenueBookings(venueBookingRows);
-          setDisruptedBookingIds(
-            new Set(
-              disruptionRows
-                .filter((row) => row.eventId === eventId && row.state !== "resolved")
-                .map((row) => row.bookingId),
-            ),
+          setOpenDisruptions(
+            disruptionRows
+              .filter((row) => row.eventId === eventId && row.state !== "resolved")
+              .map((row) => ({ bookingId: row.bookingId, flaggedAt: row.flaggedAt })),
           );
           setReassignments(reassignmentRows);
           setAssignmentHistory(assignmentRows);
@@ -193,6 +192,25 @@ export function EventHistoryPage() {
             </section>
           ) : (
             <div className="mt-7 space-y-6">
+              <div role="group" aria-label="Show history" className="flex flex-wrap gap-2">
+                {HISTORY_FILTERS.filter(([value]) => value !== "equipment" || profile?.role !== "event_organiser").map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={filter === value}
+                    onClick={() => setFilter(value)}
+                    className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
+                      filter === value
+                        ? "border-primary bg-accent text-primary"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-primary/40"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <HistoryGroup group="lifecycle" filter={filter}>
               <HistorySection title="Lifecycle">
                 {statusHistory.length === 0 ? (
                   <p className="text-sm text-slate-500">No status changes recorded yet.</p>
@@ -225,6 +243,9 @@ export function EventHistoryPage() {
                 </HistorySection>
               )}
 
+              </HistoryGroup>
+
+              <HistoryGroup group="edits" filter={filter}>
               <HistorySection title="Pre-Approved">
                 {clarifications.length === 0 ? (
                   <p className="text-sm text-slate-500">No clarification rounds were needed.</p>
@@ -261,33 +282,25 @@ export function EventHistoryPage() {
                 </HistorySection>
               )}
 
-              <HistorySection title="Venue bookings">
-                {venueBookings.length === 0 ? (
-                  <p className="text-sm text-slate-500">No venue booking requests made yet.</p>
-                ) : (
-                  <ol className="space-y-2">
-                    {venueBookings.map((booking) => (
-                      <VenueBookingItem
-                        key={booking.id}
-                        booking={booking}
-                        disrupted={disruptedBookingIds.has(booking.id)}
-                        replacement={venueBookings.find(
-                          (other) =>
-                            other.replacesBookingId === booking.id &&
-                            (other.status === "approved" || other.status === "pending"),
-                        )}
-                      />
-                    ))}
-                  </ol>
-                )}
-              </HistorySection>
+              </HistoryGroup>
+
+              <HistoryGroup group="venue" filter={filter}>
+                <HistorySection title="Venue bookings">
+                  <BookingActivityList
+                    entries={buildBookingActivity(venueBookings, openDisruptions)}
+                    emptyText="No venue booking requests made yet."
+                  />
+                </HistorySection>
+              </HistoryGroup>
 
               {/* AC08: the organiser is not shown equipment history (RLS
                   would return nothing for them anyway). */}
               {profile?.role !== "event_organiser" && (
-                <HistorySection title="Equipment">
-                  <EquipmentHistoryList changes={equipmentChanges} />
-                </HistorySection>
+                <HistoryGroup group="equipment" filter={filter}>
+                  <HistorySection title="Equipment">
+                    <EquipmentHistoryList changes={equipmentChanges} />
+                  </HistorySection>
+                </HistoryGroup>
               )}
             </div>
           )}
@@ -316,6 +329,28 @@ function editsDuringRound(
     const changedAt = new Date(change.changedAt).getTime();
     return changedAt >= windowStart && changedAt < windowEnd;
   });
+}
+
+type HistoryFilter = "all" | "lifecycle" | "edits" | "venue" | "equipment";
+
+const HISTORY_FILTERS: [HistoryFilter, string][] = [
+  ["all", "All"],
+  ["lifecycle", "Lifecycle & assignments"],
+  ["edits", "Requests & edits"],
+  ["venue", "Venue"],
+  ["equipment", "Equipment"],
+];
+
+function HistoryGroup({
+  group,
+  filter,
+  children,
+}: {
+  group: HistoryFilter;
+  filter: HistoryFilter;
+  children: React.ReactNode;
+}) {
+  return filter === "all" || filter === group ? <>{children}</> : null;
 }
 
 function HistorySection({ title, children }: { title: string; children: React.ReactNode }) {
@@ -449,71 +484,6 @@ function AssignmentHistoryItem({ record }: { record: EventCoordinatorAssignmentR
         </p>
       )}
       {record.reason && <p className="mt-1 text-slate-600">Reason: "{record.reason}"</p>}
-    </li>
-  );
-}
-
-/**
- * One venue booking request's outcome — "rejected for this venue, by this
- * Venue Staff member" is the main thing this card exists to answer, but it
- * reports the same decidedByName/decisionNotes shape for every terminal
- * status (approved, on_hold's held-by, expired) so a coordinator trying
- * multiple venues sees the full attempt history, not just the current one.
- */
-function VenueBookingItem({
-  booking,
-  disrupted,
-  replacement,
-}: {
-  booking: VenueBookingRequestSummary;
-  // SPM-83: a venue block currently disrupts this booking (it keeps its own status).
-  disrupted: boolean;
-  // The approved or pending replacement for this booking, if any (a rejected
-  // or withdrawn attempt does not mean the booking was replaced).
-  replacement?: VenueBookingRequestSummary;
-}) {
-  return (
-    <li className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <span className="font-medium text-slate-800">{booking.venueName}</span>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <VenueBookingStatusBadge status={booking.status} />
-          {disrupted && <DisruptedPill />}
-        </div>
-      </div>
-      {/* SPM-82: the disrupted booking and its replacement are linked both ways. */}
-      {booking.replacesBookingId && (
-        <p className="mt-1 text-xs font-medium text-amber-800">
-          Replacement for the disrupted booking
-          {booking.replacesVenueName ? ` at ${booking.replacesVenueName}` : ""}
-        </p>
-      )}
-      {replacement && (
-        <p className="mt-1 text-xs font-medium text-amber-800">
-          {replacement.status === "approved"
-            ? `Replaced by the booking at ${replacement.venueName}`
-            : `Replacement requested at ${replacement.venueName}`}
-        </p>
-      )}
-      <p className="mt-1 text-xs text-slate-500">
-        Requested {dateFormatter.format(new Date(booking.requestedAt))}
-        {booking.requestedByName ? ` by ${booking.requestedByName}` : ""}
-      </p>
-      {booking.status === "rejected" && booking.decidedAt && (
-        <p className="mt-1 text-red-700">
-          Rejected {dateFormatter.format(new Date(booking.decidedAt))}
-          {booking.decidedByName ? ` by ${booking.decidedByName}` : ""}
-        </p>
-      )}
-      {booking.status === "approved" && booking.decidedAt && (
-        <p className="mt-1 text-slate-600">
-          Confirmed {dateFormatter.format(new Date(booking.decidedAt))}
-          {booking.decidedByName ? ` by ${booking.decidedByName}` : ""}
-        </p>
-      )}
-      {booking.decisionNotes && (
-        <p className="mt-1 text-slate-600">Reason: "{booking.decisionNotes}"</p>
-      )}
     </li>
   );
 }

@@ -1,25 +1,30 @@
 import { VENUE_BLOCK_REASON_CATEGORY_LABELS, VENUE_DISRUPTION_STATE_LABELS } from "@spm/shared";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 
-import { Button, buttonVariants } from "@/components/ui/button";
+import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
 import { SuggestedVenuesPanel } from "@/features/event-requests/components/suggested-venues-panel";
 import {
   loadEventDetail,
   type EventDetail,
 } from "@/features/event-requests/services/event-details";
-import { VenueBookingStatusBadge } from "@/features/venues/components/venue-booking-status-badge";
+import { AdditionalVenuePanel } from "@/features/venues/components/additional-venue-panel";
+import {
+  EventVenueBookings,
+  isActiveVenueBooking,
+} from "@/features/venues/components/event-venue-bookings";
 import {
   listVenueDisruptionsForCoordinator,
   type VenueDisruption,
 } from "@/features/venues/services/venue-disruptions";
 import {
   confirmVenueBookingHold,
-  getActiveVenueBooking,
+  listVenueBookingsForEvent,
+  setMainVenueBooking,
   withdrawVenueBookingRequest,
-  type ActiveVenueBooking,
+  type VenueBookingRequestSummary,
 } from "@/features/venues/services/venue-bookings";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
@@ -42,13 +47,12 @@ export function EventVenuePage() {
   const [event, setEvent] = useState<EventDetail>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
-  const [activeBooking, setActiveBooking] = useState<ActiveVenueBooking | null>();
+  // SPM-85: every venue booking of the event, not just one.
+  const [bookings, setBookings] = useState<VenueBookingRequestSummary[]>([]);
   // SPM-82: this event's disrupted venue booking, if one still needs a replacement.
   const [disruption, setDisruption] = useState<VenueDisruption>();
-  const [withdrawing, setWithdrawing] = useState(false);
-  const [withdrawError, setWithdrawError] = useState<string>();
-  const [confirming, setConfirming] = useState(false);
-  const [confirmError, setConfirmError] = useState<string>();
+  const [busyBookingId, setBusyBookingId] = useState<string>();
+  const [actionError, setActionError] = useState<{ bookingId: string; message: string }>();
 
   usePageTitle(event?.title ? `Venue — ${event.title}` : "Venue");
 
@@ -57,14 +61,14 @@ export function EventVenuePage() {
     setLoading(true);
     Promise.all([
       loadEventDetail(id),
-      getActiveVenueBooking(id),
+      listVenueBookingsForEvent(id),
       // Non-critical: without it the page simply behaves as it did before SPM-82.
       listVenueDisruptionsForCoordinator().catch(() => [] as VenueDisruption[]),
     ])
-      .then(([detail, booking, disruptions]) => {
+      .then(([detail, venueBookings, disruptions]) => {
         if (!active) return;
         setEvent(detail);
-        setActiveBooking(booking);
+        setBookings(venueBookings);
         setDisruption(
           disruptions.find((item) => item.eventId === id && item.state !== "resolved"),
         );
@@ -93,51 +97,55 @@ export function EventVenuePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
 
-  async function handleWithdraw() {
-    if (!activeBooking) return;
-    setWithdrawing(true);
-    setWithdrawError(undefined);
+  // The dialog shows any error itself, so this one lets it through.
+  async function handleWithdraw(bookingId: string, reason: string) {
+    await withdrawVenueBookingRequest(bookingId, reason);
+    // Reload so the list, the main-venue flag and any disrupted original are current.
+    if (eventId) loadAll(eventId);
+  }
+
+  async function handleSetMain(bookingId: string) {
+    setBusyBookingId(bookingId);
+    setActionError(undefined);
     try {
-      await withdrawVenueBookingRequest(activeBooking.id);
-      if (activeBooking.replacesBookingId && eventId) {
-        // The disrupted original is still there; reload to offer a new replacement.
-        loadAll(eventId);
-      } else {
-        setActiveBooking(null);
-      }
+      await setMainVenueBooking(bookingId);
+      if (eventId) loadAll(eventId);
     } catch (err) {
-      setWithdrawError(
-        err instanceof Error ? err.message : "This venue booking request could not be withdrawn.",
-      );
+      setActionError({
+        bookingId,
+        message: err instanceof Error ? err.message : "The main venue could not be changed.",
+      });
     } finally {
-      setWithdrawing(false);
+      setBusyBookingId(undefined);
     }
   }
 
-  async function handleConfirmHold() {
-    if (!activeBooking) return;
-    setConfirming(true);
-    setConfirmError(undefined);
+  async function handleConfirmHold(bookingId: string) {
+    setBusyBookingId(bookingId);
+    setActionError(undefined);
     try {
-      await confirmVenueBookingHold(activeBooking.id);
-      setActiveBooking({ ...activeBooking, status: "pending" });
+      await confirmVenueBookingHold(bookingId);
+      if (eventId) loadAll(eventId);
     } catch (err) {
-      setConfirmError(err instanceof Error ? err.message : "This hold could not be confirmed.");
+      setActionError({
+        bookingId,
+        message: err instanceof Error ? err.message : "This hold could not be confirmed.",
+      });
     } finally {
-      setConfirming(false);
+      setBusyBookingId(undefined);
     }
   }
+
+  const activeBookings = bookings.filter(isActiveVenueBooking);
+  const mainBooking = activeBookings.find((booking) => booking.isMainVenue && !booking.replacesBookingId);
+  const mainVenueArea = mainBooking?.venueAreaTags[0] ?? mainBooking?.venueLocation ?? null;
+  const needsReplacement = disruption?.state === "replacement_required";
 
   return (
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-5xl">
-          <Link
-            to={`/events/${eventId}`}
-            className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
-          >
-            <ArrowLeft /> Back to event
-          </Link>
+          <EventPageTopBar backTo={`/events/${eventId}`} backLabel="Back to event" eventId={eventId} />
 
           {loading ? (
             <div className="mt-7 h-96 animate-pulse rounded-2xl bg-slate-200/70 motion-reduce:animate-none" />
@@ -252,85 +260,30 @@ export function EventVenuePage() {
                   </section>
                 )}
 
-                {activeBooking && disruption?.state !== "replacement_required" && (
-                  <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
-                    <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
-                      {activeBooking.replacesBookingId ? "Replacement request" : "Current request"}
-                    </h2>
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <VenueBookingStatusBadge status={activeBooking.status} />
-                      <span className="text-sm font-medium text-slate-800">
-                        {activeBooking.venueName}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm text-slate-600">
-                      {dateTimeFormatter.format(new Date(activeBooking.startsAt))}
-                      {" – "}
-                      {dateTimeFormatter.format(new Date(activeBooking.endsAt))}
-                    </p>
-                    {activeBooking.status === "expired" && (
-                      <p className="mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800">
-                        This hold expired before it was confirmed. The venue is available again
-                        — search or pick a new suggestion to submit another request.
-                      </p>
-                    )}
-                    {activeBooking.status === "on_hold" && activeBooking.expiresAt && (
-                      <>
-                        <p className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
-                          Venue Staff put this request on hold. Confirm by{" "}
-                          {dateTimeFormatter.format(new Date(activeBooking.expiresAt))}, or it
-                          expires and the venue becomes available to others again.
-                        </p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="mt-4"
-                          disabled={confirming}
-                          onClick={handleConfirmHold}
-                        >
-                          {confirming ? "Confirming…" : "Confirm request"}
-                        </Button>
-                        {confirmError && (
-                          <p role="alert" className="mt-2 text-sm text-red-700">
-                            {confirmError}
-                          </p>
-                        )}
-                      </>
-                    )}
-                    {activeBooking.status === "pending" && (
-                      <>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="mt-4"
-                          disabled={withdrawing}
-                          onClick={handleWithdraw}
-                        >
-                          {withdrawing ? "Withdrawing…" : "Withdraw request"}
-                        </Button>
-                        {withdrawError && (
-                          <p role="alert" className="mt-2 text-sm text-red-700">
-                            {withdrawError}
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </section>
+                {bookings.length > 0 && (
+                  <EventVenueBookings
+                    bookings={bookings}
+                    busyBookingId={busyBookingId}
+                    actionError={actionError}
+                    canChangeMain={event.status === "planning"}
+                    onWithdraw={handleWithdraw}
+                    onConfirmHold={handleConfirmHold}
+                    onSetMain={handleSetMain}
+                  />
                 )}
-                <SuggestedVenuesPanel
-                  event={event}
-                  hasActiveBooking={
-                    disruption?.state === "replacement_required"
-                      ? false
-                      : Boolean(activeBooking) && activeBooking?.status !== "expired"
-                  }
-                  replacing={
-                    disruption?.state === "replacement_required"
-                      ? { bookingId: disruption.bookingId, venueId: disruption.venueId }
-                      : undefined
-                  }
-                />
+                {activeBookings.length > 0 && !needsReplacement && event.status === "planning" ? (
+                  <AdditionalVenuePanel event={event} mainVenueArea={mainVenueArea} />
+                ) : (
+                  <SuggestedVenuesPanel
+                    event={event}
+                    hasActiveBooking={!needsReplacement && activeBookings.length > 0}
+                    replacing={
+                      disruption?.state === "replacement_required"
+                        ? { bookingId: disruption.bookingId, venueId: disruption.venueId }
+                        : undefined
+                    }
+                  />
+                )}
               </div>
             </div>
           )}

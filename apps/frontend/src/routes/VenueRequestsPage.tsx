@@ -304,7 +304,7 @@ function RequestRow({
   const eventTitle = isReplacement ? item.original.eventTitle : item.request.eventTitle;
   const subtitle = isReplacement
     ? `${item.original.venueName} → ${item.current.venueName}`
-    : item.request.venueName;
+    : `${item.request.label} · ${item.request.venueName}`;
 
   return (
     <button
@@ -391,7 +391,11 @@ function RequestCard({
             >
               {request.eventTitle}
             </Link>
-            <p className="mt-1 text-sm text-slate-600">{request.venueName}</p>
+            <p className="mt-1 text-sm text-slate-600">
+              <span className="font-medium text-slate-800">{request.label}</span>
+              {" · "}
+              {request.venueName}
+            </p>
             {request.replacesBookingId && (
               <p className="mt-1 text-xs font-medium text-amber-800">
                 Replacement for the disrupted booking
@@ -429,6 +433,14 @@ function RequestCard({
                 : "Not provided"}
             </dd>
           </div>
+          {/* SPM-85: a breakout room is sized for its own headcount, not the event's. */}
+          {request.expectedHeadcount != null
+            && request.expectedHeadcount !== request.eventExpectedAttendance && (
+              <div>
+                <dt className="text-xs font-medium text-slate-400">Headcount for this booking</dt>
+                <dd className="mt-1 text-sm text-slate-800">{request.expectedHeadcount} people</dd>
+              </div>
+            )}
           <VenueRequirementFields requirements={request.eventVenueRequirements} />
           <div>
             <dt className="text-xs font-medium text-slate-400">Requested by</dt>
@@ -454,6 +466,14 @@ function RequestCard({
               </dd>
             </div>
           )}
+          {request.cancellationReason && (
+            <div className="sm:col-span-2">
+              <dt className="text-xs font-medium text-slate-400">
+                Reason the coordinator gave for withdrawing or cancelling
+              </dt>
+              <dd className="mt-1 text-sm text-slate-800">{request.cancellationReason}</dd>
+            </div>
+          )}
           {request.decisionNotes && (
             <div className="sm:col-span-2">
               <dt className="text-xs font-medium text-slate-400">
@@ -463,6 +483,13 @@ function RequestCard({
             </div>
           )}
         </dl>
+
+        {request.advisoryNotes && (
+          <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <span className="font-semibold">Check before deciding: </span>
+            {request.advisoryNotes}
+          </p>
+        )}
 
         {request.status === "on_hold" && (
           <p className="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
