@@ -1,11 +1,17 @@
 import { hasPermission } from "@spm/shared";
 import { Building2, FilePlus2, Search } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { VenueCard } from "@/features/venues/components/venue-card";
+import {
+  countActiveVenueFilters,
+  emptyVenueFilters,
+  VenueFiltersPanel,
+  type VenueFilterValues,
+} from "@/features/venues/components/venue-filters";
 import { listVenues, type VenueSummary } from "@/features/venues/services/venues";
 import { ListToolbar } from "@/features/workspace/components/list-toolbar";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -17,8 +23,17 @@ export function VenuesPage() {
   const [venues, setVenues] = useState<VenueSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") ?? "");
+  const [filters, setFilters] = useState<VenueFilterValues>(() => filtersFromParams(searchParams));
   const canManageVenues = hasPermission(profile?.role ?? "attendee", "manageVenue");
+
+  // Kept in the URL (not just component state) so the Venues list a user
+  // filtered is still there when they go back from a venue's detail page.
+  useEffect(() => {
+    setSearchParams(paramsFromFilters(searchQuery, filters), { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, filters]);
 
   useEffect(() => {
     let active = true;
@@ -44,7 +59,7 @@ export function VenuesPage() {
     };
   }, []);
 
-  const filteredVenues = filterVenues(venues, searchQuery);
+  const filteredVenues = filterVenues(venues, searchQuery, filters);
 
   return (
     <RoleGate>
@@ -66,6 +81,7 @@ export function VenuesPage() {
             searchPlaceholder="Search venues"
             searchValue={searchQuery}
             onSearchChange={setSearchQuery}
+            filters={<VenueFiltersPanel value={filters} onChange={setFilters} />}
             action={
               canManageVenues ? (
                 <Link to="/venues/new" className={buttonVariants({ size: "sm" })}>
@@ -89,7 +105,10 @@ export function VenuesPage() {
           ) : venues.length === 0 ? (
             <EmptyState canManageVenues={canManageVenues} />
           ) : filteredVenues.length === 0 ? (
-            <NoSearchResults />
+            <NoMatchingVenues
+              filtersActive={countActiveVenueFilters(filters) > 0}
+              onClearFilters={() => setFilters(emptyVenueFilters)}
+            />
           ) : (
             <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {filteredVenues.map((venue) => (
@@ -103,19 +122,56 @@ export function VenuesPage() {
   );
 }
 
-/** Case-insensitive substring match on name, address, or tagged area. */
-function filterVenues(venues: VenueSummary[], query: string) {
-  const trimmed = query.trim().toLowerCase();
-  if (!trimmed) return venues;
-  return venues.filter(
-    (venue) =>
-      venue.name.toLowerCase().includes(trimmed) ||
-      venue.location.toLowerCase().includes(trimmed) ||
-      venue.areaTags.some((area) => area.toLowerCase().includes(trimmed)),
-  );
+function filtersFromParams(params: URLSearchParams): VenueFilterValues {
+  return {
+    area: params.get("area") ?? "",
+    minCapacity: params.get("minCapacity") ?? "",
+    facilities: params.getAll("facility"),
+    layout: params.get("layout") ?? "",
+  };
 }
 
-function NoSearchResults() {
+function paramsFromFilters(query: string, filters: VenueFilterValues): URLSearchParams {
+  const params = new URLSearchParams();
+  if (query) params.set("q", query);
+  if (filters.area) params.set("area", filters.area);
+  if (filters.minCapacity) params.set("minCapacity", filters.minCapacity);
+  if (filters.layout) params.set("layout", filters.layout);
+  for (const facility of filters.facilities) params.append("facility", facility);
+  return params;
+}
+
+/** A venue must match the search term and every active filter category. */
+function filterVenues(venues: VenueSummary[], query: string, filters: VenueFilterValues) {
+  const trimmed = query.trim().toLowerCase();
+  return venues.filter((venue) => {
+    const matchesSearch =
+      !trimmed ||
+      venue.name.toLowerCase().includes(trimmed) ||
+      venue.location.toLowerCase().includes(trimmed) ||
+      venue.areaTags.some((area) => area.toLowerCase().includes(trimmed));
+
+    const matchesArea = !filters.area || venue.areaTags.includes(filters.area);
+    const matchesCapacity =
+      !filters.minCapacity || venue.capacity >= Number(filters.minCapacity);
+    const matchesFacilities = filters.facilities.every((facility) =>
+      venue.facilities.includes(facility),
+    );
+    const matchesLayout = !filters.layout || venue.layouts.includes(filters.layout);
+
+    return (
+      matchesSearch && matchesArea && matchesCapacity && matchesFacilities && matchesLayout
+    );
+  });
+}
+
+function NoMatchingVenues({
+  filtersActive,
+  onClearFilters,
+}: {
+  filtersActive: boolean;
+  onClearFilters: () => void;
+}) {
   return (
     <section className="mt-7 grid min-h-80 place-items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 text-center">
       <div className="max-w-sm py-12">
@@ -123,7 +179,14 @@ function NoSearchResults() {
           <Search aria-hidden="true" />
         </span>
         <h2 className="mt-5 text-lg font-semibold text-slate-950">No matching venues</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-500">Try a different search term.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          Try a different search term or adjust your filters.
+        </p>
+        {filtersActive && (
+          <Button type="button" variant="outline" className="mt-5" onClick={onClearFilters}>
+            Clear filters
+          </Button>
+        )}
       </div>
     </section>
   );

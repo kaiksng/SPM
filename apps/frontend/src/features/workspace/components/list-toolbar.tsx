@@ -7,18 +7,22 @@ import { Input } from "@/components/ui/input";
 /**
  * The search + Filters row shared by every workspace list page (Events,
  * Venues, Equipment). Search is wired up per-page (each page owns its own
- * filtering over data it already loaded); Filters has no behaviour yet on
- * any page — a placeholder until the product decides what it filters by.
+ * filtering over data it already loaded). Filters is likewise per-page: a
+ * page that owns real filters passes its own control via `filters`; pages
+ * that don't get the static placeholder button.
  */
 export function ListToolbar({
   searchPlaceholder,
   searchValue,
   onSearchChange,
+  filters,
   action,
 }: {
   searchPlaceholder: string;
   searchValue: string;
   onSearchChange: (value: string) => void;
+  /** The page's own filter control, replacing the static placeholder button. */
+  filters?: ReactNode;
   /** The role-gated primary action (e.g. "Venue request"), or nothing. */
   action?: ReactNode;
 }) {
@@ -39,9 +43,11 @@ export function ListToolbar({
             className="h-9 pl-8"
           />
         </div>
-        <Button type="button" variant="outline" size="sm">
-          Filters <ChevronDown className="size-4" aria-hidden="true" />
-        </Button>
+        {filters ?? (
+          <Button type="button" variant="outline" size="sm">
+            Filters <ChevronDown className="size-4" aria-hidden="true" />
+          </Button>
+        )}
       </div>
       {action}
     </div>
