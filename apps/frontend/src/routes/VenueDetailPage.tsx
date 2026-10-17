@@ -294,13 +294,25 @@ export function VenueDetailPage() {
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-4xl">
-          <Link
-            to={forEventId ? `/events/${forEventId}/venue` : "/venues"}
-            state={location.state}
-            className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
-          >
-            <ArrowLeft /> {forEventId ? (fromSearch ? "Back to venue search" : "Back to venue suggestions") : "Back to venues"}
-          </Link>
+          {forEventId ? (
+            <Link
+              to={`/events/${forEventId}/venue`}
+              state={location.state}
+              className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
+            >
+              <ArrowLeft /> {fromSearch ? "Back to venue search" : "Back to venue suggestions"}
+            </Link>
+          ) : (
+            // Go back in history (not a Link to "/venues") so the catalogue's
+            // search and filters, kept in its own URL, are still there.
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
+            >
+              <ArrowLeft /> Back to venues
+            </button>
+          )}
 
           {loading ? (
             <div className="mt-7 h-96 animate-pulse rounded-2xl bg-slate-200/70 motion-reduce:animate-none" />
