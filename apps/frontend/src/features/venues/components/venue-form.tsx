@@ -273,7 +273,7 @@ export function VenueForm({
         </div>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-12px_32px_-24px_rgba(15,23,42,0.45)] backdrop-blur lg:left-64">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-12px_32px_-24px_rgba(15,23,42,0.45)] backdrop-blur">
         <div className="mx-auto flex max-w-5xl flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
           <p aria-live="polite" className={cn("text-sm", message ? "text-red-700" : "text-slate-500")}>
             {message ?? "Name, location, capacity, operating hours and room layouts are required."}

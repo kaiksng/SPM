@@ -83,7 +83,8 @@ describe("VenueForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("pre-fills every field from initialValues (edit mode)", () => {
+  it("pre-fills every field from initialValues (edit mode)", async () => {
+    const user = userEvent.setup();
     renderForm({
       initialValues: validValues({
         description: "Big room",
@@ -100,7 +101,8 @@ describe("VenueForm", () => {
     expect(fields.turnaroundTime()).toHaveValue(30);
     expect(screen.getByRole("combobox", { name: "Location" })).toHaveValue("Central Area");
     expect(screen.queryByText("Venue areas")).not.toBeInTheDocument();
-    expect(screen.getByText("Projector (previously saved)")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Select facilities/ }));
+    expect(await screen.findByText("Projector (previously saved)")).toBeInTheDocument();
     expect(fields.description()).toHaveValue("Big room");
     expect(fields.accessibility()).toHaveValue("Ramp");
     expect(screen.getByRole("button", { name: "Mon" })).toHaveAttribute("aria-pressed", "true");
