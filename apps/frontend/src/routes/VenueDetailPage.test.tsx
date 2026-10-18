@@ -378,6 +378,27 @@ describe("VenueDetailPage", () => {
     expect(await screen.findByRole("button", { name: "Request venue" })).toBeDisabled();
   });
 
+  // SPM-87 AC02 + AC03: the database refuses a venue whose effective window
+  // (with setup and turnaround) overlaps another booking, and the coordinator
+  // sees that window and cannot request it.
+  it("blocks the request and shows the conflicting effective window", async () => {
+    const reason =
+      "This venue is already booked from 9:30 AM to 12:45 PM on 6 Apr 2099, including setup and turnaround time.";
+    checkVenueBookingAvailabilityMock.mockResolvedValue({ available: false, reason });
+    renderPage("/venues/venue-1?forEvent=event-1");
+
+    expect(await screen.findByText(reason)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Request venue" })).toBeDisabled();
+    expect(checkVenueBookingAvailabilityMock.mock.calls[0]?.slice(0, 2)).toEqual(["venue-1", "event-1"]);
+  });
+
+  // SPM-87 AC02: windows that only touch are not a conflict, so the request stays open.
+  it("keeps the request open when the database finds the venue available", async () => {
+    renderPage("/venues/venue-1?forEvent=event-1");
+
+    expect(await screen.findByRole("button", { name: "Request venue" })).toBeEnabled();
+  });
+
   it("does not trust a direct link when fresh availability fails", async () => {
     checkVenueBookingAvailabilityMock.mockResolvedValue({
       available: false,

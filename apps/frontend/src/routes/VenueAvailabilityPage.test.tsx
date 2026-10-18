@@ -263,3 +263,91 @@ describe("SPM-20: viewing venue availability", () => {
     }
   });
 });
+
+describe("SPM-87: setup and turnaround on the availability calendar", () => {
+  // The day breakdown runs 08:00-22:00 (14 hours); each segment is placed by
+  // a percentage of that, e.g. "calc(10.71% + 2px)".
+  function percent(value: string) {
+    return Number(/calc\(([\d.]+)%/.exec(value)?.[1]);
+  }
+
+  const booking = () => period({ type: "pending", heldByName: null });
+
+  beforeEach(() => {
+    getVenueMock.mockResolvedValue({ ...venue, setupTimeMinutes: "30", turnaroundTimeMinutes: "45" });
+  });
+
+  // SPM-87 AC04 (and AC01's window): a 10:00-12:00 booking at a venue with
+  // 30 min setup and 45 min turnaround shows setup 09:30-10:00 and turnaround
+  // 12:00-12:45 around the event time.
+  it("shows setup before and turnaround after the event time, sized to the venue's settings", async () => {
+    listVenueAvailabilityMock.mockResolvedValue([booking()]);
+    const { container } = renderPage();
+
+    const setup = (await screen.findByText("Setup")).parentElement!;
+    const turnaround = screen.getByText("Turnaround").parentElement!;
+    // Setup: starts 1.5h after opening, lasts 0.5h.
+    expect(percent(setup.style.top)).toBeCloseTo((1.5 / 14) * 100, 3);
+    expect(percent(setup.style.height)).toBeCloseTo((0.5 / 14) * 100, 3);
+    // Turnaround: starts at 12:00 (4h after opening), lasts 0.75h.
+    expect(percent(turnaround.style.top)).toBeCloseTo((4 / 14) * 100, 3);
+    expect(percent(turnaround.style.height)).toBeCloseTo((0.75 / 14) * 100, 3);
+    // The event time itself still reads 10 AM - 12 PM.
+    expect(screen.getByText("Booked by Olivia Organiser").closest("[title]")).toHaveTextContent(
+      "10 AM – 12 PM",
+    );
+    expect(container.querySelectorAll(".venue-calendar__buffer-bar")).toHaveLength(2);
+  });
+
+  // SPM-87 AC04: setup and turnaround are drawn distinctly from the event time,
+  // and the legend names them.
+  it("draws setup and turnaround in their own style, not the booking's", async () => {
+    listVenueAvailabilityMock.mockResolvedValue([booking()]);
+    renderPage();
+
+    const setup = (await screen.findByText("Setup")).parentElement!;
+    const event = screen.getByText("Booked by Olivia Organiser").closest("[title]")!.parentElement!;
+    expect(setup).toHaveClass("venue-calendar__buffer-bar");
+    expect(setup).not.toHaveClass("bg-amber-50");
+    expect(event).toHaveClass("bg-amber-50");
+    expect(event).not.toHaveClass("venue-calendar__buffer-bar");
+    expect(screen.getByText("Setup / turnaround")).toBeInTheDocument();
+  });
+
+  // SPM-87 AC01: setup and turnaround belong to bookings; a block has none.
+  it("adds no setup or turnaround to an operational block", async () => {
+    listVenueAvailabilityMock.mockResolvedValue([
+      period({ type: "blocked", label: "Maintenance", organiserName: null, coordinatorName: null, heldByName: null }),
+    ]);
+    renderPage();
+
+    expect(await screen.findByLabelText("Blocked 10 AM – 12 PM. Maintenance")).toBeInTheDocument();
+    expect(screen.queryByText("Setup")).not.toBeInTheDocument();
+    expect(screen.queryByText("Turnaround")).not.toBeInTheDocument();
+  });
+
+  // SPM-87 AC01: a venue with no setup or turnaround adds nothing around the event.
+  it("shows no setup or turnaround when the venue has none", async () => {
+    getVenueMock.mockResolvedValue({ ...venue, setupTimeMinutes: "0", turnaroundTimeMinutes: "0" });
+    listVenueAvailabilityMock.mockResolvedValue([booking()]);
+    renderPage();
+
+    expect(await screen.findByText("Booked by Olivia Organiser")).toBeInTheDocument();
+    expect(screen.queryByText("Setup")).not.toBeInTheDocument();
+    expect(screen.queryByText("Turnaround")).not.toBeInTheDocument();
+  });
+
+  // SPM-87 AC01: the window uses the venue's current settings.
+  it("uses the venue's current setup and turnaround values", async () => {
+    getVenueMock.mockResolvedValue({ ...venue, setupTimeMinutes: "60", turnaroundTimeMinutes: "15" });
+    listVenueAvailabilityMock.mockResolvedValue([booking()]);
+    renderPage();
+
+    const setup = (await screen.findByText("Setup")).parentElement!;
+    const turnaround = screen.getByText("Turnaround").parentElement!;
+    // Setup 09:00-10:00, turnaround 12:00-12:15.
+    expect(percent(setup.style.top)).toBeCloseTo((1 / 14) * 100, 3);
+    expect(percent(setup.style.height)).toBeCloseTo((1 / 14) * 100, 3);
+    expect(percent(turnaround.style.height)).toBeCloseTo((0.25 / 14) * 100, 3);
+  });
+});
