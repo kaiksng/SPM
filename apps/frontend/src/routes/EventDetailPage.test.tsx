@@ -139,6 +139,7 @@ describe("EventDetailPage", () => {
     ]);
   });
 
+  // SPM-15 AC03: the assigned coordinator can open an event to view its details.
   it("shows the full event detail a card cannot fit", async () => {
     renderPage();
 
@@ -398,6 +399,7 @@ describe("EventDetailPage", () => {
     ).toBeInTheDocument();
   });
 
+  // SPM-15 AC02: another coordinator's event is not shown to this coordinator.
   it("denies a coordinator who is not assigned to this event (SPM-09 AC02)", async () => {
     loadEventDetailMock.mockResolvedValue({
       ...event,

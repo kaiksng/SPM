@@ -531,6 +531,8 @@ describe("EventsPage coordinator view", () => {
     expect(screen.getByText("Shernice Test Submission")).toBeInTheDocument();
   });
 
+  // SPM-15 AC01: the coordinator sees the events assigned to them.
+  // SPM-15 AC03: each card opens the event's detail page.
   it("lists an event assigned to the signed-in coordinator", async () => {
     render(
       <MemoryRouter initialEntries={["/events"]}>
@@ -589,6 +591,7 @@ describe("EventsPage coordinator view", () => {
     expect(screen.queryByText("Awaiting Organiser")).not.toBeInTheDocument();
   });
 
+  // SPM-15 AC04: a coordinator with no assigned events sees an empty list.
   it("shows an empty state when nothing is assigned", async () => {
     listAssignedEventsMock.mockResolvedValue([]);
 
