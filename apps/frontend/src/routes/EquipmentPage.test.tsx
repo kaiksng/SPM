@@ -247,6 +247,19 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
     expect(screen.getByText("Wireless microphone")).toBeInTheDocument();
   });
 
+  it("shows 'No equipment yet' for an empty inventory, distinct from a no-match search", async () => {
+    service.listInventory.mockResolvedValue([]);
+    const user = userEvent.setup();
+    await renderInventory();
+
+    expect(await screen.findByText("No equipment yet")).toBeInTheDocument();
+    expect(screen.queryByText(/No equipment matches your search/)).not.toBeInTheDocument();
+
+    await user.type(await screen.findByLabelText("Search equipment"), "mic");
+    expect(screen.getByText("No equipment yet")).toBeInTheDocument();
+    expect(screen.queryByText(/No equipment matches your search/)).not.toBeInTheDocument();
+  });
+
   it("lists each unit by ID with the out-of-service one flagged", async () => {
     const user = userEvent.setup();
     await renderInventory();
