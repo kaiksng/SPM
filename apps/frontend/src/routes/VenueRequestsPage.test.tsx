@@ -475,6 +475,13 @@ describe("VenueRequestsPage", () => {
       expect(within(card).getByText(formatDateTime(new Date("2099-04-05T01:00:00.000Z")))).toBeInTheDocument();
       expect(within(card).getByText(/Waiting on the coordinator to confirm/)).toBeInTheDocument();
       expect(within(card).queryByRole("button", { name: "Place on hold" })).not.toBeInTheDocument();
+      // Venue hold placement AC02: the active hold still shows its event, venue
+      // and requested period next to its deadline.
+      expect(within(card).getByText("Evening Talk")).toBeInTheDocument();
+      expect(within(card).getByText("Main Programme").parentElement).toHaveTextContent("Main Programme · Seminar Room");
+      expect(within(card).getByText("Requested period").nextElementSibling).toHaveTextContent(
+        `${formatDateTime(new Date("2099-04-06T02:00:00.000Z"))} – ${formatDateTime(new Date("2099-04-06T04:00:00.000Z"))}`,
+      );
       // An On Hold request is still waiting for a decision.
       expect(screen.getByRole("button", { name: "Needs decision (1)" })).toBeInTheDocument();
     });

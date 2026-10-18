@@ -1,8 +1,9 @@
 begin;
-select plan(26);
+select plan(33);
 
--- Venue hold: an Event Coordinator confirms their venue booking request
--- while it is On Hold, before the hold expires.
+-- Venue holds: Venue Staff place a tentative hold on a Pending request with an
+-- expiry ("Placing" ACs), and the Event Coordinator confirms it before it
+-- expires (the other ACs).
 insert into auth.users (id, email, raw_user_meta_data) values
   ('f4000000-0000-0000-0000-000000000001', 'hold-staff@example.test', '{"full_name":"Hold Staff","role":"venue_staff"}'::jsonb),
   ('f4000000-0000-0000-0000-000000000002', 'hold-coord-a@example.test', '{"full_name":"Hold Coordinator A","role":"event_coordinator"}'::jsonb),
@@ -30,11 +31,44 @@ select lives_ok($$insert into hold_ids select 'a', public.submit_venue_booking_r
   'f4000000-0000-0000-0000-0000000000e1', 'f4000000-0000-0000-0000-000000000010')$$,
   'Coordinator A requests the venue');
 
+-- Placing a hold (AC01): only Venue Staff can put a request on hold.
+select throws_ok(format($$select public.place_venue_booking_hold(%L::uuid, now() + interval '3 days')$$,
+  (select id from hold_ids where label = 'a')),
+  '42501', 'Only Venue Staff can place a hold', 'Placing AC01: a coordinator cannot put a request on hold');
+
+-- Placing a hold (AC03): the expiry must be in the future and before the requested period starts.
+select set_config('request.jwt.claims', '{"sub":"f4000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select throws_ok(format($$select public.place_venue_booking_hold(%L::uuid, now() - interval '1 minute')$$,
+  (select id from hold_ids where label = 'a')),
+  '23514', 'Enter an expiry date and time in the future', 'Placing AC03: an expiry in the past is refused');
+select throws_ok(format($$select public.place_venue_booking_hold(%L::uuid, '2099-05-12T10:00:00+08:00')$$,
+  (select id from hold_ids where label = 'a')),
+  '23514', 'The expiry must be before the requested period starts', 'Placing AC03: an expiry exactly at the start is refused');
+select throws_ok(format($$select public.place_venue_booking_hold(%L::uuid, '2099-05-12T11:00:00+08:00')$$,
+  (select id from hold_ids where label = 'a')),
+  '23514', 'The expiry must be before the requested period starts', 'Placing AC03: an expiry during the period is refused');
+reset role;
+select is((select status::text || '|' || coalesce(expires_at::text, 'none') from public.venue_bookings
+  where id = (select id from hold_ids where label = 'a')),
+  'pending|none', 'Placing AC03: a refused hold leaves the request Pending, with no expiry');
+
+set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"f4000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select lives_ok(format($$select public.place_venue_booking_hold(%L::uuid, now() + interval '3 days')$$,
   (select id from hold_ids where label = 'a')), 'Venue Staff put the request on hold');
 
+-- Placing a hold (AC01): only a Pending request can be put on hold.
+select throws_ok(format($$select public.place_venue_booking_hold(%L::uuid, now() + interval '4 days')$$,
+  (select id from hold_ids where label = 'a')),
+  '23514', 'Only a Pending venue booking request can be put on hold', 'Placing AC01: a request already On Hold cannot be held again');
+
 reset role;
+-- Placing a hold (AC02): the hold keeps its event, venue, requested period and who placed it.
+select is((select e.title || '|' || v.name || '|' || b.starts_at::text || '|' || b.ends_at::text || '|' || b.held_by::text
+  from public.venue_bookings b join public.events e on e.id = b.event_id join public.venues v on v.id = b.venue_id
+  where b.id = (select id from hold_ids where label = 'a')),
+  'Hold Event A|Hold Test Hall|2099-05-12 02:00:00+00|2099-05-12 04:00:00+00|f4000000-0000-0000-0000-000000000001',
+  'Placing AC02: the hold records the event, venue, requested period and the Venue Staff member who placed it');
 -- AC01: the request is On Hold with its confirmation deadline recorded.
 select is((select status::text from public.venue_bookings where id = (select id from hold_ids where label = 'a')),
   'on_hold', 'AC01: the request is On Hold');
