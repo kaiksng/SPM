@@ -509,15 +509,19 @@ function LeadEventsView() {
     if (statusFilter === "all") return true;
     return event.status === statusFilter;
   });
-  const oversightGroups = groupEventsByCoordinator(oversightEvents);
+  const oversightGroups = groupEventsByCoordinator(oversightEvents, coordinators, coordinatorFilter);
 
   const filteredQueueEvents = filterEventsByTitle(queueEvents, searchQuery);
   const filteredOversightGroups = oversightGroups
     .map((group) => ({
+      hadEvents: group.events.length > 0,
       ...group,
       events: filterEventsByTitle(group.events, searchQuery),
     }))
-    .filter((group) => group.events.length > 0);
+    // A coordinator with no events under the current filter still appears
+    // with a count of 0 (AC, SPM-80 TC-014); only drop a group the search
+    // term matched nothing in.
+    .filter((group) => group.events.length > 0 || !group.hadEvents);
 
   return (
     <RoleGate>
@@ -702,9 +706,25 @@ function LeadEventsView() {
   );
 }
 
-/** Groups assigned events by coordinator, alphabetised by coordinator name. */
-function groupEventsByCoordinator(events: LeadEventSummary[]) {
+/**
+ * Groups assigned events by coordinator, alphabetised by coordinator name.
+ * A coordinator with no events under the current filter still appears, with
+ * a count of 0 (AC, SPM-80 TC-014), rather than being omitted.
+ */
+function groupEventsByCoordinator(
+  events: LeadEventSummary[],
+  coordinators: CoordinatorOption[],
+  coordinatorFilter: string,
+) {
   const groups = new Map<string, { coordinatorId: string; coordinatorName: string; events: LeadEventSummary[] }>();
+  for (const coordinator of coordinators) {
+    if (coordinatorFilter !== "all" && coordinator.id !== coordinatorFilter) continue;
+    groups.set(coordinator.id, {
+      coordinatorId: coordinator.id,
+      coordinatorName: coordinator.fullName ?? "Unnamed coordinator",
+      events: [],
+    });
+  }
   for (const event of events) {
     const coordinatorId = event.assignedCoordinatorId;
     if (!coordinatorId) continue;

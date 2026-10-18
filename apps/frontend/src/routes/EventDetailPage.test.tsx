@@ -413,6 +413,40 @@ describe("EventDetailPage", () => {
     expect(screen.queryByText("Student Leadership Summit 2")).not.toBeInTheDocument();
   });
 
+  // SPM-80 TC-011: the organiser is told their request is awaiting coordinator assignment.
+  describe("SPM-80: awaiting coordinator assignment", () => {
+    afterEach(() => {
+      authState.user.id = "20000000-0000-0000-0000-000000000002";
+    });
+
+    it("tells the organiser the request is awaiting coordinator assignment", async () => {
+      authState.profile.role = "event_organiser";
+      authState.user.id = event.organiserId;
+      loadEventDetailMock.mockResolvedValue({
+        ...event,
+        status: "requested",
+        assignedCoordinatorId: null,
+        assignedCoordinatorName: null,
+      });
+
+      renderPage();
+
+      expect(await screen.findByText("Awaiting coordinator assignment")).toBeInTheDocument();
+    });
+
+    it("stops showing that message once a coordinator is assigned", async () => {
+      authState.profile.role = "event_organiser";
+      authState.user.id = event.organiserId;
+      loadEventDetailMock.mockResolvedValue({ ...event, status: "requested" });
+
+      renderPage();
+
+      expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+      expect(screen.queryByText("Awaiting coordinator assignment")).not.toBeInTheDocument();
+      expect(screen.getByText("Coordinator: Joyce Coordinator")).toBeInTheDocument();
+    });
+  });
+
   // SPM-12 AC02: whoever can view the event sees its current status.
   describe("SPM-12: the event's current status", () => {
     const EVENT_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";

@@ -185,8 +185,10 @@ export function EventDetailPage() {
                 )}
                 <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
                   {event.organiserName && <span>Organiser: {event.organiserName}</span>}
-                  {event.assignedCoordinatorName && (
+                  {event.assignedCoordinatorName ? (
                     <span>Coordinator: {event.assignedCoordinatorName}</span>
+                  ) : (
+                    event.status === "requested" && <span>Awaiting coordinator assignment</span>
                   )}
                   {event.submittedAt && (
                     <span>Submitted {formatDateTime(event.submittedAt)}</span>

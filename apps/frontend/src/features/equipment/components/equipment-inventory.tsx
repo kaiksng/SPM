@@ -1,5 +1,5 @@
 import type { EquipmentItemFormValues, EquipmentUnavailabilityFormValues } from "@spm/shared";
-import { ChevronDown, Pencil, Plus, Search } from "lucide-react";
+import { Boxes, ChevronDown, Pencil, Plus, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 
@@ -135,7 +135,15 @@ export function EquipmentInventory({
       <EquipmentFiltersPanel value={filters} onChange={setFilters} categories={categories} />
       <ActiveFilterChips chips={equipmentFilterChips(filters, setFilters)} />
 
-      {visible.length === 0 ? (
+      {items.length === 0 ? (
+        <div className="mt-6 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center">
+          <Boxes aria-hidden="true" className="mx-auto size-8 text-slate-400" />
+          <h2 className="mt-3 text-sm font-semibold text-slate-900">No equipment yet</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Equipment will show up here once it&apos;s added to the inventory.
+          </p>
+        </div>
+      ) : visible.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center">
           <p className="text-sm text-slate-500">
             No equipment matches your search{countActiveEquipmentFilters(filters) > 0 ? " or filters" : ""}.

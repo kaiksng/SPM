@@ -12,6 +12,9 @@ const listClarificationsMock = vi.fn();
 const getClarificationReviewStateMock = vi.fn();
 const listEventDecisionsMock = vi.fn();
 const loadEventFieldHistoryMock = vi.fn();
+const listAllEventsMock = vi.fn();
+const listCoordinatorsMock = vi.fn();
+const assignEventCoordinatorMock = vi.fn();
 const authState = {
   profile: { full_name: "Kai Test", role: "event_organiser" },
   user: { id: "10000000-0000-0000-0000-000000000001" },
@@ -51,6 +54,12 @@ vi.mock("@/features/event-requests/services/decisions", () => ({
 
 vi.mock("@/features/event-requests/services/field-history", () => ({
   loadEventFieldHistory: (...args: unknown[]) => loadEventFieldHistoryMock(...args),
+}));
+
+vi.mock("@/features/event-requests/services/all-events", () => ({
+  listAllEvents: (...args: unknown[]) => listAllEventsMock(...args),
+  listCoordinators: (...args: unknown[]) => listCoordinatorsMock(...args),
+  assignEventCoordinator: (...args: unknown[]) => assignEventCoordinatorMock(...args),
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -660,5 +669,54 @@ describe("EventsPage coordinator view", () => {
 
     expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove Planning filter" })).not.toBeInTheDocument();
+  });
+});
+
+describe("EventsPage for the Event Coordinator Lead role", () => {
+  beforeEach(() => {
+    authState.profile.role = "event_coordinator_lead";
+    listAllEventsMock.mockReset();
+    listCoordinatorsMock.mockReset();
+    assignEventCoordinatorMock.mockReset().mockResolvedValue(undefined);
+  });
+
+  // SPM-80 TC-014: a coordinator with no active events still appears in
+  // Oversight, with a count of 0, instead of being omitted.
+  it("shows a coordinator with zero active events with a count of 0", async () => {
+    listAllEventsMock.mockResolvedValue([
+      {
+        id: "event-c1",
+        title: "C1's event",
+        purpose: null,
+        status: "planning",
+        startsAt: null,
+        endsAt: null,
+        updatedAt: "2026-09-12T08:00:00.000Z",
+        submittedAt: "2026-09-10T08:00:00.000Z",
+        expectedAttendance: null,
+        organiserName: "Olivia Organiser",
+        assignedCoordinatorId: "coordinator-1",
+        assignedCoordinatorName: "Coordinator One",
+      },
+    ]);
+    listCoordinatorsMock.mockResolvedValue([
+      { id: "coordinator-1", fullName: "Coordinator One", activeEventCount: 1 },
+      { id: "coordinator-3", fullName: "Coordinator Three", activeEventCount: 0 },
+    ]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: /^Oversight/ }));
+
+    expect(await screen.findByText("Coordinator One")).toBeInTheDocument();
+    expect(screen.getByText("Coordinator Three")).toBeInTheDocument();
+    expect(
+      screen.getByText("Coordinator Three").closest("section"),
+    ).toHaveTextContent("0 events");
   });
 });
