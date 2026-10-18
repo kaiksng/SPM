@@ -199,9 +199,8 @@ describe("VenuesPage filters", () => {
     await screen.findByText("Grand Auditorium");
 
     await openFilters(user);
-    const facilities = screen.getByText(/Select facilities/);
-    await user.click(facilities);
-    await user.click(within(facilities.closest("details")!).getByLabelText("Parking"));
+    await user.click(screen.getByRole("button", { name: /Select facilities/ }));
+    await user.click(await screen.findByLabelText("Parking"));
 
     expect(screen.getByText("Grand Auditorium")).toBeInTheDocument();
     expect(screen.queryByText("Harbour Boardroom")).not.toBeInTheDocument();

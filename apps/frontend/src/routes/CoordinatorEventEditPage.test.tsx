@@ -227,7 +227,8 @@ describe("CoordinatorEventEditPage", () => {
       await screen.findByDisplayValue("Student Leadership Summit 2");
       await user.selectOptions(screen.getByLabelText(/Preferred location/), "North");
       await user.selectOptions(screen.getByLabelText("Room layout"), "Classroom");
-      await user.click(screen.getByRole("checkbox", { name: "Gym" }));
+      await user.click(screen.getByRole("button", { name: /Select facilities/ }));
+      await user.click(await screen.findByRole("checkbox", { name: "Gym" }));
       await user.clear(screen.getByLabelText("Accessibility needs"));
       await user.type(screen.getByLabelText("Accessibility needs"), "Step-free entrance");
       await user.clear(screen.getByLabelText(/Quantity/));
