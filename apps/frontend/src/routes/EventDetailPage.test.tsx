@@ -617,6 +617,20 @@ describe("EventDetailPage", () => {
     );
   });
 
+  // SPM-49 AC03: an attendee who enters an event's address directly is
+  // denied, and none of its internal planning details are shown.
+  it("denies an attendee who opens an event page directly", async () => {
+    authState.profile.role = "attendee";
+
+    renderPage();
+
+    expect(await screen.findByText("Access denied")).toBeInTheDocument();
+    expect(screen.queryByText("Student Leadership Summit 2")).not.toBeInTheDocument();
+    expect(screen.queryByText("Main Auditorium")).not.toBeInTheDocument();
+    expect(screen.queryByText("Organiser: jasmine")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Approve|Reject|Request clarification/ })).not.toBeInTheDocument();
+  });
+
   describe("SPM-14: organiser access restricted to own events", () => {
     beforeEach(() => {
       authState.profile.role = "event_organiser";

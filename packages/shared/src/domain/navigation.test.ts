@@ -179,6 +179,35 @@ describe("workspace navigation", () => {
     });
   });
 
+  describe("SPM-49: attendee role scope", () => {
+    const eventId = "10000000-0000-0000-0000-000000000001";
+
+    // SPM-49 AC01: an attendee reaches the attendee-facing events page.
+    it("allows an attendee to reach Browse Events", () => {
+      expect(isPathAllowedForRole("/browse-events", "attendee")).toBe(true);
+    });
+
+    // SPM-49 AC02/AC03: internal planning pages are denied, even by direct address.
+    it.each([
+      "/events",
+      "/events/new",
+      `/events/${eventId}`,
+      `/events/${eventId}/edit`,
+      `/events/${eventId}/history`,
+      `/events/${eventId}/venue`,
+      `/events/${eventId}/equipment`,
+      "/venues",
+      "/venue-requests",
+      "/flagged-bookings",
+      "/equipment",
+      "/equipment/inventory",
+      "/safety-checks",
+      "/admin",
+    ])("blocks an attendee from %s", (path) => {
+      expect(isPathAllowedForRole(path, "attendee")).toBe(false);
+    });
+  });
+
   it("gives the safety officer only the safety checks section", () => {
     expect(
       getNavItemsForRole("safety_officer").map((item) => item.id),
