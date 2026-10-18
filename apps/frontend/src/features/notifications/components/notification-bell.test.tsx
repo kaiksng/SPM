@@ -158,6 +158,34 @@ describe("NotificationBell", () => {
   });
 
   // SPM-76 AC03: a user can mark all notifications as read.
+  // SPM-88: conflict notifications go to Venue Staff, so they open the Flagged page.
+  it.each([
+    ["venue_conflict_flagged" as const, "Venue booking conflict"],
+    ["venue_conflict_resolved" as const, "Venue conflict cleared"],
+  ])("SPM-88: opens the Flagged page from a %s notification", async (type, title) => {
+    listNotificationsMock.mockResolvedValue([
+      {
+        id: "n5",
+        type,
+        title,
+        message: '"Morning Talk" and "Afternoon Talk" now conflict once setup/turnaround time is applied.',
+        eventId: "e5",
+        venueId: null,
+        readAt: null,
+        createdAt: "2026-10-09T02:00:00Z",
+      },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText(title));
+
+    expect(markNotificationReadMock).toHaveBeenCalledWith("n5");
+    expect(navigateMock).toHaveBeenCalledWith("/flagged-bookings");
+  });
+
   it("marks every unread notification read without navigating", async () => {
     listNotificationsMock.mockResolvedValue([UNREAD, READ]);
     getUnreadNotificationCountMock.mockResolvedValue(1);
