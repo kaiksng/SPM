@@ -1,13 +1,13 @@
 -- SPM-17 TC-003: Role A user is blocked from viewing Role B page
 -- Acceptance criterion: AC2 / Scenario 2
--- Login: Event Organiser (jasmine@gmail.com) - shared UAT password (kept with the team)
+-- Login: Event Organiser (jasmine@gmail.com) - password is in the test case's Test Data / Test accounts
 -- Inputs entered during the test (not inserted): URL "/venue-requests"
 -- Source: Both user accounts exist. A page exists that only Role B may open
 -- Records restored: profile jasmine@gmail.com
 -- Must-not-exist conditions enforced: none
 -- Defaults added: none
--- Safe to re-run: restores this case's records only; all other data is left untouched.
--- Not a migration: run it by hand (Supabase SQL editor on testDB, or psql) right before the test.
+-- Safe to re-run: changes this case's test records only; stops without changes if real data would be affected.
+-- Run with: pnpm uat:setup spm17_tc003   (from the repo root; see tests/uat_data/README.md)
 
 BEGIN;
 
