@@ -35,6 +35,7 @@ beforeEach(() => {
 });
 
 describe("listNotifications", () => {
+  // SPM-76 AC01: newest first, with message, related event and time.
   it("orders by newest first and maps rows to the summary shape", async () => {
     limitMock.mockResolvedValueOnce({
       data: [
@@ -137,6 +138,7 @@ describe("listNotifications", () => {
 });
 
 describe("getUnreadNotificationCount", () => {
+  // SPM-76 AC02: the badge count is the number of unread notifications.
   it("filters to unread rows and returns the count", async () => {
     const headSelectMock = vi.fn().mockReturnValue({ is: isMock });
     fromMock.mockReturnValueOnce({ select: headSelectMock });
@@ -151,6 +153,7 @@ describe("getUnreadNotificationCount", () => {
 });
 
 describe("markNotificationRead", () => {
+  // SPM-76 AC03: mark one notification as read.
   it("sets read_at on the given notification", async () => {
     await markNotificationRead("n1");
 
@@ -160,6 +163,7 @@ describe("markNotificationRead", () => {
 });
 
 describe("markAllNotificationsRead", () => {
+  // SPM-76 AC03: mark all notifications as read.
   it("sets read_at on every unread row", async () => {
     await markAllNotificationsRead();
 

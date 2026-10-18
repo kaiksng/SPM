@@ -68,6 +68,7 @@ beforeEach(() => {
 });
 
 describe("NotificationBell", () => {
+  // SPM-76 AC02: an unread count badge is shown in the navigation.
   it("shows the unread count badge", async () => {
     listNotificationsMock.mockResolvedValue([UNREAD, READ]);
     getUnreadNotificationCountMock.mockResolvedValue(1);
@@ -112,6 +113,7 @@ describe("NotificationBell", () => {
     expect(screen.queryByText("You're all caught up")).not.toBeInTheDocument();
   });
 
+  // SPM-76 AC03 + AC04: selecting one marks it read and opens its event.
   it("marks a notification read and navigates to its event on selection", async () => {
     listNotificationsMock.mockResolvedValue([UNREAD]);
     getUnreadNotificationCountMock.mockResolvedValue(1);
@@ -155,6 +157,7 @@ describe("NotificationBell", () => {
     expect(navigateMock).toHaveBeenCalledWith("/events/e4/venue");
   });
 
+  // SPM-76 AC03: a user can mark all notifications as read.
   it("marks every unread notification read without navigating", async () => {
     listNotificationsMock.mockResolvedValue([UNREAD, READ]);
     getUnreadNotificationCountMock.mockResolvedValue(1);
@@ -270,5 +273,91 @@ describe("NotificationBell", () => {
     expect(
       await screen.findByRole("button", { name: "Mark all as read" }),
     ).toBeDisabled();
+  });
+
+  describe("SPM-76: notification centre", () => {
+    // SPM-76 AC01: each notification shows its message and time, newest first.
+    it("lists each notification with its title, message and time, newest first", async () => {
+      listNotificationsMock.mockResolvedValue([UNREAD, READ]);
+      getUnreadNotificationCountMock.mockResolvedValue(1);
+      const user = userEvent.setup();
+
+      renderBell();
+      await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+
+      const newer = (await screen.findByText(UNREAD.title)).closest("button")!;
+      const older = screen.getByText(READ.title).closest("button")!;
+      expect(newer).toHaveTextContent(UNREAD.message);
+      expect(newer).toHaveTextContent(/6 Oct 2026, 5:00\spm/);
+      expect(older).toHaveTextContent(READ.message);
+      expect(older).toHaveTextContent(/4 Oct 2026, 11:00\spm/);
+      expect(newer.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    // SPM-76 AC02: the badge count drops as a notification is read.
+    it("lowers the unread badge by one when a notification is read", async () => {
+      listNotificationsMock.mockResolvedValue([UNREAD, { ...UNREAD, id: "n5", title: "Second update" }]);
+      getUnreadNotificationCountMock.mockResolvedValue(2);
+      const user = userEvent.setup();
+
+      renderBell();
+      await user.click(await screen.findByRole("button", { name: "Notifications, 2 unread" }));
+      await user.click(await screen.findByText("Second update"));
+
+      expect(await screen.findByRole("button", { name: "Notifications, 1 unread" })).toHaveTextContent("1");
+      expect(markNotificationReadMock).toHaveBeenCalledWith("n5");
+    });
+
+    // SPM-76 AC02 + AC03: marking all as read clears the badge.
+    it("clears the unread badge after marking all as read", async () => {
+      listNotificationsMock.mockResolvedValue([UNREAD, { ...UNREAD, id: "n5", title: "Second update" }]);
+      getUnreadNotificationCountMock.mockResolvedValue(2);
+      const user = userEvent.setup();
+
+      renderBell();
+      await user.click(await screen.findByRole("button", { name: "Notifications, 2 unread" }));
+      await user.click(await screen.findByRole("button", { name: "Mark all as read" }));
+
+      const bell = await screen.findByRole("button", { name: "Notifications" });
+      expect(bell).not.toHaveTextContent("2");
+      expect(markAllNotificationsReadMock).toHaveBeenCalledTimes(1);
+    });
+
+    // SPM-76 AC02: a large count stays readable in the badge.
+    it("caps the badge at 9+", async () => {
+      listNotificationsMock.mockResolvedValue([UNREAD]);
+      getUnreadNotificationCountMock.mockResolvedValue(12);
+
+      renderBell();
+
+      expect(await screen.findByRole("button", { name: "Notifications, 12 unread" })).toHaveTextContent("9+");
+    });
+
+    // SPM-76 AC03: reading an already-read notification does not write again.
+    it("does not mark an already-read notification read again", async () => {
+      listNotificationsMock.mockResolvedValue([READ]);
+      getUnreadNotificationCountMock.mockResolvedValue(0);
+      const user = userEvent.setup();
+
+      renderBell();
+      await user.click(screen.getByRole("button", { name: "Notifications" }));
+      await user.click(await screen.findByText(READ.title));
+
+      expect(markNotificationReadMock).not.toHaveBeenCalled();
+      expect(navigateMock).toHaveBeenCalledWith(`/events/${READ.eventId}`);
+    });
+
+    // SPM-76 AC04: a notification with no related event has nowhere to open.
+    it("does not open anything for a notification with no related event", async () => {
+      listNotificationsMock.mockResolvedValue([{ ...UNREAD, eventId: null, title: "General notice" }]);
+      getUnreadNotificationCountMock.mockResolvedValue(1);
+      const user = userEvent.setup();
+
+      renderBell();
+      await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+
+      expect((await screen.findByText("General notice")).closest("button")).toBeDisabled();
+      expect(navigateMock).not.toHaveBeenCalled();
+    });
   });
 });
