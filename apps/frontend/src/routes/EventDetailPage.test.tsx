@@ -617,6 +617,30 @@ describe("EventDetailPage", () => {
     );
   });
 
+  // SPM-77 AC02: the Lead may view an event, but only read-only — none of the
+  // organiser's or coordinator's planning actions are offered.
+  it("shows the lead a read-only event with no planning actions", async () => {
+    const eventId = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
+    authState.profile.role = "event_coordinator_lead";
+    loadEventDetailMock.mockResolvedValue({ ...event, id: eventId, status: "planning" });
+
+    // The Lead's routes only accept a real event id, not "event-1".
+    render(
+      <MemoryRouter initialEntries={[`/events/${eventId}`]}>
+        <Routes>
+          <Route path="events/:eventId" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+    for (const action of [/Request clarification/, /^Approve$/, /^Reject$/, /Mark as completed/]) {
+      expect(screen.queryByRole("button", { name: action })).not.toBeInTheDocument();
+    }
+    expect(screen.queryByRole("link", { name: /Edit event/ })).not.toBeInTheDocument();
+    expect(listClarificationsMock).not.toHaveBeenCalled();
+  });
+
   // SPM-49 AC03: an attendee who enters an event's address directly is
   // denied, and none of its internal planning details are shown.
   it("denies an attendee who opens an event page directly", async () => {

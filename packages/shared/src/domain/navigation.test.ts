@@ -66,6 +66,7 @@ describe("workspace navigation", () => {
     expect(isPathAllowedForRole("/equipment", "venue_staff")).toBe(false);
   });
 
+  // SPM-77 AC02: the Lead's permitted pages.
   it("gives the event coordinator lead the events dashboard, read-only detail, and history page", () => {
     expect(isPathAllowedForRole("/events", "event_coordinator_lead")).toBe(true);
     expect(
@@ -82,6 +83,7 @@ describe("workspace navigation", () => {
     ).toBe(true);
   });
 
+  // SPM-77 AC02: the Lead cannot reach event editing, venue or creation routes.
   it("blocks the event coordinator lead from an event's venue and edit routes, and from creating one", () => {
     const eventId = "10000000-0000-0000-0000-000000000001";
     expect(isPathAllowedForRole("/events/new", "event_coordinator_lead")).toBe(false);
@@ -208,6 +210,50 @@ describe("workspace navigation", () => {
     });
   });
 
+  describe("SPM-77: event coordinator lead and safety officer role scope", () => {
+    const eventId = "10000000-0000-0000-0000-000000000001";
+
+    // SPM-77 AC02: the Lead's permitted pages are the events dashboard,
+    // a read-only event detail and its history.
+    it.each(["/events", `/events/${eventId}`, `/events/${eventId}/history`])(
+      "allows the lead to reach %s",
+      (path) => {
+        expect(isPathAllowedForRole(path, "event_coordinator_lead")).toBe(true);
+      },
+    );
+
+    // SPM-77 AC02: everything else is outside the Lead's scope.
+    it.each([
+      `/events/${eventId}/equipment`,
+      "/venues",
+      "/venue-requests",
+      "/flagged-bookings",
+      "/equipment",
+      "/equipment/inventory",
+      "/browse-events",
+      "/safety-checks",
+      "/admin",
+    ])("blocks the lead from %s", (path) => {
+      expect(isPathAllowedForRole(path, "event_coordinator_lead")).toBe(false);
+    });
+
+    // SPM-77 AC03: everything except Safety Checks is outside the Safety Officer's scope.
+    it.each([
+      `/events/${eventId}`,
+      `/events/${eventId}/history`,
+      "/events/new",
+      "/venue-requests",
+      "/flagged-bookings",
+      "/equipment",
+      "/equipment/inventory",
+      "/browse-events",
+      "/admin",
+    ])("blocks the safety officer from %s", (path) => {
+      expect(isPathAllowedForRole(path, "safety_officer")).toBe(false);
+    });
+  });
+
+  // SPM-77 AC03: the Safety Officer's only section is Safety Checks.
   it("gives the safety officer only the safety checks section", () => {
     expect(
       getNavItemsForRole("safety_officer").map((item) => item.id),

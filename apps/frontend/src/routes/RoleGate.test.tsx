@@ -153,6 +153,60 @@ describe("RoleGate", () => {
     });
   });
 
+  describe("SPM-77: event coordinator lead and safety officer role scope", () => {
+    // SPM-77 AC02 + AC04: the Lead is shown a clear denial outside their scope,
+    // with a way back to their own landing page.
+    it.each(["/venues", "/equipment", "/safety-checks", "/events/new"])(
+      "denies the lead the page at %s with a way back to their dashboard",
+      (path) => {
+        authState.profile = { full_name: "Lee Lead", role: "event_coordinator_lead" };
+
+        renderAt(path);
+
+        expect(screen.getByText("Access denied")).toBeInTheDocument();
+        expect(
+          screen.getByRole("heading", { name: "You don't have access to this page" }),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Return to dashboard" })).toHaveAttribute(
+          "href",
+          "/events",
+        );
+      },
+    );
+
+    // SPM-77 AC03 + AC04: the same for the Safety Officer.
+    it.each(["/events", "/events/10000000-0000-0000-0000-000000000001", "/venues", "/equipment"])(
+      "denies the safety officer the page at %s with a way back to Safety Checks",
+      (path) => {
+        authState.profile = { full_name: "Sam Safety", role: "safety_officer" };
+
+        renderAt(path);
+
+        expect(screen.getByText("Access denied")).toBeInTheDocument();
+        expect(
+          screen.getByRole("heading", { name: "You don't have access to this page" }),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+        expect(screen.getByRole("link", { name: "Return to dashboard" })).toHaveAttribute(
+          "href",
+          "/safety-checks",
+        );
+      },
+    );
+
+    it.each([
+      ["lead", "event_coordinator_lead", "/events"],
+      ["safety officer", "safety_officer", "/safety-checks"],
+    ])("shows the %s their own landing page", (_label, role, path) => {
+      authState.profile = { full_name: "Someone", role };
+
+      renderAt(path);
+
+      expect(screen.getByText("Protected content")).toBeInTheDocument();
+    });
+  });
+
   it("renders nothing while there is no profile yet", () => {
     authState.profile = null;
 

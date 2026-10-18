@@ -722,4 +722,70 @@ describe("EventsPage for the Event Coordinator Lead role", () => {
       screen.getByText("Coordinator Three").closest("section"),
     ).toHaveTextContent("0 events");
   });
+
+  const leadEvent = {
+    id: "event-q1",
+    title: "Unassigned Gala",
+    purpose: null,
+    status: "requested",
+    startsAt: null,
+    endsAt: null,
+    updatedAt: "2026-09-12T08:00:00.000Z",
+    submittedAt: "2026-09-10T08:00:00.000Z",
+    expectedAttendance: null,
+    organiserName: "Olivia Organiser",
+    assignedCoordinatorId: null,
+    assignedCoordinatorName: null,
+  };
+
+  // SPM-77 AC01 + AC02: the Lead lands on their own workspace and sees
+  // unassigned events with the assignment action their role permits.
+  it("shows the lead's own workspace with unassigned events to assign", async () => {
+    listAllEventsMock.mockResolvedValue([leadEvent]);
+    listCoordinatorsMock.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Event Coordinator Lead workspace")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "All events" })).toBeInTheDocument();
+    expect(await screen.findByText("Unassigned Gala")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Assign coordinator" })).toBeInTheDocument();
+    expect(listAllEventsMock).toHaveBeenCalled();
+    // Not the organiser's or coordinator's own-events view.
+    expect(listEventRequestsMock).not.toHaveBeenCalled();
+    expect(listAssignedEventsMock).not.toHaveBeenCalled();
+  });
+
+  // SPM-77 AC02: the Lead sees every coordinator's assigned events and can reassign.
+  it("shows the lead each coordinator's assigned events with a reassign action", async () => {
+    listAllEventsMock.mockResolvedValue([
+      {
+        ...leadEvent,
+        id: "event-a1",
+        title: "Assigned Summit",
+        status: "planning",
+        assignedCoordinatorId: "coordinator-1",
+        assignedCoordinatorName: "Coordinator One",
+      },
+    ]);
+    listCoordinatorsMock.mockResolvedValue([
+      { id: "coordinator-1", fullName: "Coordinator One", activeEventCount: 1 },
+    ]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByRole("button", { name: /^Oversight/ }));
+
+    const card = (await screen.findByText("Assigned Summit")).closest("section")!;
+    expect(card).toHaveTextContent("Coordinator One");
+    expect(screen.getByRole("button", { name: "Reassign" })).toBeInTheDocument();
+  });
 });

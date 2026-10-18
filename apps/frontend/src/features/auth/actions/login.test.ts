@@ -83,4 +83,24 @@ describe("login action", () => {
 
     expect(state?.redirectTo).toBe("/browse-events");
   });
+
+  // SPM-77 AC01: on sign-in, the Lead and the Safety Officer are sent to
+  // their own landing page, not a shared default.
+  it.each([
+    ["event_coordinator_lead", "/events"],
+    ["safety_officer", "/safety-checks"],
+  ])("sends a signed-in %s to %s", async (role, destination) => {
+    singleMock.mockResolvedValue({ data: { role }, error: null });
+    signInWithPassword.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+      error: null,
+    });
+
+    const state = await login(
+      undefined,
+      formDataWith({ email: "person@example.com", password: "correct-password" }),
+    );
+
+    expect(state?.redirectTo).toBe(destination);
+  });
 });
