@@ -139,6 +139,7 @@ describe("EventDetailPage", () => {
     ]);
   });
 
+  // SPM-15 AC03: the assigned coordinator can open an event to view its details.
   it("shows the full event detail a card cannot fit", async () => {
     renderPage();
 
@@ -398,6 +399,7 @@ describe("EventDetailPage", () => {
     ).toBeInTheDocument();
   });
 
+  // SPM-15 AC02: another coordinator's event is not shown to this coordinator.
   it("denies a coordinator who is not assigned to this event (SPM-09 AC02)", async () => {
     loadEventDetailMock.mockResolvedValue({
       ...event,
@@ -613,5 +615,60 @@ describe("EventDetailPage", () => {
         ).not.toBeInTheDocument();
       },
     );
+  });
+
+  // SPM-49 AC03: an attendee who enters an event's address directly is
+  // denied, and none of its internal planning details are shown.
+  it("denies an attendee who opens an event page directly", async () => {
+    authState.profile.role = "attendee";
+
+    renderPage();
+
+    expect(await screen.findByText("Access denied")).toBeInTheDocument();
+    expect(screen.queryByText("Student Leadership Summit 2")).not.toBeInTheDocument();
+    expect(screen.queryByText("Main Auditorium")).not.toBeInTheDocument();
+    expect(screen.queryByText("Organiser: jasmine")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Approve|Reject|Request clarification/ })).not.toBeInTheDocument();
+  });
+
+  describe("SPM-14: organiser access restricted to own events", () => {
+    beforeEach(() => {
+      authState.profile.role = "event_organiser";
+      authState.user.id = event.organiserId;
+    });
+
+    afterEach(() => {
+      authState.user.id = "20000000-0000-0000-0000-000000000002";
+    });
+
+    // SPM-14 AC01: an organiser can view an event they are authorised on.
+    it("shows the organiser the details of their own event", async () => {
+      renderPage();
+
+      expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+      expect(loadEventDetailMock).toHaveBeenCalledWith("event-1");
+      expect(screen.getByText("Organiser: jasmine")).toBeInTheDocument();
+      expect(
+        screen.queryByText("This event is unavailable or you do not have access to it."),
+      ).not.toBeInTheDocument();
+    });
+
+    // SPM-14 AC03: RLS hides another organiser's event, so the load fails
+    // and the page denies access without revealing any of its details.
+    it("denies the organiser an event they are not authorised on", async () => {
+      loadEventDetailMock.mockRejectedValue(
+        new Error("This event is unavailable or you do not have access to it."),
+      );
+
+      renderPage();
+
+      expect(await screen.findByText("Event unavailable")).toBeInTheDocument();
+      expect(
+        screen.getByText("This event is unavailable or you do not have access to it."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Student Leadership Summit 2")).not.toBeInTheDocument();
+      expect(screen.queryByText("All university student leaders workshop")).not.toBeInTheDocument();
+      expect(screen.queryByText("Organiser: jasmine")).not.toBeInTheDocument();
+    });
   });
 });

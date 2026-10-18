@@ -157,6 +157,7 @@ async function renderInventory() {
   await screen.findByRole("heading", { name: "Inventory" });
 }
 
+// SPM-48 AC01: technical support staff get the inventory actions their role permits.
 describe("EquipmentPage inventory for Technical Support Staff", () => {
   it("summarises equipment types and what is out of service", async () => {
     await renderInventory();
