@@ -102,6 +102,45 @@ describe("workspace navigation", () => {
     ).toBe(false);
   });
 
+  describe("SPM-16: venue staff role scope", () => {
+    const eventId = "10000000-0000-0000-0000-000000000001";
+    const venueId = "30000000-0000-0000-0000-000000000003";
+
+    // SPM-16 AC01: venue staff reach every venue section their role needs.
+    it.each([
+      "/venues",
+      `/venues/${venueId}`,
+      `/venues/${venueId}/blocks`,
+      "/venue-requests",
+      "/flagged-bookings",
+    ])("allows venue staff to reach %s", (path) => {
+      expect(isPathAllowedForRole(path, "venue_staff")).toBe(true);
+    });
+
+    // SPM-16 AC02: event planning, equipment, attendee and safety areas are
+    // outside venue staff's scope.
+    it.each([
+      "/events",
+      "/events/new",
+      `/events/${eventId}`,
+      `/events/${eventId}/edit`,
+      `/events/${eventId}/history`,
+      `/events/${eventId}/venue`,
+      "/equipment",
+      "/equipment/inventory",
+      "/equipment/unavailability",
+      "/browse-events",
+      "/safety-checks",
+    ])("blocks venue staff from %s", (path) => {
+      expect(isPathAllowedForRole(path, "venue_staff")).toBe(false);
+    });
+
+    // SPM-16 AC02: an unknown path is denied rather than allowed by default.
+    it("blocks venue staff from a path that belongs to no section", () => {
+      expect(isPathAllowedForRole("/admin", "venue_staff")).toBe(false);
+    });
+  });
+
   it("gives the safety officer only the safety checks section", () => {
     expect(
       getNavItemsForRole("safety_officer").map((item) => item.id),
