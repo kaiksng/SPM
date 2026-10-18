@@ -186,6 +186,22 @@ describe("EventHistoryPage", () => {
       expect(screen.getByText('Reason: "Room is reserved for exams"')).toBeInTheDocument();
     });
 
+    // Venue hold AC04: an expired hold stays visible in the event's change history.
+    it("AC04 (venue hold): keeps an expired hold in the history, after its request", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([
+        { ...breakout, status: "expired" as const, decidedAt: null, decidedByName: null, cancelledAt: null,
+          cancelledByName: null, cancellationReason: null, expiresAt: "2099-04-02T12:00:00.000Z" },
+      ]);
+      renderPage();
+
+      const section = (await screen.findByRole("heading", { name: "Venue bookings" })).closest("section")!;
+      const titles = within(section).getAllByRole("listitem").map((item) => item.textContent ?? "");
+      expect(titles).toHaveLength(2);
+      expect(titles[0]).toContain("Hold expired");
+      expect(titles[0]).toContain("Breakout 1");
+      expect(titles[1]).toContain("Requested");
+    });
+
     it("records when a booking became the main venue, but not for the first booking", async () => {
       listVenueBookingsForEventMock.mockResolvedValue([
         main,

@@ -72,6 +72,22 @@ describe("listNotifications", () => {
     ]);
   });
 
+  // Venue hold AC05: the "expires soon" reminder is inserted when the hold is
+  // placed, scheduled 24 hours before expiry, and must stay hidden until then.
+  it("AC05 (venue hold): only asks for notifications that are due by now", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2099-04-04T02:00:00.000Z"));
+    try {
+      await listNotifications();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(selectOrMock).toHaveBeenCalledWith(
+      "scheduled_for.is.null,scheduled_for.lte.2099-04-04T02:00:00.000Z",
+    );
+  });
+
   it("sorts by scheduled_for over created_at for a reminder whose row was inserted earlier", async () => {
     limitMock.mockResolvedValueOnce({
       data: [
