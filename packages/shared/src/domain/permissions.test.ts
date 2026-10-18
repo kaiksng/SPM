@@ -19,6 +19,22 @@ describe("role permissions", () => {
     },
   );
 
+  // SPM-48 AC01: technical support staff may reserve equipment.
+  it("allows technical support staff to reserveEquipment", () => {
+    expect(hasPermission("technical_support_staff", "reserveEquipment")).toBe(true);
+  });
+
+  // SPM-48 AC02: technical support staff get no event-planning, venue or attendee actions.
+  it.each([
+    "createEvent",
+    "reviewEvent",
+    "manageVenue",
+    "decideVenueBooking",
+    "registerForEvent",
+  ] as const)("prevents technical support staff from %s", (permission) => {
+    expect(hasPermission("technical_support_staff", permission)).toBe(false);
+  });
+
   // SPM-16 AC02: venue staff get no event-planning, equipment or attendee actions.
   it.each(["createEvent", "reviewEvent", "reserveEquipment", "registerForEvent"] as const)(
     "prevents venue staff from %s",

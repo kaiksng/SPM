@@ -141,6 +141,44 @@ describe("workspace navigation", () => {
     });
   });
 
+  describe("SPM-48: technical support staff role scope", () => {
+    const eventId = "10000000-0000-0000-0000-000000000001";
+    const venueId = "30000000-0000-0000-0000-000000000003";
+
+    // SPM-48 AC01: technical support staff reach every equipment section their role needs.
+    it.each(["/equipment", "/equipment/inventory", "/equipment/unavailability"])(
+      "allows technical support staff to reach %s",
+      (path) => {
+        expect(isPathAllowedForRole(path, "technical_support_staff")).toBe(true);
+      },
+    );
+
+    // SPM-48 AC02: event planning, venue, attendee and safety areas are
+    // outside technical support staff's scope.
+    it.each([
+      "/events",
+      "/events/new",
+      `/events/${eventId}`,
+      `/events/${eventId}/edit`,
+      `/events/${eventId}/history`,
+      `/events/${eventId}/venue`,
+      `/events/${eventId}/equipment`,
+      "/venues",
+      `/venues/${venueId}`,
+      "/venue-requests",
+      "/flagged-bookings",
+      "/browse-events",
+      "/safety-checks",
+    ])("blocks technical support staff from %s", (path) => {
+      expect(isPathAllowedForRole(path, "technical_support_staff")).toBe(false);
+    });
+
+    // SPM-48 AC02: an unknown path is denied rather than allowed by default.
+    it("blocks technical support staff from a path that belongs to no section", () => {
+      expect(isPathAllowedForRole("/admin", "technical_support_staff")).toBe(false);
+    });
+  });
+
   it("gives the safety officer only the safety checks section", () => {
     expect(
       getNavItemsForRole("safety_officer").map((item) => item.id),
