@@ -12,6 +12,7 @@ const requestReplacementVenueMock = vi.fn();
 const getActiveVenueBookingMock = vi.fn();
 const listVenueBookingsForVenueMock = vi.fn();
 const checkVenueBookingAvailabilityMock = vi.fn();
+const recheckVenueConflictsMock = vi.fn();
 const navigateMock = vi.fn();
 const authState = {
   profile: { full_name: "Joyce Coordinator", role: "event_coordinator" },
@@ -27,6 +28,7 @@ vi.mock("@/context/auth-context", () => ({
 vi.mock("@/features/venues/services/venues", () => ({
   getVenue: (...args: unknown[]) => getVenueMock(...args),
   listVenueBufferTimeChanges: (...args: unknown[]) => listVenueBufferTimeChangesMock(...args),
+  recheckVenueConflicts: (...args: unknown[]) => recheckVenueConflictsMock(...args),
   VENUE_AVAILABILITY_LABELS: {
     available: "Available",
     pending: "Pending",
@@ -116,6 +118,7 @@ beforeEach(() => {
   getActiveVenueBookingMock.mockReset().mockResolvedValue(null);
   listVenueBookingsForVenueMock.mockReset().mockResolvedValue([]);
   checkVenueBookingAvailabilityMock.mockReset().mockResolvedValue({ available: true, reason: null });
+  recheckVenueConflictsMock.mockReset().mockResolvedValue({ venueId: "venue-1", flaggedCount: 0, clearedCount: 0, activeCount: 0 });
   navigateMock.mockReset();
   authState.profile.role = "event_coordinator";
 });
@@ -182,6 +185,77 @@ describe("VenueDetailPage", () => {
     expect(
       await screen.findByText("No setup or turnaround time changes recorded yet."),
     ).toBeInTheDocument();
+  });
+
+  // SPM-88 AC01: Venue Staff re-check a single venue for conflicts.
+  describe("Re-check conflicts (Venue Staff)", () => {
+    it("SPM-88 AC01: re-checks this venue and reports how many bookings are flagged", async () => {
+      authState.profile.role = "venue_staff";
+      recheckVenueConflictsMock.mockResolvedValue({ venueId: "venue-1", flaggedCount: 2, clearedCount: 0, activeCount: 2 });
+      const user = userEvent.setup();
+      renderPage("/venues/venue-1");
+
+      await user.click(await screen.findByRole("button", { name: "Re-check conflicts" }));
+
+      expect(recheckVenueConflictsMock).toHaveBeenCalledWith("venue-1");
+      expect(
+        await screen.findByText("2 conflicts flagged for this venue. View them on the Flagged page."),
+      ).toBeInTheDocument();
+    });
+
+    it("says so when the venue has no conflicts", async () => {
+      authState.profile.role = "venue_staff";
+      const user = userEvent.setup();
+      renderPage("/venues/venue-1");
+
+      await user.click(await screen.findByRole("button", { name: "Re-check conflicts" }));
+
+      expect(await screen.findByText("No scheduling conflicts for this venue.")).toBeInTheDocument();
+    });
+
+    it("uses the singular for one conflict", async () => {
+      authState.profile.role = "venue_staff";
+      recheckVenueConflictsMock.mockResolvedValue({ venueId: "venue-1", flaggedCount: 0, clearedCount: 0, activeCount: 1 });
+      const user = userEvent.setup();
+      renderPage("/venues/venue-1");
+
+      await user.click(await screen.findByRole("button", { name: "Re-check conflicts" }));
+
+      expect(
+        await screen.findByText("1 conflict flagged for this venue. View them on the Flagged page."),
+      ).toBeInTheDocument();
+    });
+
+    it("shows progress and blocks a second click while re-checking", async () => {
+      authState.profile.role = "venue_staff";
+      recheckVenueConflictsMock.mockReturnValue(new Promise(() => {}));
+      const user = userEvent.setup();
+      renderPage("/venues/venue-1");
+
+      await user.click(await screen.findByRole("button", { name: "Re-check conflicts" }));
+
+      expect(await screen.findByRole("button", { name: "Re-checking…" })).toBeDisabled();
+      expect(recheckVenueConflictsMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows the reason when the re-check fails", async () => {
+      authState.profile.role = "venue_staff";
+      recheckVenueConflictsMock.mockRejectedValue(new Error("Only Venue Staff can re-check conflicts"));
+      const user = userEvent.setup();
+      renderPage("/venues/venue-1");
+
+      await user.click(await screen.findByRole("button", { name: "Re-check conflicts" }));
+
+      expect(await screen.findByText("Only Venue Staff can re-check conflicts")).toBeInTheDocument();
+    });
+
+    it("is not offered to a coordinator", async () => {
+      renderPage("/venues/venue-1");
+
+      expect(await screen.findByText("Auditorium")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Re-check conflicts" })).not.toBeInTheDocument();
+      expect(recheckVenueConflictsMock).not.toHaveBeenCalled();
+    });
   });
 
   // Feedback: Venue Staff get a per-venue log of what happened to its bookings.
