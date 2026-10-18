@@ -79,6 +79,26 @@ describe("buildBookingActivity", () => {
     expect(rejected.some((entry) => entry.kind === "replaced" || entry.kind === "replacement_requested")).toBe(false);
   });
 
+  it("AC04 (venue hold): logs an expired hold at its deadline, without a decision", () => {
+    const entries = buildBookingActivity([
+      booking({ status: "expired", expiresAt: "2099-04-05T02:00:00.000Z" }),
+    ]);
+
+    expect(entries.map((entry) => entry.kind)).toEqual(["hold_expired", "requested"]);
+    expect(entries[0]).toMatchObject({
+      id: "b-1-hold-expired", title: "Hold expired", at: "2099-04-05T02:00:00.000Z",
+      label: "Breakout 1", venueName: "Room 2.01", actor: null,
+    });
+  });
+
+  it("does not log a hold that is still running as expired", () => {
+    const entries = buildBookingActivity([
+      booking({ status: "on_hold", expiresAt: "2099-04-05T02:00:00.000Z" }),
+    ]);
+
+    expect(entries.map((entry) => entry.kind)).toEqual(["requested"]);
+  });
+
   it("logs a disruption only for a booking in the list", () => {
     const entries = buildBookingActivity([booking()], [
       { bookingId: "b-1", flaggedAt: "2099-04-04T00:00:00.000Z" },

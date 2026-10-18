@@ -130,6 +130,31 @@ describe("NotificationBell", () => {
     );
   });
 
+  // Venue hold AC05: the reminder takes the coordinator to the event's venue
+  // page, where the Confirm request option is.
+  it("AC05 (venue hold): opens the event's venue page from a hold-expiring-soon reminder", async () => {
+    const reminder = {
+      id: "n4",
+      type: "venue_hold_expiring_soon" as const,
+      title: "Venue hold expires soon",
+      message: 'Your tentative hold on Main Hall for "Career Fair" expires at 3:00 PM on 12 May. Confirm it to keep your place in the queue.',
+      eventId: "e4",
+      venueId: null,
+      readAt: null,
+      createdAt: "2026-10-06T09:00:00Z",
+    };
+    listNotificationsMock.mockResolvedValue([reminder]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("Venue hold expires soon"));
+
+    expect(markNotificationReadMock).toHaveBeenCalledWith("n4");
+    expect(navigateMock).toHaveBeenCalledWith("/events/e4/venue");
+  });
+
   it("marks every unread notification read without navigating", async () => {
     listNotificationsMock.mockResolvedValue([UNREAD, READ]);
     getUnreadNotificationCountMock.mockResolvedValue(1);
