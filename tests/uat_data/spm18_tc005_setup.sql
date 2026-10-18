@@ -1,14 +1,14 @@
 -- SPM-18 TC-005: Block creation of venue when venue name is missing
 -- Acceptance criterion: AC03, AC06
--- Login: Venue Staff (daryl@gmail.com) - shared UAT password (kept with the team)
+-- Login: Venue Staff (daryl@gmail.com) - password is in the test case's Test Data / Test accounts
 -- Inputs entered during the test (not inserted): an invalid "Fish tank" venue (not saved)
 -- Source: Logged in as Venue Staff. 
 --         No venue named "Fish tank" exists.
 -- Records restored: profile daryl@gmail.com
 -- Must-not-exist conditions enforced: venue "Fish tank" at North
 -- Defaults added: none
--- Safe to re-run: restores this case's records only; all other data is left untouched.
--- Not a migration: run it by hand (Supabase SQL editor on testDB, or psql) right before the test.
+-- Safe to re-run: changes this case's test records only; stops without changes if real data would be affected.
+-- Run with: pnpm uat:setup spm18_tc005   (from the repo root; see tests/uat_data/README.md)
 
 BEGIN;
 
@@ -29,15 +29,22 @@ BEGIN
 END $$;
 
 -- Must not exist: venue "Fish tank" at North (created by an earlier run of this case).
+-- Only a venue saved by a test account is removed; any other venue with this name stops the file.
 DO $$
 BEGIN
+  IF EXISTS (SELECT 1 FROM public.venues v
+             WHERE lower(trim(v.name)) = lower('Fish tank') AND (v.location IN ('North') OR v.area_tags = ARRAY['North'])
+               AND NOT (v.id::text LIKE '00000000-0000-0000-00%' OR v.updated_by IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')))) THEN
+    RAISE EXCEPTION 'UAT setup stopped: a venue named Fish tank exists that was not created by a test account. Nothing was changed.';
+  END IF;
   IF EXISTS (SELECT 1 FROM public.venues v
              WHERE lower(trim(v.name)) = lower('Fish tank') AND (v.location IN ('North') OR v.area_tags = ARRAY['North'])
                AND (EXISTS (SELECT 1 FROM public.venue_bookings b WHERE b.venue_id = v.id)
                     OR EXISTS (SELECT 1 FROM public.events e WHERE e.venue_id = v.id))) THEN
     RAISE EXCEPTION 'Venue Fish tank at North has bookings or linked events; remove it by hand before running this file';
   END IF;
-  DELETE FROM public.venues v WHERE lower(trim(v.name)) = lower('Fish tank') AND (v.location IN ('North') OR v.area_tags = ARRAY['North']);
+  DELETE FROM public.venues v WHERE lower(trim(v.name)) = lower('Fish tank') AND (v.location IN ('North') OR v.area_tags = ARRAY['North'])
+    AND (v.id::text LIKE '00000000-0000-0000-00%' OR v.updated_by IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')));
 END $$;
 
 COMMIT;

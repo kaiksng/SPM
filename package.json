@@ -16,10 +16,13 @@
     "db:types": "supabase gen types typescript --linked > packages/shared/src/types/database.types.ts",
     "db:push:preview": "supabase db push --linked --dry-run",
     "db:push": "supabase db push --linked",
+    "uat:setup": "node scripts/uat-setup.mjs",
     "check": "pnpm typecheck:shared && pnpm typecheck:frontend && pnpm typecheck:backend && pnpm --filter @spm/shared test && pnpm --filter @spm/backend test && pnpm --filter @spm/frontend test && pnpm build:frontend && pnpm build:backend"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "dotenv": "^18.0.8",
+    "pg": "^8.23.1",
     "supabase": "^2.116.0",
     "typescript": "^5"
   },

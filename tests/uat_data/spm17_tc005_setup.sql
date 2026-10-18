@@ -1,13 +1,13 @@
 -- SPM-17 TC-005: Block direct entry of the Event Details address for a role without access
 -- Acceptance criterion: AC2 & AC3
--- Login: Event Organiser (jasmine@gmail.com) - shared UAT password (kept with the team)
+-- Login: Event Organiser (jasmine@gmail.com) - password is in the test case's Test Data / Test accounts
 -- Inputs entered during the test (not inserted): URL "/events/0f3ef1fb-631d-4eaf-8e7c-fe3882cbb1a1"
 -- Source: An event exists. The signed-in role (Event Organiser) has no access to Event Details that is not access to them
 -- Records restored: profile jasmine@gmail.com; profile kenneth@gmail.com; event "Annual Partner Appreciation Dinner" (id 0f3ef1fb-631d-4eaf-8e7c-fe3882cbb1a1)
--- Must-not-exist conditions enforced: none
+-- Must-not-exist conditions enforced: other active bookings of these test events (cancelled)
 -- Defaults added: Event title, date (Thu 10 Dec 2026 18:00-21:00), 50 pax, status Requested, organiser kenneth@gmail.com (agreed in Questions)
--- Safe to re-run: restores this case's records only; all other data is left untouched.
--- Not a migration: run it by hand (Supabase SQL editor on testDB, or psql) right before the test.
+-- Safe to re-run: changes this case's test records only; stops without changes if real data would be affected.
+-- Run with: pnpm uat:setup spm17_tc005   (from the repo root; see tests/uat_data/README.md)
 
 BEGIN;
 
@@ -40,6 +40,16 @@ BEGIN
   WHERE p.role IS DISTINCT FROM EXCLUDED.role;
 END $$;
 
+-- Clash guard: id 0f3ef1fb-631d-4eaf-8e7c-fe3882cbb1a1 comes from the case's Test Data (a URL). Stop if a real event,
+-- not organised by a test account, already has it.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.events WHERE id = '0f3ef1fb-631d-4eaf-8e7c-fe3882cbb1a1'
+             AND organiser_id NOT IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com'))) THEN
+    RAISE EXCEPTION 'UAT setup stopped: a real event already has id 0f3ef1fb-631d-4eaf-8e7c-fe3882cbb1a1. Nothing was changed.';
+  END IF;
+END $$;
+
 -- Event "Annual Partner Appreciation Dinner" (fixed id). A status that can't move back to requested (e.g. cancelled)
 -- is restored by deleting and re-inserting this test event; its own bookings, flags and history go with it.
 DO $$
@@ -67,6 +77,12 @@ BEGIN
                           EXCLUDED.description, EXCLUDED.expected_attendance, EXCLUDED.starts_at,
                           EXCLUDED.ends_at, EXCLUDED.status);
 END $$;
+
+-- Must not exist: other active bookings of this test event (cancelled, not deleted).
+UPDATE public.venue_bookings
+SET status = 'cancelled', cancelled_at = now(), cancellation_reason = 'Reset by UAT setup'
+WHERE event_id = '0f3ef1fb-631d-4eaf-8e7c-fe3882cbb1a1' AND status IN ('pending', 'approved', 'on_hold')
+  AND id <> ALL ('{}'::uuid[]);
 
 COMMIT;
 

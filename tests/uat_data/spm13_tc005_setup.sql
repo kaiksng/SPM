@@ -6,8 +6,8 @@
 -- Records restored: none
 -- Must-not-exist conditions enforced: none
 -- Defaults added: none
--- Safe to re-run: restores this case's records only; all other data is left untouched.
--- Not a migration: run it by hand (Supabase SQL editor on testDB, or psql) right before the test.
+-- Safe to re-run: changes this case's test records only; stops without changes if real data would be affected.
+-- Run with: pnpm uat:setup spm13_tc005   (from the repo root; see tests/uat_data/README.md)
 
 BEGIN;
 

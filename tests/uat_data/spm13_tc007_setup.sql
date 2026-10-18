@@ -1,13 +1,13 @@
 -- SPM-13 TC-007: Valid sign-in still works after one failed attempt
 -- Acceptance criterion: AC1 & AC2 / Scenario 1 & 2
--- Login: Event Organiser (jasmine@gmail.com) - shared UAT password (kept with the team)
+-- Login: Event Organiser (jasmine@gmail.com) - password is in the test case's Test Data / Test accounts
 -- Inputs entered during the test (not inserted): a wrong then the correct password
 -- Source: Active account exists. User is not signed in.
 -- Records restored: profile jasmine@gmail.com
 -- Must-not-exist conditions enforced: none
 -- Defaults added: none
--- Safe to re-run: restores this case's records only; all other data is left untouched.
--- Not a migration: run it by hand (Supabase SQL editor on testDB, or psql) right before the test.
+-- Safe to re-run: changes this case's test records only; stops without changes if real data would be affected.
+-- Run with: pnpm uat:setup spm13_tc007   (from the repo root; see tests/uat_data/README.md)
 
 BEGIN;
 

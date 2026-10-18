@@ -1,6 +1,6 @@
 -- SPM-72 TC-003: Exclude a venue that doesn't operate for the full event time
 -- Acceptance criterion: AC01
--- Login: Event Coordinator (joyce@gmail.com) - shared UAT password (kept with the team)
+-- Login: Event Coordinator (joyce@gmail.com) - password is in the test case's Test Data / Test accounts
 -- Inputs entered during the test (not inserted): none
 -- Source: Logged in as Event Coordinator.
 --         Venue Suggest Room D exists.
@@ -10,16 +10,31 @@
 --          - 100 pax
 --          - Location: South
 --          - Layout: No preference · Facilities: none
--- Records restored: profile joyce@gmail.com; profile jasmine@gmail.com; venue "Suggest Room D" (South, key 00000000-0000-4000-8072-000000000104); event "Venue Suggestion Test Event" (id 00000000-0000-4000-8072-000000000201)
--- Must-not-exist conditions enforced: none
+-- Records restored: profile joyce@gmail.com; profile jasmine@gmail.com; venue "Suggest Room D" (South, key 00000000-0000-0000-0072-000000000104); event "Venue Suggestion Test Event" (id 00000000-0000-0000-0072-000000000201)
+-- Must-not-exist conditions enforced: other active bookings of these test events (cancelled)
 -- Defaults added: Event title "Venue Suggestion Test Event", organiser jasmine@gmail.com, coordinator joyce@gmail.com (agreed in Questions); Venue setup and turnaround 0 min (so the effective window equals the event time)
--- Safe to re-run: restores this case's records only; all other data is left untouched.
--- Not a migration: run it by hand (Supabase SQL editor on testDB, or psql) right before the test.
+-- Safe to re-run: changes this case's test records only; stops without changes if real data would be affected.
+-- Run with: pnpm uat:setup spm72_tc003   (from the repo root; see tests/uat_data/README.md)
 
 BEGIN;
 
 -- Allows this file to reset a test event's assigned coordinator (blocked by a trigger otherwise).
 SET LOCAL app.coordinator_reassignment = 'on';
+
+-- Earlier versions of these files used another reserved id range. Remove any test records
+-- left under those ids (with their own bookings, flags and history) so they can't clash.
+DO $$
+DECLARE v_ids uuid[] := ARRAY[
+  '00000000-0000-4000-8072-000000000104',
+  '00000000-0000-4000-8072-000000000201'
+]::uuid[];
+BEGIN
+  DELETE FROM public.venue_bookings WHERE id = ANY (v_ids);
+  DELETE FROM public.events WHERE id = ANY (v_ids);
+  DELETE FROM public.venues WHERE id = ANY (v_ids);
+EXCEPTION WHEN foreign_key_violation THEN
+  RAISE EXCEPTION 'UAT setup stopped: an old test venue is still used by a non-test booking or event. Nothing was changed.';
+END $$;
 
 -- Profile and role for joyce@gmail.com (Event Coordinator). Auth is only read, never written.
 DO $$
@@ -47,17 +62,26 @@ BEGIN
   WHERE p.role IS DISTINCT FROM EXCLUDED.role;
 END $$;
 
--- Venue "Suggest Room D" (South): found by name + location (unique), else by its fixed id, else inserted.
+-- Venue "Suggest Room D" (South): restored on its fixed id; stops if a real venue already has this name and location.
 DO $$
-DECLARE v_id uuid := (SELECT id FROM public.venues WHERE name = 'Suggest Room D' AND location = 'South');
+DECLARE v_id uuid;
 BEGIN
-  IF v_id IS NULL THEN
-    SELECT id INTO v_id FROM public.venues WHERE id = '00000000-0000-4000-8072-000000000104';
+  -- Must not exist: a copy of this venue that a test account created in the app (e.g. in a
+  -- create case). Removed only when no booking or event uses it.
+  DELETE FROM public.venues v WHERE v.name = 'Suggest Room D' AND v.location = 'South' AND v.id <> '00000000-0000-0000-0072-000000000104'
+    AND (v.id::text LIKE '00000000-0000-0000-00%' OR v.updated_by IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')))
+    AND NOT EXISTS (SELECT 1 FROM public.venue_bookings b WHERE b.venue_id = v.id)
+    AND NOT EXISTS (SELECT 1 FROM public.events e WHERE e.venue_id = v.id);
+  -- Clash guard: a real (non-test) venue already uses this name and location.
+  IF EXISTS (SELECT 1 FROM public.venues WHERE name = 'Suggest Room D' AND location = 'South'
+             AND id <> '00000000-0000-0000-0072-000000000104') THEN
+    RAISE EXCEPTION 'UAT setup stopped: a real venue named "Suggest Room D" at South exists. Nothing was changed.';
   END IF;
+  SELECT id INTO v_id FROM public.venues WHERE id = '00000000-0000-0000-0072-000000000104';
   IF v_id IS NULL THEN
     INSERT INTO public.venues (id, name, location, area_tags, capacity, operating_hours,
                                setup_time_minutes, turnaround_time_minutes)
-    VALUES ('00000000-0000-4000-8072-000000000104', 'Suggest Room D', 'South', ARRAY['South'], 200,
+    VALUES ('00000000-0000-0000-0072-000000000104', 'Suggest Room D', 'South', ARRAY['South'], 200,
             '[{"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "opensAt": "11:00", "closesAt": "20:00"}]'::jsonb, 0, 0)
     RETURNING id INTO v_id;
   ELSE
@@ -90,15 +114,15 @@ END $$;
 DO $$
 DECLARE v_status public.event_status;
 BEGIN
-  SELECT status INTO v_status FROM public.events WHERE id = '00000000-0000-4000-8072-000000000201';
+  SELECT status INTO v_status FROM public.events WHERE id = '00000000-0000-0000-0072-000000000201';
   IF FOUND AND v_status <> 'planning'
      AND NOT public.event_status_transition_allowed(v_status, 'planning') THEN
-    DELETE FROM public.events WHERE id = '00000000-0000-4000-8072-000000000201';
+    DELETE FROM public.events WHERE id = '00000000-0000-0000-0072-000000000201';
   END IF;
 
   INSERT INTO public.events AS ev (id, organiser_id, assigned_coordinator_id, title, description,
                                    expected_attendance, starts_at, ends_at, status, submitted_at, submitted_by)
-  VALUES ('00000000-0000-4000-8072-000000000201', (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), 'Venue Suggestion Test Event', 'UAT event for SPM-72 venue suggestions.',
+  VALUES ('00000000-0000-0000-0072-000000000201', (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), 'Venue Suggestion Test Event', 'UAT event for SPM-72 venue suggestions.',
           100, '2026-11-12 10:00:00+08', '2026-11-12 14:00:00+08', 'planning',
           '2026-10-01 09:00:00+08', (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'))
   ON CONFLICT (id) DO UPDATE
@@ -113,11 +137,17 @@ BEGIN
                           EXCLUDED.ends_at, EXCLUDED.status);
 END $$;
 
+-- Must not exist: other active bookings of this test event (cancelled, not deleted).
+UPDATE public.venue_bookings
+SET status = 'cancelled', cancelled_at = now(), cancellation_reason = 'Reset by UAT setup'
+WHERE event_id = '00000000-0000-0000-0072-000000000201' AND status IN ('pending', 'approved', 'on_hold')
+  AND id <> ALL ('{}'::uuid[]);
+
 -- Venue requirements for "Venue Suggestion Test Event": location South, layout no preference,
 -- facilities none.
 INSERT INTO public.event_venue_requirements AS r (event_id, preferred_location, minimum_capacity,
                                                   layout_notes, accessibility_notes)
-VALUES ('00000000-0000-4000-8072-000000000201', 'South', NULL, NULL, NULL)
+VALUES ('00000000-0000-0000-0072-000000000201', 'South', NULL, NULL, NULL)
 ON CONFLICT (event_id) DO UPDATE
 SET preferred_location = EXCLUDED.preferred_location, minimum_capacity = EXCLUDED.minimum_capacity,
     layout_notes = EXCLUDED.layout_notes, accessibility_notes = EXCLUDED.accessibility_notes
@@ -126,11 +156,11 @@ WHERE (r.preferred_location, r.minimum_capacity, r.layout_notes, r.accessibility
                         EXCLUDED.layout_notes, EXCLUDED.accessibility_notes);
 
 DELETE FROM public.event_required_facilities
-WHERE event_id = '00000000-0000-4000-8072-000000000201' AND facility_name <> ALL (ARRAY[]::text[]);
+WHERE event_id = '00000000-0000-0000-0072-000000000201' AND facility_name <> ALL (ARRAY[]::text[]);
 INSERT INTO public.event_required_facilities (event_id, facility_name)
-SELECT '00000000-0000-4000-8072-000000000201', f FROM unnest(ARRAY[]::text[]) AS f
+SELECT '00000000-0000-0000-0072-000000000201', f FROM unnest(ARRAY[]::text[]) AS f
 WHERE NOT EXISTS (SELECT 1 FROM public.event_required_facilities x
-                  WHERE x.event_id = '00000000-0000-4000-8072-000000000201' AND x.facility_name = f);
+                  WHERE x.event_id = '00000000-0000-0000-0072-000000000201' AND x.facility_name = f);
 
 COMMIT;
 
