@@ -13,8 +13,8 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('fc000000-0000-0000-0000-000000000005', 'rdy-other-organiser@example.test', '{"full_name":"RDY Other Organiser","role":"event_organiser"}'::jsonb),
   ('fc000000-0000-0000-0000-000000000006', 'rdy-attendee@example.test', '{"full_name":"RDY Attendee","role":"attendee"}'::jsonb);
 
-insert into public.venues (id, name, capacity) values
-  ('fc000000-0000-0000-0000-000000000010', 'RDY Hall', 200);
+insert into public.venues (id, name, location, capacity) values
+  ('fc000000-0000-0000-0000-000000000010', 'RDY Hall', 'Block 1', 200);
 
 create temporary table v_ids (name text primary key, id uuid);
 grant all on v_ids to authenticated;
@@ -142,7 +142,7 @@ select lives_ok(
 select set_config('request.jwt.claims', '{"sub":"fc000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select throws_ok(
   $$select public.event_readiness('fc000000-0000-0000-0000-0000000000e1')$$,
-  'insufficient_privilege', 'Event not found or you do not have access to it',
+  '42501', 'Event not found or you do not have access to it',
   'an organiser who does not own the event and has no staff role is refused'
 );
 

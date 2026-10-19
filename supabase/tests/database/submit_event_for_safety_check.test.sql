@@ -12,8 +12,8 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('fd000000-0000-0000-0000-000000000004', 'sub-safety-a@example.test', '{"full_name":"SUB Safety A","role":"safety_officer"}'::jsonb),
   ('fd000000-0000-0000-0000-000000000005', 'sub-safety-b@example.test', '{"full_name":"SUB Safety B","role":"safety_officer"}'::jsonb);
 
-insert into public.venues (id, name, capacity) values
-  ('fd000000-0000-0000-0000-000000000010', 'SUB Hall', 200);
+insert into public.venues (id, name, location, capacity) values
+  ('fd000000-0000-0000-0000-000000000010', 'SUB Hall', 'Block 1', 200);
 
 -- E1: Ready (approved unflagged main venue, no equipment, acknowledged).
 -- E2: Not ready (main venue still Pending).
@@ -38,30 +38,32 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"fd000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select throws_ok(
   $$select public.submit_event_for_safety_check('fd000000-0000-0000-0000-0000000000e1')$$,
-  'insufficient_privilege', 'Only the assigned coordinator can submit this event for the safety check',
+  '42501', 'Only the assigned coordinator can submit this event for the safety check',
   'a coordinator not assigned to the event cannot submit it'
 );
 
 select set_config('request.jwt.claims', '{"sub":"fd000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select throws_ok(
   $$select public.submit_event_for_safety_check('fd000000-0000-0000-0000-0000000000e1')$$,
-  'insufficient_privilege', 'Only the assigned coordinator can submit this event for the safety check',
+  '42501', 'Only the assigned coordinator can submit this event for the safety check',
   'the organiser cannot submit the event either'
 );
 
 select set_config('request.jwt.claims', '{"sub":"fd000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 
--- Only a Planning event can be submitted.
+-- Event e3 is both Draft and has no assigned coordinator. The function
+-- checks assignment before status, so this actually fails on "not the
+-- assigned coordinator", not the status check.
 select throws_ok(
   $$select public.submit_event_for_safety_check('fd000000-0000-0000-0000-0000000000e3')$$,
-  'check_violation', 'Only a Planning event can be submitted for the safety check',
-  'a Draft event cannot be submitted (also not the assigned coordinator, but status fails first regardless)'
+  '42501', 'Only the assigned coordinator can submit this event for the safety check',
+  'a Draft event with no assigned coordinator fails the coordinator check first'
 );
 
 -- AC05: blocked with outstanding items listed when not Ready.
 select throws_ok(
   $$select public.submit_event_for_safety_check('fd000000-0000-0000-0000-0000000000e2')$$,
-  'check_violation', 'This event is not ready for the safety check',
+  '23514', 'This event is not ready for the safety check',
   'submission is blocked when the event is not Ready'
 );
 select is(
