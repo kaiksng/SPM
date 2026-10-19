@@ -3,17 +3,20 @@ import { supabase } from "./supabase-client";
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3001";
 
 /**
- * Thrown by apiFetch on a non-OK response. `fields` carries the
- * {field, message}[] a validation (422) response may include — see
+ * Thrown by apiFetch on a non-OK response. `fields` carries whatever
+ * {field, message}[]-shaped (or similar, e.g. {code, message}[]) array a
+ * validation (422) response may include — see
  * apps/backend/src/middleware/error-handler.ts — so a caller such as
  * EventRequestForm can highlight every affected field, not just show a
- * single message (PB-03 AC06).
+ * single message (PB-03 AC06). Left untyped since different RPCs use
+ * different key names; callers narrow it themselves (zod, or a direct cast
+ * where the shape is already known).
  */
 export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
-    public readonly fields?: Array<{ field: string; message: string }>,
+    public readonly fields?: unknown[],
   ) {
     super(message);
     this.name = "ApiError";

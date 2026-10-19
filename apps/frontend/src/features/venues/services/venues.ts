@@ -493,7 +493,8 @@ async function ensureAreaTagsAvailable() {
 function mapVenueApiError(error: unknown): EventSubmissionError {
   if (error instanceof ApiError) {
     const fieldErrors: Record<string, string> = {};
-    for (const issue of error.fields ?? []) fieldErrors[issue.field] = issue.message;
+    for (const issue of (error.fields ?? []) as Array<{ field: string; message: string }>)
+      fieldErrors[issue.field] = issue.message;
     return new EventSubmissionError(
       error.message,
       Object.keys(fieldErrors).length > 0 ? fieldErrors : undefined,
