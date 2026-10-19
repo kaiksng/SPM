@@ -1650,6 +1650,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          image_url: string | null
           location: string
           name: string
           operating_hours: Json
@@ -1665,6 +1666,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          image_url?: string | null
           location: string
           name: string
           operating_hours?: Json
@@ -1680,6 +1682,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          image_url?: string | null
           location?: string
           name?: string
           operating_hours?: Json

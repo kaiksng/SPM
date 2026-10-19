@@ -63,10 +63,14 @@ export const venueFormSchema = z.object({
     .array(z.string().trim().min(1).max(120))
     .max(30, "Add no more than 30 facilities"),
   layouts: z.array(z.string().trim().min(1).max(120))
-    .min(1, "Select at least one supported room layout")
-    .max(30, "Add no more than 30 layouts"),
+    .length(1, "Select the venue's supported room layout"),
   description: optionalText(2_000),
   accessibilityNotes: optionalText(2_000),
+  // The venue's own uploaded photo URL, blank when none has been uploaded
+  // (the catalogue falls back to a stock photo by layout type instead).
+  // No format validation here — uploadVenueImage already constrains type/
+  // size before this is ever set.
+  imageUrl: z.string().trim(),
   // Both default to "0" (emptyVenueFormValues) — whole minutes only, no
   // upper bound enforced here (public.update_venue is the authority; this
   // just screens the obvious bad input before a round trip).
@@ -92,6 +96,7 @@ export const emptyVenueFormValues: VenueFormValues = {
   layouts: [],
   description: "",
   accessibilityNotes: "",
+  imageUrl: "",
   setupTimeMinutes: "0",
   turnaroundTimeMinutes: "0",
 };
@@ -107,6 +112,7 @@ export type VenuePayload = {
   accessibility_notes: string | null;
   facilities: string[];
   layouts: string[];
+  image_url: string | null;
   setup_time_minutes: number;
   turnaround_time_minutes: number;
 };
@@ -122,6 +128,7 @@ export function toVenuePayload(values: VenueFormValues): VenuePayload {
     accessibility_notes: values.accessibilityNotes.trim() || null,
     facilities: values.facilities.map((facility) => facility.trim()),
     layouts: values.layouts,
+    image_url: values.imageUrl.trim() || null,
     setup_time_minutes: Number(values.setupTimeMinutes),
     turnaround_time_minutes: Number(values.turnaroundTimeMinutes),
   };

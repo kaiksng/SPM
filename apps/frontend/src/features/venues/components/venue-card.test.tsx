@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import type { VenueSummary } from "@/features/venues/services/venues";
+import { getVenueLayoutImage } from "@/features/venues/utils/venue-layout-image";
 
 // venue-card only imports a type from the venues service; mock the client so
 // nothing can reach a real Supabase project.
@@ -21,6 +22,7 @@ const venue: VenueSummary = {
   accessibilityNotes: null,
   facilities: ["Projector"],
   layouts: ["Theatre"],
+  imageUrl: null,
   updatedAt: "2026-09-26T06:11:00.000Z",
   updatedByName: "keith",
   needsReviewCount: 0,
@@ -29,11 +31,17 @@ const venue: VenueSummary = {
 };
 
 function renderCard(overrides: Partial<VenueSummary> = {}) {
-  return render(
+  const result = render(
     <MemoryRouter>
       <VenueCard venue={{ ...venue, ...overrides }} canManageVenues={false} />
     </MemoryRouter>,
   );
+  return {
+    ...result,
+    // The card's photo is decorative (alt=""), which gives it an implicit
+    // ARIA role of "presentation", not "img" -- queried by tag instead.
+    image: () => result.container.querySelector("img"),
+  };
 }
 
 describe("VenueCard", () => {
@@ -55,5 +63,11 @@ describe("VenueCard", () => {
     renderCard();
 
     expect(screen.getByRole("link")).toHaveAttribute("href", "/venues/venue-1");
+  });
+
+  it("shows the venue's layout photo", () => {
+    const { image } = renderCard({ layouts: ["Classroom"] });
+
+    expect(image()).toHaveAttribute("src", getVenueLayoutImage(["Classroom"]));
   });
 });

@@ -34,6 +34,10 @@ export type VenueSummary = {
   accessibilityNotes: string | null;
   facilities: string[];
   layouts: string[];
+  // The venue's own uploaded photo, null when none has been uploaded (the
+  // catalogue falls back to a stock photo by layout type instead). Always
+  // null for listSuggestedVenues, which doesn't surface this field.
+  imageUrl: string | null;
   updatedAt: string;
   // AC09: who last updated the entry, alongside updatedAt — null for a venue
   // nobody has ever updated (created but not yet edited).
@@ -74,6 +78,7 @@ export async function listVenues(): Promise<VenueSummary[]> {
         operating_hours,
         description,
         accessibility_notes,
+        image_url,
         updated_at,
         setup_time_minutes,
         turnaround_time_minutes,
@@ -92,7 +97,7 @@ export async function listVenues(): Promise<VenueSummary[]> {
       .from("venues")
       .select(`
         id, name, location, capacity, operating_hours, description,
-        accessibility_notes, updated_at, setup_time_minutes, turnaround_time_minutes,
+        accessibility_notes, image_url, updated_at, setup_time_minutes, turnaround_time_minutes,
         updated_by_profile:profiles!venues_updated_by_fkey (full_name),
         venue_facilities (facility_name), venue_layouts (layout_name),
         venue_bookings (needs_review)
@@ -116,6 +121,7 @@ export async function listVenues(): Promise<VenueSummary[]> {
       accessibilityNotes: venue.accessibility_notes,
       facilities: venue.venue_facilities.map((facility) => facility.facility_name),
       layouts: venue.venue_layouts.map((layout) => layout.layout_name),
+      imageUrl: venue.image_url,
       updatedAt: venue.updated_at,
       updatedByName: venue.updated_by_profile?.full_name ?? null,
       needsReviewCount: venue.venue_bookings.filter((booking) => booking.needs_review)
@@ -187,6 +193,7 @@ export async function listSuggestedVenues(eventId: string): Promise<VenueSummary
       accessibilityNotes: venue.accessibility_notes,
       facilities: venue.facilities ?? [],
       layouts: venue.layouts ?? [],
+      imageUrl: null,
       updatedAt: venue.updated_at,
       updatedByName: null,
       needsReviewCount: 0,
@@ -209,6 +216,7 @@ export async function getVenue(venueId: string): Promise<VenueDetail> {
         operating_hours,
         description,
         accessibility_notes,
+        image_url,
         updated_at,
         setup_time_minutes,
         turnaround_time_minutes,
@@ -225,7 +233,7 @@ export async function getVenue(venueId: string): Promise<VenueDetail> {
       .from("venues")
       .select(`
         name, location, capacity, operating_hours, description,
-        accessibility_notes, updated_at, setup_time_minutes, turnaround_time_minutes,
+        accessibility_notes, image_url, updated_at, setup_time_minutes, turnaround_time_minutes,
         updated_by_profile:profiles!venues_updated_by_fkey (full_name),
         venue_facilities (facility_name), venue_layouts (layout_name)
       `)
@@ -251,6 +259,7 @@ export async function getVenue(venueId: string): Promise<VenueDetail> {
     accessibilityNotes: data.accessibility_notes ?? "",
     facilities: data.venue_facilities.map((facility) => facility.facility_name),
     layouts: data.venue_layouts.map((layout) => layout.layout_name) as VenueFormValues["layouts"],
+    imageUrl: data.image_url ?? "",
     updatedAt: data.updated_at,
     updatedByName: data.updated_by_profile?.full_name ?? null,
     setupTimeMinutes: data.setup_time_minutes.toString(),
@@ -412,6 +421,40 @@ export async function listFlaggedBookingConflicts(): Promise<FlaggedBookingConfl
         conflictingBlockReason: row.conflicting_block?.reason ?? null,
       }),
     );
+}
+
+const VENUE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const VENUE_IMAGE_MIME_EXTENSIONS: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+/**
+ * Uploads a venue photo to the venue-images bucket and returns its public
+ * URL. Type/size are checked here too, not just in the bucket config
+ * (202610180003_venue_images.sql) -- the same "screen the obvious bad
+ * input before a round trip" reasoning createVenue/updateVenue already use
+ * for every other field. The storage path is a random id, decoupled from
+ * the venue's own id, so this works the same whether creating a brand-new
+ * venue or editing an existing one.
+ */
+export async function uploadVenueImage(file: File): Promise<string> {
+  const extension = VENUE_IMAGE_MIME_EXTENSIONS[file.type];
+  if (!extension) {
+    throw operationError("Upload a JPG, PNG, or WebP image.");
+  }
+  if (file.size > VENUE_IMAGE_MAX_BYTES) {
+    throw operationError("The image must be smaller than 5MB.");
+  }
+
+  const path = `${crypto.randomUUID()}.${extension}`;
+  const { error } = await supabase.storage.from("venue-images").upload(path, file, {
+    contentType: file.type,
+  });
+  if (error) throw operationError("This image could not be uploaded.");
+
+  return supabase.storage.from("venue-images").getPublicUrl(path).data.publicUrl;
 }
 
 export async function createVenue(values: VenueFormValues) {

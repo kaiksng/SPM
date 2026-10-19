@@ -16,18 +16,25 @@ select set_config('request.jwt.claims',
 select lives_ok($$select public.create_venue(
   '{"name":"Custom Layout Test Venue","location":"Bugis","area_tags":["Bugis"],
     "capacity":30,"operating_hours":[{"days":["mon"],"opensAt":"09:00","closesAt":"18:00"}],
-    "facilities":[],"layouts":["Theatre","U-shape"]}'::jsonb)$$,
-  'Venue Staff can create a venue with a custom layout');
+    "facilities":[],"layouts":["U-shape"]}'::jsonb)$$,
+  'Venue Staff can create a venue with a single custom layout');
 
 reset role;
 select is((select count(*)::integer from public.venue_layouts vl
   join public.venues v on v.id = vl.venue_id
   where v.name = 'Custom Layout Test Venue' and vl.layout_name = 'U-shape'),
   1, 'the custom layout is stored for catalogue matching');
-select is((select count(*)::integer from public.venue_layouts vl
-  join public.venues v on v.id = vl.venue_id
-  where v.name = 'Custom Layout Test Venue' and vl.layout_name = 'Theatre'),
-  1, 'the existing standard layout is still stored');
+
+set local role authenticated;
+select throws_ok(
+  $$select public.create_venue(
+    '{"name":"Two Layout Test Venue","location":"Bugis","area_tags":["Bugis"],
+      "capacity":30,"operating_hours":[{"days":["mon"],"opensAt":"09:00","closesAt":"18:00"}],
+      "facilities":[],"layouts":["Theatre","U-shape"]}'::jsonb)$$,
+  '23514',
+  'This venue is not ready to save',
+  'a venue can no longer be created with more than one layout'
+);
 
 select * from finish();
 rollback;
