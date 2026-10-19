@@ -43,7 +43,7 @@ export async function submitEventRequest(
   } catch (error) {
     if (error instanceof ApiError && error.fields) {
       const fieldErrors: Record<string, string> = {};
-      for (const issue of error.fields) {
+      for (const issue of error.fields as Array<{ field: string; message: string }>) {
         fieldErrors[issue.field] = issue.message;
       }
       throw new EventSubmissionError(error.message, fieldErrors);

@@ -951,6 +951,57 @@ export type Database = {
           },
         ]
       }
+      event_safety_check_submissions: {
+        Row: {
+          attendance_snapshot: number | null
+          coordinator_id: string
+          equipment_snapshot: Json
+          event_id: string
+          id: number
+          period_snapshot: Json
+          round: number
+          submitted_at: string
+          venues_snapshot: Json
+        }
+        Insert: {
+          attendance_snapshot?: number | null
+          coordinator_id: string
+          equipment_snapshot: Json
+          event_id: string
+          id?: never
+          period_snapshot: Json
+          round: number
+          submitted_at?: string
+          venues_snapshot: Json
+        }
+        Update: {
+          attendance_snapshot?: number | null
+          coordinator_id?: string
+          equipment_snapshot?: Json
+          event_id?: string
+          id?: never
+          period_snapshot?: Json
+          round?: number
+          submitted_at?: string
+          venues_snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_safety_check_submissions_coordinator_id_fkey"
+            columns: ["coordinator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_safety_check_submissions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_status_history: {
         Row: {
           changed_at: string
@@ -1847,6 +1898,7 @@ export type Database = {
         Returns: boolean
       }
       event_planning_allowed: { Args: { p_event_id: string }; Returns: boolean }
+      event_readiness: { Args: { p_event_id: string }; Returns: Json }
       event_status_transition_allowed: {
         Args: {
           from_status: Database["public"]["Enums"]["event_status"]
@@ -2059,6 +2111,10 @@ export type Database = {
         Args: { p_actor_id?: string; p_booking_id: string }
         Returns: string
       }
+      submit_event_for_safety_check: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: Json
+      }
       submit_event_request: {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json
@@ -2175,6 +2231,7 @@ export type Database = {
         | "venue_conflict_resolved"
         | "venue_booking_disrupted"
         | "venue_disruption_cleared"
+        | "safety_check_requested"
       request_status:
         | "pending"
         | "approved"
@@ -2372,6 +2429,7 @@ export const Constants = {
         "venue_conflict_resolved",
         "venue_booking_disrupted",
         "venue_disruption_cleared",
+        "safety_check_requested",
       ],
       request_status: [
         "pending",
@@ -2410,4 +2468,3 @@ export const Constants = {
     },
   },
 } as const
-

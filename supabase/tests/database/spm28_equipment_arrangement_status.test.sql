@@ -2,6 +2,10 @@ begin;
 
 select plan(28);
 
+-- SPM: update_equipment_arrangement no longer permits edits while an event
+-- is Pending Safety Check (202610190005) — the coordinator's technical
+-- arrangements are frozen for the review.
+
 -- SPM-28: equipment arrangement status and notes
 -- (202610150001_spm28_equipment_arrangement_status.sql).
 
@@ -155,19 +159,19 @@ select isnt(
 );
 
 -- Which events.
-select isnt(
-  public.update_equipment_arrangement((select id from v_ids where name = 'req-safety'), 'arranged', null),
-  null,
-  'a Pending Safety Check event can be updated'
+select throws_ok(
+  $$select public.update_equipment_arrangement((select id from v_ids where name = 'req-safety'), 'arranged', null)$$,
+  '23514', 'Arrangements can only be updated for a Requested, Planning or Confirmed event',
+  'a Pending Safety Check event cannot be updated (safety check submitted)'
 );
 select throws_ok(
   $$select public.update_equipment_arrangement((select id from v_ids where name = 'req-draft'), 'arranged', null)$$,
-  '23514', 'Arrangements can only be updated for a Requested, Planning, Pending Safety Check or Confirmed event',
+  '23514', 'Arrangements can only be updated for a Requested, Planning or Confirmed event',
   'a draft event cannot be updated'
 );
 select throws_ok(
   $$select public.update_equipment_arrangement((select id from v_ids where name = 'req-completed'), 'arranged', null)$$,
-  '23514', 'Arrangements can only be updated for a Requested, Planning, Pending Safety Check or Confirmed event',
+  '23514', 'Arrangements can only be updated for a Requested, Planning or Confirmed event',
   'a completed event cannot be updated'
 );
 select throws_ok(

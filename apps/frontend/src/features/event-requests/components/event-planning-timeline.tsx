@@ -39,7 +39,12 @@ const STAGES = [
       { id: "equipment", label: "Equipment", href: "equipment" },
     ],
   },
-  { id: "pending_safety_check", label: "Safety Check", rank: 3 },
+  // Its own top-level link (like "requested"), not a Planning child: the
+  // readiness checklist and submit action are reachable from Planning
+  // onwards, and this is also where the event lands once Pending Safety
+  // Check is reached, so it can't be nested under Planning without showing
+  // up twice.
+  { id: "pending_safety_check", label: "Safety Check", rank: 3, href: "safety-check" },
   { id: "confirmed", label: "Event Confirmed", rank: 4 },
 ] as const;
 
@@ -57,6 +62,12 @@ export function EventPlanningTimeline({
       <ol>
         {STAGES.map((stage, index) => {
           const reached = currentRank >= stage.rank;
+          const linkHref =
+            stage.id === "requested"
+              ? `/events/${eventId}`
+              : "href" in stage
+                ? `/events/${eventId}/${stage.href}`
+                : undefined;
           return (
             <li key={stage.id} className="relative pb-8 pl-7 last:pb-0">
               {index < STAGES.length - 1 && (
@@ -72,9 +83,9 @@ export function EventPlanningTimeline({
                   reached ? "border-primary bg-primary" : "border-slate-300 bg-white",
                 )}
               />
-              {stage.id === "requested" ? (
+              {linkHref ? (
                 <Link
-                  to={`/events/${eventId}`}
+                  to={linkHref}
                   className={cn(
                     "text-sm font-medium hover:underline",
                     reached ? "text-slate-900" : "text-slate-400",
