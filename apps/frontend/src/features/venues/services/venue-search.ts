@@ -28,7 +28,7 @@ export async function searchAvailableVenues(
     id: row.id, name: row.name, location: row.location, areaTags: [],
     capacity: row.capacity, operatingHours: row.operating_hours as unknown as OperatingHours,
     description: row.description, accessibilityNotes: row.accessibility_notes,
-    facilities: row.facilities, layouts: row.layouts, updatedAt: row.updated_at,
+    facilities: row.facilities, layouts: row.layouts, imageUrl: null, updatedAt: row.updated_at,
     updatedByName: null, needsReviewCount: 0, availabilityStatus: "available",
     setupTimeMinutes: row.setup_time_minutes, turnaroundTimeMinutes: row.turnaround_time_minutes,
   }));

@@ -326,10 +326,10 @@ export function VenueDetailPage() {
           ) : (
             <div className="mt-6">
               {(() => {
-                const layoutImage = getVenueLayoutImage(venue.layouts);
-                return layoutImage ? (
+                const photo = venue.imageUrl || getVenueLayoutImage(venue.layouts);
+                return photo ? (
                   <img
-                    src={layoutImage}
+                    src={photo}
                     alt=""
                     aria-hidden="true"
                     className="h-56 w-full rounded-2xl object-cover sm:h-64"
@@ -446,7 +446,7 @@ export function VenueDetailPage() {
                     </dd>
                   </div>
                   <div className="sm:col-span-2">
-                    <dt className="text-xs font-medium text-slate-400">Supported room layouts</dt>
+                    <dt className="text-xs font-medium text-slate-400">Supported room layout</dt>
                     <dd className="mt-2 flex flex-wrap gap-1.5">
                       {venue.layouts.length > 0 ? (
                         venue.layouts.map((layout) => (

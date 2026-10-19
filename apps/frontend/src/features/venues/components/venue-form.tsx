@@ -5,15 +5,19 @@ import {
   type VenueBookingAtRisk,
   type VenueFormValues,
 } from "@spm/shared";
-import { AlertTriangle, Save } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, ImageOff, Save, Upload, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { AmenityPicker } from "@/components/ui/amenity-picker";
 import { Input } from "@/components/ui/input";
 import { OperatingHoursEditor } from "@/features/venues/components/operating-hours-editor";
 import { RoomLayoutsEditor } from "@/features/venues/components/room-layouts-editor";
+import { uploadVenueImage } from "@/features/venues/services/venues";
 import { cn } from "@/lib/utils";
+
+const VENUE_IMAGE_ACCEPT = "image/jpeg,image/png,image/webp";
+const VENUE_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
 type FieldErrors = Record<string, string>;
 
@@ -45,6 +49,49 @@ export function VenueForm({
   // proceeds — the same "acknowledge, then confirm" shape the rest of this
   // app uses for a destructive/consequential action.
   const [capacityWarning, setCapacityWarning] = useState<VenueBookingAtRisk[]>();
+
+  // A newly picked photo isn't uploaded until the form is actually saved —
+  // staff can change their mind or cancel without leaving an orphaned file
+  // in storage. previewUrl is either an object URL for the pending file, or
+  // falls back to values.imageUrl (an already-saved photo) in the img below.
+  const [pendingFile, setPendingFile] = useState<File>();
+  const [previewUrl, setPreviewUrl] = useState<string>();
+  const [photoError, setPhotoError] = useState<string>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setPhotoError("Upload a JPG, PNG, or WebP image.");
+      return;
+    }
+    if (file.size > VENUE_IMAGE_MAX_BYTES) {
+      setPhotoError("The image must be smaller than 5MB.");
+      return;
+    }
+
+    setPhotoError(undefined);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPendingFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  }
+
+  function removePhoto() {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPendingFile(undefined);
+    setPreviewUrl(undefined);
+    setPhotoError(undefined);
+    setField("imageUrl", "");
+  }
 
   const setField = <Key extends keyof VenueFormValues>(
     key: Key,
@@ -93,7 +140,12 @@ export function VenueForm({
     setErrors({});
     setSaving(true);
     try {
-      await onSave(result.data);
+      let dataToSave = result.data;
+      if (pendingFile) {
+        const uploadedUrl = await uploadVenueImage(pendingFile);
+        dataToSave = { ...dataToSave, imageUrl: uploadedUrl };
+      }
+      await onSave(dataToSave);
     } catch (error) {
       if (error instanceof EventSubmissionError && error.fieldErrors) {
         setErrors(error.fieldErrors);
@@ -122,6 +174,14 @@ export function VenueForm({
             placeholder="e.g. Innovation Hall"
             maxLength={160}
             aria-invalid={Boolean(errors.name)}
+          />
+        </Field>
+        <Field label="Venue photo" error={photoError} className="sm:col-span-2">
+          <VenuePhotoField
+            photoUrl={previewUrl ?? (values.imageUrl || undefined)}
+            inputRef={fileInputRef}
+            onChange={handleFileChange}
+            onRemove={removePhoto}
           />
         </Field>
         <Field label="Location" required error={errors.areaTags}>
@@ -156,7 +216,7 @@ export function VenueForm({
           />
         </Field>
         <Field
-          label="Supported room layouts"
+          label="Supported room layout"
           required
           error={errors.layouts}
           className="sm:col-span-2"
@@ -276,7 +336,7 @@ export function VenueForm({
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-12px_32px_-24px_rgba(15,23,42,0.45)] backdrop-blur">
         <div className="mx-auto flex max-w-5xl flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
           <p aria-live="polite" className={cn("text-sm", message ? "text-red-700" : "text-slate-500")}>
-            {message ?? "Name, location, capacity, operating hours and room layouts are required."}
+            {message ?? "Name, location, capacity, operating hours and room layout are required."}
           </p>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
             <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>
@@ -356,6 +416,49 @@ function Field({
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+function VenuePhotoField({
+  photoUrl,
+  inputRef,
+  onChange,
+  onRemove,
+}: {
+  photoUrl?: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-4">
+      <div className="grid size-24 shrink-0 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+        {photoUrl ? (
+          <img src={photoUrl} alt="" className="size-full object-cover" />
+        ) : (
+          <ImageOff className="size-6 text-slate-400" aria-hidden="true" />
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>
+          <Upload /> {photoUrl ? "Replace photo" : "Upload photo"}
+        </Button>
+        {photoUrl && (
+          <Button type="button" variant="ghost" onClick={onRemove}>
+            <X /> Remove
+          </Button>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept={VENUE_IMAGE_ACCEPT}
+          onChange={onChange}
+          className="sr-only"
+          aria-label="Venue photo"
+        />
+      </div>
+      <p className="w-full text-xs text-slate-500">JPG, PNG, or WebP. Up to 5MB.</p>
     </div>
   );
 }

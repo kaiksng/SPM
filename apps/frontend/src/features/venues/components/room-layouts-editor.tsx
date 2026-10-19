@@ -4,7 +4,8 @@ import { useRoomLayoutOptions } from "@/features/venues/hooks/use-room-layout-op
 import { cn } from "@/lib/utils";
 
 /**
- * A venue can support several existing layouts and add a new named layout.
+ * A venue supports exactly one layout, picked from the standard list or
+ * named freehand.
  */
 export function RoomLayoutsEditor({
   value,
@@ -19,18 +20,14 @@ export function RoomLayoutsEditor({
   const [newLayout, setNewLayout] = useState("");
   const visibleOptions = [...new Set([...options, ...value])];
 
-  function toggleLayout(layout: string) {
-    onChange(
-      value.includes(layout)
-        ? value.filter((selected) => selected !== layout)
-        : [...value, layout],
-    );
+  function selectLayout(layout: string) {
+    onChange(value[0] === layout ? [] : [layout]);
   }
 
   function addLayout() {
     const label = newLayout.trim();
-    if (!label || value.some((item) => item.toLowerCase() === label.toLowerCase())) return;
-    onChange([...value, label]);
+    if (!label) return;
+    onChange([label]);
     setNewLayout("");
   }
 
@@ -43,12 +40,12 @@ export function RoomLayoutsEditor({
     >
       <div className="flex flex-wrap gap-1.5">
         {visibleOptions.map((layout) => {
-          const selected = value.includes(layout);
+          const selected = value[0] === layout;
           return (
             <button
               key={layout}
               type="button"
-              onClick={() => toggleLayout(layout)}
+              onClick={() => selectLayout(layout)}
               aria-pressed={selected}
               className={cn(
                 "rounded-[10px] border px-3.5 py-2 text-xs font-semibold transition",
@@ -74,7 +71,7 @@ export function RoomLayoutsEditor({
         <button type="button" onClick={addLayout} disabled={!newLayout.trim()} className="rounded-lg border border-primary px-3 py-2 text-sm font-medium text-primary disabled:opacity-50">Add layout</button>
       </div>
       <p className="mt-3 text-xs text-slate-500">
-        {value.length === 0 ? "Select at least one." : value.join(", ")}
+        {value.length === 0 ? "Select one." : value[0]}
       </p>
     </div>
   );

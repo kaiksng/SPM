@@ -18,6 +18,7 @@ function validValues(overrides: Partial<VenueFormValues> = {}): VenueFormValues 
     layouts: ["Theatre"],
     description: "",
     accessibilityNotes: "",
+    imageUrl: "",
     setupTimeMinutes: "0",
     turnaroundTimeMinutes: "0",
     ...overrides,
@@ -214,16 +215,17 @@ describe("venueFormSchema", () => {
   });
 
   describe("layouts", () => {
-    it("requires at least one layout", () => {
+    it("requires exactly one layout", () => {
       expect(fieldErrors(validValues({ layouts: [] })).layouts).toBe(
-        "Select at least one supported room layout",
+        "Select the venue's supported room layout",
       );
+      expect(
+        fieldErrors(validValues({ layouts: ["Theatre", "Banquet"] })).layouts,
+      ).toBe("Select the venue's supported room layout");
     });
 
-    it("accepts several layouts", () => {
-      expect(
-        fieldErrors(validValues({ layouts: ["Theatre", "Banquet", "Classroom"] })),
-      ).toEqual({});
+    it("accepts one layout", () => {
+      expect(fieldErrors(validValues({ layouts: ["Theatre"] }))).toEqual({});
     });
 
     it("accepts a custom layout and rejects an empty name", () => {
@@ -285,7 +287,7 @@ describe("toVenuePayload", () => {
           description: "  Big room  ",
           accessibilityNotes: " Ramp at entrance ",
           facilities: [" Projector ", "Stage"],
-          layouts: ["Theatre", "Banquet"],
+          layouts: ["Theatre"],
         }),
       ),
     ).toEqual({
@@ -297,7 +299,8 @@ describe("toVenuePayload", () => {
       description: "Big room",
       accessibility_notes: "Ramp at entrance",
       facilities: ["Projector", "Stage"],
-      layouts: ["Theatre", "Banquet"],
+      layouts: ["Theatre"],
+      image_url: null,
       setup_time_minutes: 0,
       turnaround_time_minutes: 0,
     });
@@ -308,6 +311,13 @@ describe("toVenuePayload", () => {
 
     expect(payload.description).toBeNull();
     expect(payload.accessibility_notes).toBeNull();
+  });
+
+  it("stores the uploaded photo url, or null when none is set", () => {
+    expect(
+      toVenuePayload(validValues({ imageUrl: " https://example.test/photo.jpg " })).image_url,
+    ).toBe("https://example.test/photo.jpg");
+    expect(toVenuePayload(validValues({ imageUrl: "" })).image_url).toBeNull();
   });
 
   it("converts capacity to a number", () => {

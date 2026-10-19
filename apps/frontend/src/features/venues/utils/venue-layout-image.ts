@@ -19,10 +19,9 @@ const LAYOUT_IMAGES: Record<RoomLayoutType, string> = {
 };
 
 /**
- * A representative photo for the card, picked from the venue's first listed
- * layout — venues can support several layouts, but the card only has room
- * for one image. Undefined when the venue has no layouts, or none of them
- * match a known RoomLayoutType (e.g. legacy free-text values).
+ * The venue's photo, from its one supported layout. Undefined when the
+ * venue has no layout, or it doesn't match a known RoomLayoutType (e.g. a
+ * legacy free-text value).
  */
 export function getVenueLayoutImage(layouts: string[]): string | undefined {
   for (const layout of layouts) {

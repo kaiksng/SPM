@@ -4,9 +4,14 @@ import {
   type VenueBookingAtRisk,
   type VenueFormValues,
 } from "@spm/shared";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const uploadVenueImageMock = vi.fn<(file: File) => Promise<string>>();
+vi.mock("@/features/venues/services/venues", () => ({
+  uploadVenueImage: (file: File) => uploadVenueImageMock(file),
+}));
 
 import { VenueForm } from "./venue-form";
 
@@ -24,6 +29,7 @@ function validValues(overrides: Partial<VenueFormValues> = {}): VenueFormValues 
     layouts: ["Theatre"],
     description: "",
     accessibilityNotes: "",
+    imageUrl: "",
     setupTimeMinutes: "0",
     turnaroundTimeMinutes: "0",
     ...overrides,
@@ -71,6 +77,7 @@ const fields = {
 beforeEach(() => {
   onSave.mockReset().mockResolvedValue(undefined);
   onCancel.mockReset();
+  uploadVenueImageMock.mockReset();
 });
 
 describe("VenueForm", () => {
@@ -79,7 +86,7 @@ describe("VenueForm", () => {
 
     expect(screen.getByRole("button", { name: "Save venue" })).toBeEnabled();
     expect(
-      screen.getByText(/Name, location, capacity, operating hours and room layouts/),
+      screen.getByText(/Name, location, capacity, operating hours and room layout/),
     ).toBeInTheDocument();
   });
 
@@ -124,7 +131,7 @@ describe("VenueForm", () => {
         "Venue name must contain between 2 and 160 characters",
         "Select a location",
         "Enter capacity as a positive whole number",
-        "Select at least one supported room layout",
+        "Select the venue's supported room layout",
         "Each operating hours period needs at least one day selected",
       ]),
     );
@@ -188,6 +195,7 @@ describe("VenueForm", () => {
       layouts: ["Theatre"],
       description: "Bright room",
       accessibilityNotes: "Lift access",
+      imageUrl: "",
       setupTimeMinutes: "15",
       turnaroundTimeMinutes: "30",
     });
@@ -324,6 +332,73 @@ describe("VenueForm", () => {
       expect(screen.queryAllByRole("alert")).toHaveLength(0);
       expect(fields.location()).toHaveValue("Block A");
       expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+    });
+  });
+
+  describe("venue photo", () => {
+    function jpgFile(name = "venue.jpg") {
+      return new File(["fake image data"], name, { type: "image/jpeg" });
+    }
+
+    it("uploads a picked photo on save and includes the returned url", async () => {
+      const user = userEvent.setup();
+      uploadVenueImageMock.mockResolvedValue("https://example.test/venue-images/venue.jpg");
+      renderForm();
+
+      await user.upload(screen.getByLabelText("Venue photo"), jpgFile());
+      await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+      expect(uploadVenueImageMock).toHaveBeenCalledWith(jpgFile());
+      await waitFor(() =>
+        expect(onSave).toHaveBeenCalledWith(
+          expect.objectContaining({ imageUrl: "https://example.test/venue-images/venue.jpg" }),
+        ),
+      );
+    });
+
+    it("rejects a file that isn't JPG, PNG, or WebP", async () => {
+      renderForm();
+
+      // userEvent.upload respects the input's accept attribute and would
+      // silently skip a mismatched file -- fireEvent bypasses that to
+      // actually exercise the validation code, the same way a browser
+      // would if accept were spoofed or unsupported.
+      fireEvent.change(screen.getByLabelText("Venue photo"), {
+        target: { files: [new File(["data"], "venue.gif", { type: "image/gif" })] },
+      });
+
+      expect(
+        await screen.findByText("Upload a JPG, PNG, or WebP image."),
+      ).toBeInTheDocument();
+      expect(uploadVenueImageMock).not.toHaveBeenCalled();
+    });
+
+    it("rejects a file over 5MB", async () => {
+      const user = userEvent.setup();
+      renderForm();
+
+      const tooBig = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "venue.jpg", {
+        type: "image/jpeg",
+      });
+      await user.upload(screen.getByLabelText("Venue photo"), tooBig);
+
+      expect(await screen.findByText("The image must be smaller than 5MB.")).toBeInTheDocument();
+      expect(uploadVenueImageMock).not.toHaveBeenCalled();
+    });
+
+    it("removing an existing photo clears it on save", async () => {
+      const user = userEvent.setup();
+      renderForm({
+        initialValues: validValues({ imageUrl: "https://example.test/venue-images/old.jpg" }),
+      });
+
+      await user.click(screen.getByRole("button", { name: "Remove" }));
+      await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+      expect(uploadVenueImageMock).not.toHaveBeenCalled();
+      await waitFor(() =>
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ imageUrl: "" })),
+      );
     });
   });
 });
