@@ -2,6 +2,7 @@ import {
   clarificationPermittedFieldLabels,
   isDirectEditBlocked,
   type ClarificationPermittedField,
+  type EventReadiness,
 } from "@spm/shared";
 import { CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -10,6 +11,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
+import { ConfirmedArrangementsSection } from "@/features/event-requests/components/confirmed-arrangements-section";
 import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
 import { EventStatusBadge, StatusBadge } from "@/features/event-requests/components/status-badges";
@@ -21,6 +23,11 @@ import {
   type EventDetail,
 } from "@/features/event-requests/services/event-details";
 import { completeEvent } from "@/features/event-requests/services/event-lifecycle";
+import { loadEventReadiness } from "@/features/safety-check/services/event-readiness";
+import {
+  listVenueBookingsForEvent,
+  type VenueBookingRequestSummary,
+} from "@/features/venues/services/venue-bookings";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { cn } from "@/lib/utils";
 import { RoleGate } from "@/routes/RoleGate";
@@ -56,6 +63,8 @@ export function EventDetailPage() {
     useState<ClarificationSummary>();
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string>();
+  const [venueBookings, setVenueBookings] = useState<VenueBookingRequestSummary[]>();
+  const [readiness, setReadiness] = useState<EventReadiness>();
 
   usePageTitle(event?.title ?? "Event details");
 
@@ -96,6 +105,32 @@ export function EventDetailPage() {
   // denial as an event they can't load at all.
   const isUnassignedCoordinator =
     !!event && profile?.role === "event_coordinator" && event.assignedCoordinatorId !== user?.id;
+  // SPM: an organiser sees their own Confirmed event's agreed arrangements —
+  // belt-and-braces alongside can_view_event RLS, same reasoning as
+  // isUnassignedCoordinator above.
+  const canViewConfirmedArrangements =
+    !!event && role === "organiser" && event.organiserId === user?.id && event.status === "confirmed";
+
+  useEffect(() => {
+    if (!event || !canViewConfirmedArrangements) return;
+    let active = true;
+    Promise.all([listVenueBookingsForEvent(event.id), loadEventReadiness(event.id)])
+      .then(([bookings, eventReadiness]) => {
+        if (active) {
+          setVenueBookings(bookings);
+          setReadiness(eventReadiness);
+        }
+      })
+      .catch(() => {
+        // Left undefined: the section simply doesn't render rather than
+        // showing a second error banner alongside the page's own.
+      });
+
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the event's id, not the whole object, so handleComplete's setEvent doesn't retrigger this fetch.
+  }, [event?.id, canViewConfirmedArrangements]);
 
   async function handleComplete() {
     if (!event) return;
@@ -276,7 +311,15 @@ export function EventDetailPage() {
                     <p className="mt-4 text-sm text-slate-500">Registration is not required</p>
                   )}
                 </section>
-  
+
+                {canViewConfirmedArrangements && venueBookings && readiness && (
+                  <ConfirmedArrangementsSection
+                    event={event}
+                    bookings={venueBookings}
+                    readiness={readiness}
+                  />
+                )}
+
                 {role !== "lead" && (
                   <ClarificationPanel
                     eventId={event.id}

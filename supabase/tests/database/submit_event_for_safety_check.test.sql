@@ -1,6 +1,6 @@
 begin;
 
-select plan(15);
+select plan(16);
 
 -- Submitting an event for the Operational Safety Check
 -- (202610190004_submit_event_for_safety_check.sql).
@@ -109,6 +109,24 @@ select is(
   (select count(*)::int from public.event_safety_check_submissions where event_id = 'fd000000-0000-0000-0000-0000000000e1'),
   2,
   'both submissions are kept'
+);
+
+-- The real submission path: apps/backend's service-role client calls this
+-- RPC with no JWT (auth.uid() is null there) and the already-authenticated
+-- coordinator's id as p_actor_id. This used to always fail because the
+-- nested event_readiness -> can_view_event check only ever looked at
+-- auth.uid(), never the resolved actor (202610190008).
+reset role;
+insert into public.events (id, organiser_id, assigned_coordinator_id, title, status, starts_at, ends_at, requirements_acknowledged)
+values ('fd000000-0000-0000-0000-0000000000e4', 'fd000000-0000-0000-0000-000000000001', 'fd000000-0000-0000-0000-000000000002', 'SUB Backend Ready Event', 'planning', '2099-10-04T10:00:00+08:00', '2099-10-04T12:00:00+08:00', true);
+insert into public.venue_bookings (id, event_id, venue_id, requested_by, starts_at, ends_at, status, is_main_venue)
+values ('fd000000-0000-0000-0000-0000000000b4', 'fd000000-0000-0000-0000-0000000000e4', 'fd000000-0000-0000-0000-000000000010', 'fd000000-0000-0000-0000-000000000002', '2099-10-04T10:00:00+08:00', '2099-10-04T12:00:00+08:00', 'approved', true);
+
+set local role service_role;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+select lives_ok(
+  $$select public.submit_event_for_safety_check('fd000000-0000-0000-0000-0000000000e4', 'fd000000-0000-0000-0000-000000000002')$$,
+  'the backend (service role, no JWT) can submit a Ready event on behalf of the resolved coordinator'
 );
 
 select * from finish();
