@@ -10,8 +10,8 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('fe000000-0000-0000-0000-000000000002', 'lock-coordinator@example.test', '{"full_name":"LOCK Coordinator","role":"event_coordinator"}'::jsonb),
   ('fe000000-0000-0000-0000-000000000003', 'lock-support@example.test', '{"full_name":"LOCK Support","role":"technical_support_staff"}'::jsonb);
 
-insert into public.venues (id, name, capacity) values
-  ('fe000000-0000-0000-0000-000000000010', 'LOCK Hall', 200);
+insert into public.venues (id, name, location, capacity) values
+  ('fe000000-0000-0000-0000-000000000010', 'LOCK Hall', 'Block 1', 200);
 
 insert into public.events (id, organiser_id, assigned_coordinator_id, title, status, starts_at, ends_at)
 values
@@ -22,8 +22,12 @@ values
   ('fe000000-0000-0000-0000-0000000000b1', 'fe000000-0000-0000-0000-0000000000e1', 'fe000000-0000-0000-0000-000000000010', 'fe000000-0000-0000-0000-000000000002', '2099-11-01T10:00:00+08:00', '2099-11-01T12:00:00+08:00', 'approved', true, null),
   ('fe000000-0000-0000-0000-0000000000b2', 'fe000000-0000-0000-0000-0000000000e1', 'fe000000-0000-0000-0000-000000000010', 'fe000000-0000-0000-0000-000000000002', '2099-11-01T14:00:00+08:00', '2099-11-01T16:00:00+08:00', 'on_hold', false, now() + interval '1 day');
 
-insert into public.event_equipment_requirements (id, event_id, equipment_name, quantity)
-values ('fe000000-0000-0000-0000-0000000000r1', 'fe000000-0000-0000-0000-0000000000e1', 'Mic', 1);
+insert into public.event_equipment_requirements (id, event_id, equipment_item_id, equipment_name, quantity, required_from, required_until)
+values (
+  'fe000000-0000-0000-0000-0000000000a1', 'fe000000-0000-0000-0000-0000000000e1',
+  (select id from public.equipment_items where code = 'mic'), 'Mic', 1,
+  '2099-11-01T10:00:00+08:00', '2099-11-01T12:00:00+08:00'
+);
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"fe000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
@@ -31,21 +35,21 @@ select set_config('request.jwt.claims', '{"sub":"fe000000-0000-0000-0000-0000000
 -- AC06: withdrawing/cancelling a venue booking is blocked.
 select throws_ok(
   $$select public.withdraw_venue_booking_request('fe000000-0000-0000-0000-0000000000b1', null, 'no longer needed')$$,
-  'check_violation', 'Venue bookings cannot be changed while the event is Pending Safety Check',
+  '23514', 'Venue bookings cannot be changed while the event is Pending Safety Check',
   'AC06: an approved booking cannot be cancelled while Pending Safety Check'
 );
 
 -- AC06: confirming a tentative hold is blocked too.
 select throws_ok(
   $$select public.confirm_venue_booking_hold('fe000000-0000-0000-0000-0000000000b2')$$,
-  'check_violation', 'Venue bookings cannot be changed while the event is Pending Safety Check',
+  '23514', 'Venue bookings cannot be changed while the event is Pending Safety Check',
   'AC06: a tentative hold cannot be confirmed while Pending Safety Check'
 );
 
 -- AC06: changing the main venue is blocked (regression: already required planning).
 select throws_ok(
   $$select public.set_main_venue_booking('fe000000-0000-0000-0000-0000000000b2')$$,
-  'check_violation', 'The main venue can only be changed while the event is in Planning',
+  '23514', 'The main venue can only be changed while the event is in Planning',
   'AC06: the main venue cannot be changed while Pending Safety Check'
 );
 
@@ -54,7 +58,7 @@ select set_config('request.jwt.claims', '{"sub":"fe000000-0000-0000-0000-0000000
 -- AC06: updating an equipment arrangement is blocked for everyone, including
 -- Technical Support Staff, while Pending Safety Check.
 select throws_ok(
-  $$select public.update_equipment_arrangement('fe000000-0000-0000-0000-0000000000r1', 'arranged', null)$$,
+  $$select public.update_equipment_arrangement('fe000000-0000-0000-0000-0000000000a1', 'arranged', null)$$,
   '23514', 'Arrangements can only be updated for a Requested, Planning or Confirmed event',
   'AC06: equipment arrangements cannot be updated while Pending Safety Check'
 );
@@ -65,7 +69,7 @@ update public.events set status = 'planning' where id = 'fe000000-0000-0000-0000
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"fe000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select isnt(
-  public.update_equipment_arrangement('fe000000-0000-0000-0000-0000000000r1', 'arranged', null),
+  public.update_equipment_arrangement('fe000000-0000-0000-0000-0000000000a1', 'arranged', null),
   null,
   'equipment arrangements can be updated again once the event returns to Planning'
 );

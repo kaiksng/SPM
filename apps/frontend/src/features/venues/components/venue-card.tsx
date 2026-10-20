@@ -23,13 +23,15 @@ export function VenueCard({
   const cardClassName =
     "group flex min-h-56 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_22px_50px_-34px_rgba(37,99,235,0.35)] motion-reduce:transform-none";
 
-  const layoutImage = getVenueLayoutImage(venue.layouts);
+  // The venue's own uploaded photo takes priority; a stock photo by layout
+  // type is the fallback for a venue nobody has photographed yet.
+  const photo = venue.imageUrl ?? getVenueLayoutImage(venue.layouts);
 
   const content = (
     <>
-      {layoutImage ? (
+      {photo ? (
         <img
-          src={layoutImage}
+          src={photo}
           alt=""
           aria-hidden="true"
           className="h-36 w-full object-cover"
