@@ -45,6 +45,24 @@ function renderCard(overrides: Partial<VenueSummary> = {}) {
 }
 
 describe("VenueCard", () => {
+  // SPM-18 AC08: the catalogue shows who last saved the venue, and when.
+  it("SPM-18 AC08: shows when the venue was last updated and by whom", () => {
+    renderCard();
+
+    const date = new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeZone: "Asia/Singapore" })
+      .format(new Date("2026-09-26T06:11:00.000Z"));
+    expect(screen.getByText(`Updated ${date} by keith`)).toBeInTheDocument();
+  });
+
+  it("shows only the date when the updater is unknown", () => {
+    renderCard({ updatedByName: null });
+
+    const date = new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeZone: "Asia/Singapore" })
+      .format(new Date("2026-09-26T06:11:00.000Z"));
+    expect(screen.getByText(`Updated ${date}`)).toBeInTheDocument();
+    expect(screen.queryByText(/ by /)).not.toBeInTheDocument();
+  });
+
   // SPM-86 AC03: saved setup and turnaround times are shown in the catalogue.
   it("shows the venue's setup and turnaround time", () => {
     renderCard();

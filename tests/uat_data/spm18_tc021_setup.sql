@@ -1,11 +1,11 @@
--- SPM-18 TC-021: Accept a venue creation with an similar name but different location
--- Acceptance criterion: AC01, AC07
+-- SPM-18 TC-021: Record the venue staff member, date and time of a saved update
+-- Acceptance criterion: AC08
 -- Login: Venue Staff (daryl@gmail.com) - password is in the test case's Test Data / Test accounts
--- Inputs entered during the test (not inserted): new venue "SMU Seminar Room 3-1" (North)
--- Source: Logged in as Venue Staff.
---         "SMU Seminar Room 3-1" exists at South. No "SMU Seminar Room 3-1" exists at North.
+-- Inputs entered during the test (not inserted): new facility Air conditioning
+-- Source: Logged in as Venue Staff user "Daryl".
+--         "SMU Seminar Room 3-1" (South) exists.
 -- Records restored: profile daryl@gmail.com; venue "SMU Seminar Room 3-1" (South, key 00000000-0000-0000-0018-000000000131)
--- Must-not-exist conditions enforced: venue "SMU Seminar Room 3-1" at North
+-- Must-not-exist conditions enforced: none
 -- Defaults added: Venue values beyond name/location reuse TC-001/TC-002 Test Data: 100 pax, Classroom, Mon-Sun 09:00-18:00 (agreed in Questions)
 -- Safe to re-run: changes this case's test records only; stops without changes if real data would be affected.
 -- Run with: pnpm uat:setup spm18_tc021   (from the repo root; see tests/uat_data/README.md)
@@ -40,25 +40,6 @@ BEGIN
   VALUES (v_id, 'Daryl', 'daryl@gmail.com', 'venue_staff')
   ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role
   WHERE p.role IS DISTINCT FROM EXCLUDED.role;
-END $$;
-
--- Must not exist: venue "SMU Seminar Room 3-1" at North (created by an earlier run of this case).
--- Only a venue saved by a test account is removed; any other venue with this name stops the file.
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM public.venues v
-             WHERE lower(trim(v.name)) = lower('SMU Seminar Room 3-1') AND (v.location IN ('North') OR v.area_tags = ARRAY['North'])
-               AND NOT (v.id::text LIKE '00000000-0000-0000-00%' OR v.updated_by IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')))) THEN
-    RAISE EXCEPTION 'UAT setup stopped: a venue named SMU Seminar Room 3-1 exists that was not created by a test account. Nothing was changed.';
-  END IF;
-  IF EXISTS (SELECT 1 FROM public.venues v
-             WHERE lower(trim(v.name)) = lower('SMU Seminar Room 3-1') AND (v.location IN ('North') OR v.area_tags = ARRAY['North'])
-               AND (EXISTS (SELECT 1 FROM public.venue_bookings b WHERE b.venue_id = v.id)
-                    OR EXISTS (SELECT 1 FROM public.events e WHERE e.venue_id = v.id))) THEN
-    RAISE EXCEPTION 'Venue SMU Seminar Room 3-1 at North has bookings or linked events; remove it by hand before running this file';
-  END IF;
-  DELETE FROM public.venues v WHERE lower(trim(v.name)) = lower('SMU Seminar Room 3-1') AND (v.location IN ('North') OR v.area_tags = ARRAY['North'])
-    AND (v.id::text LIKE '00000000-0000-0000-00%' OR v.updated_by IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')));
 END $$;
 
 -- Venue "SMU Seminar Room 3-1" (South): restored on its fixed id; stops if a real venue already has this name and location.

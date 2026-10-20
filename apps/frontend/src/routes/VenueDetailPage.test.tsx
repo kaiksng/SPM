@@ -135,6 +135,18 @@ describe("VenueDetailPage", () => {
     expect(screen.getByText("Open Floor")).toBeInTheDocument();
   });
 
+  // SPM-18 AC08: the details page shows who last saved the venue, with the date and time.
+  it("SPM-18 AC08: shows the date, time and staff member of the last update", async () => {
+    renderPage("/venues/venue-1");
+
+    const when = new Intl.DateTimeFormat("en-SG", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "Asia/Singapore",
+    }).format(new Date("2026-09-26T06:11:00.000Z"));
+    expect(await screen.findByText(`Last updated ${when} by keith`)).toBeInTheDocument();
+  });
+
   // SPM-86 AC03: saved setup and turnaround times are shown on the details page.
   it("shows the venue's setup and turnaround time", async () => {
     renderPage("/venues/venue-1");
