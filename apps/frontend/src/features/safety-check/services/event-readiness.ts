@@ -74,6 +74,24 @@ export async function loadLatestSafetyCheckSubmission(
   return { round: data.round, submittedAt: data.submitted_at };
 }
 
+/**
+ * The assigned coordinator self-attests a flagged venue booking or
+ * equipment requirement is fixed — no notifications, so this calls the RPC
+ * directly rather than through apps/backend.
+ */
+export async function resolveArrangementFlag(
+  eventId: string,
+  target: { bookingId: string } | { requirementId: string },
+): Promise<void> {
+  const { error } = await supabase.rpc("resolve_arrangement_flag", {
+    p_event_id: eventId,
+    p_booking_id: "bookingId" in target ? target.bookingId : undefined,
+    p_requirement_id: "requirementId" in target ? target.requirementId : undefined,
+  });
+
+  if (error) throw new Error(error.message || "This flag could not be resolved.");
+}
+
 export const READINESS_ITEM_BADGE_CLASSES: Record<ReadinessStatus | "not_required", string> = {
   complete: "bg-emerald-100 text-emerald-800",
   pending: "bg-slate-200 text-slate-600",

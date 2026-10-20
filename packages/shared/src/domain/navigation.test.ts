@@ -237,11 +237,18 @@ describe("workspace navigation", () => {
       expect(isPathAllowedForRole(path, "event_coordinator_lead")).toBe(false);
     });
 
-    // SPM-77 AC03: everything except Safety Checks is outside the Safety Officer's scope.
+    // This story: a Safety Officer reaches an event's history page from
+    // their review screen, but gets none of the rest of "/events/*".
+    it.each([`/events/${eventId}`, "/events", "/events/new"])(
+      "blocks the safety officer from %s",
+      (path) => {
+        expect(isPathAllowedForRole(path, "safety_officer")).toBe(false);
+      },
+    );
+
+    // SPM-77 AC03: everything except Safety Checks (and event history) is
+    // outside the Safety Officer's scope.
     it.each([
-      `/events/${eventId}`,
-      `/events/${eventId}/history`,
-      "/events/new",
       "/venue-requests",
       "/flagged-bookings",
       "/equipment",
@@ -250,6 +257,12 @@ describe("workspace navigation", () => {
       "/admin",
     ])("blocks the safety officer from %s", (path) => {
       expect(isPathAllowedForRole(path, "safety_officer")).toBe(false);
+    });
+
+    // This story: the Safety Officer can open an event's change history
+    // from their review screen.
+    it("allows the safety officer to reach an event's history page", () => {
+      expect(isPathAllowedForRole(`/events/${eventId}/history`, "safety_officer")).toBe(true);
     });
   });
 

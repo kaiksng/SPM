@@ -35,6 +35,10 @@ import {
   type EventFieldChange,
 } from "@/features/event-requests/services/field-history";
 import { formatEventFieldChangeValue } from "@/features/event-requests/utils/format-field-change-value";
+import {
+  listSafetyCheckDecisions,
+  type SafetyCheckDecisionHistoryEntry,
+} from "@/features/safety-check/services/safety-check-decisions";
 import { BookingActivityList } from "@/features/venues/components/booking-activity-list";
 import { listVenueDisruptionsForCoordinator } from "@/features/venues/services/venue-disruptions";
 import {
@@ -72,6 +76,7 @@ export function EventHistoryPage() {
     [],
   );
   const [venueBookings, setVenueBookings] = useState<VenueBookingRequestSummary[]>([]);
+  const [safetyCheckDecisions, setSafetyCheckDecisions] = useState<SafetyCheckDecisionHistoryEntry[]>([]);
   // SPM-83: bookings of this event that a venue block currently disrupts.
   const [openDisruptions, setOpenDisruptions] = useState<{ bookingId: string; flaggedAt: string }[]>([]);
   const [filter, setFilter] = useState<HistoryFilter>("all");
@@ -82,9 +87,45 @@ export function EventHistoryPage() {
 
   usePageTitle("Change history");
 
+  const isSafetyOfficer = profile?.role === "safety_officer";
+
   useEffect(() => {
     if (!eventId) return;
     let active = true;
+
+    // A Safety Officer's history view is scoped to the safety-check review
+    // rounds only (see this story's plan) — every other loader here is
+    // outside their RLS access once this story's can_view_event scoping
+    // (pending_safety_check only) no longer applies, and showing the rest
+    // of this page's sections to them would be unreviewed, over-broad
+    // access beyond what reviewing an event's safety requires.
+    if (isSafetyOfficer) {
+      Promise.all([
+        loadEventDetail(eventId),
+        listSafetyCheckDecisions(eventId).catch(() => [] as SafetyCheckDecisionHistoryEntry[]),
+      ])
+        .then(([eventDetail, safetyCheckDecisionRows]) => {
+          if (!active) return;
+          setEvent(eventDetail);
+          setSafetyCheckDecisions(safetyCheckDecisionRows);
+        })
+        .catch((loadError: unknown) => {
+          if (active) {
+            setError(
+              loadError instanceof Error
+                ? loadError.message
+                : "This event is unavailable or you do not have access to it.",
+            );
+          }
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+
+      return () => {
+        active = false;
+      };
+    }
 
     Promise.all([
       loadEventDetail(eventId),
@@ -102,6 +143,7 @@ export function EventHistoryPage() {
       listVenueBookingsForEvent(eventId).catch(() => [] as VenueBookingRequestSummary[]),
       // Non-critical, and limited by access rules to the people who act on disruptions.
       listVenueDisruptionsForCoordinator().catch(() => []),
+      listSafetyCheckDecisions(eventId).catch(() => [] as SafetyCheckDecisionHistoryEntry[]),
     ])
       .then(
         ([
@@ -115,6 +157,7 @@ export function EventHistoryPage() {
           assignmentRows,
           venueBookingRows,
           disruptionRows,
+          safetyCheckDecisionRows,
         ]) => {
           if (!active) return;
           setEvent(eventDetail);
@@ -131,6 +174,7 @@ export function EventHistoryPage() {
           );
           setReassignments(reassignmentRows);
           setAssignmentHistory(assignmentRows);
+          setSafetyCheckDecisions(safetyCheckDecisionRows);
         },
       )
       .catch((loadError: unknown) => {
@@ -149,7 +193,7 @@ export function EventHistoryPage() {
     return () => {
       active = false;
     };
-  }, [eventId]);
+  }, [eventId, isSafetyOfficer]);
 
   // SPM-09 AC02: same "assigned coordinator only" rule as EventDetailPage —
   // a coordinator who isn't assigned to this event gets the same denial as
@@ -169,10 +213,10 @@ export function EventHistoryPage() {
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-3xl">
           <Link
-            to="/events"
+            to={isSafetyOfficer ? "/safety-checks" : "/events"}
             className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
           >
-            <ArrowLeft /> Back to events
+            <ArrowLeft /> {isSafetyOfficer ? "Back to safety checks" : "Back to events"}
           </Link>
 
           <header className="mt-6 border-b border-slate-200 pb-7">
@@ -190,6 +234,20 @@ export function EventHistoryPage() {
                 {error ?? "This event is unavailable or you do not have access to it."}
               </p>
             </section>
+          ) : isSafetyOfficer ? (
+            <div className="mt-7 space-y-6">
+              <HistorySection title="Safety check reviews">
+                {safetyCheckDecisions.length === 0 ? (
+                  <p className="text-sm text-slate-500">No review rounds recorded yet for this event.</p>
+                ) : (
+                  <ol className="space-y-3">
+                    {safetyCheckDecisions.map((decision) => (
+                      <SafetyCheckDecisionItem key={decision.id} decision={decision} />
+                    ))}
+                  </ol>
+                )}
+              </HistorySection>
+            </div>
           ) : (
             <div className="mt-7 space-y-6">
               <div role="group" aria-label="Show history" className="flex flex-wrap gap-2">
@@ -238,6 +296,16 @@ export function EventHistoryPage() {
                   <ol className="space-y-2">
                     {assignmentHistory.map((record) => (
                       <AssignmentHistoryItem key={record.id} record={record} />
+                    ))}
+                  </ol>
+                </HistorySection>
+              )}
+
+              {safetyCheckDecisions.length > 0 && (
+                <HistorySection title="Safety check reviews">
+                  <ol className="space-y-3">
+                    {safetyCheckDecisions.map((decision) => (
+                      <SafetyCheckDecisionItem key={decision.id} decision={decision} />
                     ))}
                   </ol>
                 </HistorySection>
@@ -509,6 +577,40 @@ function StatusChangeItem({ change }: { change: EventStatusChange }) {
         {dateFormatter.format(new Date(change.changedAt))}
         {actor ? ` · ${actor}` : ""}
       </span>
+    </li>
+  );
+}
+
+const SAFETY_CHECK_OUTCOME_LABELS: Record<SafetyCheckDecisionHistoryEntry["outcome"], string> = {
+  approved: "Approved",
+  changes_requested: "Changes requested",
+  rejected: "Rejected",
+};
+
+const SAFETY_CHECK_OUTCOME_CLASSES: Record<SafetyCheckDecisionHistoryEntry["outcome"], string> = {
+  approved: "text-emerald-700",
+  changes_requested: "text-orange-700",
+  rejected: "text-red-700",
+};
+
+/** AC6: each review round's outcome, reason, reviewer and time. */
+function SafetyCheckDecisionItem({ decision }: { decision: SafetyCheckDecisionHistoryEntry }) {
+  const flaggedCount = decision.flaggedBookingIds.length + decision.flaggedRequirementIds.length;
+  return (
+    <li className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-sm">
+      <p className={`font-semibold ${SAFETY_CHECK_OUTCOME_CLASSES[decision.outcome]}`}>
+        Round {decision.round} · {SAFETY_CHECK_OUTCOME_LABELS[decision.outcome]}
+      </p>
+      <p className="mt-1 text-slate-600">"{decision.reason}"</p>
+      {decision.outcome === "changes_requested" && flaggedCount > 0 && (
+        <p className="mt-1 text-xs text-slate-500">
+          {flaggedCount} item{flaggedCount === 1 ? "" : "s"} flagged
+        </p>
+      )}
+      <p className="mt-1 text-xs text-slate-500">
+        Reviewed by {decision.decidedByName ?? "a Safety Officer"} ·{" "}
+        {dateFormatter.format(new Date(decision.decidedAt))}
+      </p>
     </li>
   );
 }

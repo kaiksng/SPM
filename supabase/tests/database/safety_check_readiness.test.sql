@@ -1,6 +1,6 @@
 begin;
 
-select plan(22);
+select plan(26);
 
 -- Event readiness for the Operational Safety Check
 -- (202610190001_event_readiness_function.sql).
@@ -54,6 +54,10 @@ values
   ('fc000000-0000-0000-0000-0000000000bc', 'fc000000-0000-0000-0000-0000000000ec', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-12T10:00:00+08:00', '2099-09-12T12:00:00+08:00', 'approved', true, false, null),
   ('fc000000-0000-0000-0000-0000000000bd', 'fc000000-0000-0000-0000-0000000000ed', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', 'approved', true, false, null);
 
+-- 202610200009: E3's flagged main venue has a recorded reason.
+update public.venue_bookings set needs_review_reason = 'Capacity reduced below the event''s headcount.'
+where id = 'fc000000-0000-0000-0000-0000000000b3';
+
 -- Active (unexpired, uncleared) disruption on E4's main booking.
 insert into public.venue_unavailability (id, venue_id, reason, starts_at, ends_at) values
   ('fc000000-0000-0000-0000-0000000000d1', 'fc000000-0000-0000-0000-000000000010', 'RDY block', '2099-09-04T09:00:00+08:00', '2099-09-04T13:00:00+08:00');
@@ -95,6 +99,18 @@ select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e2')
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e3') ->> 'venueArrangementStatus'), 'needs_review', 'AC02: a needs_review-flagged main venue rolls up to Needs Review');
 select is((select (public.event_readiness('fc000000-0000-0000-0000-0000000000e3') ->> 'ready')::boolean), false, 'a Needs Review main venue is not Ready');
 
+-- 202610200009: a Needs Review item carries its reason; a Complete item does not.
+select is(
+  (select public.event_readiness('fc000000-0000-0000-0000-0000000000e3') -> 'venues' -> 0 ->> 'needsReviewReason'),
+  'Capacity reduced below the event''s headcount.',
+  'a flagged venue booking carries its needs_review_reason'
+);
+select is(
+  (select public.event_readiness('fc000000-0000-0000-0000-0000000000e1') -> 'venues' -> 0 -> 'needsReviewReason'),
+  'null'::jsonb,
+  'a Complete venue booking has no reason'
+);
+
 -- AC02: a Disrupted main venue is Needs Review.
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e4') -> 'venues' -> 0 ->> 'status'), 'needs_review', 'AC02: a disrupted main venue booking shows Needs Review');
 
@@ -118,12 +134,24 @@ select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e9')
 select is((select (public.event_readiness('fc000000-0000-0000-0000-0000000000ea') ->> 'ready')::boolean), true, 'AC03: equipment reserved in full makes the event Ready');
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ea') ->> 'equipmentArrangementStatus'), 'complete', 'the equipment arrangement rolls up to Complete');
 
+-- 202610200009: the item's quantity is returned.
+select is(
+  (select (public.event_readiness('fc000000-0000-0000-0000-0000000000ea') -> 'equipment' -> 0 ->> 'quantity')::int),
+  2,
+  'an equipment item carries its requested quantity'
+);
+
 -- AC03: requested but not reserved equipment blocks readiness (Pending).
 select is((select (public.event_readiness('fc000000-0000-0000-0000-0000000000eb') ->> 'ready')::boolean), false, 'unreserved equipment blocks readiness');
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000eb') ->> 'equipmentArrangementStatus'), 'pending', 'unreserved equipment rolls up to Pending');
 
 -- AC02: equipment flagged Issue is Needs Review.
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ec') ->> 'equipmentArrangementStatus'), 'needs_review', 'AC02: equipment flagged Issue rolls up to Needs Review');
+select is(
+  (select public.event_readiness('fc000000-0000-0000-0000-0000000000ec') -> 'equipment' -> 0 ->> 'needsReviewReason'),
+  'Mic is flagged Issue and needs review.',
+  'an Issue-flagged equipment item carries a reason even with no needs_review_reason column value'
+);
 
 -- A hand-set Arranged status does not by itself mean reserved: only 1 of 2
 -- requested units is actually reserved, so this is Pending, not Complete.
