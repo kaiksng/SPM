@@ -46,16 +46,19 @@ export type EventReadiness = {
 
 /**
  * AC02/AC07: only an Approved, unflagged, undisrupted booking is Complete.
- * A Pending request or an active (tentative) hold is Pending, never
- * Complete. A flagged or disrupted Approved booking is Needs Review.
+ * A Pending request is Pending. An active (tentative) hold is Needs Review
+ * (AC02 names a hold explicitly), never Complete. A flagged, disrupted, or
+ * conflicted Approved booking is also Needs Review.
  */
 export function deriveVenueBookingReadinessStatus(input: {
   status: "pending" | "approved" | "on_hold";
   needsReview: boolean;
   disrupted: boolean;
+  hasConflict: boolean;
 }): ReadinessStatus {
+  if (input.status === "on_hold") return "needs_review";
   if (input.status !== "approved") return "pending";
-  return input.needsReview || input.disrupted ? "needs_review" : "complete";
+  return input.needsReview || input.disrupted || input.hasConflict ? "needs_review" : "complete";
 }
 
 /**

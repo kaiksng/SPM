@@ -1,6 +1,6 @@
 begin;
 
-select plan(22);
+select plan(24);
 
 -- Event readiness for the Operational Safety Check
 -- (202610190001_event_readiness_function.sql).
@@ -35,7 +35,8 @@ values
   ('fc000000-0000-0000-0000-0000000000ea', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Equipment reserved in full', 'planning', '2099-09-10T10:00:00+08:00', '2099-09-10T12:00:00+08:00', true),
   ('fc000000-0000-0000-0000-0000000000eb', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Equipment not reserved', 'planning', '2099-09-11T10:00:00+08:00', '2099-09-11T12:00:00+08:00', true),
   ('fc000000-0000-0000-0000-0000000000ec', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Equipment flagged issue', 'planning', '2099-09-12T10:00:00+08:00', '2099-09-12T12:00:00+08:00', true),
-  ('fc000000-0000-0000-0000-0000000000ed', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Arranged by hand but not reserved', 'planning', '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', true);
+  ('fc000000-0000-0000-0000-0000000000ed', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Arranged by hand but not reserved', 'planning', '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', true),
+  ('fc000000-0000-0000-0000-0000000000ee', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Main venue has an active conflict', 'planning', '2099-09-14T10:00:00+08:00', '2099-09-14T12:00:00+08:00', true);
 
 insert into public.venue_bookings (id, event_id, venue_id, requested_by, starts_at, ends_at, status, is_main_venue, needs_review, expires_at)
 values
@@ -52,13 +53,19 @@ values
   ('fc000000-0000-0000-0000-0000000000ba', 'fc000000-0000-0000-0000-0000000000ea', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-10T10:00:00+08:00', '2099-09-10T12:00:00+08:00', 'approved', true, false, null),
   ('fc000000-0000-0000-0000-0000000000bb', 'fc000000-0000-0000-0000-0000000000eb', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-11T10:00:00+08:00', '2099-09-11T12:00:00+08:00', 'approved', true, false, null),
   ('fc000000-0000-0000-0000-0000000000bc', 'fc000000-0000-0000-0000-0000000000ec', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-12T10:00:00+08:00', '2099-09-12T12:00:00+08:00', 'approved', true, false, null),
-  ('fc000000-0000-0000-0000-0000000000bd', 'fc000000-0000-0000-0000-0000000000ed', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', 'approved', true, false, null);
+  ('fc000000-0000-0000-0000-0000000000bd', 'fc000000-0000-0000-0000-0000000000ed', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', 'approved', true, false, null),
+  ('fc000000-0000-0000-0000-0000000000be', 'fc000000-0000-0000-0000-0000000000ee', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-14T10:00:00+08:00', '2099-09-14T12:00:00+08:00', 'approved', true, false, null);
 
 -- Active (unexpired, uncleared) disruption on E4's main booking.
 insert into public.venue_unavailability (id, venue_id, reason, starts_at, ends_at) values
   ('fc000000-0000-0000-0000-0000000000d1', 'fc000000-0000-0000-0000-000000000010', 'RDY block', '2099-09-04T09:00:00+08:00', '2099-09-04T13:00:00+08:00');
 insert into public.venue_booking_disruptions (booking_id, block_id) values
   ('fc000000-0000-0000-0000-0000000000b4', 'fc000000-0000-0000-0000-0000000000d1');
+
+-- Active (unresolved) conflict on E14's main booking, flagged against the
+-- same block as a stand-in "other side" of the conflict.
+insert into public.venue_booking_conflicts (booking_id, conflicting_block_id, cause, flagged_by) values
+  ('fc000000-0000-0000-0000-0000000000be', 'fc000000-0000-0000-0000-0000000000d1', 'Overlaps a venue block once setup/turnaround time is applied', 'fc000000-0000-0000-0000-000000000004');
 
 -- Equipment: E10 reserved in full, E11 not reserved, E12 flagged Issue,
 -- E13 hand-set Arranged with only a partial reservation.
@@ -108,8 +115,9 @@ select is((select (public.event_readiness('fc000000-0000-0000-0000-0000000000e6'
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e7') ->> 'venueArrangementStatus'), 'pending', 'no venue booking at all rolls up to Pending');
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e7') -> 'outstandingItems' -> 0 ->> 'code'), 'no_main_venue', 'the missing main venue is named in outstandingItems');
 
--- AC07: an active tentative hold never counts as a completed arrangement.
-select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e8') -> 'venues' -> 0 ->> 'status'), 'pending', 'AC07: an active tentative hold on the main venue shows Pending, never Complete');
+-- AC02/AC07: an active tentative hold never counts as a completed
+-- arrangement, and AC02 names a hold explicitly as Needs Review.
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e8') -> 'venues' -> 0 ->> 'status'), 'needs_review', 'AC02/AC07: an active tentative hold on the main venue shows Needs Review, never Complete');
 
 -- AC07: an expired hold is excluded, so there is effectively no main venue.
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e9') ->> 'venueArrangementStatus'), 'pending', 'AC07: an expired hold does not count as a venue booking at all');
@@ -128,6 +136,11 @@ select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ec')
 -- A hand-set Arranged status does not by itself mean reserved: only 1 of 2
 -- requested units is actually reserved, so this is Pending, not Complete.
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ed') ->> 'equipmentArrangementStatus'), 'pending', 'a hand-set Arranged status without a full reservation still rolls up to Pending');
+
+-- AC02: an Approved main venue with an active, unresolved
+-- venue_booking_conflicts row is Needs Review, not Complete.
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ee') -> 'venues' -> 0 ->> 'status'), 'needs_review', 'AC02: an approved main venue with an active conflict shows Needs Review');
+select is((select (public.event_readiness('fc000000-0000-0000-0000-0000000000ee') ->> 'ready')::boolean), false, 'an active venue conflict blocks readiness');
 
 -- Access: can_view_event grants every coordinator broad read access (by
 -- design, same as the Events list), so another coordinator CAN still read
