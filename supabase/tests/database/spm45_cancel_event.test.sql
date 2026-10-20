@@ -17,8 +17,8 @@ insert into auth.users (id, email, raw_user_meta_data) values
 insert into public.venues (id, name, location, capacity) values
   ('ce000000-0000-0000-0000-000000000010', 'SPM45 Hall', 'Block 9', 200);
 
-insert into public.equipment_items (id, name, category, total_quantity) values
-  ('ce000000-0000-0000-0000-000000000011', 'SPM45 Projector', 'AV', 5);
+insert into public.equipment_items (id, name, category, code, total_quantity) values
+  ('ce000000-0000-0000-0000-000000000011', 'SPM45 Projector', 'AV', 'spm45-projector', 5);
 
 -- Fixture events, one per scenario, inserted directly at their target status
 -- (same shortcut submit_event_for_safety_check.test.sql uses) rather than
