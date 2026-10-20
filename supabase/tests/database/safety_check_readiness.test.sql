@@ -149,7 +149,7 @@ select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000eb')
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ec') ->> 'equipmentArrangementStatus'), 'needs_review', 'AC02: equipment flagged Issue rolls up to Needs Review');
 select is(
   (select public.event_readiness('fc000000-0000-0000-0000-0000000000ec') -> 'equipment' -> 0 ->> 'needsReviewReason'),
-  'Mic is flagged Issue and needs review.',
+  'Wireless microphone is flagged Issue and needs review.',
   'an Issue-flagged equipment item carries a reason even with no needs_review_reason column value'
 );
 

@@ -25,9 +25,13 @@ values
   ('fd100000-0000-0000-0000-0000000000b2', 'fd100000-0000-0000-0000-0000000000e1', 'fd100000-0000-0000-0000-000000000010', 'fd100000-0000-0000-0000-000000000002', '2099-12-01T13:00:00+08:00', '2099-12-01T14:00:00+08:00', 'approved', false, false, null),
   ('fd100000-0000-0000-0000-0000000000b3', 'fd100000-0000-0000-0000-0000000000e2', 'fd100000-0000-0000-0000-000000000010', 'fd100000-0000-0000-0000-000000000002', '2099-12-02T10:00:00+08:00', '2099-12-02T12:00:00+08:00', 'approved', true, true, 'Flagged during review.');
 
-insert into public.event_equipment_requirements (id, event_id, equipment_name, quantity, needs_review, needs_review_reason)
+insert into public.event_equipment_requirements (id, event_id, equipment_item_id, equipment_name, quantity, required_from, required_until, needs_review, needs_review_reason)
 values
-  ('fd100000-0000-0000-0000-0000000000f1', 'fd100000-0000-0000-0000-0000000000e1', 'Stage light', 2, true, 'Placement blocks the exit.');
+  (
+    'fd100000-0000-0000-0000-0000000000f1', 'fd100000-0000-0000-0000-0000000000e1',
+    (select id from public.equipment_items where code = 'mic'), 'Wireless microphone', 2,
+    '2099-12-01T10:00:00+08:00', '2099-12-01T12:00:00+08:00', true, 'Placement blocks the exit.'
+  );
 
 set local role authenticated;
 
