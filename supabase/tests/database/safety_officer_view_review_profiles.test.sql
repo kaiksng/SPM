@@ -40,10 +40,13 @@ select public.decide_event_safety_check(
   'Crowd movement plan is incomplete.'
 );
 
--- Round 2: coordinator resubmits, so the event is pending_safety_check
--- again — this is when Safety Officer B, reviewing round 2, would want to
--- see who reviewed round 1 and what the organiser/coordinator are called.
+-- Round 2: the coordinator resolves what round 1 flagged (202610200010 —
+-- resubmission requires the event to be Ready again) and resubmits, so the
+-- event is pending_safety_check again — this is when Safety Officer B,
+-- reviewing round 2, would want to see who reviewed round 1 and what the
+-- organiser/coordinator are called.
 select set_config('request.jwt.claims', '{"sub":"fe000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select public.resolve_arrangement_flag('fe000000-0000-0000-0000-0000000000e1'::uuid, 'fe000000-0000-0000-0000-0000000000b1'::uuid);
 select public.submit_event_for_safety_check('fe000000-0000-0000-0000-0000000000e1');
 
 -- Safety Officer B (who did not decide round 1) reviews round 2.
