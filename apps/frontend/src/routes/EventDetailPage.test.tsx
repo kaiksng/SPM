@@ -15,6 +15,8 @@ const listEventStatusHistoryMock = vi.fn();
 const completeEventMock = vi.fn();
 const updateEventAsCoordinatorMock = vi.fn();
 const listSuggestedVenuesMock = vi.fn();
+const listVenueBookingsForEventMock = vi.fn();
+const loadEventReadinessMock = vi.fn();
 const authState = {
   profile: { full_name: "Joyce Coordinator", role: "event_coordinator" },
   user: { id: "20000000-0000-0000-0000-000000000002" },
@@ -65,6 +67,15 @@ vi.mock("@/features/event-requests/services/coordinator-event-edit", async (impo
 
 vi.mock("@/features/venues/services/venues", () => ({
   listSuggestedVenues: (...args: unknown[]) => listSuggestedVenuesMock(...args),
+}));
+
+vi.mock("@/features/venues/services/venue-bookings", () => ({
+  listVenueBookingsForEvent: (...args: unknown[]) => listVenueBookingsForEventMock(...args),
+}));
+
+vi.mock("@/features/safety-check/services/event-readiness", () => ({
+  loadEventReadiness: (...args: unknown[]) => loadEventReadinessMock(...args),
+  READINESS_ITEM_BADGE_CLASSES: { complete: "", pending: "", needs_review: "", not_required: "" },
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -137,6 +148,15 @@ describe("EventDetailPage", () => {
     listSuggestedVenuesMock.mockReset().mockResolvedValue([
       { id: "venue-1", name: "Wing B Hall", location: "New Wing Hall", capacity: 200 },
     ]);
+    listVenueBookingsForEventMock.mockReset().mockResolvedValue([]);
+    loadEventReadinessMock.mockReset().mockResolvedValue({
+      ready: true,
+      venues: [],
+      venueArrangementStatus: "complete",
+      equipment: [],
+      equipmentArrangementStatus: "not_required",
+      outstandingItems: [],
+    });
   });
 
   // SPM-15 AC03: the assigned coordinator can open an event to view its details.
@@ -693,6 +713,62 @@ describe("EventDetailPage", () => {
       expect(screen.queryByText("Student Leadership Summit 2")).not.toBeInTheDocument();
       expect(screen.queryByText("All university student leaders workshop")).not.toBeInTheDocument();
       expect(screen.queryByText("Organiser: jasmine")).not.toBeInTheDocument();
+    });
+  });
+
+  // Confirmed arrangements: AC04 — only the owning organiser of a Confirmed
+  // event sees the section, and the two readiness/booking loads only run
+  // when that gate is open.
+  describe("Confirmed arrangements section", () => {
+    afterEach(() => {
+      authState.user.id = "20000000-0000-0000-0000-000000000002";
+    });
+
+    it("AC01/AC04: shows the organiser the section for their own Confirmed event", async () => {
+      authState.profile.role = "event_organiser";
+      authState.user.id = event.organiserId;
+      loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+
+      renderPage();
+
+      expect(await screen.findByText("Confirmed arrangements")).toBeInTheDocument();
+      expect(listVenueBookingsForEventMock).toHaveBeenCalledWith("event-1");
+      expect(loadEventReadinessMock).toHaveBeenCalledWith("event-1");
+    });
+
+    it("AC04: does not show the section, or fetch its data, for a non-owning organiser", async () => {
+      authState.profile.role = "event_organiser";
+      authState.user.id = "99999999-0000-0000-0000-000000000099";
+      loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+
+      renderPage();
+
+      await screen.findByText("Student Leadership Summit 2");
+      expect(screen.queryByText("Confirmed arrangements")).not.toBeInTheDocument();
+      expect(listVenueBookingsForEventMock).not.toHaveBeenCalled();
+      expect(loadEventReadinessMock).not.toHaveBeenCalled();
+    });
+
+    it("AC04: does not show the section for the organiser's own event outside Confirmed", async () => {
+      authState.profile.role = "event_organiser";
+      authState.user.id = event.organiserId;
+      loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
+
+      renderPage();
+
+      await screen.findByText("Student Leadership Summit 2");
+      expect(screen.queryByText("Confirmed arrangements")).not.toBeInTheDocument();
+      expect(listVenueBookingsForEventMock).not.toHaveBeenCalled();
+    });
+
+    it("AC04: does not show the section to the assigned coordinator of a Confirmed event", async () => {
+      loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+
+      renderPage();
+
+      await screen.findByText("Student Leadership Summit 2");
+      expect(screen.queryByText("Confirmed arrangements")).not.toBeInTheDocument();
+      expect(listVenueBookingsForEventMock).not.toHaveBeenCalled();
     });
   });
 });
