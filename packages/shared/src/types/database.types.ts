@@ -1763,6 +1763,10 @@ export type Database = {
       }
       assert_technical_support_staff: { Args: never; Returns: undefined }
       can_view_event: { Args: { target_event_id: string }; Returns: boolean }
+      cancel_event: {
+        Args: { p_actor_id?: string; p_event_id: string; p_reason: string }
+        Returns: Json
+      }
       cancel_event_request: {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json

@@ -15,6 +15,7 @@ export * from "./schemas/equipment-catalogue";
 export * from "./schemas/equipment-arrangement";
 export * from "./schemas/venue-search";
 export * from "./schemas/safety-check";
+export * from "./schemas/event-cancellation";
 
 export * from "./domain/role-destination";
 export * from "./domain/role-label";
