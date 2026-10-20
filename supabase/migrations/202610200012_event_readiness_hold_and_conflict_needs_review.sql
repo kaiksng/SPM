@@ -8,6 +8,10 @@
 -- AC02 (revised): an active (tentative) hold is Needs Review, not Pending.
 -- An Approved booking with an active, unresolved venue_booking_conflicts
 -- row is also Needs Review, same as a flagged or disrupted booking.
+--
+-- Based on 202610200009 (which added the quantity/needsReviewReason fields
+-- and the Safety-Officer-flagged-equipment check), not 202610200007 — only
+-- the venue loop's hold/conflict handling changes here.
 create or replace function public.event_readiness(p_event_id uuid, p_actor_id uuid default null)
 returns jsonb
 language plpgsql
@@ -51,7 +55,7 @@ begin
   -- expired or missing main venue fails readiness via "no main venue"
   -- below, not by appearing here).
   for b in
-    select vb.id, vb.is_main_venue, vb.status, vb.needs_review,
+    select vb.id, vb.is_main_venue, vb.status, vb.needs_review, vb.needs_review_reason,
       coalesce(v.name, 'Unknown venue') as venue_name,
       exists (
         select 1 from public.venue_booking_disruptions d
@@ -90,7 +94,8 @@ begin
       'bookingId', b.id,
       'venueName', b.venue_name,
       'isMainVenue', b.is_main_venue,
-      'status', v_item_status
+      'status', v_item_status,
+      'needsReviewReason', case when v_item_status = 'needs_review' then b.needs_review_reason else null end
     );
 
     if v_item_status <> 'complete' then
@@ -124,7 +129,7 @@ begin
   -- directly against equipment_reservations: a hand-set Arranged status does
   -- not by itself guarantee a reservation exists.
   for r in
-    select req.id, req.equipment_name, req.quantity,
+    select req.id, req.equipment_name, req.quantity, req.needs_review, req.needs_review_reason,
       coalesce(
         (select u.status from public.equipment_arrangement_updates u
           where u.requirement_id = req.id order by u.id desc limit 1),
@@ -140,7 +145,7 @@ begin
   loop
     v_requirement_count := v_requirement_count + 1;
 
-    if r.arrangement_status = 'issue' then
+    if r.arrangement_status = 'issue' or r.needs_review then
       v_item_status := 'needs_review';
       v_any_equipment_issue := true;
     elsif r.arrangement_status = 'arranged' then
@@ -156,13 +161,24 @@ begin
     v_equipment := v_equipment || jsonb_build_object(
       'requirementId', r.id,
       'equipmentName', r.equipment_name,
-      'status', v_item_status
+      'quantity', r.quantity,
+      'status', v_item_status,
+      'needsReviewReason', case
+        when v_item_status <> 'needs_review' then null
+        when r.needs_review then r.needs_review_reason
+        else r.equipment_name || ' is flagged Issue and needs review.'
+      end
     );
 
     if r.arrangement_status = 'issue' then
       v_outstanding := v_outstanding || jsonb_build_object(
         'code', 'equipment_needs_review',
         'message', r.equipment_name || ' is flagged Issue and needs review.'
+      );
+    elsif r.needs_review then
+      v_outstanding := v_outstanding || jsonb_build_object(
+        'code', 'equipment_needs_review',
+        'message', coalesce(r.needs_review_reason, r.equipment_name || ' needs review.')
       );
     elsif not r.reserved_in_full then
       v_outstanding := v_outstanding || jsonb_build_object(
