@@ -58,9 +58,10 @@ const ROLE_NAV_ITEM_IDS = {
   // just showing every event instead of one organiser's or coordinator's
   // own. See EventsPage's LeadEventsView.
   event_coordinator_lead: ["events"],
-  // Access scaffolding only: the Operational Safety Check workflow doesn't
-  // exist yet (no "confirmed" status is ever reached today), so this is a
-  // placeholder page with no event data until that lands.
+  // The Safety Officer reviews events under "safety-checks"; their one
+  // extra allowance is the event history page, scoped in
+  // SAFETY_OFFICER_EXTRA_ALLOWED_PATHS below (not the whole "/events/*"
+  // subtree the way an organiser/coordinator gets it).
   safety_officer: ["safety-checks"],
 } as const satisfies Record<UserRole, readonly NavItemId[]>;
 
@@ -84,10 +85,23 @@ const LEAD_ALLOWED_EVENT_PATHS = [
   new RegExp(`^/events/${UUID_SEGMENT}$`, "i"),
 ];
 
+// A handful of roles get one path outside their nav items' own prefix,
+// without opening that whole subtree (contrast LEAD_ALLOWED_EVENT_PATHS,
+// which replaces the nav-item check entirely for the Lead). The Safety
+// Officer reaches an event's history page from their review screen
+// (EventPageTopBar's "Change history" link) but gets none of the rest of
+// "/events/*" — no event list, no detail page, no edit.
+const ROLE_EXTRA_ALLOWED_PATHS: Partial<Record<UserRole, RegExp[]>> = {
+  safety_officer: [new RegExp(`^/events/${UUID_SEGMENT}/history$`, "i")],
+};
+
 /** Whether a role is entitled to a nav section, keyed by its route path. */
 export function isPathAllowedForRole(pathname: string, role: UserRole) {
   if (role === "event_coordinator_lead") {
     return LEAD_ALLOWED_EVENT_PATHS.some((pattern) => pattern.test(pathname));
+  }
+  if (ROLE_EXTRA_ALLOWED_PATHS[role]?.some((pattern) => pattern.test(pathname))) {
+    return true;
   }
   // The most specific section a path belongs to decides: "/equipment/inventory"
   // is the Inventory section, not a page inside "/equipment", so a role with

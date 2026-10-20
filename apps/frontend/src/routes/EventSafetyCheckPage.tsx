@@ -12,6 +12,7 @@ import { SubmitSafetyCheckButton } from "@/features/safety-check/components/subm
 import {
   loadEventReadiness,
   loadLatestSafetyCheckSubmission,
+  resolveArrangementFlag,
   submitEventForSafetyCheck,
   type SafetyCheckSubmission,
 } from "@/features/safety-check/services/event-readiness";
@@ -39,6 +40,8 @@ export function EventSafetyCheckPage() {
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string>();
+  const [resolvingId, setResolvingId] = useState<string>();
+  const [resolveError, setResolveError] = useState<string>();
 
   usePageTitle(event?.title ? `Safety Check — ${event.title}` : "Safety Check");
 
@@ -97,6 +100,21 @@ export function EventSafetyCheckPage() {
   }
 
   const canSubmit = Boolean(event && user && event.assignedCoordinatorId === user.id && event.status === "planning");
+  const canResolve = canSubmit;
+
+  async function handleResolve(id: string, target: { bookingId: string } | { requirementId: string }) {
+    if (!eventId) return;
+    setResolvingId(id);
+    setResolveError(undefined);
+    try {
+      await resolveArrangementFlag(eventId, target);
+      loadAll(eventId);
+    } catch (err) {
+      setResolveError(err instanceof Error ? err.message : "This flag could not be resolved.");
+    } finally {
+      setResolvingId(undefined);
+    }
+  }
 
   return (
     <RoleGate>
@@ -138,9 +156,21 @@ export function EventSafetyCheckPage() {
                   </section>
                 )}
 
-                <ReadinessChecklist readiness={readiness} />
+                <ReadinessChecklist
+                  readiness={readiness}
+                  canResolve={canResolve}
+                  resolvingId={resolvingId}
+                  onResolveBooking={(bookingId) => handleResolve(bookingId, { bookingId })}
+                  onResolveRequirement={(requirementId) => handleResolve(requirementId, { requirementId })}
+                />
 
                 {!readiness.ready && <OutstandingItemsList items={readiness.outstandingItems} />}
+
+                {resolveError && (
+                  <p role="alert" className="mt-4 text-sm text-red-700">
+                    {resolveError}
+                  </p>
+                )}
 
                 {submitError && (
                   <p role="alert" className="mt-4 text-sm text-red-700">

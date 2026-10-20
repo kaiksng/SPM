@@ -18,6 +18,7 @@ import { LoginPage } from "@/routes/LoginPage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
 import { PublicPage } from "@/routes/PublicPage";
 import { SafetyChecksPage } from "@/routes/SafetyChecksPage";
+import { SafetyCheckReviewPage } from "@/routes/SafetyCheckReviewPage";
 import { SignupPage } from "@/routes/SignupPage";
 import { VenueAvailabilityPage } from "@/routes/VenueAvailabilityPage";
 import { VenueBlocksPage } from "@/routes/VenueBlocksPage";
@@ -76,6 +77,7 @@ export function App() {
               <Route path="equipment/unavailability" element={<EquipmentPage section="unavailability" />} />
               <Route path="browse-events" element={<BrowseEventsPage />} />
               <Route path="safety-checks" element={<SafetyChecksPage />} />
+              <Route path="safety-checks/:eventId" element={<SafetyCheckReviewPage />} />
             </Route>
           </Route>
 
