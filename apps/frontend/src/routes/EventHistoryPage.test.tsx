@@ -9,6 +9,7 @@ const listEventDecisionsMock = vi.fn();
 const listEventStatusHistoryMock = vi.fn();
 const loadEventDetailMock = vi.fn();
 const loadEquipmentHistoryMock = vi.fn();
+const listSafetyCheckDecisionsMock = vi.fn();
 const authState = {
   profile: { full_name: "Joyce Coordinator", role: "event_coordinator" },
   user: { id: "20000000-0000-0000-0000-000000000002" },
@@ -59,6 +60,9 @@ vi.mock("@/features/venues/services/venue-disruptions", () => ({
 vi.mock("@/features/venues/services/venue-bookings", () => ({
   listVenueBookingsForEvent: (...args: unknown[]) => listVenueBookingsForEventMock(...args),
 }));
+vi.mock("@/features/safety-check/services/safety-check-decisions", () => ({
+  listSafetyCheckDecisions: (...args: unknown[]) => listSafetyCheckDecisionsMock(...args),
+}));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
 
@@ -94,6 +98,7 @@ beforeEach(() => {
   loadEquipmentHistoryMock.mockReset().mockResolvedValue([]);
   listVenueBookingsForEventMock.mockReset().mockResolvedValue([]);
   listVenueDisruptionsMock.mockReset().mockResolvedValue([]);
+  listSafetyCheckDecisionsMock.mockReset().mockResolvedValue([]);
   loadEventDetailMock.mockReset().mockResolvedValue({
     assignedCoordinatorId: "20000000-0000-0000-0000-000000000002",
   });
@@ -377,6 +382,49 @@ describe("EventHistoryPage", () => {
     expect(await screen.findByText("Lifecycle")).toBeInTheDocument();
     expect(screen.getAllByText("draft")).toHaveLength(2);
     expect(screen.getByText("Pending")).toBeInTheDocument();
+  });
+
+  // AC6: each review round's outcome, reason, reviewer and time.
+  it("shows the Safety check reviews section", async () => {
+    listSafetyCheckDecisionsMock.mockResolvedValue([
+      {
+        id: 2,
+        round: 2,
+        outcome: "approved",
+        reason: "Looks good now.",
+        decidedByName: "Sam Safety",
+        decidedAt: "2026-10-20T14:40:00.000Z",
+        flaggedBookingIds: [],
+        flaggedRequirementIds: [],
+      },
+      {
+        id: 1,
+        round: 1,
+        outcome: "changes_requested",
+        reason: "Reposition the projector away from the exit.",
+        decidedByName: "Sam Safety",
+        decidedAt: "2026-10-18T16:05:00.000Z",
+        flaggedBookingIds: [],
+        flaggedRequirementIds: ["req-1"],
+      },
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText("Safety check reviews")).toBeInTheDocument();
+    expect(screen.getByText("Round 2 · Approved")).toBeInTheDocument();
+    expect(screen.getByText("Round 1 · Changes requested")).toBeInTheDocument();
+    expect(
+      screen.getByText('"Reposition the projector away from the exit."'),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 item flagged")).toBeInTheDocument();
+  });
+
+  it("does not show the Safety check reviews section when no decision has been made", async () => {
+    renderPage();
+
+    await screen.findByText("Lifecycle");
+    expect(screen.queryByText("Safety check reviews")).not.toBeInTheDocument();
   });
 
   it("names the exact field(s) edited during a round, with before/after values", async () => {
@@ -923,6 +971,83 @@ describe("EventHistoryPage", () => {
       ).not.toBeInTheDocument();
       expect(screen.getByText("14 Sept 2026, 8:00 pm · Joyce")).toBeInTheDocument();
       expect(screen.getByRole("heading", { level: 2, name: "Equipment" })).toBeInTheDocument();
+    });
+  });
+
+  // This story: the Safety Officer's history view is scoped to safety-check
+  // review rounds only, not the organiser/coordinator's full history.
+  describe("for the Safety Officer", () => {
+    const EVENT_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
+
+    afterEach(() => {
+      authState.profile = { full_name: "Joyce Coordinator", role: "event_coordinator" };
+    });
+
+    function renderAsSafetyOfficer() {
+      authState.profile = { full_name: "Sam Safety", role: "safety_officer" };
+      return render(
+        <MemoryRouter initialEntries={[`/events/${EVENT_ID}/history`]}>
+          <Routes>
+            <Route path="events/:eventId/history" element={<EventHistoryPage />} />
+            <Route path="safety-checks" element={<p>SAFETY CHECKS QUEUE</p>} />
+          </Routes>
+        </MemoryRouter>,
+      );
+    }
+
+    it("shows only the Safety check reviews section, not the organiser/coordinator's full history", async () => {
+      listSafetyCheckDecisionsMock.mockResolvedValue([
+        {
+          id: 1,
+          round: 1,
+          outcome: "rejected",
+          reason: "Crowd movement plan is incomplete.",
+          decidedByName: "Sam Safety",
+          decidedAt: "2026-10-18T16:05:00.000Z",
+          flaggedBookingIds: ["booking-1"],
+          flaggedRequirementIds: ["req-1"],
+        },
+      ]);
+      listEventStatusHistoryMock.mockResolvedValue([
+        {
+          id: 1,
+          fromStatus: "planning",
+          toStatus: "pending_safety_check",
+          changedByName: "Joyce",
+          changedAt: "2026-10-18T15:00:00.000Z",
+        },
+      ]);
+
+      renderAsSafetyOfficer();
+
+      expect(await screen.findByText("Round 1 · Rejected")).toBeInTheDocument();
+      expect(screen.queryByText("Lifecycle")).not.toBeInTheDocument();
+      expect(screen.queryByText("Pre-Approved")).not.toBeInTheDocument();
+      expect(screen.queryByText("Venue bookings")).not.toBeInTheDocument();
+      expect(screen.queryByRole("group", { name: "Show history" })).not.toBeInTheDocument();
+      // The other loaders are outside their RLS access once an event leaves
+      // pending_safety_check — don't call them at all for this role.
+      expect(listEventStatusHistoryMock).not.toHaveBeenCalled();
+      expect(listClarificationsMock).not.toHaveBeenCalled();
+      expect(listVenueBookingsForEventMock).not.toHaveBeenCalled();
+    });
+
+    it("shows an empty state when no review round has happened yet", async () => {
+      renderAsSafetyOfficer();
+
+      expect(
+        await screen.findByText("No review rounds recorded yet for this event."),
+      ).toBeInTheDocument();
+    });
+
+    it("links back to the safety checks queue, not the events list", async () => {
+      renderAsSafetyOfficer();
+
+      await screen.findByText("No review rounds recorded yet for this event.");
+      expect(screen.getByRole("link", { name: /Back to safety checks/ })).toHaveAttribute(
+        "href",
+        "/safety-checks",
+      );
     });
   });
 

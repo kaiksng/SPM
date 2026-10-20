@@ -22,12 +22,17 @@ export type VenueBookingReadiness = {
   venueName: string;
   isMainVenue: boolean;
   status: ReadinessStatus;
+  /** Set only when status is "needs_review" — why it was flagged. */
+  needsReviewReason: string | null;
 };
 
 export type EquipmentRequirementReadiness = {
   requirementId: string;
   equipmentName: string;
+  quantity: number;
   status: ReadinessStatus;
+  /** Set only when status is "needs_review" — why it was flagged. */
+  needsReviewReason: string | null;
 };
 
 export type ReadinessOutstandingItem = {

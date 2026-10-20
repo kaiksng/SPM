@@ -21,10 +21,12 @@ vi.mock("@/features/event-requests/services/event-details", () => ({
 const loadEventReadinessMock = vi.fn();
 const loadLatestSafetyCheckSubmissionMock = vi.fn();
 const submitEventForSafetyCheckMock = vi.fn();
+const resolveArrangementFlagMock = vi.fn();
 vi.mock("@/features/safety-check/services/event-readiness", () => ({
   loadEventReadiness: (...args: unknown[]) => loadEventReadinessMock(...args),
   loadLatestSafetyCheckSubmission: (...args: unknown[]) => loadLatestSafetyCheckSubmissionMock(...args),
   submitEventForSafetyCheck: (...args: unknown[]) => submitEventForSafetyCheckMock(...args),
+  resolveArrangementFlag: (...args: unknown[]) => resolveArrangementFlagMock(...args),
   READINESS_ITEM_BADGE_CLASSES: {
     complete: "",
     pending: "",
@@ -67,6 +69,7 @@ beforeEach(() => {
   loadEventReadinessMock.mockReset().mockResolvedValue(readiness());
   loadLatestSafetyCheckSubmissionMock.mockReset().mockResolvedValue(null);
   submitEventForSafetyCheckMock.mockReset().mockResolvedValue({ round: 1 });
+  resolveArrangementFlagMock.mockReset().mockResolvedValue(undefined);
 });
 
 describe("EventSafetyCheckPage", () => {
@@ -124,6 +127,65 @@ describe("EventSafetyCheckPage", () => {
 
     expect(await screen.findByText("Main Hall")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Submit for Safety Check" })).not.toBeInTheDocument();
+  });
+
+  // This story: the assigned coordinator resolves a flagged item so the
+  // event can be resubmitted.
+  it("lets the assigned coordinator mark a flagged venue booking resolved", async () => {
+    loadEventReadinessMock.mockResolvedValue(
+      readiness({
+        ready: false,
+        venueArrangementStatus: "needs_review",
+        venues: [
+          {
+            bookingId: "booking-1",
+            venueName: "Main Hall",
+            isMainVenue: true,
+            status: "needs_review",
+            needsReviewReason: "Capacity reduced below the event's headcount.",
+          },
+        ],
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(
+      await screen.findByText("Capacity reduced below the event's headcount."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Mark resolved" }));
+
+    expect(resolveArrangementFlagMock).toHaveBeenCalledWith("event-1", { bookingId: "booking-1" });
+    expect(loadEventReadinessMock).toHaveBeenCalledTimes(2);
+  });
+
+  // Only the assigned coordinator may resolve a flag.
+  it("hides the resolve action from anyone other than the assigned coordinator", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      id: "event-1",
+      title: "Spring Expo",
+      status: "planning",
+      assignedCoordinatorId: "coordinator-2",
+    });
+    loadEventReadinessMock.mockResolvedValue(
+      readiness({
+        ready: false,
+        equipment: [
+          {
+            requirementId: "req-1",
+            equipmentName: "Mic",
+            quantity: 1,
+            status: "needs_review",
+            needsReviewReason: "Flagged during the safety review.",
+          },
+        ],
+        equipmentArrangementStatus: "needs_review",
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByText("Mic")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark resolved" })).not.toBeInTheDocument();
   });
 
   // AC06: once submitted, a read-only banner names the round.

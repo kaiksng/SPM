@@ -49,7 +49,14 @@ function booking(overrides: Partial<VenueBookingRequestSummary> = {}): VenueBook
 }
 
 function venueReadiness(overrides: Partial<VenueBookingReadiness> = {}): VenueBookingReadiness {
-  return { bookingId: "booking-1", venueName: "Auditorium", isMainVenue: true, status: "complete", ...overrides };
+  return {
+    bookingId: "booking-1",
+    venueName: "Auditorium",
+    isMainVenue: true,
+    status: "complete",
+    needsReviewReason: null,
+    ...overrides,
+  };
 }
 
 function equipmentRequirement(overrides: Partial<EquipmentRequirement> = {}): EquipmentRequirement {
@@ -69,7 +76,14 @@ function equipmentRequirement(overrides: Partial<EquipmentRequirement> = {}): Eq
 function equipmentReadiness(
   overrides: Partial<EquipmentRequirementReadiness> = {},
 ): EquipmentRequirementReadiness {
-  return { requirementId: "req-1", equipmentName: "Projector", status: "complete", ...overrides };
+  return {
+    requirementId: "req-1",
+    equipmentName: "Projector",
+    quantity: 2,
+    status: "complete",
+    needsReviewReason: null,
+    ...overrides,
+  };
 }
 
 describe("groupVenueBookingsByReadiness", () => {

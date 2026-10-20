@@ -65,7 +65,11 @@ describe("ConfirmedArrangementsSection", () => {
       <ConfirmedArrangementsSection
         event={event()}
         bookings={[main]}
-        readiness={readiness({ venues: [{ bookingId: "b-1", venueName: "Auditorium", isMainVenue: true, status: "complete" }] })}
+        readiness={readiness({
+          venues: [
+            { bookingId: "b-1", venueName: "Auditorium", isMainVenue: true, status: "complete", needsReviewReason: null },
+          ],
+        })}
       />,
     );
 
@@ -95,8 +99,8 @@ describe("ConfirmedArrangementsSection", () => {
         bookings={[confirmedBooking, needsReviewBooking]}
         readiness={readiness({
           venues: [
-            { bookingId: "b-confirmed", venueName: "Auditorium", isMainVenue: true, status: "complete" },
-            { bookingId: "b-needs-review", venueName: "Breakout Room", isMainVenue: false, status: "needs_review" },
+            { bookingId: "b-confirmed", venueName: "Auditorium", isMainVenue: true, status: "complete", needsReviewReason: null },
+            { bookingId: "b-needs-review", venueName: "Breakout Room", isMainVenue: false, status: "needs_review", needsReviewReason: "Flagged during the safety review." },
           ],
         })}
       />,

@@ -758,6 +758,8 @@ export type Database = {
           equipment_name: string
           event_id: string
           id: string
+          needs_review: boolean
+          needs_review_reason: string | null
           notes: string | null
           quantity: number
           required_from: string | null
@@ -768,6 +770,8 @@ export type Database = {
           equipment_name: string
           event_id: string
           id?: string
+          needs_review?: boolean
+          needs_review_reason?: string | null
           notes?: string | null
           quantity?: number
           required_from?: string | null
@@ -778,6 +782,8 @@ export type Database = {
           equipment_name?: string
           event_id?: string
           id?: string
+          needs_review?: boolean
+          needs_review_reason?: string | null
           notes?: string | null
           quantity?: number
           required_from?: string | null
@@ -947,6 +953,64 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_safety_check_decisions: {
+        Row: {
+          decided_at: string
+          decided_by: string
+          event_id: string
+          flagged_booking_ids: string[]
+          flagged_requirement_ids: string[]
+          id: number
+          outcome: Database["public"]["Enums"]["event_safety_check_decision_type"]
+          reason: string
+          submission_id: number
+        }
+        Insert: {
+          decided_at?: string
+          decided_by: string
+          event_id: string
+          flagged_booking_ids?: string[]
+          flagged_requirement_ids?: string[]
+          id?: never
+          outcome: Database["public"]["Enums"]["event_safety_check_decision_type"]
+          reason: string
+          submission_id: number
+        }
+        Update: {
+          decided_at?: string
+          decided_by?: string
+          event_id?: string
+          flagged_booking_ids?: string[]
+          flagged_requirement_ids?: string[]
+          id?: never
+          outcome?: Database["public"]["Enums"]["event_safety_check_decision_type"]
+          reason?: string
+          submission_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_safety_check_decisions_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_safety_check_decisions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_safety_check_decisions_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "event_safety_check_submissions"
             referencedColumns: ["id"]
           },
         ]
@@ -1762,7 +1826,12 @@ export type Database = {
         Returns: number
       }
       assert_technical_support_staff: { Args: never; Returns: undefined }
-      can_view_event: { Args: { target_event_id: string }; Returns: boolean }
+      can_view_event:
+        | { Args: { target_event_id: string }; Returns: boolean }
+        | {
+            Args: { p_actor_id: string; target_event_id: string }
+            Returns: boolean
+          }
       cancel_event: {
         Args: { p_actor_id?: string; p_event_id: string; p_reason: string }
         Returns: Json
@@ -1865,6 +1934,17 @@ export type Database = {
         }
         Returns: Json
       }
+      decide_event_safety_check: {
+        Args: {
+          p_actor_id?: string
+          p_decision: Database["public"]["Enums"]["event_safety_check_decision_type"]
+          p_event_id: string
+          p_flagged_booking_ids?: string[]
+          p_flagged_requirement_ids?: string[]
+          p_reason: string
+        }
+        Returns: Json
+      }
       decide_venue_booking_request: {
         Args: {
           p_actor_id?: string
@@ -1902,7 +1982,10 @@ export type Database = {
         Returns: boolean
       }
       event_planning_allowed: { Args: { p_event_id: string }; Returns: boolean }
-      event_readiness: { Args: { p_event_id: string }; Returns: Json }
+      event_readiness: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: Json
+      }
       event_status_transition_allowed: {
         Args: {
           from_status: Database["public"]["Enums"]["event_status"]
@@ -2057,6 +2140,15 @@ export type Database = {
         Args: { p_quantity: number; p_requirement_id: string }
         Returns: string
       }
+      resolve_arrangement_flag: {
+        Args: {
+          p_actor_id?: string
+          p_booking_id?: string
+          p_event_id: string
+          p_requirement_id?: string
+        }
+        Returns: Json
+      }
       resolve_event_clarification: {
         Args: { p_actor_id?: string; p_clarification_id: string }
         Returns: Json
@@ -2201,6 +2293,10 @@ export type Database = {
     Enums: {
       clarification_status: "open" | "answered" | "resolved"
       event_decision_type: "approved" | "rejected"
+      event_safety_check_decision_type:
+        | "approved"
+        | "changes_requested"
+        | "rejected"
       event_status:
         | "draft"
         | "requested"
@@ -2236,6 +2332,7 @@ export type Database = {
         | "venue_booking_disrupted"
         | "venue_disruption_cleared"
         | "safety_check_requested"
+        | "safety_check_decision"
       request_status:
         | "pending"
         | "approved"
@@ -2398,6 +2495,11 @@ export const Constants = {
     Enums: {
       clarification_status: ["open", "answered", "resolved"],
       event_decision_type: ["approved", "rejected"],
+      event_safety_check_decision_type: [
+        "approved",
+        "changes_requested",
+        "rejected",
+      ],
       event_status: [
         "draft",
         "requested",
@@ -2434,6 +2536,7 @@ export const Constants = {
         "venue_booking_disrupted",
         "venue_disruption_cleared",
         "safety_check_requested",
+        "safety_check_decision",
       ],
       request_status: [
         "pending",

@@ -14,6 +14,13 @@ const eventIdParamsSchema = z.object({
   eventId: z.uuid(),
 });
 
+const decisionBodySchema = z.object({
+  decision: z.enum(["changes_requested", "rejected"]),
+  reason: z.string().trim().min(1, "Explain the reason for this decision").max(2_000),
+  flaggedBookingIds: z.array(z.uuid()).default([]),
+  flaggedRequirementIds: z.array(z.uuid()).default([]),
+});
+
 /**
  * AC05/AC06. Submission is one Postgres transaction (see
  * public.submit_event_for_safety_check), re-checking readiness itself rather
@@ -45,6 +52,62 @@ eventSafetyCheckRouter.post(
     res.json({ data });
   }),
 );
+
+/**
+ * AC1/AC2/AC3/AC4/AC7: Request Changes or Reject, with a mandatory reason
+ * either way. decide_event_safety_check is one Postgres transaction —
+ * validates the caller is a Safety Officer, the event is Pending Safety
+ * Check, and (for Request Changes) that every given id actually belongs to
+ * this event; this route only authenticates, validates the body shape, and
+ * translates the result. Goes through the service client because the
+ * function inserts `notifications` rows, which have no INSERT policy for
+ * regular users.
+ */
+eventSafetyCheckRouter.post(
+  "/:eventId/safety-check-decision",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const params = eventIdParamsSchema.safeParse(req.params);
+    if (!params.success) {
+      throw new ApplicationError("VALIDATION", "Enter a valid event id");
+    }
+
+    const body = decisionBodySchema.safeParse(req.body);
+    if (!body.success) {
+      throw new ApplicationError(
+        "VALIDATION",
+        body.error.issues[0]?.message ?? "Explain the reason for this decision",
+      );
+    }
+
+    const { data, error } = await getServiceClient().rpc("decide_event_safety_check", {
+      p_event_id: params.data.eventId,
+      p_decision: body.data.decision,
+      p_reason: body.data.reason,
+      p_flagged_booking_ids: body.data.flaggedBookingIds,
+      p_flagged_requirement_ids: body.data.flaggedRequirementIds,
+      p_actor_id: req.userId,
+    });
+
+    if (error) throw mapSafetyCheckDecisionError(error);
+
+    res.json({ data });
+  }),
+);
+
+function mapSafetyCheckDecisionError(
+  error: PostgrestError,
+): ApplicationError | PostgrestError {
+  if (error.code === "42501") {
+    return new ApplicationError("FORBIDDEN", error.message, error);
+  }
+
+  if (error.code === "23514") {
+    return new ApplicationError("VALIDATION", error.message, error);
+  }
+
+  return error;
+}
 
 /**
  * Any SQLSTATE besides the two below is unexpected — thrown as-is so it
