@@ -31,7 +31,7 @@ values
   ('e8000000-0000-0000-0000-0000000000e3', 'e8000000-0000-0000-0000-000000000002', null,
    'Arrangement Draft', 'draft', '2099-08-03T10:00:00+08:00', '2099-08-03T14:00:00+08:00'),
   ('e8000000-0000-0000-0000-0000000000e4', 'e8000000-0000-0000-0000-000000000002', 'e8000000-0000-0000-0000-000000000003',
-   'Arrangement Completed', 'completed', '2099-08-04T10:00:00+08:00', '2099-08-04T14:00:00+08:00');
+   'Arrangement Completed', 'confirmed', '2099-08-04T10:00:00+08:00', '2099-08-04T14:00:00+08:00');
 
 insert into public.event_equipment_requirements (event_id, equipment_item_id, equipment_name, quantity, required_from, required_until)
 select e.id, (select id from v_ids where name = 'mic'), 'x', 2, e.starts_at, e.ends_at
@@ -44,6 +44,9 @@ insert into v_ids select 'req-planning', id from public.event_equipment_requirem
 insert into v_ids select 'req-safety', id from public.event_equipment_requirements where event_id = 'e8000000-0000-0000-0000-0000000000e2';
 insert into v_ids select 'req-draft', id from public.event_equipment_requirements where event_id = 'e8000000-0000-0000-0000-0000000000e3';
 insert into v_ids select 'req-completed', id from public.event_equipment_requirements where event_id = 'e8000000-0000-0000-0000-0000000000e4';
+-- Completed only after its request exists: nothing can be added to a
+-- Completed event's arrangements (SPM-46 AC07).
+update public.events set status = 'completed' where id = 'e8000000-0000-0000-0000-0000000000e4';
 
 set local role authenticated;
 

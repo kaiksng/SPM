@@ -50,7 +50,29 @@ export async function completeEvent(eventId: string) {
   const { data, error } = await supabase.rpc("complete_event", { p_event_id: eventId });
 
   if (error || !data) {
-    throw new Error("This event could not be marked completed.");
+    // SPM-46: check_violation messages are written for the coordinator, e.g.
+    // the earliest time the event can be completed or an open venue request
+    // to resolve first.
+    throw new Error(
+      error?.code === "23514" ? error.message : "This event could not be marked completed.",
+    );
+  }
+
+  return data;
+}
+
+/**
+ * SPM-46 AC02: the earliest time the event can be marked completed — its
+ * end time plus venue turnaround (event_completion_available_at, the same
+ * rule complete_event enforces).
+ */
+export async function loadEventCompletionAvailableAt(eventId: string): Promise<string> {
+  const { data, error } = await supabase.rpc("event_completion_available_at", {
+    p_event_id: eventId,
+  });
+
+  if (error || !data) {
+    throw new Error("When this event can be marked completed is unavailable.");
   }
 
   return data;

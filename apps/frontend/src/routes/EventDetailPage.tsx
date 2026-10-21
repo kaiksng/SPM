@@ -23,7 +23,10 @@ import {
   loadEventDetail,
   type EventDetail,
 } from "@/features/event-requests/services/event-details";
-import { completeEvent } from "@/features/event-requests/services/event-lifecycle";
+import {
+  completeEvent,
+  loadEventCompletionAvailableAt,
+} from "@/features/event-requests/services/event-lifecycle";
 import { loadEventReadiness } from "@/features/safety-check/services/event-readiness";
 import {
   listVenueBookingsForEvent,
@@ -64,6 +67,7 @@ export function EventDetailPage() {
     useState<ClarificationSummary>();
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string>();
+  const [completionAvailableAt, setCompletionAvailableAt] = useState<string>();
   const [venueBookings, setVenueBookings] = useState<VenueBookingRequestSummary[]>();
   const [readiness, setReadiness] = useState<EventReadiness>();
 
@@ -108,9 +112,36 @@ export function EventDetailPage() {
     !!event && profile?.role === "event_coordinator" && event.assignedCoordinatorId !== user?.id;
   // SPM: an organiser sees their own Confirmed event's agreed arrangements —
   // belt-and-braces alongside can_view_event RLS, same reasoning as
-  // isUnassignedCoordinator above.
+  // isUnassignedCoordinator above. SPM-46 AC05: still there once Completed.
   const canViewConfirmedArrangements =
-    !!event && role === "organiser" && event.organiserId === user?.id && event.status === "confirmed";
+    !!event &&
+    role === "organiser" &&
+    event.organiserId === user?.id &&
+    (event.status === "confirmed" || event.status === "completed");
+  const canComplete =
+    !!event && role === "coordinator" && !isUnassignedCoordinator && event.status === "confirmed";
+  // SPM-46 AC02: until the end time plus turnaround the button stays
+  // disabled. If the time can't be loaded the button stays enabled and
+  // complete_event's own check is the fallback.
+  const completionNotYetAllowed =
+    !!completionAvailableAt && Date.now() < new Date(completionAvailableAt).getTime();
+
+  useEffect(() => {
+    if (!event || !canComplete) return;
+    let active = true;
+    loadEventCompletionAvailableAt(event.id)
+      .then((availableAt) => {
+        if (active) setCompletionAvailableAt(availableAt);
+      })
+      .catch(() => {
+        // Left undefined: see completionNotYetAllowed.
+      });
+
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the event's id, as the arrangements fetch below.
+  }, [event?.id, canComplete]);
 
   useEffect(() => {
     if (!event || !canViewConfirmedArrangements) return;
@@ -208,12 +239,21 @@ export function EventDetailPage() {
                       Edit event
                     </Link>
                   )}
-                  {role === "coordinator" && event.status === "confirmed" && (
-                    <Button size="sm" disabled={completing} onClick={handleComplete}>
+                  {canComplete && (
+                    <Button
+                      size="sm"
+                      disabled={completing || completionNotYetAllowed}
+                      onClick={handleComplete}
+                    >
                       {completing ? "Marking completed…" : "Mark as completed"}
                     </Button>
                   )}
                 </div>
+                {canComplete && completionNotYetAllowed && completionAvailableAt && (
+                  <p className="mt-2 text-sm text-slate-500">
+                    Can be completed from {formatDateTime(completionAvailableAt)}
+                  </p>
+                )}
                 {completeError && (
                   <p role="alert" className="mt-2 text-sm text-red-700">
                     {completeError}

@@ -177,6 +177,11 @@ reset role;
 -- Planning must pass Pending Safety Check before Confirmed (202610100002).
 update public.events set status = 'pending_safety_check' where id = (select id from lsm_event_ids where label = 'event-1');
 update public.events set status = 'confirmed' where id = (select id from lsm_event_ids where label = 'event-1');
+-- SPM-46 AC02: an event can only be completed once it has finished, so its
+-- schedule is moved into the past (also test setup).
+update public.events
+set starts_at = now() - interval '3 hours', ends_at = now() - interval '2 hours'
+where id = (select id from lsm_event_ids where label = 'event-1');
 set local role authenticated;
 
 -- Authorisation: a coordinator not assigned to this event cannot complete it.
