@@ -546,6 +546,7 @@ export type Database = {
         Row: {
           event_id: string
           id: string
+          reason: string
           requested_at: string
           requested_by: string
           requested_changes: Json
@@ -553,10 +554,12 @@ export type Database = {
           reviewed_at: string | null
           reviewed_by: string | null
           status: string
+          withdrawn_at: string | null
         }
         Insert: {
           event_id: string
           id?: string
+          reason: string
           requested_at?: string
           requested_by: string
           requested_changes: Json
@@ -564,10 +567,12 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          withdrawn_at?: string | null
         }
         Update: {
           event_id?: string
           id?: string
+          reason?: string
           requested_at?: string
           requested_by?: string
           requested_changes?: Json
@@ -575,6 +580,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          withdrawn_at?: string | null
         }
         Relationships: [
           {
@@ -1921,6 +1927,15 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      decide_event_change_request: {
+        Args: {
+          p_actor_id?: string
+          p_change_request_id: string
+          p_decision: Database["public"]["Enums"]["event_decision_type"]
+          p_review_notes?: string
+        }
+        Returns: Json
+      }
       decide_event_request: {
         Args: {
           p_actor_id?: string
@@ -2203,6 +2218,15 @@ export type Database = {
         Args: { p_actor_id?: string; p_booking_id: string }
         Returns: string
       }
+      submit_event_change_request: {
+        Args: {
+          p_actor_id?: string
+          p_event_id: string
+          p_reason: string
+          p_requested_changes: Json
+        }
+        Returns: Json
+      }
       submit_event_for_safety_check: {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json
@@ -2280,6 +2304,10 @@ export type Database = {
       venue_matches_area: {
         Args: { p_address: string; p_requested: string; p_tags: string[] }
         Returns: boolean
+      }
+      withdraw_event_change_request: {
+        Args: { p_actor_id?: string; p_change_request_id: string }
+        Returns: string
       }
       withdraw_venue_booking_request: {
         Args: { p_actor_id?: string; p_booking_id: string; p_reason?: string }

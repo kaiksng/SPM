@@ -10,6 +10,7 @@ const listAssignedEventsMock = vi.fn();
 const listVenueDisruptionsMock = vi.fn();
 const listClarificationsMock = vi.fn();
 const getClarificationReviewStateMock = vi.fn();
+const hasPendingChangeRequestMock = vi.fn();
 const listEventDecisionsMock = vi.fn();
 const loadEventFieldHistoryMock = vi.fn();
 const listAllEventsMock = vi.fn();
@@ -45,6 +46,10 @@ vi.mock("@/features/event-requests/services/clarifications", () => ({
   getClarificationReviewState: (...args: unknown[]) => getClarificationReviewStateMock(...args),
   requestClarification: vi.fn(),
   respondToClarification: vi.fn(),
+}));
+
+vi.mock("@/features/event-requests/services/change-requests", () => ({
+  hasPendingChangeRequest: (...args: unknown[]) => hasPendingChangeRequestMock(...args),
 }));
 
 vi.mock("@/features/event-requests/services/decisions", () => ({
@@ -101,6 +106,7 @@ describe("EventsPage draft controls", () => {
     listClarificationsMock.mockReset().mockResolvedValue([]);
     listEventDecisionsMock.mockReset().mockResolvedValue([]);
     loadEventFieldHistoryMock.mockReset().mockResolvedValue([]);
+    hasPendingChangeRequestMock.mockReset().mockResolvedValue(false);
   });
 
   it("lists an owned Draft with its status and edit action", async () => {
@@ -259,6 +265,35 @@ describe("EventsPage draft controls", () => {
     expect(
       await screen.findByRole("button", { name: `Cancel ${requested.title}` }),
     ).toBeEnabled();
+  });
+
+  // SPM-38: the event's own status doesn't change while a change request is
+  // pending, so the card needs its own visible sign one is awaiting review.
+  it("shows a Change requested badge on the organiser's card when one is pending", async () => {
+    listEventRequestsMock.mockResolvedValue([requested]);
+    hasPendingChangeRequestMock.mockResolvedValue(true);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(hasPendingChangeRequestMock).toHaveBeenCalledWith("requested-1"));
+    expect(await screen.findByText("Change requested")).toBeInTheDocument();
+  });
+
+  it("shows no Change requested badge when nothing is pending", async () => {
+    listEventRequestsMock.mockResolvedValue([requested]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Shernice Test Submission");
+    expect(screen.queryByText("Change requested")).not.toBeInTheDocument();
   });
 
   it("keeps the Requested event when cancellation is dismissed", async () => {
@@ -445,6 +480,7 @@ describe("EventsPage coordinator view", () => {
     listAssignedEventsMock.mockReset().mockResolvedValue([assignedEvent]);
     listVenueDisruptionsMock.mockReset().mockResolvedValue([]);
     getClarificationReviewStateMock.mockReset().mockResolvedValue(undefined);
+    hasPendingChangeRequestMock.mockReset().mockResolvedValue(false);
   });
 
   afterEach(() => {
@@ -492,6 +528,20 @@ describe("EventsPage coordinator view", () => {
     expect(within(card).getByText("Venue issue")).toBeInTheDocument();
     // The table sits after the event cards, not above them.
     expect(card.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  // SPM-38: same badge, on the coordinator's card.
+  it("shows a Change requested badge on the coordinator's card when one is pending", async () => {
+    hasPendingChangeRequestMock.mockResolvedValue(true);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(hasPendingChangeRequestMock).toHaveBeenCalledWith("assigned-1"));
+    expect(await screen.findByText("Change requested")).toBeInTheDocument();
   });
 
   it("does not badge an event whose disruption is resolved", async () => {
@@ -681,6 +731,7 @@ describe("EventsPage for the Event Coordinator Lead role", () => {
     listAllEventsMock.mockReset();
     listCoordinatorsMock.mockReset();
     assignEventCoordinatorMock.mockReset().mockResolvedValue(undefined);
+    hasPendingChangeRequestMock.mockReset().mockResolvedValue(false);
   });
 
   // SPM-80 TC-014: a coordinator with no active events still appears in
@@ -758,6 +809,23 @@ describe("EventsPage for the Event Coordinator Lead role", () => {
     // Not the organiser's or coordinator's own-events view.
     expect(listEventRequestsMock).not.toHaveBeenCalled();
     expect(listAssignedEventsMock).not.toHaveBeenCalled();
+  });
+
+  // SPM-38: same badge, on the Lead's queue card — relevant here since an
+  // unassigned Requested event is the one case the Lead decides directly.
+  it("shows a Change requested badge on the Lead's card when one is pending", async () => {
+    listAllEventsMock.mockResolvedValue([leadEvent]);
+    listCoordinatorsMock.mockResolvedValue([]);
+    hasPendingChangeRequestMock.mockResolvedValue(true);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(hasPendingChangeRequestMock).toHaveBeenCalledWith("event-q1"));
+    expect(await screen.findByText("Change requested")).toBeInTheDocument();
   });
 
   // SPM-77 AC02: the Lead sees every coordinator's assigned events and can reassign.

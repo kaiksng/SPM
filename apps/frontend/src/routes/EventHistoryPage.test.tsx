@@ -25,6 +25,11 @@ vi.mock("@/features/event-requests/services/clarifications", () => ({
   listClarifications: (...args: unknown[]) => listClarificationsMock(...args),
 }));
 
+const listEventChangeRequestsMock = vi.fn();
+vi.mock("@/features/event-requests/services/change-requests", () => ({
+  listEventChangeRequests: (...args: unknown[]) => listEventChangeRequestsMock(...args),
+}));
+
 vi.mock("@/features/event-requests/services/field-history", () => ({
   loadEventFieldHistory: (...args: unknown[]) => loadEventFieldHistoryMock(...args),
 }));
@@ -92,6 +97,7 @@ function renderPage() {
 
 beforeEach(() => {
   listClarificationsMock.mockReset().mockResolvedValue([]);
+  listEventChangeRequestsMock.mockReset().mockResolvedValue([]);
   loadEventFieldHistoryMock.mockReset().mockResolvedValue([]);
   listEventDecisionsMock.mockReset().mockResolvedValue([]);
   listEventStatusHistoryMock.mockReset().mockResolvedValue([]);
@@ -357,6 +363,34 @@ describe("EventHistoryPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Organiser responded/)).toBeInTheDocument();
     expect(screen.queryByText("Planning")).not.toBeInTheDocument();
+  });
+
+  // The change-request panel on the event detail page only shows the
+  // currently pending request; the full history (including decided and
+  // withdrawn ones) lives here instead.
+  it("shows the Change requests section with every request's outcome", async () => {
+    listEventChangeRequestsMock.mockResolvedValue([
+      {
+        id: "change-request-1",
+        requestedChanges: { description: "Move the start time to 2pm" },
+        reason: "Speaker rescheduled",
+        status: "rejected",
+        reviewNotes: "Too close to the registration deadline.",
+        requestedAt: "2026-09-14T08:00:00.000Z",
+        reviewedAt: "2026-09-14T09:00:00.000Z",
+        withdrawnAt: null,
+      },
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText("Change requests")).toBeInTheDocument();
+    expect(screen.getByText("Move the start time to 2pm")).toBeInTheDocument();
+    expect(screen.getByText("Rejected")).toBeInTheDocument();
+    expect(screen.getByText("Reason: Speaker rescheduled")).toBeInTheDocument();
+    expect(
+      screen.getByText("Notes: Too close to the registration deadline."),
+    ).toBeInTheDocument();
   });
 
   it("shows the Lifecycle section", async () => {

@@ -10,6 +10,7 @@ import { Link, useNavigate, useParams } from "react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { ChangeRequestPanel } from "@/features/event-requests/components/change-request-panel";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
 import { ConfirmedArrangementsSection } from "@/features/event-requests/components/confirmed-arrangements-section";
 import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
@@ -338,6 +339,18 @@ export function EventDetailPage() {
                         },
                       })
                     }
+                    className="mt-6 text-sm"
+                  />
+                )}
+                {/* SPM-38: unlike ClarificationPanel, a Lead sees this when
+                    the event has no assigned coordinator yet — that's the one
+                    case a Lead decides a change request directly (AC06). */}
+                {(role !== "lead" || !event.assignedCoordinatorId) && (
+                  <ChangeRequestPanel
+                    eventId={event.id}
+                    eventStatus={event.status}
+                    role={role}
+                    isEventAssigned={!!event.assignedCoordinatorId}
                     className="mt-6 text-sm"
                   />
                 )}

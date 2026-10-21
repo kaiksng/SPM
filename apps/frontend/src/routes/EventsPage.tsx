@@ -7,6 +7,7 @@ import {
 import {
   CalendarDays,
   ChevronDown,
+  FilePenLine,
   FilePlus2,
   Pencil,
   RefreshCw,
@@ -51,12 +52,14 @@ import {
   type AssignedEventSummary,
 } from "@/features/event-requests/services/assigned-events";
 import { getClarificationReviewState } from "@/features/event-requests/services/clarifications";
+import { hasPendingChangeRequest } from "@/features/event-requests/services/change-requests";
 import {
   cancelEventRequest,
   deleteEventDraft,
   listEventRequests,
   type EventDraftSummary,
 } from "@/features/event-requests/services/event-drafts";
+import { CHANGE_REQUEST_SUBMITTABLE_STATUSES } from "@/features/event-requests/utils/format-change-request";
 import {
   AffectedVenueBookings,
   splitVenueDisruptions,
@@ -890,6 +893,40 @@ function EventsToolbar({
   );
 }
 
+/**
+ * SPM-38: a pending change request doesn't change the event's own status, so
+ * without this an organiser/coordinator/Lead would have no visible sign one
+ * is awaiting review. Deliberately not shaped like a status pill (square
+ * corners, dashed border, an icon, a colour no status uses) — it sits next
+ * to the status badge and was easy to mistake for a second status when it
+ * looked the same (rounded-full, solid border, no icon).
+ */
+function ChangeRequestBadge() {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md border border-dashed border-orange-300 bg-orange-50 px-2 py-1 text-xs font-semibold text-orange-800">
+      <FilePenLine className="size-3.5" aria-hidden="true" />
+      Change requested
+    </span>
+  );
+}
+
+function useHasPendingChangeRequest(eventId: string, eventStatus: string) {
+  const [hasPending, setHasPending] = useState(false);
+
+  useEffect(() => {
+    if (!CHANGE_REQUEST_SUBMITTABLE_STATUSES.has(eventStatus)) return;
+    let active = true;
+    hasPendingChangeRequest(eventId).then((result) => {
+      if (active) setHasPending(result);
+    });
+    return () => {
+      active = false;
+    };
+  }, [eventId, eventStatus]);
+
+  return hasPending;
+}
+
 function EventCard({
   event,
   onDelete,
@@ -904,6 +941,7 @@ function EventCard({
   // before it is approved.
   const isRequested = event.status === "requested";
   const [reviewState, setReviewState] = useState<"open" | "answered">();
+  const hasPendingChange = useHasPendingChangeRequest(event.id, event.status);
   return (
     <article className="group flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_22px_50px_-34px_rgba(37,99,235,0.35)] motion-reduce:transform-none">
       <div className="flex items-start justify-between gap-3">
@@ -913,6 +951,7 @@ function EventCard({
             reviewState={reviewState === "open" ? "open" : undefined}
             role="organiser"
           />
+          {hasPendingChange && <ChangeRequestBadge />}
         </div>
         <span className="shrink-0 text-xs text-slate-400">
           Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeZone: "Asia/Singapore" }).format(new Date(event.updatedAt))}
@@ -1051,6 +1090,7 @@ function AssignedEventCard({
     status: "open" | "answered";
     permittedFields: string[];
   }>();
+  const hasPendingChange = useHasPendingChangeRequest(event.id, event.status);
 
   useEffect(() => {
     if (event.status !== "requested") return;
@@ -1075,6 +1115,7 @@ function AssignedEventCard({
             reviewState={reviewState?.status === "open" ? "open" : undefined}
             role="coordinator"
           />
+          {hasPendingChange && <ChangeRequestBadge />}
           {venueIssue && (
             <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800">
               Venue issue
@@ -1149,10 +1190,14 @@ function LeadEventCard({
   const isReassignmentBlocked = ["draft", "rejected", "cancelled", "completed"].includes(
     event.status,
   );
+  const hasPendingChange = useHasPendingChangeRequest(event.id, event.status);
   return (
     <article className="flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)]">
       <div className="flex items-start justify-between gap-3">
-        <StatusBadge status={event.status} />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <StatusBadge status={event.status} />
+          {hasPendingChange && <ChangeRequestBadge />}
+        </div>
         <span className="shrink-0 text-xs text-slate-400">
           Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeZone: "Asia/Singapore" }).format(new Date(event.updatedAt))}
         </span>
