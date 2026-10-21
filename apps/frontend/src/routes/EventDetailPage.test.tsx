@@ -9,6 +9,7 @@ vi.mock("@/features/venues/hooks/use-room-layout-options", () => ({
 
 const loadEventDetailMock = vi.fn();
 const listClarificationsMock = vi.fn();
+const listEventChangeRequestsMock = vi.fn();
 const listEventDecisionsMock = vi.fn();
 const loadEventFieldHistoryMock = vi.fn();
 const listEventStatusHistoryMock = vi.fn();
@@ -37,6 +38,13 @@ vi.mock("@/features/event-requests/services/clarifications", () => ({
   listClarifications: (...args: unknown[]) => listClarificationsMock(...args),
   requestClarification: vi.fn(),
   respondToClarification: vi.fn(),
+}));
+
+vi.mock("@/features/event-requests/services/change-requests", () => ({
+  listEventChangeRequests: (...args: unknown[]) => listEventChangeRequestsMock(...args),
+  submitEventChangeRequest: vi.fn(),
+  decideEventChangeRequest: vi.fn(),
+  withdrawEventChangeRequest: vi.fn(),
 }));
 
 vi.mock("@/features/event-requests/services/decisions", () => ({
@@ -142,6 +150,7 @@ describe("EventDetailPage", () => {
     authState.profile.role = "event_coordinator";
     loadEventDetailMock.mockReset().mockResolvedValue(event);
     listClarificationsMock.mockReset().mockResolvedValue([]);
+    listEventChangeRequestsMock.mockReset().mockResolvedValue([]);
     listEventDecisionsMock.mockReset().mockResolvedValue([]);
     loadEventFieldHistoryMock.mockReset().mockResolvedValue([]);
     listEventStatusHistoryMock.mockReset().mockResolvedValue([]);

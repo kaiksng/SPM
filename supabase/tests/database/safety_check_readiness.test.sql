@@ -124,8 +124,9 @@ select is((select (public.event_readiness('fc000000-0000-0000-0000-0000000000e6'
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e7') ->> 'venueArrangementStatus'), 'pending', 'no venue booking at all rolls up to Pending');
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e7') -> 'outstandingItems' -> 0 ->> 'code'), 'no_main_venue', 'the missing main venue is named in outstandingItems');
 
--- AC07: an active tentative hold never counts as a completed arrangement.
-select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e8') -> 'venues' -> 0 ->> 'status'), 'pending', 'AC07: an active tentative hold on the main venue shows Pending, never Complete');
+-- AC02 (revised by 202610200012): an active tentative hold never counts as a
+-- completed arrangement -- it rolls up to Needs Review, not Pending.
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e8') -> 'venues' -> 0 ->> 'status'), 'needs_review', 'AC02: an active tentative hold on the main venue shows Needs Review, never Complete');
 
 -- AC07: an expired hold is excluded, so there is effectively no main venue.
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e9') ->> 'venueArrangementStatus'), 'pending', 'AC07: an expired hold does not count as a venue booking at all');
