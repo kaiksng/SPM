@@ -183,11 +183,14 @@ select is(
 );
 
 -- AC07: nothing about a Completed event's arrangements can change, whoever
--- tries and however.
+-- tries and however. event_change_requests has no direct-insert policy
+-- since 202610200013 (SPM-38) -- only submit_event_change_request writes to
+-- it, and its own status check already excludes Completed, so this goes
+-- through the RPC rather than a raw insert the table no longer allows at all.
 select throws_ok(
-  $$insert into public.event_change_requests (event_id, requested_by, requested_changes)
-    values ('c4600000-0000-0000-0000-0000000000b1', 'c4600000-0000-0000-0000-000000000001', '{"title":"New"}'::jsonb)$$,
-  '23514', 'This event is completed and can no longer be changed',
+  $$select public.submit_event_change_request(
+    'c4600000-0000-0000-0000-0000000000b1', '{"title":"New"}'::jsonb, 'A reason')$$,
+  '23514', 'A change request can only be submitted for a Requested, Planning, Confirmed or Pending Safety Check event',
   'AC07: the organiser cannot submit a change request'
 );
 
