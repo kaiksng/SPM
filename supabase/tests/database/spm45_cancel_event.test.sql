@@ -53,7 +53,7 @@ values
 -- the event should clear it (it no longer applies).
 insert into public.notifications (recipient_id, event_id, booking_id, type, title, message, scheduled_for)
 values (
-  'ce000000-0000-0000-0000-000000000002', 'ce000000-0000-0000-0000-0000000000e1', 'ce000000-0000-0000-0000-000000000b2',
+  'ce000000-0000-0000-0000-000000000002', 'ce000000-0000-0000-0000-0000000000e1', 'ce000000-0000-0000-0000-0000000000b2',
   'venue_hold_expiring_soon'::public.notification_type, 'Hold expiring soon', 'Reminder', now() + interval '12 hours'
 );
 
