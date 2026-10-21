@@ -124,4 +124,29 @@ describe("ConfirmedArrangementsSection", () => {
     const otherHeading = screen.getByText("Other", { selector: "h4" });
     expect(within(otherHeading.closest("div")!).getByText("Old Hall")).toBeInTheDocument();
   });
+
+  // SPM-46 AC05: completing the event releases its equipment, which readiness
+  // no longer counts as reserved; on a Completed event it still reads as
+  // confirmed.
+  it("keeps a Completed event's equipment under Confirmed", () => {
+    render(
+      <ConfirmedArrangementsSection
+        event={event({
+          status: "completed",
+          equipment: [
+            {
+              id: "req-1", equipmentItemId: "item-1", equipmentName: "Projector", category: "Visual",
+              quantity: 2, requiredFrom: null, requiredUntil: null, technicalRequirements: null,
+            },
+          ],
+        })}
+        bookings={[]}
+        readiness={readiness({ equipment: [], equipmentArrangementStatus: "pending" })}
+      />,
+    );
+
+    const equipmentConfirmed = screen.getByText("Confirmed", { selector: "h4" }).closest("div")!;
+    expect(within(equipmentConfirmed).getByText("Projector × 2")).toBeInTheDocument();
+    expect(screen.queryByText("Pending / Needs Review", { selector: "h4" })).not.toBeInTheDocument();
+  });
 });

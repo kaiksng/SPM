@@ -2,14 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryBuilder } from "@/test/supabase-mock";
 
-const { fromMock } = vi.hoisted(() => ({ fromMock: vi.fn() }));
+const { fromMock, rpcMock } = vi.hoisted(() => ({ fromMock: vi.fn(), rpcMock: vi.fn() }));
 
-vi.mock("@/lib/supabase-client", () => ({ supabase: { from: fromMock } }));
+vi.mock("@/lib/supabase-client", () => ({ supabase: { from: fromMock, rpc: rpcMock } }));
 
-import { listEventStatusHistory } from "./event-lifecycle";
+import {
+  completeEvent,
+  listEventStatusHistory,
+  loadEventCompletionAvailableAt,
+} from "./event-lifecycle";
 
 beforeEach(() => {
   fromMock.mockReset();
+  rpcMock.mockReset();
 });
 
 describe("listEventStatusHistory", () => {
@@ -90,6 +95,55 @@ describe("listEventStatusHistory", () => {
 
     await expect(listEventStatusHistory("event-1")).rejects.toThrow(
       "This event's status history is unavailable.",
+    );
+  });
+});
+
+describe("completeEvent", () => {
+  // SPM-46 AC01: the assigned coordinator's request goes to complete_event.
+  it("calls complete_event with the event id", async () => {
+    rpcMock.mockResolvedValue({ data: { eventId: "event-1", status: "completed" }, error: null });
+
+    await expect(completeEvent("event-1")).resolves.toEqual({ eventId: "event-1", status: "completed" });
+    expect(rpcMock).toHaveBeenCalledWith("complete_event", { p_event_id: "event-1" });
+  });
+
+  // SPM-46 AC02: the coordinator is told the earliest time it can be completed.
+  it("passes a check_violation message through to the coordinator", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { code: "23514", message: "This event can be marked completed from 1 Jan 2099, 6:30 pm" },
+    });
+
+    await expect(completeEvent("event-1")).rejects.toThrow(
+      "This event can be marked completed from 1 Jan 2099, 6:30 pm",
+    );
+  });
+
+  it("hides any other database error behind a readable message", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { code: "42501", message: "Only the assigned coordinator can mark this event completed" },
+    });
+
+    await expect(completeEvent("event-1")).rejects.toThrow("This event could not be marked completed.");
+  });
+});
+
+describe("loadEventCompletionAvailableAt", () => {
+  // SPM-46 AC02: the end time plus turnaround, from the same rule complete_event enforces.
+  it("returns the earliest completion time for the event", async () => {
+    rpcMock.mockResolvedValue({ data: "2099-01-01T10:30:00+00:00", error: null });
+
+    await expect(loadEventCompletionAvailableAt("event-1")).resolves.toBe("2099-01-01T10:30:00+00:00");
+    expect(rpcMock).toHaveBeenCalledWith("event_completion_available_at", { p_event_id: "event-1" });
+  });
+
+  it("throws a readable error when the time cannot be loaded", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { code: "XX000", message: "connection reset" } });
+
+    await expect(loadEventCompletionAvailableAt("event-1")).rejects.toThrow(
+      "When this event can be marked completed is unavailable.",
     );
   });
 });

@@ -238,6 +238,10 @@ update public.events set status = 'pending_safety_check'
 where id in (select id from bde_event_ids where label in ('confirmed', 'completed'));
 update public.events set status = 'confirmed'
 where id in (select id from bde_event_ids where label in ('confirmed', 'completed'));
+-- SPM-46 AC02: an event can only be completed once it has finished.
+update public.events
+set starts_at = now() - interval '3 hours', ends_at = now() - interval '2 hours'
+where id = (select id from bde_event_ids where label = 'completed');
 set local role authenticated;
 select lives_ok(
   format($$select public.complete_event(%L::uuid)$$, (select id from bde_event_ids where label = 'completed')),
