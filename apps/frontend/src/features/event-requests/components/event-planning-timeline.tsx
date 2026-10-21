@@ -1,5 +1,5 @@
 import { CornerDownRight } from "lucide-react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
 import { cn } from "@/lib/utils";
 
@@ -12,6 +12,12 @@ import { cn } from "@/lib/utils";
  * reached from several different prior stages, this can't know exactly how
  * far a rejected/cancelled event actually got, so it conservatively shows
  * only "Event Request" as reached for both.
+ *
+ * The dot shows progress (filled = reached). The label shows what can be
+ * opened: every link reads as clickable whether or not its stage is reached
+ * (a coordinator opens Safety Check while still in Planning to see whether
+ * they can submit), and only a stage with no page is greyed until reached.
+ * The page being viewed is highlighted.
  */
 const STAGE_RANK: Record<string, number> = {
   draft: 0,
@@ -56,6 +62,7 @@ export function EventPlanningTimeline({
   eventId: string;
 }) {
   const currentRank = STAGE_RANK[status] ?? 0;
+  const { pathname } = useLocation();
 
   return (
     <nav aria-label="Event lifecycle" className="w-56 shrink-0">
@@ -86,9 +93,10 @@ export function EventPlanningTimeline({
               {linkHref ? (
                 <Link
                   to={linkHref}
+                  aria-current={pathname === linkHref ? "page" : undefined}
                   className={cn(
-                    "text-sm font-medium hover:underline",
-                    reached ? "text-slate-900" : "text-slate-400",
+                    "text-sm font-medium hover:text-primary hover:underline",
+                    pathname === linkHref ? "font-semibold text-primary" : "text-slate-900",
                   )}
                 >
                   {stage.label}
@@ -105,23 +113,31 @@ export function EventPlanningTimeline({
               )}
               {"children" in stage && (
                 <ul className="mt-2 space-y-1.5">
-                  {stage.children.map((child) => (
-                    <li
-                      key={child.id}
-                      className="flex items-center gap-1.5 text-xs text-slate-500"
-                    >
-                      <CornerDownRight
-                        aria-hidden="true"
-                        className="size-3.5 shrink-0 text-slate-300"
-                      />
-                      <Link
-                        to={`/events/${eventId}/${child.href}`}
-                        className="hover:text-primary hover:underline"
+                  {stage.children.map((child) => {
+                    const childHref = `/events/${eventId}/${child.href}`;
+                    const current = pathname === childHref;
+                    return (
+                      <li
+                        key={child.id}
+                        className="flex items-center gap-1.5 text-xs text-slate-600"
                       >
-                        {child.label}
-                      </Link>
-                    </li>
-                  ))}
+                        <CornerDownRight
+                          aria-hidden="true"
+                          className="size-3.5 shrink-0 text-slate-300"
+                        />
+                        <Link
+                          to={childHref}
+                          aria-current={current ? "page" : undefined}
+                          className={cn(
+                            "hover:text-primary hover:underline",
+                            current && "font-semibold text-primary",
+                          )}
+                        >
+                          {child.label}
+                        </Link>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </li>
