@@ -93,7 +93,20 @@ export function ConfirmedArrangementsSection({
     bookings,
     readiness.venues,
   );
-  const equipmentGroups = groupEquipmentByReadiness(event.equipment, readiness.equipment);
+  // SPM-46 AC05/AC06: completing an event releases its equipment
+  // reservations, which readiness would now read as Pending. Every item had
+  // to be reserved for the event to be Confirmed, so on a Completed event
+  // they all stay under Confirmed.
+  const equipmentGroups =
+    event.status === "completed"
+      ? {
+          confirmed: event.equipment.map((item) => ({
+            ...item,
+            readinessStatus: "complete" as const,
+          })),
+          pendingOrNeedsReview: [],
+        }
+      : groupEquipmentByReadiness(event.equipment, readiness.equipment);
   const equipmentNotRequired =
     event.equipment.length === 0 && readiness.equipmentArrangementStatus === "not_required";
 

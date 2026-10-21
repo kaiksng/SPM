@@ -1967,6 +1967,10 @@ export type Database = {
           peak_unavailable: number
         }[]
       }
+      event_completion_available_at: {
+        Args: { p_event_id: string }
+        Returns: string
+      }
       event_equipment_snapshot: {
         Args: {
           requirement: Database["public"]["Tables"]["event_equipment_requirements"]["Row"]
