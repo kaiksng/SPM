@@ -59,7 +59,7 @@ values (
 
 insert into public.equipment_reservations (id, event_id, equipment_item_id, quantity, starts_at, ends_at, status, requested_by, requested_at, decided_by, decided_at)
 values
-  ('ce000000-0000-0000-0000-0000000000r1', 'ce000000-0000-0000-0000-0000000000e1', 'ce000000-0000-0000-0000-000000000011', 2, '2099-06-01T10:00:00+08:00', '2099-06-01T12:00:00+08:00', 'approved', 'ce000000-0000-0000-0000-000000000005', now(), 'ce000000-0000-0000-0000-000000000005', now());
+  ('ce000000-0000-0000-0000-00000000ea01', 'ce000000-0000-0000-0000-0000000000e1', 'ce000000-0000-0000-0000-000000000011', 2, '2099-06-01T10:00:00+08:00', '2099-06-01T12:00:00+08:00', 'approved', 'ce000000-0000-0000-0000-000000000005', now(), 'ce000000-0000-0000-0000-000000000005', now());
 
 insert into public.event_registrations (event_id, attendee_id, status)
 values ('ce000000-0000-0000-0000-0000000000e1', 'ce000000-0000-0000-0000-000000000007', 'registered');
@@ -146,12 +146,12 @@ select is(
 -- AC5: the equipment reservation is released (by the equipment-release
 -- trigger) with the actor backfilled, not left null.
 select is(
-  (select row(status::text, released_by) from public.equipment_reservations where id = 'ce000000-0000-0000-0000-0000000000r1'),
+  (select row(status::text, released_by) from public.equipment_reservations where id = 'ce000000-0000-0000-0000-00000000ea01'),
   row('cancelled'::text, 'ce000000-0000-0000-0000-000000000002'::uuid),
   'AC5: the equipment reservation is released and attributed to the actor'
 );
 select is(
-  (select count(*)::int from public.equipment_reservation_events where reservation_id = 'ce000000-0000-0000-0000-0000000000r1' and action = 'released' and actor = 'ce000000-0000-0000-0000-000000000002'),
+  (select count(*)::int from public.equipment_reservation_events where reservation_id = 'ce000000-0000-0000-0000-00000000ea01' and action = 'released' and actor = 'ce000000-0000-0000-0000-000000000002'),
   1,
   'AC5: the release is logged in equipment history with the actor'
 );
