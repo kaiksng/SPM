@@ -1,6 +1,7 @@
-import type { UserRole } from "@spm/shared";
+import { getRoleDestination, type UserRole } from "@spm/shared";
 import { X } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
+import { Link } from "react-router";
 
 import { SidebarContent } from "@/features/workspace/components/sidebar-content";
 import { Topbar } from "@/features/workspace/components/topbar";
@@ -57,20 +58,33 @@ export function WorkspaceShell({
               onClick={() => setIsMobileNavOpen(false)}
             />
             <div className="bg-background relative z-50 flex h-full w-72 max-w-[85vw] flex-col shadow-xl">
+              <div className="border-border flex h-14 shrink-0 items-center gap-2.5 border-b px-4">
+                <Link
+                  to={getRoleDestination(role)}
+                  onClick={() => setIsMobileNavOpen(false)}
+                  className="flex min-w-0 flex-1 items-center gap-2.5"
+                >
+                  <span className="bg-primary text-primary-foreground grid size-8 shrink-0 place-items-center rounded-lg text-sm font-bold">
+                    CS
+                  </span>
+                  <span className="truncate text-sm font-semibold tracking-tight">
+                    ConnectSphere
+                  </span>
+                </Link>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Close menu"
+                  onClick={() => setIsMobileNavOpen(false)}
+                >
+                  <X />
+                </Button>
+              </div>
               <SidebarContent
                 role={role}
                 onNavigate={() => setIsMobileNavOpen(false)}
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Close menu"
-                onClick={() => setIsMobileNavOpen(false)}
-                className="text-foreground absolute top-2.5 right-2.5"
-              >
-                <X />
-              </Button>
             </div>
           </div>
         )}

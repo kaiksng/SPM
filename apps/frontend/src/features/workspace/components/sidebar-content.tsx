@@ -12,7 +12,7 @@ export function SidebarContent({
   const items = getNavItemsForRole(role);
 
   return (
-    <div className="h-full overflow-y-auto px-3 py-4">
+    <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
       <NavLinks items={items} onNavigate={onNavigate} />
     </div>
   );

@@ -22,6 +22,7 @@ const NAV_ICONS = {
   "equipment-inventory": Boxes,
   "equipment-unavailability": CircleAlert,
   "browse-events": Compass,
+  "my-registrations": ClipboardList,
   "safety-checks": ShieldCheck,
 } as const satisfies Record<
   NavItemId,
