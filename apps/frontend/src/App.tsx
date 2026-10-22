@@ -8,6 +8,7 @@ import { CoordinatorEventEditPage } from "@/routes/CoordinatorEventEditPage";
 import { EquipmentPage } from "@/routes/EquipmentPage";
 import { EventDetailPage } from "@/routes/EventDetailPage";
 import { EventHistoryPage } from "@/routes/EventHistoryPage";
+import { EventRegistrationPage } from "@/routes/EventRegistrationPage";
 import { EventRequestEditorPage } from "@/routes/EventRequestEditorPage";
 import { EventsPage } from "@/routes/EventsPage";
 import { EventEquipmentPage } from "@/routes/EventEquipmentPage";
@@ -15,6 +16,7 @@ import { EventSafetyCheckPage } from "@/routes/EventSafetyCheckPage";
 import { EventVenuePage } from "@/routes/EventVenuePage";
 import { FlaggedBookingsPage } from "@/routes/FlaggedBookingsPage";
 import { LoginPage } from "@/routes/LoginPage";
+import { MyRegistrationsPage } from "@/routes/MyRegistrationsPage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
 import { PublicPage } from "@/routes/PublicPage";
 import { SafetyChecksPage } from "@/routes/SafetyChecksPage";
@@ -76,6 +78,8 @@ export function App() {
               <Route path="equipment/inventory" element={<EquipmentPage section="inventory" />} />
               <Route path="equipment/unavailability" element={<EquipmentPage section="unavailability" />} />
               <Route path="browse-events" element={<BrowseEventsPage />} />
+              <Route path="browse-events/my-registrations" element={<MyRegistrationsPage />} />
+              <Route path="browse-events/:eventId" element={<EventRegistrationPage />} />
               <Route path="safety-checks" element={<SafetyChecksPage />} />
               <Route path="safety-checks/:eventId" element={<SafetyCheckReviewPage />} />
             </Route>

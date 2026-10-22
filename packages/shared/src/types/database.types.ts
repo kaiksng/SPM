@@ -1838,6 +1838,10 @@ export type Database = {
             Args: { p_actor_id: string; target_event_id: string }
             Returns: boolean
           }
+      cancel_event: {
+        Args: { p_actor_id?: string; p_event_id: string; p_reason: string }
+        Returns: Json
+      }
       cancel_event_request: {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json
@@ -2118,6 +2122,23 @@ export type Database = {
           p_unit_ids?: string[]
         }
         Returns: string
+      }
+      register_for_event: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: {
+          attendee_id: string
+          event_id: string
+          id: string
+          registered_at: string
+          status: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_registrations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       release_equipment_reservation: {
         Args: { p_reason?: string; p_reservation_id: string }

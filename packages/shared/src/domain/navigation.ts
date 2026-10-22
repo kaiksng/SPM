@@ -10,6 +10,7 @@ export type NavItemId =
   | "equipment-inventory"
   | "equipment-unavailability"
   | "browse-events"
+  | "my-registrations"
   | "safety-checks";
 
 export interface NavItem {
@@ -41,6 +42,11 @@ const NAV_ITEMS: Record<NavItemId, NavItem> = {
     label: "Browse Event",
     href: "/browse-events",
   },
+  "my-registrations": {
+    id: "my-registrations",
+    label: "My Registrations",
+    href: "/browse-events/my-registrations",
+  },
   "safety-checks": {
     id: "safety-checks",
     label: "Safety Checks",
@@ -53,7 +59,7 @@ const ROLE_NAV_ITEM_IDS = {
   event_coordinator: ["events", "venues", "equipment"],
   venue_staff: ["venues", "requests", "flagged-bookings"],
   technical_support_staff: ["equipment-requests", "equipment-inventory", "equipment-unavailability"],
-  attendee: ["browse-events"],
+  attendee: ["browse-events", "my-registrations"],
   // View-only for now: the Lead's dashboard is the shared "events" section,
   // just showing every event instead of one organiser's or coordinator's
   // own. See EventsPage's LeadEventsView.

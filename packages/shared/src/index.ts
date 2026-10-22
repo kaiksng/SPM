@@ -31,6 +31,7 @@ export * from "./domain/navigation";
 export * from "./domain/operating-hours";
 export * from "./domain/venue-disruption";
 export * from "./domain/readiness";
+export * from "./domain/event-registration";
 
 export * from "./errors/map-auth-error";
 export * from "./errors/event-submission-error";
