@@ -1,4 +1,8 @@
-import { computeRegistrationState, type RegistrationState } from "@spm/shared";
+import {
+  computeRegistrationState,
+  type OwnRegistrationStatus,
+  type RegistrationState,
+} from "@spm/shared";
 
 import { supabase } from "@/lib/supabase-client";
 
@@ -12,6 +16,8 @@ export type BrowseEventSummary = {
   closesAt: string | null;
   capacity: number | null;
   registeredCount: number;
+  waitlistEnabled: boolean;
+  waitlistPosition: number | null;
   state: RegistrationState;
 };
 
@@ -36,7 +42,8 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
           registration_required,
           registration_opens_at,
           registration_closes_at,
-          attendee_capacity
+          attendee_capacity,
+          waitlist_enabled
         )
       `,
     )
@@ -51,13 +58,15 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
 
   const { data: registrations, error: registrationsError } = await supabase
     .from("event_registrations")
-    .select("event_id, attendee_id, status")
-    .in("event_id", eventIds);
+    .select("event_id, attendee_id, status, registered_at")
+    .in("event_id", eventIds)
+    .order("registered_at", { ascending: true });
 
   if (registrationsError) throw new Error("We couldn't load events.");
 
   const registeredCounts = new Map<string, number>();
-  const ownStatusByEvent = new Map<string, string>();
+  const ownStatusByEvent = new Map<string, OwnRegistrationStatus>();
+  const waitlistPositionByEvent = new Map<string, number>();
   for (const registration of registrations) {
     if (registration.status === "registered") {
       registeredCounts.set(
@@ -65,8 +74,15 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
         (registeredCounts.get(registration.event_id) ?? 0) + 1,
       );
     }
-    if (registration.attendee_id === attendeeId) {
-      ownStatusByEvent.set(registration.event_id, registration.status);
+    if (registration.status === "waitlisted") {
+      const nextPosition = (waitlistPositionByEvent.get(registration.event_id) ?? 0) + 1;
+      waitlistPositionByEvent.set(registration.event_id, nextPosition);
+      if (registration.attendee_id === attendeeId) {
+        waitlistPositionByEvent.set(`${registration.event_id}:own`, nextPosition);
+      }
+    }
+    if (registration.attendee_id === attendeeId && registration.status !== "withdrawn") {
+      ownStatusByEvent.set(registration.event_id, registration.status as OwnRegistrationStatus);
     }
   }
 
@@ -89,10 +105,12 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
       closesAt: availability.closesAt,
       capacity: availability.capacity,
       registeredCount,
+      waitlistEnabled: req?.waitlist_enabled ?? false,
+      waitlistPosition: waitlistPositionByEvent.get(`${event.id}:own`) ?? null,
       state: computeRegistrationState(
         availability,
         registeredCount,
-        ownStatusByEvent.get(event.id) === "registered",
+        ownStatusByEvent.get(event.id) ?? null,
       ),
     };
   });

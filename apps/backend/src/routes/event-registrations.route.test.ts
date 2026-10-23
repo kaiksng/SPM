@@ -106,3 +106,142 @@ describe("POST /events/:eventId/register", () => {
     expect(response.status).toBe(500);
   });
 });
+
+describe("POST /events/:eventId/waitlist", () => {
+  beforeEach(() => {
+    rpcMock.mockReset();
+    getUserMock.mockReset();
+    getUserMock.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
+  });
+
+  function joinRequest(eventId = EVENT_ID) {
+    return request(createApp())
+      .post(`/events/${eventId}/waitlist`)
+      .set("Authorization", "Bearer test-token")
+      .send();
+  }
+
+  it("returns the new waitlist row on success", async () => {
+    rpcMock.mockResolvedValue({
+      data: { id: "reg-1", event_id: EVENT_ID, attendee_id: USER_ID, status: "waitlisted" },
+      error: null,
+    });
+
+    const response = await joinRequest();
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.status).toBe("waitlisted");
+    expect(rpcMock).toHaveBeenCalledWith("join_event_waitlist", {
+      p_event_id: EVENT_ID,
+      p_actor_id: USER_ID,
+    });
+  });
+
+  it("rejects a request with no bearer token", async () => {
+    const response = await request(createApp()).post(`/events/${EVENT_ID}/waitlist`).send();
+
+    expect(response.status).toBe(401);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("maps 23514 (e.g. not full yet, waitlist disabled) to a 422", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { code: "23514", message: "This event has not reached capacity" },
+    });
+
+    const response = await joinRequest();
+
+    expect(response.status).toBe(422);
+  });
+});
+
+describe("DELETE /events/:eventId/waitlist", () => {
+  beforeEach(() => {
+    rpcMock.mockReset();
+    getUserMock.mockReset();
+    getUserMock.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
+  });
+
+  function leaveRequest(eventId = EVENT_ID) {
+    return request(createApp())
+      .delete(`/events/${eventId}/waitlist`)
+      .set("Authorization", "Bearer test-token")
+      .send();
+  }
+
+  it("succeeds with no body", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: null });
+
+    const response = await leaveRequest();
+
+    expect(response.status).toBe(200);
+    expect(rpcMock).toHaveBeenCalledWith("leave_event_waitlist", {
+      p_event_id: EVENT_ID,
+      p_actor_id: USER_ID,
+    });
+  });
+
+  it("maps P0002 (not on the waitlist) to a 404", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { code: "P0002", message: "You are not on the waiting list for this event" },
+    });
+
+    const response = await leaveRequest();
+
+    expect(response.status).toBe(404);
+  });
+
+  it("rejects a request with no bearer token", async () => {
+    const response = await request(createApp()).delete(`/events/${EVENT_ID}/waitlist`).send();
+
+    expect(response.status).toBe(401);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /events/:eventId/withdraw", () => {
+  beforeEach(() => {
+    rpcMock.mockReset();
+    getUserMock.mockReset();
+    getUserMock.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
+  });
+
+  function withdrawRequest(eventId = EVENT_ID) {
+    return request(createApp())
+      .post(`/events/${eventId}/withdraw`)
+      .set("Authorization", "Bearer test-token")
+      .send();
+  }
+
+  it("succeeds with no body", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: null });
+
+    const response = await withdrawRequest();
+
+    expect(response.status).toBe(200);
+    expect(rpcMock).toHaveBeenCalledWith("withdraw_registration", {
+      p_event_id: EVENT_ID,
+      p_actor_id: USER_ID,
+    });
+  });
+
+  it("maps 23514 (e.g. withdrawal not permitted) to a 422", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { code: "23514", message: "Withdrawal is not permitted for this event" },
+    });
+
+    const response = await withdrawRequest();
+
+    expect(response.status).toBe(422);
+  });
+
+  it("rejects a request with no bearer token", async () => {
+    const response = await request(createApp()).post(`/events/${EVENT_ID}/withdraw`).send();
+
+    expect(response.status).toBe(401);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+});

@@ -3,11 +3,12 @@ import { Check } from "lucide-react";
 
 export const registrationStateLabels: Record<RegistrationState, string> = {
   not_required: "Not required",
-  open: "Open for registration",
+  open: "Open",
   full: "Full",
-  not_open: "Not open yet",
+  not_open: "Opens soon",
   closed: "Closed",
   registered: "Registered",
+  waitlisted: "Waitlisted",
 };
 
 const BADGE_STYLES: Record<RegistrationState, string> = {
@@ -17,6 +18,7 @@ const BADGE_STYLES: Record<RegistrationState, string> = {
   not_open: "border-slate-200 bg-slate-50 text-slate-500",
   closed: "border-slate-200 bg-slate-50 text-slate-500",
   registered: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  waitlisted: "border-amber-200 bg-amber-50 text-amber-800",
 };
 
 export function RegistrationStatusBadge({ state }: { state: RegistrationState }) {

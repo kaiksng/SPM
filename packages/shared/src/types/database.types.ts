@@ -2088,6 +2088,27 @@ export type Database = {
         Returns: undefined
       }
       format_sg_time: { Args: { p_at: string }; Returns: string }
+      join_event_waitlist: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: {
+          attendee_id: string
+          event_id: string
+          id: string
+          registered_at: string
+          status: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_registrations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      leave_event_waitlist: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: undefined
+      }
       list_auto_event_coordinator_reassignments: {
         Args: { p_event_id: string }
         Returns: {
@@ -2379,6 +2400,10 @@ export type Database = {
       withdraw_event_change_request: {
         Args: { p_actor_id?: string; p_change_request_id: string }
         Returns: string
+      }
+      withdraw_registration: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: undefined
       }
       withdraw_venue_booking_request: {
         Args: { p_actor_id?: string; p_booking_id: string; p_reason?: string }
