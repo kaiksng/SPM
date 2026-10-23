@@ -878,6 +878,7 @@ export type Database = {
           registration_opens_at: string | null
           registration_required: boolean
           waitlist_enabled: boolean
+          withdrawal_permitted: boolean
         }
         Insert: {
           attendee_capacity?: number | null
@@ -886,6 +887,7 @@ export type Database = {
           registration_opens_at?: string | null
           registration_required?: boolean
           waitlist_enabled?: boolean
+          withdrawal_permitted?: boolean
         }
         Update: {
           attendee_capacity?: number | null
@@ -894,6 +896,7 @@ export type Database = {
           registration_opens_at?: string | null
           registration_required?: boolean
           waitlist_enabled?: boolean
+          withdrawal_permitted?: boolean
         }
         Relationships: [
           {
@@ -1921,6 +1924,24 @@ export type Database = {
         Returns: number
       }
       complete_event: { Args: { p_event_id: string }; Returns: Json }
+      configure_event_registration: {
+        Args: { p_event_id: string; p_settings: Json }
+        Returns: {
+          attendee_capacity: number | null
+          event_id: string
+          registration_closes_at: string | null
+          registration_opens_at: string | null
+          registration_required: boolean
+          waitlist_enabled: boolean
+          withdrawal_permitted: boolean
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_registration_requirements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       confirm_venue_booking_hold: {
         Args: { p_actor_id?: string; p_booking_id: string }
         Returns: Json
@@ -2020,6 +2041,10 @@ export type Database = {
       event_has_unresolved_clarification: {
         Args: { p_event_id: string }
         Returns: boolean
+      }
+      event_main_venue_capacity: {
+        Args: { p_event_id: string }
+        Returns: number
       }
       event_planning_allowed: { Args: { p_event_id: string }; Returns: boolean }
       event_readiness: {

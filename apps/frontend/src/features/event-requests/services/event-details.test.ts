@@ -48,6 +48,7 @@ const row = {
     registration_closes_at: "2098-12-20T02:00:00.000Z",
     attendee_capacity: 280,
     waitlist_enabled: true,
+    withdrawal_permitted: true,
   },
 };
 
@@ -101,6 +102,7 @@ describe("loadEventDetail", () => {
         closesAt: "2098-12-20T02:00:00.000Z",
         capacity: 280,
         waitlistEnabled: true,
+        withdrawalPermitted: true,
       },
     });
     expect(fromMock).toHaveBeenCalledWith("events");
@@ -155,6 +157,7 @@ describe("loadEventDetail", () => {
       closesAt: null,
       capacity: null,
       waitlistEnabled: false,
+      withdrawalPermitted: false,
     });
   });
 

@@ -41,7 +41,7 @@ function event(overrides: Partial<EventDetail> = {}): EventDetail {
     assignedCoordinatorName: "Mei",
     venue: { preferredLocation: null, minimumCapacity: null, accessibilityNotes: null, layoutNotes: null, facilities: [] },
     equipment: [],
-    registration: { required: false, opensAt: null, closesAt: null, capacity: null, waitlistEnabled: false },
+    registration: { required: false, opensAt: null, closesAt: null, capacity: null, waitlistEnabled: false, withdrawalPermitted: false },
     ...overrides,
   };
 }
