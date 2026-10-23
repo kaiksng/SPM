@@ -388,7 +388,7 @@ select set_config(
   true
 );
 select lives_ok(
-  format($$select public.decide_event_change_request(%L::uuid, 'approved'::public.event_decision_type)$$, (select id from spm84_ids where label = 'change-request-1')),
+  format($$select public.decide_event_change_request(%L::uuid, 'approved'::public.event_decision_type, 'Approved after handover')$$, (select id from spm84_ids where label = 'change-request-1')),
   'AC4/AC7/AC8: the new coordinator can decide Event A''s change request -- it is now their responsibility'
 );
 select is(

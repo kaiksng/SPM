@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Modal } from "@/features/event-requests/components/modal";
 import {
   decideEventChangeRequest,
@@ -20,6 +21,10 @@ import { CHANGE_REQUEST_SUBMITTABLE_STATUSES } from "@/features/event-requests/u
  * instead (AC06) — the caller passes `isEventAssigned` so a Lead viewing an
  * already-assigned event (read-only for everything else) still doesn't see
  * decide actions that aren't theirs to take.
+ *
+ * SPM-39: approval needs implementation notes, and an Approved request is
+ * then applied by the assigned coordinator only (AC07) — a Lead who
+ * approved on an unassigned event waits for a coordinator to be assigned.
  */
 export function ChangeRequestPanel({
   eventId,
@@ -75,6 +80,8 @@ export function ChangeRequestPanel({
 
   // AC08: only one request may be open at a time (enforced server-side too).
   const pending = requests.find((r) => r.status === "pending");
+  // SPM-39 AC07: approved but not yet applied.
+  const awaitingApply = requests.find((r) => r.status === "approved");
 
   function handleSubmitted(created: EventChangeRequestSummary) {
     setRequests((current) => [...current, created]);
@@ -107,9 +114,9 @@ export function ChangeRequestPanel({
 
   async function handleDecide(decision: "approved" | "rejected", reviewNotes: string) {
     if (!pending) return;
-    await decideEventChangeRequest(pending.id, decision, reviewNotes || undefined);
+    await decideEventChangeRequest(pending.id, decision, reviewNotes);
     setRequests((current) =>
-      current.map((r) => (r.id === pending.id ? { ...r, status: decision, reviewNotes: reviewNotes || null } : r)),
+      current.map((r) => (r.id === pending.id ? { ...r, status: decision, reviewNotes } : r)),
     );
     setShowDecisionDialog(undefined);
   }
@@ -154,6 +161,24 @@ export function ChangeRequestPanel({
             )}
           </div>
         </div>
+      ) : awaitingApply ? (
+        <div className="mt-2">
+          <p className="text-xs text-slate-600">
+            {role === "coordinator"
+              ? "An approved change request is waiting for you to apply it."
+              : role === "lead"
+                ? "Approved — assign a coordinator to apply this change."
+                : "Your change request was approved and is waiting to be applied."}
+          </p>
+          {role === "coordinator" && (
+            <Link
+              to={`/events/${eventId}/change-requests/${awaitingApply.id}/apply`}
+              className={buttonVariants({ size: "sm", className: "mt-2" })}
+            >
+              Apply change
+            </Link>
+          )}
+        </div>
       ) : (
         role === "organiser" && (
           <Button size="sm" variant="outline" className="mt-2" onClick={() => setShowSubmitDialog(true)}>
@@ -176,6 +201,7 @@ export function ChangeRequestPanel({
                 requestedAt: new Date().toISOString(),
                 reviewedAt: null,
                 withdrawnAt: null,
+                implementedAt: null,
               }),
             )
           }
@@ -285,9 +311,13 @@ function ChangeRequestDecisionDialog({
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    // Only rejection requires a reason — approval may be submitted blank.
-    if (isReject && !reviewNotes.trim()) {
-      setError("Explain the reason for rejecting this change request.");
+    // SPM-39 AC05/AC06: both decisions need notes.
+    if (!reviewNotes.trim()) {
+      setError(
+        isReject
+          ? "Explain the reason for rejecting this change request."
+          : "Add implementation notes before approving this change request.",
+      );
       return;
     }
     setSubmitting(true);
@@ -313,7 +343,7 @@ function ChangeRequestDecisionDialog({
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
         <div>
           <label htmlFor="change-request-review-notes" className="text-sm font-medium text-slate-700">
-            {isReject ? "Reason for rejecting" : "Notes (optional)"}
+            {isReject ? "Reason for rejecting" : "Implementation notes"}
           </label>
           <textarea
             id="change-request-review-notes"

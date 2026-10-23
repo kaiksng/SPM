@@ -146,15 +146,29 @@ describe("POST /change-requests/:changeRequestId/decide", () => {
       error: null,
     });
 
-    const response = await authedRequest({ decision: "approved" });
+    const response = await authedRequest({
+      decision: "approved",
+      reviewNotes: "Moving to the afternoon slot",
+    });
 
     expect(response.status).toBe(200);
     expect(rpcMock).toHaveBeenCalledWith("decide_event_change_request", {
       p_change_request_id: CHANGE_REQUEST_ID,
       p_decision: "approved",
-      p_review_notes: undefined,
+      p_review_notes: "Moving to the afternoon slot",
       p_actor_id: USER_ID,
     });
+  });
+
+  // SPM-39 AC05: approval needs implementation notes.
+  it("rejects an approval without implementation notes before calling the database", async () => {
+    const response = await authedRequest({ decision: "approved", reviewNotes: "   " });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe(
+      "Add implementation notes before approving this change request",
+    );
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid decision value before calling the database", async () => {
@@ -164,19 +178,27 @@ describe("POST /change-requests/:changeRequestId/decide", () => {
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
-  // Only rejection requires review notes — enforced in the RPC, not here.
-  it("maps a missing-reason rejection (23514) to a 422", async () => {
-    rpcMock.mockResolvedValue({
-      data: null,
-      error: { code: "23514", message: "Explain the reason for rejecting this change request" },
-    });
-
+  // SPM-39 AC06: rejection needs a reason.
+  it("rejects a rejection without a reason before calling the database", async () => {
     const response = await authedRequest({ decision: "rejected" });
 
     expect(response.status).toBe(422);
     expect(response.body.error).toBe(
       "Explain the reason for rejecting this change request",
     );
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("maps 23514 to a 422", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { code: "23514", message: "Only a change request Pending Review can be decided" },
+    });
+
+    const response = await authedRequest({ decision: "rejected", reviewNotes: "Not needed" });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe("Only a change request Pending Review can be decided");
   });
 
   it("maps 42501 to a 403", async () => {
@@ -188,7 +210,7 @@ describe("POST /change-requests/:changeRequestId/decide", () => {
       },
     });
 
-    const response = await authedRequest({ decision: "approved" });
+    const response = await authedRequest({ decision: "approved", reviewNotes: "Fine" });
 
     expect(response.status).toBe(403);
   });
@@ -201,6 +223,89 @@ describe("POST /change-requests/:changeRequestId/decide", () => {
 
     expect(response.status).toBe(422);
     expect(rpcMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /change-requests/:changeRequestId/apply", () => {
+  const updates = {
+    title: "Planning Event",
+    startsAt: "2099-01-01T14:00:00+08:00",
+    endsAt: "2099-01-01T16:00:00+08:00",
+  };
+
+  function authedRequest(body: object) {
+    return request(createApp())
+      .post(`/change-requests/${CHANGE_REQUEST_ID}/apply`)
+      .set("Authorization", "Bearer test-token")
+      .send(body);
+  }
+
+  // SPM-39 AC07: the new event details reach the database unchanged.
+  it("returns the apply result on success", async () => {
+    rpcMock.mockResolvedValue({
+      data: { id: CHANGE_REQUEST_ID, status: "implemented", returnedToPlanning: false },
+      error: null,
+    });
+
+    const response = await authedRequest({ updates });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.status).toBe("implemented");
+    expect(rpcMock).toHaveBeenCalledWith("apply_event_change_request", {
+      p_change_request_id: CHANGE_REQUEST_ID,
+      p_updates: updates,
+      p_actor_id: USER_ID,
+    });
+  });
+
+  it("rejects a request with no bearer token", async () => {
+    const response = await request(createApp())
+      .post(`/change-requests/${CHANGE_REQUEST_ID}/apply`)
+      .send({ updates });
+
+    expect(response.status).toBe(401);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing updates payload before calling the database", async () => {
+    const response = await authedRequest({});
+
+    expect(response.status).toBe(422);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid change request id before calling the database", async () => {
+    const response = await request(createApp())
+      .post("/change-requests/not-a-uuid/apply")
+      .set("Authorization", "Bearer test-token")
+      .send({ updates });
+
+    expect(response.status).toBe(422);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("maps 23514 to a 422", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { code: "23514", message: "Only an Approved change request can be applied" },
+    });
+
+    const response = await authedRequest({ updates });
+
+    expect(response.status).toBe(422);
+    expect(response.body.error).toBe("Only an Approved change request can be applied");
+  });
+
+  // SPM-39 AC07: only the assigned coordinator applies.
+  it("maps 42501 to a 403", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { code: "42501", message: "Only the assigned coordinator can apply this change request" },
+    });
+
+    const response = await authedRequest({ updates });
+
+    expect(response.status).toBe(403);
   });
 });
 

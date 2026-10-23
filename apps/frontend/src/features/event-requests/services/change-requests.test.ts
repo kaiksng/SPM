@@ -2,14 +2,25 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryBuilder } from "@/test/supabase-mock";
 
-const { fromMock } = vi.hoisted(() => ({ fromMock: vi.fn() }));
+const { fromMock, apiFetchMock } = vi.hoisted(() => ({
+  fromMock: vi.fn(),
+  apiFetchMock: vi.fn(),
+}));
 
 vi.mock("@/lib/supabase-client", () => ({ supabase: { from: fromMock } }));
+vi.mock("@/lib/api-client", () => ({ apiFetch: apiFetchMock }));
 
-import { hasPendingChangeRequest, listEventChangeRequests } from "./change-requests";
+import { emptyEventRequestFormValues } from "@spm/shared";
+
+import {
+  applyEventChangeRequest,
+  hasPendingChangeRequest,
+  listEventChangeRequests,
+} from "./change-requests";
 
 beforeEach(() => {
   fromMock.mockReset();
+  apiFetchMock.mockReset();
 });
 
 describe("listEventChangeRequests", () => {
@@ -97,5 +108,28 @@ describe("hasPendingChangeRequest", () => {
     );
 
     await expect(hasPendingChangeRequest("event-1")).resolves.toBe(false);
+  });
+});
+
+describe("applyEventChangeRequest", () => {
+  // SPM-39 AC07: the new details go to the backend in the form's payload shape.
+  it("posts the event's new details and returns the outcome", async () => {
+    apiFetchMock.mockResolvedValue({
+      data: { status: "implemented", returnedToPlanning: true },
+    });
+
+    const result = await applyEventChangeRequest("change-request-1", {
+      ...emptyEventRequestFormValues,
+      title: "Planning Event",
+      expectedAttendance: "80",
+    });
+
+    expect(result).toEqual({ status: "implemented", returnedToPlanning: true });
+    expect(apiFetchMock).toHaveBeenCalledWith("/change-requests/change-request-1/apply", {
+      method: "POST",
+      body: expect.any(String),
+    });
+    const body = JSON.parse(apiFetchMock.mock.calls[0]?.[1].body as string);
+    expect(body.updates).toMatchObject({ title: "Planning Event", expectedAttendance: "80" });
   });
 });

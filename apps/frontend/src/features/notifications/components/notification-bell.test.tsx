@@ -253,6 +253,25 @@ describe("NotificationBell", () => {
     expect(navigateMock).toHaveBeenCalledWith("/venue-requests");
   });
 
+  // SPM-39 AC02: staff flagged by an applied change request go to where they review it.
+  it.each([
+    ["venue_change_review" as const, "venue-7", "/venues/venue-7"],
+    ["equipment_change_review" as const, null, "/equipment"],
+    ["safety_review_reset" as const, null, "/safety-checks"],
+  ])("routes a %s notification to %s's review page", async (type, venueId, destination) => {
+    listNotificationsMock.mockResolvedValue([
+      { ...UNREAD, id: "n11", type, title: "Needs review after a change", venueId },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("Needs review after a change"));
+
+    expect(navigateMock).toHaveBeenCalledWith(destination);
+  });
+
   // SPM-82: a venue decision (including a rejected replacement) opens the change
   // history, where the outcome and the rejection reason are listed.
   it("routes a venue decision notification to the event's change history", async () => {

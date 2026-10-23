@@ -142,7 +142,7 @@ select throws_ok(
 
 select lives_ok(
   $$select public.decide_event_change_request(
-    (select (body ->> 'id')::uuid from chg_result where label = 'e1'), 'approved')$$,
+    (select (body ->> 'id')::uuid from chg_result where label = 'e1'), 'approved', 'Moving the start time')$$,
   'the assigned coordinator can approve the request'
 );
 select is(

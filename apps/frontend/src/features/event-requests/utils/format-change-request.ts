@@ -23,6 +23,8 @@ export function changeRequestStatusLabel(status: EventChangeRequestSummary["stat
       return "Rejected";
     case "withdrawn":
       return "Withdrawn";
+    case "implemented":
+      return "Implemented";
     default:
       return "Pending Review";
   }

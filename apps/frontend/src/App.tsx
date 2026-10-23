@@ -4,6 +4,7 @@ import { AuthProvider } from "@/context/auth-context";
 import { RequireSession } from "@/guards/require-session";
 import { AuthLayout } from "@/routes/AuthLayout";
 import { BrowseEventsPage } from "@/routes/BrowseEventsPage";
+import { ChangeRequestApplyPage } from "@/routes/ChangeRequestApplyPage";
 import { CoordinatorEventEditPage } from "@/routes/CoordinatorEventEditPage";
 import { EquipmentPage } from "@/routes/EquipmentPage";
 import { EventDetailPage } from "@/routes/EventDetailPage";
@@ -62,6 +63,10 @@ export function App() {
               <Route
                 path="events/:eventId/coordinator-edit"
                 element={<CoordinatorEventEditPage />}
+              />
+              <Route
+                path="events/:eventId/change-requests/:changeRequestId/apply"
+                element={<ChangeRequestApplyPage />}
               />
               <Route path="venues" element={<VenuesPage />} />
               <Route path="venues/new" element={<VenueEditorPage />} />

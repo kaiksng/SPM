@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listEventChangeRequestsMock = vi.fn();
@@ -17,7 +18,11 @@ vi.mock("@/features/event-requests/services/change-requests", () => ({
 import { ChangeRequestPanel } from "./change-request-panel";
 
 function renderPanel(props: Parameters<typeof ChangeRequestPanel>[0]) {
-  return render(<ChangeRequestPanel {...props} />);
+  return render(
+    <MemoryRouter>
+      <ChangeRequestPanel {...props} />
+    </MemoryRouter>,
+  );
 }
 
 const pendingRequest = {
@@ -29,6 +34,7 @@ const pendingRequest = {
   requestedAt: "2026-09-14T08:00:00.000Z",
   reviewedAt: null,
   withdrawnAt: null,
+  implementedAt: null,
 };
 
 beforeEach(() => {
@@ -48,7 +54,7 @@ describe("ChangeRequestPanel", () => {
       isEventAssigned: true,
     });
 
-    expect(container).toBeEmptyDOMElement();
+    expect(container.querySelector("h3")).toBeNull();
     expect(listEventChangeRequestsMock).not.toHaveBeenCalled();
   });
 
@@ -160,7 +166,7 @@ describe("ChangeRequestPanel", () => {
     ).toBeInTheDocument();
   });
 
-  // AC05: the assigned coordinator may decide a pending request.
+  // AC05 (SPM-38), and SPM-39 AC05: approval carries implementation notes.
   it("lets an assigned coordinator approve a pending request", async () => {
     listEventChangeRequestsMock.mockResolvedValue([pendingRequest]);
     decideEventChangeRequestMock.mockResolvedValue({ data: { status: "approved" } });
@@ -174,15 +180,93 @@ describe("ChangeRequestPanel", () => {
     });
 
     await user.click(await screen.findByRole("button", { name: "Approve" }));
+    await user.type(screen.getByLabelText("Implementation notes"), "Move to the afternoon slot");
     await user.click(screen.getByRole("button", { name: "Approve request" }));
 
     await waitFor(() =>
       expect(decideEventChangeRequestMock).toHaveBeenCalledWith(
         "change-request-1",
         "approved",
-        undefined,
+        "Move to the afternoon slot",
       ),
     );
+  });
+
+  // SPM-39 AC05: approval needs implementation notes.
+  it("blocks approval without implementation notes", async () => {
+    listEventChangeRequestsMock.mockResolvedValue([pendingRequest]);
+    const user = userEvent.setup();
+
+    renderPanel({
+      eventId: "event-1",
+      eventStatus: "planning",
+      role: "coordinator",
+      isEventAssigned: true,
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Approve" }));
+    await user.click(screen.getByRole("button", { name: "Approve request" }));
+
+    expect(
+      await screen.findByText("Add implementation notes before approving this change request."),
+    ).toBeInTheDocument();
+    expect(decideEventChangeRequestMock).not.toHaveBeenCalled();
+  });
+
+  // SPM-39 AC07: the assigned coordinator applies an approved request.
+  it("offers the assigned coordinator Apply change on an approved request", async () => {
+    listEventChangeRequestsMock.mockResolvedValue([
+      { ...pendingRequest, status: "approved" as const, reviewNotes: "Move it" },
+    ]);
+
+    renderPanel({
+      eventId: "event-1",
+      eventStatus: "confirmed",
+      role: "coordinator",
+      isEventAssigned: true,
+    });
+
+    expect(await screen.findByRole("link", { name: "Apply change" })).toHaveAttribute(
+      "href",
+      "/events/event-1/change-requests/change-request-1/apply",
+    );
+  });
+
+  // SPM-39 AC03: a Lead approves on an unassigned event but never applies.
+  it("tells a Lead to assign a coordinator instead of offering Apply change", async () => {
+    listEventChangeRequestsMock.mockResolvedValue([
+      { ...pendingRequest, status: "approved" as const, reviewNotes: "Move it" },
+    ]);
+
+    renderPanel({
+      eventId: "event-1",
+      eventStatus: "requested",
+      role: "lead",
+      isEventAssigned: false,
+    });
+
+    expect(
+      await screen.findByText("Approved — assign a coordinator to apply this change."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Apply change" })).not.toBeInTheDocument();
+  });
+
+  it("tells the organiser an approved request is waiting to be applied", async () => {
+    listEventChangeRequestsMock.mockResolvedValue([
+      { ...pendingRequest, status: "approved" as const, reviewNotes: "Move it" },
+    ]);
+
+    renderPanel({
+      eventId: "event-1",
+      eventStatus: "planning",
+      role: "organiser",
+      isEventAssigned: true,
+    });
+
+    expect(
+      await screen.findByText("Your change request was approved and is waiting to be applied."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Apply change" })).not.toBeInTheDocument();
   });
 
   // Only rejection requires a reason.
