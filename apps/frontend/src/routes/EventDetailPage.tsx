@@ -27,6 +27,7 @@ import {
   completeEvent,
   loadEventCompletionAvailableAt,
 } from "@/features/event-requests/services/event-lifecycle";
+import { RegistrationSettingsSection } from "@/features/registrations/components/registration-settings-section";
 import { loadEventReadiness } from "@/features/safety-check/services/event-readiness";
 import {
   listVenueBookingsForEvent,
@@ -331,27 +332,13 @@ export function EventDetailPage() {
                   onSaved={(venue) => setEvent({ ...event, venue })}
                 />
 
-                <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
-                  <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
-                    Registration
-                  </h2>
-                  {event.registration.required ? (
-                    <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-                      <Field label="Opens" value={formatDateTime(event.registration.opensAt)} />
-                      <Field label="Closes" value={formatDateTime(event.registration.closesAt)} />
-                      <Field
-                        label="Capacity"
-                        value={event.registration.capacity?.toString() ?? null}
-                      />
-                      <Field
-                        label="Waitlist"
-                        value={event.registration.waitlistEnabled ? "Enabled" : "Disabled"}
-                      />
-                    </dl>
-                  ) : (
-                    <p className="mt-4 text-sm text-slate-500">Registration is not required</p>
-                  )}
-                </section>
+<RegistrationSettingsSection
+                  eventId={event.id}
+                  status={event.status}
+                  registration={event.registration}
+                  isOwnOrganiser={role === "organiser" && event.organiserId === user?.id}
+                  onSaved={(registration) => setEvent({ ...event, registration })}
+                />
 
                 {canViewConfirmedArrangements && venueBookings && readiness && (
                   <ConfirmedArrangementsSection

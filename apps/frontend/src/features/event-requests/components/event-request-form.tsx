@@ -526,7 +526,7 @@ export function EventRequestForm({
       <FormSection
         number="05"
         title="Registration needs"
-        description="Only indicate whether attendees need to register. Registration setup happens later."
+        description="Only indicate whether attendees need to register. You set the registration rules once the event reaches Planning."
       >
         <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 has-disabled:cursor-not-allowed has-disabled:opacity-50">
           <input

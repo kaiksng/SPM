@@ -33,6 +33,7 @@ export type EventDetail = {
     closesAt: string | null;
     capacity: number | null;
     waitlistEnabled: boolean;
+    withdrawalPermitted: boolean;
   };
 };
 
@@ -84,7 +85,8 @@ export async function loadEventDetail(eventId: string) {
           registration_opens_at,
           registration_closes_at,
           attendee_capacity,
-          waitlist_enabled
+          waitlist_enabled,
+          withdrawal_permitted
         )
       `,
     )
@@ -127,6 +129,7 @@ export async function loadEventDetail(eventId: string) {
       closesAt: registration?.registration_closes_at ?? null,
       capacity: registration?.attendee_capacity ?? null,
       waitlistEnabled: registration?.waitlist_enabled ?? false,
+      withdrawalPermitted: registration?.withdrawal_permitted ?? false,
     },
   } satisfies EventDetail;
 }

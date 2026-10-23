@@ -162,6 +162,17 @@ describe("deriveEquipmentArrangementOverallStatus", () => {
 });
 
 describe("isEventReady", () => {
+  // Configure Event Registration AC07: unfinished registration blocks the safety check.
+  it("is not ready while required registration is incomplete or over capacity", () => {
+    expect(
+      isEventReady({
+        venueArrangementStatus: "complete",
+        equipmentArrangementStatus: "complete",
+        registrationReady: false,
+      }),
+    ).toBe(false);
+  });
+
   it("is ready when venues are complete and equipment is complete", () => {
     expect(isEventReady({ venueArrangementStatus: "complete", equipmentArrangementStatus: "complete" })).toBe(
       true,

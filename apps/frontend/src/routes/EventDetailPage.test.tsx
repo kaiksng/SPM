@@ -88,6 +88,11 @@ vi.mock("@/features/safety-check/services/event-readiness", () => ({
   READINESS_ITEM_BADGE_CLASSES: { complete: "", pending: "", needs_review: "", not_required: "" },
 }));
 
+vi.mock("@/features/registrations/services/registration-settings", () => ({
+  loadMainVenueCapacity: vi.fn().mockResolvedValue(null),
+  saveRegistrationSettings: vi.fn(),
+}));
+
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
 
 import { EventDetailPage } from "./EventDetailPage";
@@ -132,6 +137,7 @@ const event = {
     closesAt: "2026-09-25T00:00:00.000Z",
     capacity: 100,
     waitlistEnabled: true,
+    withdrawalPermitted: false,
   },
 };
 
@@ -470,6 +476,37 @@ describe("EventDetailPage", () => {
       await screen.findByText("This event is unavailable or you do not have access to it."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Student Leadership Summit 2")).not.toBeInTheDocument();
+  });
+
+  // Configure Event Registration: the organiser sets registration from the event page.
+  describe("Configure Event Registration", () => {
+    afterEach(() => {
+      authState.user.id = "20000000-0000-0000-0000-000000000002";
+    });
+
+    // AC02: the event's own organiser can edit registration in Planning.
+    it("lets the organiser edit registration on their own Planning event", async () => {
+      authState.profile.role = "event_organiser";
+      authState.user.id = event.organiserId;
+      loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
+
+      renderPage();
+
+      expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    });
+
+    // AC07: locked from Pending Safety Check onward.
+    it("offers the organiser no edit once the event is Pending Safety Check", async () => {
+      authState.profile.role = "event_organiser";
+      authState.user.id = event.organiserId;
+      loadEventDetailMock.mockResolvedValue({ ...event, status: "pending_safety_check" });
+
+      renderPage();
+
+      expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    });
   });
 
   // SPM-80 TC-011: the organiser is told their request is awaiting coordinator assignment.
