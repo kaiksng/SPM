@@ -21,9 +21,9 @@ import { ListToolbar } from "@/features/workspace/components/list-toolbar";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
-const STATUS_FILTER_OPTIONS = (["open", "full", "not_open", "closed", "registered"] as const).map(
-  (value) => ({ value, label: registrationStateLabels[value] }),
-);
+const STATUS_FILTER_OPTIONS = (
+  ["open", "full", "waitlisted", "not_open", "closed", "registered"] as const
+).map((value) => ({ value, label: registrationStateLabels[value] }));
 
 const dateFormatter = new Intl.DateTimeFormat("en-SG", {
   dateStyle: "medium",
@@ -180,17 +180,30 @@ function EventCard({ event }: { event: BrowseEventSummary }) {
         </p>
       )}
 
-      <EventCardCta state={event.state} />
+      <EventCardCta state={event.state} waitlistEnabled={event.waitlistEnabled} />
     </Link>
   );
 }
 
-function EventCardCta({ state }: { state: BrowseEventSummary["state"] }) {
+function EventCardCta({
+  state,
+  waitlistEnabled,
+}: {
+  state: BrowseEventSummary["state"];
+  waitlistEnabled: boolean;
+}) {
   if (state === "registered") {
     return (
       <span className="mt-4 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-50 py-2 text-sm font-semibold text-emerald-700">
         <Check className="size-3.5" aria-hidden="true" />
         You&apos;re registered
+      </span>
+    );
+  }
+  if (state === "waitlisted") {
+    return (
+      <span className="mt-4 block rounded-lg bg-amber-50 py-2 text-center text-sm font-semibold text-amber-800">
+        On waiting list
       </span>
     );
   }
@@ -201,7 +214,14 @@ function EventCardCta({ state }: { state: BrowseEventSummary["state"] }) {
       </span>
     );
   }
-  const label = state === "full" ? "Full" : state === "not_open" ? "Not open yet" : "Closed";
+  if (state === "full" && waitlistEnabled) {
+    return (
+      <span className="mt-4 block rounded-lg border border-primary py-2 text-center text-sm font-semibold text-primary">
+        Join waiting list
+      </span>
+    );
+  }
+  const label = state === "full" ? "Full" : state === "not_open" ? "Opens soon" : "Closed";
   return (
     <span className="mt-4 block rounded-lg bg-slate-200 py-2 text-center text-sm font-semibold text-slate-400">
       {label}

@@ -89,7 +89,7 @@ describe("BrowseEventsPage", () => {
     renderPage();
     await screen.findByText("AI Innovation Summit");
 
-    await user.click(screen.getByRole("radio", { name: "Open for registration" }));
+    await user.click(screen.getByRole("radio", { name: "Open" }));
 
     expect(screen.getByText("AI Innovation Summit")).toBeInTheDocument();
     expect(screen.queryByText("Career Fair 2026")).not.toBeInTheDocument();

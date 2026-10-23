@@ -1,15 +1,23 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listMyRegistrationsMock = vi.fn();
+const leaveWaitlistMock = vi.fn();
+
+const authState = {
+  profile: { full_name: "Priya Tan", role: "attendee" },
+  user: { id: "attendee-1" },
+};
 
 vi.mock("@/context/auth-context", () => ({
-  useAuth: () => ({ profile: { full_name: "Priya Tan", role: "attendee" }, user: { id: "attendee-1" } }),
+  useAuth: () => authState,
 }));
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
 vi.mock("@/features/registrations/services/registrations", () => ({
   listMyRegistrations: (...args: unknown[]) => listMyRegistrationsMock(...args),
+  leaveWaitlist: (...args: unknown[]) => leaveWaitlistMock(...args),
 }));
 
 import { MyRegistrationsPage } from "./MyRegistrationsPage";
@@ -31,11 +39,13 @@ const registration = {
   location: "Exhibition Hall",
   status: "registered",
   registeredAt: "2026-11-01T00:00:00Z",
+  waitlistPosition: null,
 };
 
 describe("MyRegistrationsPage", () => {
   beforeEach(() => {
     listMyRegistrationsMock.mockReset().mockResolvedValue([]);
+    leaveWaitlistMock.mockReset().mockResolvedValue({ data: null });
   });
 
   it("shows an empty state when the attendee has no registrations", async () => {
@@ -60,5 +70,33 @@ describe("MyRegistrationsPage", () => {
     renderPage();
 
     expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't load your registrations.");
+  });
+
+  it("shows the waiting-list position and a label of 'Waiting list', not 'Waitlisted'", async () => {
+    listMyRegistrationsMock.mockResolvedValue([
+      { ...registration, status: "waitlisted", waitlistPosition: 4 },
+    ]);
+
+    renderPage();
+
+    const card = (await screen.findByText("Robotics Showcase")).closest("article")!;
+    expect(within(card).getByText("Position 4")).toBeInTheDocument();
+    expect(within(card).getByText("Waiting list")).toBeInTheDocument();
+    expect(within(card).queryByText("Waitlisted")).not.toBeInTheDocument();
+  });
+
+  it("lets the attendee leave the waiting list", async () => {
+    listMyRegistrationsMock.mockResolvedValue([
+      { ...registration, status: "waitlisted", waitlistPosition: 4 },
+    ]);
+    const user = userEvent.setup();
+
+    renderPage();
+
+    await screen.findByText("Robotics Showcase");
+    await user.click(screen.getByRole("button", { name: "Leave waiting list" }));
+
+    expect(leaveWaitlistMock).toHaveBeenCalledWith("event-1");
+    expect(await screen.findByText("No registrations yet")).toBeInTheDocument();
   });
 });

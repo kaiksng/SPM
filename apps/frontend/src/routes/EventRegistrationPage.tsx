@@ -1,4 +1,4 @@
-import { computeRegistrationState } from "@spm/shared";
+import { computeRegistrationState, type OwnRegistrationStatus } from "@spm/shared";
 import { Calendar, Check, MapPin, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -10,7 +10,11 @@ import { RegistrationStatusBadge } from "@/features/registrations/components/reg
 import {
   getOwnRegistrationStatus,
   getRegisteredCount,
+  getWaitlistPosition,
+  joinWaitlist,
+  leaveWaitlist,
   registerForEvent,
+  withdrawRegistration,
 } from "@/features/registrations/services/registrations";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
@@ -27,7 +31,8 @@ export function EventRegistrationPage() {
   const { user, profile } = useAuth();
   const [event, setEvent] = useState<EventDetail>();
   const [registeredCount, setRegisteredCount] = useState(0);
-  const [ownStatus, setOwnStatus] = useState<string | null>(null);
+  const [ownStatus, setOwnStatus] = useState<OwnRegistrationStatus>(null);
+  const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
@@ -43,12 +48,14 @@ export function EventRegistrationPage() {
       loadEventDetail(eventId),
       getRegisteredCount(eventId),
       getOwnRegistrationStatus(eventId, user.id),
+      getWaitlistPosition(eventId, user.id),
     ])
-      .then(([detail, count, status]) => {
+      .then(([detail, count, status, position]) => {
         if (!active) return;
         setEvent(detail);
         setRegisteredCount(count);
         setOwnStatus(status);
+        setWaitlistPosition(position);
       })
       .catch((loadError: unknown) => {
         if (active) {
@@ -84,6 +91,62 @@ export function EventRegistrationPage() {
     }
   }
 
+  async function handleJoinWaitlist() {
+    if (!eventId) return;
+    setSubmitting(true);
+    setActionError(undefined);
+    try {
+      await joinWaitlist(eventId);
+      setOwnStatus("waitlisted");
+      if (user) setWaitlistPosition(await getWaitlistPosition(eventId, user.id));
+    } catch (joinError) {
+      setActionError(
+        joinError instanceof Error ? joinError.message : "Could not join the waiting list.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleLeaveWaitlist() {
+    if (!eventId) return;
+    setSubmitting(true);
+    setActionError(undefined);
+    try {
+      await leaveWaitlist(eventId);
+      setOwnStatus(null);
+      setWaitlistPosition(null);
+    } catch (leaveError) {
+      setActionError(
+        leaveError instanceof Error ? leaveError.message : "Could not leave the waiting list.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  /**
+   * withdraw_registration promotes the longest-waiting attendee straight to
+   * 'registered' in the same transaction — no invite/accept step, so this
+   * attendee's own view only needs to reflect their own withdrawal.
+   */
+  async function handleWithdraw() {
+    if (!eventId) return;
+    setSubmitting(true);
+    setActionError(undefined);
+    try {
+      await withdrawRegistration(eventId);
+      setOwnStatus(null);
+      setRegisteredCount((count) => Math.max(count - 1, 0));
+    } catch (withdrawError) {
+      setActionError(
+        withdrawError instanceof Error ? withdrawError.message : "Could not withdraw your registration.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   const state = event
     ? computeRegistrationState(
         {
@@ -93,7 +156,7 @@ export function EventRegistrationPage() {
           capacity: event.registration.capacity,
         },
         registeredCount,
-        ownStatus === "registered",
+        ownStatus,
       )
     : undefined;
 
@@ -153,9 +216,14 @@ export function EventRegistrationPage() {
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-white p-6">
-                <h2 className="text-xs font-semibold tracking-[0.06em] text-slate-400 uppercase">
-                  Registration
-                </h2>
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-xs font-semibold tracking-[0.06em] text-slate-400 uppercase">
+                    Registration
+                  </h2>
+                  {(state === "full" || state === "waitlisted") && (
+                    <RegistrationStatusBadge state={state} />
+                  )}
+                </div>
 
                 {event.registration.capacity !== null && (
                   <div className="mt-4">
@@ -206,12 +274,62 @@ export function EventRegistrationPage() {
                       </Button>
                     </>
                   ) : state === "registered" ? (
-                    <div className="flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5">
-                      <Check className="mt-0.5 size-[18px] shrink-0 text-emerald-700" aria-hidden="true" />
-                      <div>
-                        <p className="text-sm font-semibold text-emerald-700">You&apos;re registered</p>
-                        <p className="mt-1 text-sm text-emerald-700">Added to your registrations.</p>
+                    <div>
+                      <div className="flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5">
+                        <Check className="mt-0.5 size-[18px] shrink-0 text-emerald-700" aria-hidden="true" />
+                        <div>
+                          <p className="text-sm font-semibold text-emerald-700">You&apos;re registered</p>
+                          <p className="mt-1 text-sm text-emerald-700">Added to your registrations.</p>
+                        </div>
                       </div>
+                      {event.registration.withdrawalPermitted && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="mt-3"
+                          disabled={submitting}
+                          onClick={handleWithdraw}
+                        >
+                          {submitting ? "Withdrawing…" : "Withdraw registration"}
+                        </Button>
+                      )}
+                    </div>
+                  ) : state === "waitlisted" ? (
+                    <div>
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5">
+                        <p className="text-sm font-semibold text-amber-800">
+                          You&apos;re on the waiting list
+                          {waitlistPosition !== null && ` — position ${waitlistPosition}`}
+                        </p>
+                        <p className="mt-1 text-sm text-amber-800">
+                          We&apos;ll register you automatically if a spot opens up. You can leave the
+                          waiting list anytime.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-3"
+                        disabled={submitting}
+                        onClick={handleLeaveWaitlist}
+                      >
+                        {submitting ? "Leaving…" : "Leave waiting list"}
+                      </Button>
+                    </div>
+                  ) : state === "full" && event.registration.waitlistEnabled ? (
+                    <div>
+                      <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-800">
+                        This event is full. Join the waiting list and we&apos;ll register you
+                        automatically if a spot opens up.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={submitting}
+                        onClick={handleJoinWaitlist}
+                      >
+                        {submitting ? "Joining…" : "Join waiting list"}
+                      </Button>
                     </div>
                   ) : state === "full" ? (
                     <p className="text-sm text-amber-800">This event has reached capacity.</p>

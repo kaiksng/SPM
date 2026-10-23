@@ -6,7 +6,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const loadEventDetailMock = vi.fn();
 const getOwnRegistrationStatusMock = vi.fn();
 const getRegisteredCountMock = vi.fn();
+const getWaitlistPositionMock = vi.fn();
 const registerForEventMock = vi.fn();
+const joinWaitlistMock = vi.fn();
+const leaveWaitlistMock = vi.fn();
+const withdrawRegistrationMock = vi.fn();
 
 const authState = {
   profile: { full_name: "Priya Tan", role: "attendee" },
@@ -21,12 +25,16 @@ vi.mock("@/features/event-requests/services/event-details", () => ({
 vi.mock("@/features/registrations/services/registrations", () => ({
   getOwnRegistrationStatus: (...args: unknown[]) => getOwnRegistrationStatusMock(...args),
   getRegisteredCount: (...args: unknown[]) => getRegisteredCountMock(...args),
+  getWaitlistPosition: (...args: unknown[]) => getWaitlistPositionMock(...args),
   registerForEvent: (...args: unknown[]) => registerForEventMock(...args),
+  joinWaitlist: (...args: unknown[]) => joinWaitlistMock(...args),
+  leaveWaitlist: (...args: unknown[]) => leaveWaitlistMock(...args),
+  withdrawRegistration: (...args: unknown[]) => withdrawRegistrationMock(...args),
 }));
 
 import { EventRegistrationPage } from "./EventRegistrationPage";
 
-const event = {
+const baseEvent = {
   id: "event-1",
   title: "AI Innovation Summit",
   purpose: null,
@@ -49,6 +57,7 @@ const event = {
     closesAt: null,
     capacity: 50,
     waitlistEnabled: false,
+    withdrawalPermitted: false,
   },
 };
 
@@ -63,10 +72,14 @@ function renderPage() {
 }
 
 beforeEach(() => {
-  loadEventDetailMock.mockReset().mockResolvedValue(event);
+  loadEventDetailMock.mockReset().mockResolvedValue(baseEvent);
   getRegisteredCountMock.mockReset().mockResolvedValue(32);
   getOwnRegistrationStatusMock.mockReset().mockResolvedValue(null);
+  getWaitlistPositionMock.mockReset().mockResolvedValue(null);
   registerForEventMock.mockReset().mockResolvedValue({ data: { status: "registered" } });
+  joinWaitlistMock.mockReset().mockResolvedValue({ data: { status: "waitlisted" } });
+  leaveWaitlistMock.mockReset().mockResolvedValue({ data: null });
+  withdrawRegistrationMock.mockReset().mockResolvedValue({ data: null });
 });
 
 describe("EventRegistrationPage", () => {
@@ -100,12 +113,28 @@ describe("EventRegistrationPage", () => {
     expect(screen.getByRole("button", { name: "Register" })).toBeInTheDocument();
   });
 
-  it("shows capacity-full messaging with no form when the event is full", async () => {
+  it("shows capacity-full messaging with no waitlist option when the event is full and has none", async () => {
     getRegisteredCountMock.mockResolvedValue(50);
     renderPage();
 
     expect(await screen.findByText("This event has reached capacity.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Join waiting list" })).not.toBeInTheDocument();
+  });
+
+  it("offers to join the waiting list when the event is full and waitlisting is enabled", async () => {
+    getRegisteredCountMock.mockResolvedValue(50);
+    loadEventDetailMock.mockResolvedValue({
+      ...baseEvent,
+      registration: { ...baseEvent.registration, waitlistEnabled: true },
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    const joinButton = await screen.findByRole("button", { name: "Join waiting list" });
+    await user.click(joinButton);
+
+    expect(joinWaitlistMock).toHaveBeenCalledWith("event-1");
+    expect(await screen.findByText(/You're on the waiting list/)).toBeInTheDocument();
   });
 
   it("shows a confirmation, not the form, when the attendee already registered", async () => {
@@ -115,5 +144,34 @@ describe("EventRegistrationPage", () => {
     expect(await screen.findByText("You're registered")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
     expect(registerForEventMock).not.toHaveBeenCalled();
+  });
+
+  it("offers to withdraw only when the event permits it", async () => {
+    getOwnRegistrationStatusMock.mockResolvedValue("registered");
+    loadEventDetailMock.mockResolvedValue({
+      ...baseEvent,
+      registration: { ...baseEvent.registration, withdrawalPermitted: true },
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    const withdrawButton = await screen.findByRole("button", { name: "Withdraw registration" });
+    await user.click(withdrawButton);
+
+    expect(withdrawRegistrationMock).toHaveBeenCalledWith("event-1");
+    expect(await screen.findByRole("button", { name: "Register" })).toBeInTheDocument();
+  });
+
+  it("shows the waiting-list position and lets the attendee leave", async () => {
+    getOwnRegistrationStatusMock.mockResolvedValue("waitlisted");
+    getWaitlistPositionMock.mockResolvedValue(4);
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByText(/position 4/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Leave waiting list" }));
+
+    expect(leaveWaitlistMock).toHaveBeenCalledWith("event-1");
+    expect(await screen.findByRole("button", { name: "Register" })).toBeInTheDocument();
   });
 });

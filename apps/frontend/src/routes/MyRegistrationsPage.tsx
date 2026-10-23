@@ -3,27 +3,38 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { useAuth } from "@/context/auth-context";
 import {
   emptyRegistrationFilters,
   registrationFilterChips,
   RegistrationFiltersPanel,
   type RegistrationFilterValues,
 } from "@/features/registrations/components/registration-filters";
-import { listMyRegistrations, type MyRegistration } from "@/features/registrations/services/registrations";
+import {
+  leaveWaitlist,
+  listMyRegistrations,
+  type MyRegistration,
+} from "@/features/registrations/services/registrations";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
 const STATUS_FILTER_OPTIONS = [
   { value: "registered", label: "Registered" },
-  { value: "waitlisted", label: "Waitlisted" },
+  { value: "waitlisted", label: "Waiting list" },
   { value: "withdrawn", label: "Withdrawn" },
 ];
 
 const STATUS_LABELS: Record<string, string> = {
   registered: "Registered",
-  waitlisted: "Waitlisted",
+  waitlisted: "Waiting list",
   withdrawn: "Withdrawn",
+};
+
+const STATUS_BADGE_STYLES: Record<string, string> = {
+  registered: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  waitlisted: "border-amber-200 bg-amber-50 text-amber-800",
+  withdrawn: "border-slate-200 bg-slate-50 text-slate-500",
 };
 
 const dateFormatter = new Intl.DateTimeFormat("en-SG", {
@@ -34,14 +45,21 @@ const dateFormatter = new Intl.DateTimeFormat("en-SG", {
 
 export function MyRegistrationsPage() {
   usePageTitle("My registrations");
+  const { user } = useAuth();
   const [registrations, setRegistrations] = useState<MyRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [filters, setFilters] = useState<RegistrationFilterValues>(emptyRegistrationFilters);
+  const [leavingEventId, setLeavingEventId] = useState<string>();
+  const [actionError, setActionError] = useState<string>();
 
   useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     let active = true;
-    listMyRegistrations()
+    listMyRegistrations(user.id)
       .then((items) => {
         if (active) setRegistrations(items);
       })
@@ -56,7 +74,22 @@ export function MyRegistrationsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [user]);
+
+  async function handleLeaveWaitlist(eventId: string) {
+    setLeavingEventId(eventId);
+    setActionError(undefined);
+    try {
+      await leaveWaitlist(eventId);
+      setRegistrations((current) => current.filter((item) => item.eventId !== eventId));
+    } catch (leaveError) {
+      setActionError(
+        leaveError instanceof Error ? leaveError.message : "Could not leave the waiting list.",
+      );
+    } finally {
+      setLeavingEventId(undefined);
+    }
+  }
 
   const filtered = registrations.filter((registration) => {
     const matchesStatus = !filters.status || registration.status === filters.status;
@@ -95,6 +128,11 @@ export function MyRegistrationsPage() {
               {error}
             </p>
           )}
+          {actionError && (
+            <p role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              {actionError}
+            </p>
+          )}
 
           {loading ? (
             <div aria-label="Loading registrations" className="mt-6 flex flex-col gap-3">
@@ -110,7 +148,11 @@ export function MyRegistrationsPage() {
             <ol className="mt-6 flex flex-col gap-3">
               {filtered.map((registration) => (
                 <li key={registration.id}>
-                  <RegistrationRow registration={registration} />
+                  <RegistrationRow
+                    registration={registration}
+                    leaving={leavingEventId === registration.eventId}
+                    onLeaveWaitlist={() => handleLeaveWaitlist(registration.eventId)}
+                  />
                 </li>
               ))}
             </ol>
@@ -121,7 +163,15 @@ export function MyRegistrationsPage() {
   );
 }
 
-function RegistrationRow({ registration }: { registration: MyRegistration }) {
+function RegistrationRow({
+  registration,
+  leaving,
+  onLeaveWaitlist,
+}: {
+  registration: MyRegistration;
+  leaving: boolean;
+  onLeaveWaitlist: () => void;
+}) {
   return (
     <article className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5">
       <div className="min-w-0 flex-1">
@@ -143,10 +193,22 @@ function RegistrationRow({ registration }: { registration: MyRegistration }) {
             </span>
           )}
         </div>
+        {registration.status === "waitlisted" && registration.waitlistPosition !== null && (
+          <p className="mt-1 text-xs text-amber-700">Position {registration.waitlistPosition}</p>
+        )}
       </div>
-      <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-        {STATUS_LABELS[registration.status] ?? registration.status}
-      </span>
+      <div className="flex shrink-0 flex-col items-end gap-2">
+        <span
+          className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${STATUS_BADGE_STYLES[registration.status] ?? "border-slate-200 bg-slate-50 text-slate-500"}`}
+        >
+          {STATUS_LABELS[registration.status] ?? registration.status}
+        </span>
+        {registration.status === "waitlisted" && (
+          <Button type="button" variant="outline" size="sm" disabled={leaving} onClick={onLeaveWaitlist}>
+            {leaving ? "Leaving…" : "Leave waiting list"}
+          </Button>
+        )}
+      </div>
     </article>
   );
 }

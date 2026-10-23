@@ -122,6 +122,80 @@ describe("listBrowseEvents", () => {
     expect(events[0]?.state).toBe("registered");
   });
 
+  it("includes the attendee's own waiting-list position among their peers", async () => {
+    fromMock
+      .mockReturnValueOnce(
+        queryBuilder({
+          data: [
+            {
+              id: "event-4",
+              title: "Founders Fireside Chat",
+              starts_at: "2026-12-02T10:00:00Z",
+              ends_at: "2026-12-02T12:00:00Z",
+              event_venue_requirements: null,
+              event_registration_requirements: {
+                registration_required: true,
+                registration_opens_at: null,
+                registration_closes_at: null,
+                attendee_capacity: 1,
+                waitlist_enabled: true,
+              },
+            },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        queryBuilder({
+          data: [
+            { event_id: "event-4", attendee_id: "someone-else", status: "waitlisted" },
+            { event_id: "event-4", attendee_id: ATTENDEE_ID, status: "waitlisted" },
+          ],
+          error: null,
+        }),
+      );
+
+    const events = await listBrowseEvents(ATTENDEE_ID);
+
+    expect(events[0]).toEqual(
+      expect.objectContaining({ state: "waitlisted", waitlistEnabled: true, waitlistPosition: 2 }),
+    );
+  });
+
+  it("treats a withdrawn row as no registration at all", async () => {
+    fromMock
+      .mockReturnValueOnce(
+        queryBuilder({
+          data: [
+            {
+              id: "event-6",
+              title: "Career Fair",
+              starts_at: "2026-11-20T01:00:00Z",
+              ends_at: "2026-11-20T09:00:00Z",
+              event_venue_requirements: null,
+              event_registration_requirements: {
+                registration_required: true,
+                registration_opens_at: null,
+                registration_closes_at: null,
+                attendee_capacity: 50,
+              },
+            },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(
+        queryBuilder({
+          data: [{ event_id: "event-6", attendee_id: ATTENDEE_ID, status: "withdrawn" }],
+          error: null,
+        }),
+      );
+
+    const events = await listBrowseEvents(ATTENDEE_ID);
+
+    expect(events[0]?.state).toBe("open");
+  });
+
   it("returns an empty list without a second query when there are no events", async () => {
     fromMock.mockReturnValueOnce(queryBuilder({ data: [], error: null }));
 
