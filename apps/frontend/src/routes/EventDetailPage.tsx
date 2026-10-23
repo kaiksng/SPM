@@ -6,7 +6,7 @@ import {
 } from "@spm/shared";
 import { CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
@@ -58,8 +58,13 @@ function formatDateTime(value: string | null) {
  */
 export function EventDetailPage() {
   const { eventId } = useParams();
-  const navigate = useNavigate();
+  const location = useLocation();
   const { profile, user } = useAuth();
+  // A page that sends the user back here (e.g. CoordinatorEventEditPage)
+  // passes its confirmation as router state.
+  const [notice, setNotice] = useState<string | undefined>(
+    (location.state as { notice?: string } | null)?.notice,
+  );
   const [event, setEvent] = useState<EventDetail>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -213,6 +218,14 @@ export function EventDetailPage() {
                 </div>
               )}
               <div className="min-w-0 flex-1">
+                {notice && (
+                  <p
+                    role="status"
+                    className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+                  >
+                    {notice}
+                  </p>
+                )}
                 <div className="flex flex-wrap items-center gap-2">
                   {role === "lead" ? (
                     <StatusBadge status={event.status} />
@@ -355,17 +368,18 @@ export function EventDetailPage() {
                     role={role}
                     onReviewStateChange={setReviewState}
                     onUnresolvedChange={setUnresolvedClarification}
-                    onDecided={(decision) =>
-                      navigate("/events", {
-                        replace: true,
-                        state: {
-                          notice:
-                            decision === "approved"
-                              ? "Event approved — now in planning."
-                              : "Event rejected.",
-                        },
-                      })
-                    }
+                    onDecided={(decision) => {
+                      // Stay on the event: reload it so its new status
+                      // (Planning or Rejected) and next steps show here.
+                      setNotice(
+                        decision === "approved" ? "Event approved — now in planning." : "Event rejected.",
+                      );
+                      loadEventDetail(event.id)
+                        .then(setEvent)
+                        .catch(() => {
+                          // The decision is saved; a stale view is corrected on refresh.
+                        });
+                    }}
                     className="mt-6 text-sm"
                   />
                 )}
