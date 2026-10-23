@@ -46,9 +46,9 @@ export function ClarificationPanel({
    * instead of a generic "ready for your review." */
   onUnresolvedChange?: (clarification: ClarificationSummary | undefined) => void;
   /** Fires after a successful Approve/Reject — the event has left
-   * "requested" at that point, so the caller (EventDetailPage) navigates
-   * away rather than this panel trying to re-render a state it no longer
-   * covers. */
+   * "requested" at that point, so the caller (EventDetailPage) reloads the
+   * event and this panel stops rendering, rather than trying to show a state
+   * it no longer covers. */
   onDecided?: (decision: "approved" | "rejected") => void;
   /** Overrides the wrapper's styling — the default suits a card footer;
    * a standalone page (EventDetailPage) passes its own spacing instead. */

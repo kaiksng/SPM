@@ -422,6 +422,23 @@ describe("EventDetailPage", () => {
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
   });
 
+  // After approving, the coordinator stays on the event and sees it in Planning.
+  it("keeps the coordinator on the event page after approving it", async () => {
+    const user = userEvent.setup();
+    loadEventDetailMock
+      .mockResolvedValueOnce(event)
+      .mockResolvedValueOnce({ ...event, status: "planning" });
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Approve" }));
+    await user.click(await screen.findByRole("button", { name: "Approve event" }));
+
+    expect(await screen.findByText("Event approved — now in planning.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Student Leadership Summit 2" })).toBeInTheDocument();
+    expect(loadEventDetailMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+  });
+
   it("tells the coordinator which area was edited, without a generic sentence or the question", async () => {
     listClarificationsMock.mockResolvedValue([
       {
