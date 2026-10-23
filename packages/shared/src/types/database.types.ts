@@ -546,6 +546,8 @@ export type Database = {
         Row: {
           event_id: string
           id: string
+          implemented_at: string | null
+          implemented_by: string | null
           reason: string
           requested_at: string
           requested_by: string
@@ -559,6 +561,8 @@ export type Database = {
         Insert: {
           event_id: string
           id?: string
+          implemented_at?: string | null
+          implemented_by?: string | null
           reason: string
           requested_at?: string
           requested_by: string
@@ -572,6 +576,8 @@ export type Database = {
         Update: {
           event_id?: string
           id?: string
+          implemented_at?: string | null
+          implemented_by?: string | null
           reason?: string
           requested_at?: string
           requested_by?: string
@@ -588,6 +594,13 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_change_requests_implemented_by_fkey"
+            columns: ["implemented_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1831,6 +1844,14 @@ export type Database = {
         Args: { p_count: number; p_item_id: string }
         Returns: number
       }
+      apply_event_change_request: {
+        Args: {
+          p_actor_id?: string
+          p_change_request_id: string
+          p_updates: Json
+        }
+        Returns: Json
+      }
       assert_technical_support_staff: { Args: never; Returns: undefined }
       can_view_event:
         | { Args: { target_event_id: string }; Returns: boolean }
@@ -2382,6 +2403,9 @@ export type Database = {
         | "venue_disruption_cleared"
         | "safety_check_requested"
         | "safety_check_decision"
+        | "venue_change_review"
+        | "equipment_change_review"
+        | "safety_review_reset"
       request_status:
         | "pending"
         | "approved"
@@ -2586,6 +2610,9 @@ export const Constants = {
         "venue_disruption_cleared",
         "safety_check_requested",
         "safety_check_decision",
+        "venue_change_review",
+        "equipment_change_review",
+        "safety_review_reset",
       ],
       request_status: [
         "pending",

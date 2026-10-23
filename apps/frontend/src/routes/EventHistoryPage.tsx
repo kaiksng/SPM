@@ -535,6 +535,7 @@ const CHANGE_REQUEST_STATUS_CLASSES: Record<EventChangeRequestSummary["status"],
   approved: "text-emerald-700",
   rejected: "text-red-700",
   withdrawn: "text-slate-500",
+  implemented: "text-emerald-700",
 };
 
 function ChangeRequestItem({ request }: { request: EventChangeRequestSummary }) {

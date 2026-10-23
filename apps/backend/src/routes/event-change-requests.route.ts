@@ -18,17 +18,26 @@ const submitBodySchema = z.object({
   reason: z.string().trim().min(1).max(2_000),
 });
 
-const decideBodySchema = z.object({
-  decision: z.enum(["approved", "rejected"]),
-  reviewNotes: z.string().trim().max(2_000).optional(),
+// SPM-39 AC05/AC06: approval needs implementation notes, rejection a reason.
+const decideBodySchema = z
+  .object({
+    decision: z.enum(["approved", "rejected"]),
+    reviewNotes: z.string().trim().max(2_000).optional(),
+  })
+  .refine((body) => Boolean(body.reviewNotes), { path: ["reviewNotes"] });
+
+// The same form payload update_event_as_coordinator takes (toEventDraftPayload).
+const applyBodySchema = z.object({
+  updates: z.record(z.string(), z.unknown()),
 });
 
 /**
  * All three routes insert a `notifications` row, which has no INSERT policy
  * for regular users, so they go through the service client — same pattern as
  * event-clarifications.route.ts. Business rules (including the Lead fallback
- * for an unassigned event) live in the three `security definer` functions in
- * 202610200013_submit_event_change_request.sql.
+ * for an unassigned event) live in the `security definer` functions in
+ * 202610200013_submit_event_change_request.sql and, for applying an approved
+ * change (SPM-39), 202610230005_spm39_apply_event_change_request.sql.
  */
 eventChangeRequestsRouter.post(
   "/events/:eventId/change-requests",
@@ -74,7 +83,14 @@ eventChangeRequestsRouter.post(
 
     const body = decideBodySchema.safeParse(req.body);
     if (!body.success) {
-      throw new ApplicationError("VALIDATION", "Choose approve or reject");
+      throw new ApplicationError(
+        "VALIDATION",
+        req.body?.decision === "approved"
+          ? "Add implementation notes before approving this change request"
+          : req.body?.decision === "rejected"
+            ? "Explain the reason for rejecting this change request"
+            : "Choose approve or reject",
+      );
     }
 
     const { data, error } = await getServiceClient().rpc(
@@ -83,6 +99,38 @@ eventChangeRequestsRouter.post(
         p_change_request_id: params.data.changeRequestId,
         p_decision: body.data.decision,
         p_review_notes: body.data.reviewNotes,
+        p_actor_id: req.userId,
+      },
+    );
+
+    if (error) throw mapChangeRequestError(error);
+
+    res.json({ data });
+  }),
+);
+
+// SPM-39 AC07: the assigned coordinator applies an approved change. The
+// function flags affected arrangements and notifies staff, so it needs the
+// service client too.
+eventChangeRequestsRouter.post(
+  "/change-requests/:changeRequestId/apply",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const params = changeRequestIdParamsSchema.safeParse(req.params);
+    if (!params.success) {
+      throw new ApplicationError("VALIDATION", "Enter a valid change request id");
+    }
+
+    const body = applyBodySchema.safeParse(req.body);
+    if (!body.success) {
+      throw new ApplicationError("VALIDATION", "Enter the event's new details");
+    }
+
+    const { data, error } = await getServiceClient().rpc(
+      "apply_event_change_request",
+      {
+        p_change_request_id: params.data.changeRequestId,
+        p_updates: body.data.updates as Json,
         p_actor_id: req.userId,
       },
     );

@@ -379,6 +379,7 @@ describe("EventHistoryPage", () => {
         requestedAt: "2026-09-14T08:00:00.000Z",
         reviewedAt: "2026-09-14T09:00:00.000Z",
         withdrawnAt: null,
+        implementedAt: null,
       },
     ]);
 

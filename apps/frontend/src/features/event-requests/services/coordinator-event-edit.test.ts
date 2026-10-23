@@ -62,7 +62,19 @@ describe("loadEventForCoordinatorEdit", () => {
     );
     expect(fromMock).toHaveBeenCalledWith("events");
     expect(query.eq).toHaveBeenCalledWith("id", "event-1");
-    expect(query.eq).toHaveBeenCalledWith("status", "planning");
+    expect(query.in).toHaveBeenCalledWith("status", ["planning"]);
+  });
+
+  // SPM-39 AC07: applying an approved change also opens Confirmed and
+  // Pending Safety Check events.
+  it("loads the event in any of the statuses it is given", async () => {
+    const query = queryBuilder({ data: null, error: null });
+    fromMock.mockReturnValue(query);
+
+    await expect(
+      loadEventForCoordinatorEdit("event-1", ["planning", "confirmed"]),
+    ).rejects.toThrow("This event is unavailable or you do not have access to it.");
+    expect(query.in).toHaveBeenCalledWith("status", ["planning", "confirmed"]);
   });
 
   // SPM-10 AC01: locked fields are loaded with their saved values so they can be

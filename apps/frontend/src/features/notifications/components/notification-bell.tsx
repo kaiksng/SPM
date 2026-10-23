@@ -73,6 +73,13 @@ function notificationDestination(notification: NotificationSummary): string | un
   }
   if (VENUE_STAFF_REQUEST_TYPES.has(notification.type)) return "/venue-requests";
   if (VENUE_STAFF_CONFLICT_TYPES.has(notification.type)) return "/flagged-bookings";
+  // SPM-39: an applied change request flagged arrangements for staff who
+  // can't open the event page — send each to where they review them.
+  if (notification.type === "venue_change_review") {
+    return notification.venueId ? `/venues/${notification.venueId}` : "/venues";
+  }
+  if (notification.type === "equipment_change_review") return "/equipment";
+  if (notification.type === "safety_review_reset") return "/safety-checks";
   if (!notification.eventId) return undefined;
   if (VENUE_DECISION_TYPES.has(notification.type)) return `/events/${notification.eventId}/history`;
   if (

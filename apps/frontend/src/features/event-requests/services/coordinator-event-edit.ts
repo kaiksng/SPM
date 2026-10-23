@@ -3,6 +3,7 @@ import {
   emptyEventRequestFormValues,
   toEventDraftPayload,
   type EventRequestFormValues,
+  type EventStatus,
 } from "@spm/shared";
 
 import {
@@ -16,14 +17,20 @@ import { supabase } from "@/lib/supabase-client";
 export { localDateTime };
 
 /**
- * Loads a Planning event's current requirements in the same
+ * Loads an event's current requirements in the same
  * EventRequestFormValues shape loadEventDraft uses, so CoordinatorEventEditPage
  * can reuse EventRequestForm as-is. Read access is RLS's broader
  * can_view_event (any coordinator-role user, not just the assigned one) —
  * the narrower "must be the assigned coordinator" rule is enforced on write,
  * by update_event_as_coordinator itself.
+ *
+ * SPM-39 reuses this for applying an approved change request, which is also
+ * allowed on Requested, Confirmed and Pending Safety Check events.
  */
-export async function loadEventForCoordinatorEdit(eventId: string) {
+export async function loadEventForCoordinatorEdit(
+  eventId: string,
+  statuses: readonly EventStatus[] = ["planning"],
+) {
   const { data, error } = await supabase
     .from("events")
     .select(
@@ -64,11 +71,15 @@ export async function loadEventForCoordinatorEdit(eventId: string) {
       `,
     )
     .eq("id", eventId)
-    .eq("status", "planning")
+    .in("status", statuses)
     .maybeSingle();
 
   if (error || !data) {
-    throw new Error("This event is unavailable, not in Planning, or you do not have access to it.");
+    throw new Error(
+      statuses.length === 1 && statuses[0] === "planning"
+        ? "This event is unavailable, not in Planning, or you do not have access to it."
+        : "This event is unavailable or you do not have access to it.",
+    );
   }
 
   const venue = data.event_venue_requirements;
