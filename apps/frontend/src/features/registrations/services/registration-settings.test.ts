@@ -1,3 +1,4 @@
+// SPM-40: Configure Event Registration. AC tags refer to that story.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { rpcMock } = vi.hoisted(() => ({ rpcMock: vi.fn() }));

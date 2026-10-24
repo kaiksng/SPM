@@ -1,3 +1,4 @@
+// SPM-40: Configure Event Registration. AC tags refer to that story.
 import { describe, expect, it } from "vitest";
 
 import {
