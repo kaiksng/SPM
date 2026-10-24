@@ -72,6 +72,7 @@ describe("ChangeRequestPanel", () => {
     },
   );
 
+  // AC03/AC05: the organiser describes the change and gives a reason.
   it("lets the organiser submit a change request", async () => {
     const user = userEvent.setup();
     submitEventChangeRequestMock.mockResolvedValue({ data: { id: "change-request-2" } });
@@ -101,7 +102,26 @@ describe("ChangeRequestPanel", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  // AC03: both the description and the reason are required.
+  // AC03: the description of the change is required.
+  it("blocks submission without a description of the change", async () => {
+    const user = userEvent.setup();
+
+    renderPanel({
+      eventId: "event-1",
+      eventStatus: "planning",
+      role: "organiser",
+      isEventAssigned: true,
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Request a change" }));
+    await user.type(screen.getByLabelText("Reason"), "Speaker rescheduled");
+    await user.click(screen.getByRole("button", { name: "Send request" }));
+
+    expect(await screen.findByText("Describe the change you are requesting.")).toBeInTheDocument();
+    expect(submitEventChangeRequestMock).not.toHaveBeenCalled();
+  });
+
+  // AC03: the reason is required.
   it("blocks submission without a reason", async () => {
     const user = userEvent.setup();
 
@@ -125,7 +145,8 @@ describe("ChangeRequestPanel", () => {
     expect(submitEventChangeRequestMock).not.toHaveBeenCalled();
   });
 
-  // AC08: one open request at a time — no "Request a change" while one is pending.
+  // Not an SPM-38 criterion: one open request at a time, so there's no
+  // "Request a change" while one is pending.
   it("hides the submit button while a request is already pending", async () => {
     listEventChangeRequestsMock.mockResolvedValue([pendingRequest]);
 
@@ -140,7 +161,7 @@ describe("ChangeRequestPanel", () => {
     expect(screen.queryByRole("button", { name: "Request a change" })).not.toBeInTheDocument();
   });
 
-  // AC04/AC08: the organiser can withdraw before a decision is made.
+  // AC08: the organiser can withdraw before a decision is made.
   it("lets the organiser withdraw a pending request", async () => {
     listEventChangeRequestsMock.mockResolvedValue([pendingRequest]);
     withdrawEventChangeRequestMock.mockResolvedValue({ data: "change-request-1" });
@@ -166,7 +187,7 @@ describe("ChangeRequestPanel", () => {
     ).toBeInTheDocument();
   });
 
-  // AC05 (SPM-38), and SPM-39 AC05: approval carries implementation notes.
+  // SPM-39 AC05: approval carries implementation notes.
   it("lets an assigned coordinator approve a pending request", async () => {
     listEventChangeRequestsMock.mockResolvedValue([pendingRequest]);
     decideEventChangeRequestMock.mockResolvedValue({ data: { status: "approved" } });

@@ -24,7 +24,7 @@ beforeEach(() => {
 });
 
 describe("listEventChangeRequests", () => {
-  // AC06: the organiser views the request history oldest round first.
+  // AC07: the organiser views the request history oldest round first.
   it("reads the event's change requests oldest first", async () => {
     const query = queryBuilder({ data: [], error: null });
     fromMock.mockReturnValue(query);
@@ -36,7 +36,7 @@ describe("listEventChangeRequests", () => {
     expect(query.order).toHaveBeenCalledWith("requested_at", { ascending: true });
   });
 
-  // AC06: the organiser views each request's status, outcome, and reason.
+  // AC07: the organiser views each request's status, outcome, and reason.
   it("maps each request with its status, reason and review outcome", async () => {
     fromMock.mockReturnValue(
       queryBuilder({
