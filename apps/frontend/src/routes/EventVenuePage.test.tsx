@@ -221,6 +221,41 @@ describe("EventVenuePage", () => {
     expect(screen.getByRole("button", { name: "Cancel booking" })).toBeInTheDocument();
   });
 
+  // SPM-46 AC07: a Completed event's bookings stay visible, but none can be
+  // requested, withdrawn, cancelled, confirmed or made main.
+  it("offers no venue booking actions once the event is Completed", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "completed" });
+    listVenueBookingsForEventMock.mockResolvedValue([
+      booking({ status: "approved" }),
+      booking({ id: "booking-2", label: "Breakout 1", isMainVenue: false, status: "pending" }),
+      booking({ id: "booking-3", label: "Breakout 2", isMainVenue: false, status: "on_hold", expiresAt: "2099-04-03T00:00:00.000Z" }),
+    ]);
+
+    renderPage();
+
+    const list = await screen.findByRole("region", { name: "Venue bookings" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(list).getByText("Main Programme")).toBeInTheDocument();
+    expect(within(list).queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "This event is completed, so its venue bookings can no longer be changed.",
+    );
+    expect(screen.queryByText("Suggested venues")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Add another venue" })).not.toBeInTheDocument();
+    expect(listSuggestedVenuesMock).not.toHaveBeenCalled();
+  });
+
+  // SPM-46 AC07: with no main venue left, a Completed event is not prompted to choose one.
+  it("does not prompt a Completed event to choose a main venue", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "completed" });
+    listVenueBookingsForEventMock.mockResolvedValue([booking({ status: "approved", isMainVenue: false })]);
+
+    renderPage();
+
+    await screen.findByRole("region", { name: "Venue bookings" });
+    expect(screen.queryByText(/This event has no main venue/)).not.toBeInTheDocument();
+  });
+
   // SPM-24 AC03: withdrawing releases only that booking; SPM-85 AC10: a reason is required.
   it("AC10: asks for a reason before cancelling an Approved booking", async () => {
     listVenueBookingsForEventMock

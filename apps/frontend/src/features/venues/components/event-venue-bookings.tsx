@@ -27,6 +27,7 @@ export function EventVenueBookings({
   busyBookingId,
   actionError,
   canChangeMain,
+  readOnly = false,
   onWithdraw,
   onConfirmHold,
   onSetMain,
@@ -36,6 +37,8 @@ export function EventVenueBookings({
   actionError?: { bookingId: string; message: string };
   // The main venue can only be changed while the event is in Planning.
   canChangeMain: boolean;
+  // SPM-46 AC07: a Completed event's bookings are a record — no actions at all.
+  readOnly?: boolean;
   onWithdraw: (bookingId: string, reason: string) => Promise<unknown>;
   onConfirmHold: (bookingId: string) => void;
   onSetMain: (bookingId: string) => void;
@@ -52,7 +55,7 @@ export function EventVenueBookings({
   return (
     <section aria-label="Venue bookings" className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
       <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">Venue bookings</h2>
-      {active.length > 0 && !hasMain && (
+      {!readOnly && active.length > 0 && !hasMain && (
         <p role="status" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           This event has no main venue. Choose which booking is the main venue.
         </p>
@@ -103,19 +106,22 @@ export function EventVenueBookings({
                   {dateTimeFormatter.format(new Date(booking.expiresAt))}, or it expires and the venue
                   becomes available to others again.
                 </p>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="mt-3"
-                  disabled={busyBookingId === booking.id}
-                  onClick={() => onConfirmHold(booking.id)}
-                >
-                  {busyBookingId === booking.id ? "Confirming…" : "Confirm request"}
-                </Button>
+                {!readOnly && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="mt-3"
+                    disabled={busyBookingId === booking.id}
+                    onClick={() => onConfirmHold(booking.id)}
+                  >
+                    {busyBookingId === booking.id ? "Confirming…" : "Confirm request"}
+                  </Button>
+                )}
               </>
             )}
             <div className="mt-3 flex flex-wrap gap-2">
-              {canChangeMain
+              {!readOnly
+                && canChangeMain
                 && isActiveVenueBooking(booking)
                 && !booking.replacesBookingId
                 && !booking.isMainVenue && (
@@ -129,7 +135,7 @@ export function EventVenueBookings({
                     Make main venue
                   </Button>
                 )}
-              {booking.status === "pending" && (
+              {!readOnly && booking.status === "pending" && (
                 <Button
                   type="button"
                   variant="outline"
@@ -140,7 +146,7 @@ export function EventVenueBookings({
                   Withdraw request
                 </Button>
               )}
-              {booking.status === "approved" && (
+              {!readOnly && booking.status === "approved" && (
                 <Button
                   type="button"
                   variant="outline"
