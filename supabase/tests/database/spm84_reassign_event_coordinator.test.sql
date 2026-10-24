@@ -24,7 +24,7 @@ begin;
 --   Event C: rejected, then a reassignment attempt is refused (AC8).
 --   Event D: reassigned while Planning, with a pending venue booking.
 
-select plan(21);
+select plan(22);
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -169,24 +169,19 @@ select 'booking-1', public.submit_venue_booking_request(
   (select id from spm84_ids where label = 'venue-1')
 );
 
--- Organiser opens a pending change request on Event A (fixture only; no
--- RPC exists for this, so it's submitted directly under the organiser's
--- own RLS insert policy -- no event-status restriction applies to it).
+-- Organiser opens a pending change request on Event A (fixture only, via
+-- submit_event_change_request -- 202610200013_submit_event_change_request.sql).
 select set_config(
   'request.jwt.claims',
   '{"sub":"84000000-0000-0000-0000-000000000001","role":"authenticated"}',
   true
 );
-with inserted as (
-  insert into public.event_change_requests (event_id, requested_by, requested_changes)
-  values (
-    (select id from spm84_ids where label = 'event-a'),
-    '84000000-0000-0000-0000-000000000001'::uuid,
-    '{"expectedAttendance":"60"}'::jsonb
-  )
-  returning id
-)
-insert into spm84_ids select 'change-request-1', id from inserted;
+insert into spm84_ids
+select 'change-request-1', (public.submit_event_change_request(
+  (select id from spm84_ids where label = 'event-a'),
+  '{"expectedAttendance":"60"}'::jsonb,
+  'Attendance has grown since submission.'
+) ->> 'id')::uuid;
 
 -- The Lead reassigns Events A, B, and D from Coordinator A to Coordinator
 -- B, with a reason (setup for the assertions below; pb04 already covers
@@ -380,13 +375,11 @@ select set_config(
   '{"sub":"84000000-0000-0000-0000-000000000003","role":"authenticated"}',
   true
 );
-update public.event_change_requests
-set status = 'approved'
-where id = (select id from spm84_ids where label = 'change-request-1');
-select is(
-  (select status from public.event_change_requests where id = (select id from spm84_ids where label = 'change-request-1')),
-  'pending',
-  'AC4/AC7: the previous coordinator''s change-request decision is silently denied by RLS'
+select throws_ok(
+  format($$select public.decide_event_change_request(%L::uuid, 'approved'::public.event_decision_type)$$, (select id from spm84_ids where label = 'change-request-1')),
+  '42501',
+  'Only the assigned coordinator can decide this change request',
+  'AC4/AC7: the previous coordinator can no longer decide Event A''s change request'
 );
 
 select set_config(
@@ -394,13 +387,14 @@ select set_config(
   '{"sub":"84000000-0000-0000-0000-000000000004","role":"authenticated"}',
   true
 );
-update public.event_change_requests
-set status = 'approved'
-where id = (select id from spm84_ids where label = 'change-request-1');
+select lives_ok(
+  format($$select public.decide_event_change_request(%L::uuid, 'approved'::public.event_decision_type, 'Approved after handover')$$, (select id from spm84_ids where label = 'change-request-1')),
+  'AC4/AC7/AC8: the new coordinator can decide Event A''s change request -- it is now their responsibility'
+);
 select is(
   (select status from public.event_change_requests where id = (select id from spm84_ids where label = 'change-request-1')),
   'approved',
-  'AC4/AC7/AC8: the new coordinator''s change-request decision succeeds -- it is now their responsibility'
+  'AC4/AC7/AC8: the new coordinator''s change-request decision succeeds'
 );
 
 select * from finish();

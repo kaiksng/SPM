@@ -42,10 +42,16 @@ describe("workspace navigation", () => {
     expect(isPathAllowedForRole("/equipment/unavailability", "event_organiser")).toBe(false);
   });
 
-  it("gives attendees only the browse events section", () => {
+  it("gives attendees the browse events and my registrations sections", () => {
     expect(getNavItemsForRole("attendee").map((item) => item.id)).toEqual([
       "browse-events",
+      "my-registrations",
     ]);
+  });
+
+  it("scopes 'my registrations' as its own section, not part of browse events", () => {
+    expect(isPathAllowedForRole("/browse-events/my-registrations", "attendee")).toBe(true);
+    expect(isPathAllowedForRole("/browse-events/some-event-id", "attendee")).toBe(true);
   });
 
   it("allows a role to reach a path that appears in its own nav", () => {

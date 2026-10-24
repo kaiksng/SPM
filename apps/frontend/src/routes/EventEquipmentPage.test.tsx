@@ -19,6 +19,7 @@ vi.mock("@/features/event-requests/services/event-details", () => ({
   loadEventDetail: (...args: unknown[]) => loadEventDetailMock(...args),
 }));
 vi.mock("@/features/event-requests/services/equipment-arrangements", () => ({
+  EVENT_COMPLETED_RELEASE_REASON: "The event was completed",
   listEquipmentArrangements: (...args: unknown[]) => listEquipmentArrangementsMock(...args),
 }));
 const loadEquipmentArrangementStatusesMock = vi.fn();
@@ -52,6 +53,7 @@ const arrangement = (overrides: Record<string, unknown>) => ({
   needsRecheck: false,
   recheckReason: null,
   releasedAt: null,
+  releaseReason: null,
   history: [
     { id: 1, action: "reserved", details: { quantity: 3 }, actorName: "Tess Support", occurredAt: "2099-06-20T02:00:00.000Z" },
   ],
@@ -97,6 +99,7 @@ beforeEach(() => {
       quantity: 2,
       status: "released",
       releasedAt: "2099-06-21T02:00:00.000Z",
+      releaseReason: "Venue has screens",
       history: [
         { id: 2, action: "reserved", details: { quantity: 2 }, actorName: "Tess Support", occurredAt: "2099-06-20T02:00:00.000Z" },
         { id: 3, action: "released", details: { quantity: 2, reason: "Venue has screens" }, actorName: "Tess Support", occurredAt: "2099-06-21T02:00:00.000Z" },
@@ -131,8 +134,30 @@ describe("EventEquipmentPage (equipment arrangements)", () => {
     expect(tv).toHaveTextContent("Not reserved yet");
 
     const released = screen.getByRole("heading", { name: "Released reservations" }).closest("section")!;
+    expect(within(released).getByText("TV / display monitor × 2")).toHaveClass("line-through");
     await user.click(within(released).getByText("History (2)"));
     expect(within(released).getByText(/Released 2: Venue has screens/)).toBeInTheDocument();
+  });
+
+  // SPM-46 AC06: released because the event was completed, not cancelled.
+  it("labels a reservation released on completion and keeps its details", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...(await loadEventDetailMock()), status: "completed" });
+    listEquipmentArrangementsMock.mockResolvedValue([
+      arrangement({
+        status: "released",
+        releasedAt: "2099-07-01T08:00:00.000Z",
+        releaseReason: "The event was completed",
+      }),
+    ]);
+    renderPage();
+
+    const released = (await screen.findByRole("heading", { name: "Released reservations" })).closest("section")!;
+    const name = within(released).getByText("Projector × 3");
+    expect(name).not.toHaveClass("line-through");
+    const item = name.closest("li")!;
+    expect(item).toHaveTextContent("Released – event completed");
+    expect(item).toHaveTextContent(/Reserved for .* by Tess Support/);
+    expect(item).not.toHaveTextContent(/Cancelled/);
   });
 
   it("links back to the event and keeps the planning sidebar", async () => {

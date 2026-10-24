@@ -23,8 +23,22 @@ export type EquipmentArrangement = {
   needsRecheck: boolean;
   recheckReason: string | null;
   releasedAt: string | null;
+  /** Why it was released, e.g. "The event was completed" (SPM-46 AC06). */
+  releaseReason: string | null;
   history: EquipmentReservationHistoryEntry[];
 };
+
+/** The reason release_reservations_on_event_end (202610150002) records. */
+export const EVENT_COMPLETED_RELEASE_REASON = "The event was completed";
+
+function releaseReasonOf(history: EquipmentReservationHistoryEntry[]): string | null {
+  const release = history.findLast((entry) => entry.action === "released");
+  const details = release?.details;
+  if (details && typeof details === "object" && "reason" in details && typeof details.reason === "string") {
+    return details.reason;
+  }
+  return null;
+}
 
 /**
  * The event's equipment reservations made by Technical Support Staff, with
@@ -66,20 +80,8 @@ export async function listEquipmentArrangements(eventId: string): Promise<Equipm
 
   if (error) throw new Error("The equipment arrangements for this event are unavailable.");
 
-  return data.map((row) => ({
-    id: row.id,
-    requirementId: row.requirement_id,
-    equipmentName: row.equipment_item?.name ?? "Equipment",
-    quantity: row.quantity,
-    startsAt: row.starts_at,
-    endsAt: row.ends_at,
-    status: row.status === "approved" ? "reserved" : "released",
-    reservedByName: row.reserved_by?.full_name ?? null,
-    reservedAt: row.decided_at,
-    needsRecheck: row.needs_recheck,
-    recheckReason: row.recheck_reason,
-    releasedAt: row.released_at,
-    history: row.history
+  return data.map((row): EquipmentArrangement => {
+    const history = row.history
       .flatMap((entry) =>
         isEquipmentReservationAction(entry.action)
           ? [
@@ -93,6 +95,23 @@ export async function listEquipmentArrangements(eventId: string): Promise<Equipm
             ]
           : [],
       )
-      .sort((left, right) => left.id - right.id),
-  }));
+      .sort((left, right) => left.id - right.id);
+
+    return {
+      id: row.id,
+      requirementId: row.requirement_id,
+      equipmentName: row.equipment_item?.name ?? "Equipment",
+      quantity: row.quantity,
+      startsAt: row.starts_at,
+      endsAt: row.ends_at,
+      status: row.status === "approved" ? "reserved" : "released",
+      reservedByName: row.reserved_by?.full_name ?? null,
+      reservedAt: row.decided_at,
+      needsRecheck: row.needs_recheck,
+      recheckReason: row.recheck_reason,
+      releasedAt: row.released_at,
+      releaseReason: releaseReasonOf(history),
+      history,
+    };
+  });
 }

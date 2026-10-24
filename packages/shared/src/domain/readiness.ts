@@ -111,13 +111,19 @@ export function deriveEquipmentArrangementOverallStatus(input: {
   return input.allReservedInFull ? "complete" : "pending";
 }
 
-/** AC04: always derived, never a stored flag. */
+/**
+ * AC04: always derived, never a stored flag. Configure Event Registration
+ * AC07: registration the event requires must also be complete and within
+ * the main venue's capacity (omitted = nothing outstanding).
+ */
 export function isEventReady(input: {
   venueArrangementStatus: ReadinessStatus;
   equipmentArrangementStatus: EquipmentArrangementOverallStatus;
+  registrationReady?: boolean;
 }): boolean {
   return (
     input.venueArrangementStatus === "complete" &&
-    (input.equipmentArrangementStatus === "complete" || input.equipmentArrangementStatus === "not_required")
+    (input.equipmentArrangementStatus === "complete" || input.equipmentArrangementStatus === "not_required") &&
+    input.registrationReady !== false
   );
 }

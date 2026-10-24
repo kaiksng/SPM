@@ -53,7 +53,7 @@ function renderPanel(replacing?: { bookingId: string; venueId: string }) {
     organiserName: null, assignedCoordinatorId: "coordinator-1",
     assignedCoordinatorName: null,
     venue: { preferredLocation: "", minimumCapacity: 30, accessibilityNotes: "", layoutNotes: "", facilities: [] },
-    equipment: [], registration: { required: false, opensAt: null, closesAt: null, capacity: null, waitlistEnabled: false },
+    equipment: [], registration: { required: false, opensAt: null, closesAt: null, capacity: null, waitlistEnabled: false, withdrawalPermitted: false },
   };
   return render(
     <MemoryRouter>

@@ -1,0 +1,455 @@
+-- SPM-39: Review and implement an event change request.
+--
+-- apply_event_change_request is the implementation step after approval
+-- (AC07). The assigned coordinator enters the event's new details; this
+-- saves them even where update_event_as_coordinator (202610050004) locks
+-- them once Planning, then compares old and new values to decide what the
+-- change affects:
+--
+--   AC01 date/time      -> every active venue booking and every equipment
+--                          requirement (and its reservation)
+--        attendance     -> every active venue booking
+--        venue reqs     -> every active venue booking (layout included)
+--        equipment      -> the added/changed requirements, plus any
+--                          reservation whose requirement was changed or removed
+--        registration   -> nothing flagged
+--   AC02 Venue Staff, Technical Support Staff and (on a safety return)
+--        Safety Officers are notified.
+--   AC08 a date/time change re-checks each booking's venue over the new
+--        event window, setup and turnaround included
+--        (check_venue_booking_availability), and names any conflict in the
+--        flag's reason.
+--   AC10 a Confirmed or Pending Safety Check event returns to Planning when
+--        attendance, date/time, venue requirements or equipment changed;
+--        submit_event_for_safety_check then starts a new review round.
+--   AC11 nothing is cancelled, released or replaced: venue bookings keep
+--        their own periods and status; reservations are only marked
+--        needs_recheck for Technical Support Staff to act on.
+--
+-- AC09 needs no change: event_readiness already treats a needs_review
+-- booking or requirement as Needs Review, which blocks Ready to Confirm.
+--
+-- Called through the backend's service client (notifications have no
+-- client insert policy), so auth.uid() is null inside PB-07's audit
+-- triggers. Their rows are stamped with the actor afterwards, the same way
+-- decide_event_safety_check stamps event_status_history.
+create function public.apply_event_change_request(
+  p_change_request_id uuid,
+  p_updates jsonb,
+  p_actor_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor_id uuid;
+  request_row public.event_change_requests;
+  event_row public.events;
+  old_venue public.event_venue_requirements;
+  new_venue public.event_venue_requirements;
+  old_registration public.event_registration_requirements;
+  new_registration public.event_registration_requirements;
+  old_facilities text[];
+  new_facilities text[];
+  prior_reservation_ids uuid[];
+  prior_requirements jsonb;
+  title_value text := trim(coalesce(p_updates ->> 'title', ''));
+  purpose_value text := nullif(trim(p_updates ->> 'purpose'), '');
+  description_value text := nullif(trim(p_updates ->> 'description'), '');
+  event_type_value text := nullif(trim(p_updates ->> 'eventType'), '');
+  attendance_text text := nullif(trim(p_updates ->> 'expectedAttendance'), '');
+  minimum_capacity_text text := nullif(trim(p_updates #>> '{venue,minimumCapacity}'), '');
+  registration_capacity_text text := nullif(trim(p_updates #>> '{registration,capacity}'), '');
+  starts_at_value timestamptz;
+  ends_at_value timestamptz;
+  registration_opens_value timestamptz;
+  registration_closes_value timestamptz;
+  time_changed boolean;
+  attendance_changed boolean;
+  venue_changed boolean;
+  equipment_changed boolean;
+  registration_changed boolean;
+  returned_to_planning boolean := false;
+  changed_parts text[] := array[]::text[];
+  base_reason text;
+  booking_reason text;
+  availability jsonb;
+  b record;
+  flagged_booking_ids uuid[] := array[]::uuid[];
+  flagged_requirement_ids uuid[] := array[]::uuid[];
+  orphaned_reservation_count integer;
+begin
+  if auth.uid() is not null then
+    if p_actor_id is not null and p_actor_id <> auth.uid() then
+      raise exception 'You cannot apply a change request on behalf of another user'
+        using errcode = 'insufficient_privilege';
+    end if;
+    actor_id := auth.uid();
+  else
+    actor_id := p_actor_id;
+  end if;
+
+  if actor_id is null then
+    raise exception 'You must sign in to apply a change request'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  select * into request_row from public.event_change_requests where id = p_change_request_id for update;
+
+  if not found then
+    raise exception 'Change request not found'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  select * into event_row from public.events where id = request_row.event_id for update;
+
+  -- AC07: applying is the assigned coordinator's job only — a Lead who
+  -- approved on an unassigned event assigns a coordinator first (AC03).
+  if event_row.assigned_coordinator_id is distinct from actor_id then
+    raise exception 'Only the assigned coordinator can apply this change request'
+      using errcode = 'insufficient_privilege';
+  end if;
+
+  if request_row.status <> 'approved' then
+    raise exception 'Only an Approved change request can be applied'
+      using errcode = 'check_violation';
+  end if;
+
+  if event_row.status not in ('requested', 'planning', 'confirmed', 'pending_safety_check') then
+    raise exception 'Changes can only be applied to a Requested, Planning, Confirmed or Pending Safety Check event'
+      using errcode = 'check_violation';
+  end if;
+
+  -- Same field rules as update_event_as_coordinator, without its Planning locks.
+  if char_length(title_value) < 3 or char_length(title_value) > 160 then
+    raise exception 'Event name must contain between 3 and 160 characters'
+      using errcode = 'check_violation';
+  end if;
+
+  if attendance_text is not null and attendance_text !~ '^[1-9][0-9]*$' then
+    raise exception 'Expected attendance must be a positive whole number'
+      using errcode = 'check_violation';
+  end if;
+
+  if minimum_capacity_text is not null and minimum_capacity_text !~ '^[1-9][0-9]*$' then
+    raise exception 'Minimum capacity must be a positive whole number'
+      using errcode = 'check_violation';
+  end if;
+
+  if registration_capacity_text is not null and registration_capacity_text !~ '^[1-9][0-9]*$' then
+    raise exception 'Registration capacity must be a positive whole number'
+      using errcode = 'check_violation';
+  end if;
+
+  starts_at_value := nullif(p_updates ->> 'startsAt', '')::timestamptz;
+  ends_at_value := nullif(p_updates ->> 'endsAt', '')::timestamptz;
+  registration_opens_value := nullif(p_updates #>> '{registration,opensAt}', '')::timestamptz;
+  registration_closes_value := nullif(p_updates #>> '{registration,closesAt}', '')::timestamptz;
+
+  if starts_at_value is null or ends_at_value is null then
+    raise exception 'Enter the event start and end time'
+      using errcode = 'check_violation';
+  end if;
+
+  if ends_at_value <= starts_at_value then
+    raise exception 'End time must be after the start time'
+      using errcode = 'check_violation';
+  end if;
+
+  if starts_at_value is distinct from event_row.starts_at and starts_at_value <= now() then
+    raise exception 'The new start time must be in the future'
+      using errcode = 'check_violation';
+  end if;
+
+  if registration_opens_value is not null
+    and registration_closes_value is not null
+    and registration_closes_value <= registration_opens_value
+  then
+    raise exception 'Registration closing time must be after its opening time'
+      using errcode = 'check_violation';
+  end if;
+
+  if coalesce(jsonb_typeof(p_updates #> '{venue,facilities}'), 'null') not in ('array', 'null') then
+    raise exception 'Facilities must be a list'
+      using errcode = 'check_violation';
+  end if;
+
+  -- Snapshot what the event looks like before the change.
+  select * into old_venue from public.event_venue_requirements where event_id = event_row.id;
+  select * into old_registration from public.event_registration_requirements where event_id = event_row.id;
+  select coalesce(array_agg(facility_name order by facility_name), array[]::text[]) into old_facilities
+  from public.event_required_facilities where event_id = event_row.id;
+  select coalesce(array_agg(id), array[]::uuid[]) into prior_reservation_ids
+  from public.equipment_reservations
+  where event_id = event_row.id and status in ('pending', 'approved') and requirement_id is not null;
+  select coalesce(jsonb_object_agg(
+    id::text, jsonb_build_array(equipment_item_id, quantity, required_from, required_until, notes)
+  ), '{}'::jsonb) into prior_requirements
+  from public.event_equipment_requirements where event_id = event_row.id;
+
+  update public.events
+  set
+    title = title_value,
+    purpose = purpose_value,
+    description = description_value,
+    event_type = event_type_value,
+    expected_attendance = attendance_text::integer,
+    starts_at = starts_at_value,
+    ends_at = ends_at_value
+  where id = event_row.id;
+
+  insert into public.event_venue_requirements (
+    event_id, preferred_location, minimum_capacity, accessibility_notes, layout_notes
+  )
+  values (
+    event_row.id,
+    nullif(trim(p_updates #>> '{venue,preferredLocation}'), ''),
+    minimum_capacity_text::integer,
+    nullif(trim(p_updates #>> '{venue,accessibilityNotes}'), ''),
+    nullif(trim(p_updates #>> '{venue,layoutNotes}'), '')
+  )
+  on conflict (event_id) do update
+  set
+    preferred_location = excluded.preferred_location,
+    minimum_capacity = excluded.minimum_capacity,
+    accessibility_notes = excluded.accessibility_notes,
+    layout_notes = excluded.layout_notes
+  returning * into new_venue;
+
+  delete from public.event_required_facilities where event_id = event_row.id;
+
+  insert into public.event_required_facilities (event_id, facility_name)
+  select distinct event_row.id, trim(value)
+  from jsonb_array_elements_text(coalesce(p_updates #> '{venue,facilities}', '[]'::jsonb))
+  where trim(value) <> '';
+
+  select coalesce(array_agg(facility_name order by facility_name), array[]::text[]) into new_facilities
+  from public.event_required_facilities where event_id = event_row.id;
+
+  equipment_changed := public.save_event_equipment_requirements(event_row.id, p_updates -> 'equipment') > 0;
+
+  insert into public.event_registration_requirements (
+    event_id, registration_required, registration_opens_at, registration_closes_at,
+    attendee_capacity, waitlist_enabled
+  )
+  values (
+    event_row.id,
+    coalesce((p_updates #>> '{registration,required}')::boolean, false),
+    registration_opens_value,
+    registration_closes_value,
+    registration_capacity_text::integer,
+    coalesce((p_updates #>> '{registration,waitlistEnabled}')::boolean, false)
+  )
+  on conflict (event_id) do update
+  set
+    registration_required = excluded.registration_required,
+    registration_opens_at = excluded.registration_opens_at,
+    registration_closes_at = excluded.registration_closes_at,
+    attendee_capacity = excluded.attendee_capacity,
+    waitlist_enabled = excluded.waitlist_enabled
+  returning * into new_registration;
+
+  -- AC01: what did the change actually touch?
+  time_changed := starts_at_value is distinct from event_row.starts_at
+    or ends_at_value is distinct from event_row.ends_at;
+  attendance_changed := attendance_text::integer is distinct from event_row.expected_attendance;
+  venue_changed := new_venue.preferred_location is distinct from old_venue.preferred_location
+    or new_venue.minimum_capacity is distinct from old_venue.minimum_capacity
+    or new_venue.accessibility_notes is distinct from old_venue.accessibility_notes
+    or new_venue.layout_notes is distinct from old_venue.layout_notes
+    or new_facilities is distinct from old_facilities;
+  registration_changed := new_registration.registration_required is distinct from old_registration.registration_required
+    or new_registration.registration_opens_at is distinct from old_registration.registration_opens_at
+    or new_registration.registration_closes_at is distinct from old_registration.registration_closes_at
+    or new_registration.attendee_capacity is distinct from old_registration.attendee_capacity
+    or new_registration.waitlist_enabled is distinct from old_registration.waitlist_enabled;
+
+  if time_changed then changed_parts := changed_parts || 'the event time'::text; end if;
+  if attendance_changed then changed_parts := changed_parts || 'the expected attendance'::text; end if;
+  if venue_changed then changed_parts := changed_parts || 'the venue requirements'::text; end if;
+
+  -- AC01/AC08/AC11: flag every active booking; never touch its period or status.
+  if time_changed or attendance_changed or venue_changed then
+    base_reason := 'An approved change request changed ' || array_to_string(changed_parts, ', ') || '.';
+
+    for b in
+      select vb.id, vb.venue_id, vb.starts_at, vb.ends_at, vb.needs_review, vb.needs_review_reason
+      from public.venue_bookings vb
+      where vb.event_id = event_row.id and vb.status in ('pending', 'approved', 'on_hold')
+    loop
+      booking_reason := base_reason;
+
+      if time_changed then
+        if b.starts_at < starts_at_value or b.ends_at > ends_at_value then
+          booking_reason := booking_reason || ' This booking''s period no longer falls within the event''s new time.';
+        end if;
+
+        availability := public.check_venue_booking_availability(b.venue_id, event_row.id, null, null, b.id);
+        if not (availability ->> 'available')::boolean then
+          booking_reason := 'Conflict – ' || (availability ->> 'reason') || ' ' || booking_reason;
+        end if;
+      end if;
+
+      update public.venue_bookings
+      set needs_review = true,
+          needs_review_reason = case
+            when b.needs_review and b.needs_review_reason is not null
+              then b.needs_review_reason || ' ' || booking_reason
+            else booking_reason
+          end
+      where id = b.id;
+
+      flagged_booking_ids := flagged_booking_ids || b.id;
+
+      insert into public.notifications (recipient_id, event_id, booking_id, type, title, message)
+      select
+        p.id,
+        event_row.id,
+        b.id,
+        'venue_change_review'::public.notification_type,
+        'Venue booking needs review',
+        'A booking for "' || title_value || '" needs review: ' || booking_reason
+      from public.profiles p
+      where p.role = 'venue_staff'::public.user_role;
+    end loop;
+  end if;
+
+  -- AC01: a time change affects every requirement; an equipment change
+  -- affects only the ones it added or changed.
+  if time_changed then
+    select coalesce(array_agg(id), array[]::uuid[]) into flagged_requirement_ids
+    from public.event_equipment_requirements where event_id = event_row.id;
+  elsif equipment_changed then
+    select coalesce(array_agg(r.id), array[]::uuid[]) into flagged_requirement_ids
+    from public.event_equipment_requirements r
+    where r.event_id = event_row.id
+      and (prior_requirements -> r.id::text) is distinct from
+        jsonb_build_array(r.equipment_item_id, r.quantity, r.required_from, r.required_until, r.notes);
+  end if;
+
+  if array_length(flagged_requirement_ids, 1) is not null then
+    update public.event_equipment_requirements
+    set needs_review = true,
+        needs_review_reason = case when time_changed
+          then 'An approved change request changed the event time. Review this equipment.'
+          else 'An approved change request changed this equipment requirement.'
+        end
+    where id = any (flagged_requirement_ids);
+
+    update public.equipment_reservations
+    set needs_recheck = true,
+        recheck_reason = 'An approved change request changed this requirement. Check the reservation still fits.'
+    where requirement_id = any (flagged_requirement_ids) and status in ('pending', 'approved');
+  end if;
+
+  -- AC11: a reservation whose requirement was removed is kept (its
+  -- requirement_id is set null by the foreign key), only marked for recheck.
+  update public.equipment_reservations
+  set needs_recheck = true,
+      recheck_reason = 'An approved change request removed the equipment requirement this reservation was for.'
+  where id = any (prior_reservation_ids) and requirement_id is null;
+
+  get diagnostics orphaned_reservation_count = row_count;
+
+  if array_length(flagged_requirement_ids, 1) is not null or orphaned_reservation_count > 0 then
+    insert into public.notifications (recipient_id, event_id, type, title, message)
+    select
+      p.id,
+      event_row.id,
+      'equipment_change_review'::public.notification_type,
+      'Equipment needs review',
+      'An approved change request for "' || title_value || '" changed its equipment arrangements. Review them.'
+    from public.profiles p
+    where p.role = 'technical_support_staff'::public.user_role;
+  end if;
+
+  -- AC10: a safety-relevant change sends the event back for a new review.
+  if event_row.status in ('confirmed', 'pending_safety_check')
+    and (time_changed or attendance_changed or venue_changed or equipment_changed)
+  then
+    update public.events set status = 'planning' where id = event_row.id;
+
+    update public.event_status_history
+    set changed_by = actor_id, reason = 'An approved change request was applied'
+    where event_id = event_row.id
+      and to_status = 'planning'
+      and changed_by is null
+      and changed_at = now();
+
+    returned_to_planning := true;
+
+    insert into public.notifications (recipient_id, event_id, type, title, message)
+    select
+      p.id,
+      event_row.id,
+      'safety_review_reset'::public.notification_type,
+      'Event returned for a new safety review',
+      '"' || title_value || '" was returned to Planning after an approved change. It needs a new safety review once resubmitted.'
+    from public.profiles p
+    where p.role = 'safety_officer'::public.user_role;
+  end if;
+
+  -- PB-07 history names who made each change.
+  update public.event_field_changes
+  set changed_by = actor_id
+  where event_id = event_row.id and changed_by is null and changed_at = now();
+
+  update public.event_equipment_changes
+  set changed_by = actor_id
+  where event_id = event_row.id and changed_by is null and changed_at = now();
+
+  update public.event_change_requests
+  set status = 'implemented', implemented_by = actor_id, implemented_at = now()
+  where id = p_change_request_id;
+
+  return jsonb_build_object(
+    'id', p_change_request_id,
+    'status', 'implemented',
+    'eventStatus', case when returned_to_planning then 'planning' else event_row.status::text end,
+    'returnedToPlanning', returned_to_planning,
+    'flaggedBookingIds', to_jsonb(flagged_booking_ids),
+    'flaggedRequirementIds', to_jsonb(flagged_requirement_ids),
+    'registrationChanged', registration_changed
+  );
+end;
+$$;
+
+revoke all on function public.apply_event_change_request(uuid, jsonb, uuid) from public, anon;
+grant execute on function public.apply_event_change_request(uuid, jsonb, uuid) to authenticated, service_role;
+
+-- AC03: when a coordinator is assigned (first assignment, reassignment or
+-- auto-reassignment), tell them about any change request waiting on the
+-- event. A trigger covers every assignment path without touching
+-- reassign_event_coordinator or auto_reassign_event_coordinator.
+create function public.notify_coordinator_of_waiting_change_requests()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  insert into public.notifications (recipient_id, event_id, type, title, message)
+  select
+    new.assigned_coordinator_id,
+    new.id,
+    'event_change'::public.notification_type,
+    'Change request waiting for you',
+    case when r.status = 'pending'
+      then 'A change request for "' || new.title || '" is waiting for your review.'
+      else 'An approved change request for "' || new.title || '" is waiting for you to apply it.'
+    end
+  from public.event_change_requests r
+  where r.event_id = new.id and r.status in ('pending', 'approved');
+
+  return new;
+end;
+$$;
+
+create trigger events_notify_waiting_change_requests
+after update of assigned_coordinator_id on public.events
+for each row
+when (new.assigned_coordinator_id is not null
+  and new.assigned_coordinator_id is distinct from old.assigned_coordinator_id)
+execute function public.notify_coordinator_of_waiting_change_requests();

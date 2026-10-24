@@ -546,6 +546,9 @@ export type Database = {
         Row: {
           event_id: string
           id: string
+          implemented_at: string | null
+          implemented_by: string | null
+          reason: string
           requested_at: string
           requested_by: string
           requested_changes: Json
@@ -553,10 +556,14 @@ export type Database = {
           reviewed_at: string | null
           reviewed_by: string | null
           status: string
+          withdrawn_at: string | null
         }
         Insert: {
           event_id: string
           id?: string
+          implemented_at?: string | null
+          implemented_by?: string | null
+          reason: string
           requested_at?: string
           requested_by: string
           requested_changes: Json
@@ -564,10 +571,14 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          withdrawn_at?: string | null
         }
         Update: {
           event_id?: string
           id?: string
+          implemented_at?: string | null
+          implemented_by?: string | null
+          reason?: string
           requested_at?: string
           requested_by?: string
           requested_changes?: Json
@@ -575,6 +586,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          withdrawn_at?: string | null
         }
         Relationships: [
           {
@@ -582,6 +594,13 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_change_requests_implemented_by_fkey"
+            columns: ["implemented_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -859,6 +878,7 @@ export type Database = {
           registration_opens_at: string | null
           registration_required: boolean
           waitlist_enabled: boolean
+          withdrawal_permitted: boolean
         }
         Insert: {
           attendee_capacity?: number | null
@@ -867,6 +887,7 @@ export type Database = {
           registration_opens_at?: string | null
           registration_required?: boolean
           waitlist_enabled?: boolean
+          withdrawal_permitted?: boolean
         }
         Update: {
           attendee_capacity?: number | null
@@ -875,6 +896,7 @@ export type Database = {
           registration_opens_at?: string | null
           registration_required?: boolean
           waitlist_enabled?: boolean
+          withdrawal_permitted?: boolean
         }
         Relationships: [
           {
@@ -1825,6 +1847,14 @@ export type Database = {
         Args: { p_count: number; p_item_id: string }
         Returns: number
       }
+      apply_event_change_request: {
+        Args: {
+          p_actor_id?: string
+          p_change_request_id: string
+          p_updates: Json
+        }
+        Returns: Json
+      }
       assert_technical_support_staff: { Args: never; Returns: undefined }
       can_view_event:
         | { Args: { target_event_id: string }; Returns: boolean }
@@ -1894,6 +1924,24 @@ export type Database = {
         Returns: number
       }
       complete_event: { Args: { p_event_id: string }; Returns: Json }
+      configure_event_registration: {
+        Args: { p_event_id: string; p_settings: Json }
+        Returns: {
+          attendee_capacity: number | null
+          event_id: string
+          registration_closes_at: string | null
+          registration_opens_at: string | null
+          registration_required: boolean
+          waitlist_enabled: boolean
+          withdrawal_permitted: boolean
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_registration_requirements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       confirm_venue_booking_hold: {
         Args: { p_actor_id?: string; p_booking_id: string }
         Returns: Json
@@ -1924,6 +1972,15 @@ export type Database = {
       current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      decide_event_change_request: {
+        Args: {
+          p_actor_id?: string
+          p_change_request_id: string
+          p_decision: Database["public"]["Enums"]["event_decision_type"]
+          p_review_notes?: string
+        }
+        Returns: Json
       }
       decide_event_request: {
         Args: {
@@ -1971,6 +2028,10 @@ export type Database = {
           peak_unavailable: number
         }[]
       }
+      event_completion_available_at: {
+        Args: { p_event_id: string }
+        Returns: string
+      }
       event_equipment_snapshot: {
         Args: {
           requirement: Database["public"]["Tables"]["event_equipment_requirements"]["Row"]
@@ -1980,6 +2041,10 @@ export type Database = {
       event_has_unresolved_clarification: {
         Args: { p_event_id: string }
         Returns: boolean
+      }
+      event_main_venue_capacity: {
+        Args: { p_event_id: string }
+        Returns: number
       }
       event_planning_allowed: { Args: { p_event_id: string }; Returns: boolean }
       event_readiness: {
@@ -2023,6 +2088,27 @@ export type Database = {
         Returns: undefined
       }
       format_sg_time: { Args: { p_at: string }; Returns: string }
+      join_event_waitlist: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: {
+          attendee_id: string
+          event_id: string
+          id: string
+          registered_at: string
+          status: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_registrations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      leave_event_waitlist: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: undefined
+      }
       list_auto_event_coordinator_reassignments: {
         Args: { p_event_id: string }
         Returns: {
@@ -2103,6 +2189,23 @@ export type Database = {
           p_unit_ids?: string[]
         }
         Returns: string
+      }
+      register_for_event: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: {
+          attendee_id: string
+          event_id: string
+          id: string
+          registered_at: string
+          status: string
+          withdrawn_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_registrations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       release_equipment_reservation: {
         Args: { p_reason?: string; p_reservation_id: string }
@@ -2207,6 +2310,15 @@ export type Database = {
         Args: { p_actor_id?: string; p_booking_id: string }
         Returns: string
       }
+      submit_event_change_request: {
+        Args: {
+          p_actor_id?: string
+          p_event_id: string
+          p_reason: string
+          p_requested_changes: Json
+        }
+        Returns: Json
+      }
       submit_event_for_safety_check: {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json
@@ -2285,6 +2397,14 @@ export type Database = {
         Args: { p_address: string; p_requested: string; p_tags: string[] }
         Returns: boolean
       }
+      withdraw_event_change_request: {
+        Args: { p_actor_id?: string; p_change_request_id: string }
+        Returns: string
+      }
+      withdraw_registration: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: undefined
+      }
       withdraw_venue_booking_request: {
         Args: { p_actor_id?: string; p_booking_id: string; p_reason?: string }
         Returns: string
@@ -2333,6 +2453,9 @@ export type Database = {
         | "venue_disruption_cleared"
         | "safety_check_requested"
         | "safety_check_decision"
+        | "venue_change_review"
+        | "equipment_change_review"
+        | "safety_review_reset"
       request_status:
         | "pending"
         | "approved"
@@ -2537,6 +2660,9 @@ export const Constants = {
         "venue_disruption_cleared",
         "safety_check_requested",
         "safety_check_decision",
+        "venue_change_review",
+        "equipment_change_review",
+        "safety_review_reset",
       ],
       request_status: [
         "pending",

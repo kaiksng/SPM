@@ -11,6 +11,10 @@ import {
   listClarifications,
   type ClarificationSummary,
 } from "@/features/event-requests/services/clarifications";
+import {
+  listEventChangeRequests,
+  type EventChangeRequestSummary,
+} from "@/features/event-requests/services/change-requests";
 import { listEventDecisions } from "@/features/event-requests/services/decisions";
 import {
   loadEventDetail,
@@ -34,6 +38,10 @@ import {
   loadEventFieldHistory,
   type EventFieldChange,
 } from "@/features/event-requests/services/field-history";
+import {
+  changeRequestStatusLabel,
+  describeRequestedChanges,
+} from "@/features/event-requests/utils/format-change-request";
 import { formatEventFieldChangeValue } from "@/features/event-requests/utils/format-field-change-value";
 import {
   listSafetyCheckDecisions,
@@ -68,6 +76,7 @@ export function EventHistoryPage() {
   const { eventId } = useParams();
   const { profile, user } = useAuth();
   const [clarifications, setClarifications] = useState<ClarificationSummary[]>([]);
+  const [changeRequests, setChangeRequests] = useState<EventChangeRequestSummary[]>([]);
   const [fieldChanges, setFieldChanges] = useState<EventFieldChange[]>([]);
   const [equipmentChanges, setEquipmentChanges] = useState<EquipmentChange[]>([]);
   const [statusHistory, setStatusHistory] = useState<EventStatusChange[]>([]);
@@ -132,6 +141,7 @@ export function EventHistoryPage() {
       listClarifications(eventId).catch(() => [] as ClarificationSummary[]),
       loadEventFieldHistory(eventId).catch(() => [] as EventFieldChange[]),
       listEventDecisions(eventId).catch(() => []),
+      listEventChangeRequests(eventId).catch(() => [] as EventChangeRequestSummary[]),
       listEventStatusHistory(eventId).catch(() => [] as EventStatusChange[]),
       listEventCoordinatorReassignments(eventId).catch(
         () => [] as EventCoordinatorReassignment[],
@@ -151,6 +161,7 @@ export function EventHistoryPage() {
           clarificationRows,
           fieldChangeRows,
           decisions,
+          changeRequestRows,
           statusRows,
           reassignmentRows,
           equipmentRows,
@@ -162,6 +173,7 @@ export function EventHistoryPage() {
           if (!active) return;
           setEvent(eventDetail);
           setClarifications(clarificationRows);
+          setChangeRequests(changeRequestRows);
           setFieldChanges(fieldChangeRows);
           setEquipmentChanges(equipmentRows);
           setApprovedAt(decisions.find((d) => d.decision === "approved")?.decidedAt);
@@ -350,6 +362,18 @@ export function EventHistoryPage() {
                 </HistorySection>
               )}
 
+              <HistorySection title="Change requests">
+                {changeRequests.length === 0 ? (
+                  <p className="text-sm text-slate-500">No change requests have been submitted.</p>
+                ) : (
+                  <ol className="space-y-3">
+                    {changeRequests.map((request) => (
+                      <ChangeRequestItem key={request.id} request={request} />
+                    ))}
+                  </ol>
+                )}
+              </HistorySection>
+
               </HistoryGroup>
 
               <HistoryGroup group="venue" filter={filter}>
@@ -501,6 +525,36 @@ function FieldChangeItem({ change }: { change: EventFieldChange }) {
         <span className="text-slate-800">
           {formatEventFieldChangeValue(change.fieldName, change.newValue)}
         </span>
+      </p>
+    </li>
+  );
+}
+
+const CHANGE_REQUEST_STATUS_CLASSES: Record<EventChangeRequestSummary["status"], string> = {
+  pending: "text-slate-600",
+  approved: "text-emerald-700",
+  rejected: "text-red-700",
+  withdrawn: "text-slate-500",
+  implemented: "text-emerald-700",
+};
+
+function ChangeRequestItem({ request }: { request: EventChangeRequestSummary }) {
+  return (
+    <li className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span className="font-medium text-slate-800">
+          {describeRequestedChanges(request.requestedChanges)}
+        </span>
+        <span className={`text-xs font-semibold ${CHANGE_REQUEST_STATUS_CLASSES[request.status]}`}>
+          {changeRequestStatusLabel(request.status)}
+        </span>
+      </div>
+      <p className="mt-1 text-slate-600">Reason: {request.reason}</p>
+      {request.reviewNotes && <p className="mt-1 text-slate-600">Notes: {request.reviewNotes}</p>}
+      <p className="mt-1 text-xs text-slate-500">
+        Requested {dateFormatter.format(new Date(request.requestedAt))}
+        {request.reviewedAt && ` · Reviewed ${dateFormatter.format(new Date(request.reviewedAt))}`}
+        {request.withdrawnAt && ` · Withdrawn ${dateFormatter.format(new Date(request.withdrawnAt))}`}
       </p>
     </li>
   );

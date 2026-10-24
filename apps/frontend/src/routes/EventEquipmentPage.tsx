@@ -15,6 +15,7 @@ import { loadEquipmentArrangementStatuses } from "@/features/equipment/services/
 import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
 import {
+  EVENT_COMPLETED_RELEASE_REASON,
   listEquipmentArrangements,
   type EquipmentArrangement,
 } from "@/features/event-requests/services/equipment-arrangements";
@@ -181,17 +182,28 @@ export function EventEquipmentPage() {
                       Released reservations
                     </h2>
                     <ul className="mt-4 space-y-3">
-                      {released.map((reservation) => (
-                        <li key={reservation.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 text-sm">
-                          <p className="font-medium text-slate-500 line-through">
-                            {reservation.equipmentName} × {reservation.quantity}
-                          </p>
-                          <p className="mt-1 text-slate-500">
-                            Released {reservation.releasedAt ? dateTimeFormatter.format(new Date(reservation.releasedAt)) : ""}
-                          </p>
-                          <ReservationHistory reservation={reservation} />
-                        </li>
-                      ))}
+                      {released.map((reservation) => {
+                        // SPM-46 AC06: released because the event was completed is
+                        // the record of what was used, not a cancellation.
+                        const releasedOnCompletion =
+                          reservation.releaseReason === EVENT_COMPLETED_RELEASE_REASON;
+                        return (
+                          <li key={reservation.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-4 text-sm">
+                            <p className={cn("font-medium text-slate-500", !releasedOnCompletion && "line-through")}>
+                              {reservation.equipmentName} × {reservation.quantity}
+                            </p>
+                            <p className="mt-1 text-slate-600">
+                              Reserved for {formatPeriod(reservation.startsAt, reservation.endsAt)}
+                              {reservation.reservedByName ? ` by ${reservation.reservedByName}` : ""}
+                            </p>
+                            <p className="mt-1 text-slate-500">
+                              {releasedOnCompletion ? "Released – event completed" : "Released"}
+                              {reservation.releasedAt ? ` ${dateTimeFormatter.format(new Date(reservation.releasedAt))}` : ""}
+                            </p>
+                            <ReservationHistory reservation={reservation} />
+                          </li>
+                        );
+                      })}
                     </ul>
                   </section>
                 )}

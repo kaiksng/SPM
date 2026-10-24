@@ -6,11 +6,12 @@ import {
 } from "@spm/shared";
 import { CalendarDays } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { CancelEventDialog } from "@/features/event-requests/components/cancel-event-dialog";
+import { ChangeRequestPanel } from "@/features/event-requests/components/change-request-panel";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
 import { ConfirmedArrangementsSection } from "@/features/event-requests/components/confirmed-arrangements-section";
 import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
@@ -24,7 +25,11 @@ import {
   loadEventDetail,
   type EventDetail,
 } from "@/features/event-requests/services/event-details";
-import { completeEvent } from "@/features/event-requests/services/event-lifecycle";
+import {
+  completeEvent,
+  loadEventCompletionAvailableAt,
+} from "@/features/event-requests/services/event-lifecycle";
+import { RegistrationSettingsSection } from "@/features/registrations/components/registration-settings-section";
 import { loadEventReadiness } from "@/features/safety-check/services/event-readiness";
 import {
   listVenueBookingsForEvent,
@@ -55,8 +60,13 @@ function formatDateTime(value: string | null) {
  */
 export function EventDetailPage() {
   const { eventId } = useParams();
-  const navigate = useNavigate();
+  const location = useLocation();
   const { profile, user } = useAuth();
+  // A page that sends the user back here (e.g. CoordinatorEventEditPage)
+  // passes its confirmation as router state.
+  const [notice, setNotice] = useState<string | undefined>(
+    (location.state as { notice?: string } | null)?.notice,
+  );
   const [event, setEvent] = useState<EventDetail>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -66,6 +76,7 @@ export function EventDetailPage() {
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string>();
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [completionAvailableAt, setCompletionAvailableAt] = useState<string>();
   const [venueBookings, setVenueBookings] = useState<VenueBookingRequestSummary[]>();
   const [readiness, setReadiness] = useState<EventReadiness>();
 
@@ -110,9 +121,36 @@ export function EventDetailPage() {
     !!event && profile?.role === "event_coordinator" && event.assignedCoordinatorId !== user?.id;
   // SPM: an organiser sees their own Confirmed event's agreed arrangements —
   // belt-and-braces alongside can_view_event RLS, same reasoning as
-  // isUnassignedCoordinator above.
+  // isUnassignedCoordinator above. SPM-46 AC05: still there once Completed.
   const canViewConfirmedArrangements =
-    !!event && role === "organiser" && event.organiserId === user?.id && event.status === "confirmed";
+    !!event &&
+    role === "organiser" &&
+    event.organiserId === user?.id &&
+    (event.status === "confirmed" || event.status === "completed");
+  const canComplete =
+    !!event && role === "coordinator" && !isUnassignedCoordinator && event.status === "confirmed";
+  // SPM-46 AC02: until the end time plus turnaround the button stays
+  // disabled. If the time can't be loaded the button stays enabled and
+  // complete_event's own check is the fallback.
+  const completionNotYetAllowed =
+    !!completionAvailableAt && Date.now() < new Date(completionAvailableAt).getTime();
+
+  useEffect(() => {
+    if (!event || !canComplete) return;
+    let active = true;
+    loadEventCompletionAvailableAt(event.id)
+      .then((availableAt) => {
+        if (active) setCompletionAvailableAt(availableAt);
+      })
+      .catch(() => {
+        // Left undefined: see completionNotYetAllowed.
+      });
+
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the event's id, as the arrangements fetch below.
+  }, [event?.id, canComplete]);
 
   useEffect(() => {
     if (!event || !canViewConfirmedArrangements) return;
@@ -195,6 +233,14 @@ export function EventDetailPage() {
                 </div>
               )}
               <div className="min-w-0 flex-1">
+                {notice && (
+                  <p
+                    role="status"
+                    className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+                  >
+                    {notice}
+                  </p>
+                )}
                 <div className="flex flex-wrap items-center gap-2">
                   {role === "lead" ? (
                     <StatusBadge status={event.status} />
@@ -222,8 +268,12 @@ export function EventDetailPage() {
                       Edit event
                     </Link>
                   )}
-                  {role === "coordinator" && event.status === "confirmed" && (
-                    <Button size="sm" disabled={completing} onClick={handleComplete}>
+                  {canComplete && (
+                    <Button
+                      size="sm"
+                      disabled={completing || completionNotYetAllowed}
+                      onClick={handleComplete}
+                    >
                       {completing ? "Marking completed…" : "Mark as completed"}
                     </Button>
                   )}
@@ -237,6 +287,11 @@ export function EventDetailPage() {
                     </Button>
                   )}
                 </div>
+                {canComplete && completionNotYetAllowed && completionAvailableAt && (
+                  <p className="mt-2 text-sm text-slate-500">
+                    Can be completed from {formatDateTime(completionAvailableAt)}
+                  </p>
+                )}
                 {completeError && (
                   <p role="alert" className="mt-2 text-sm text-red-700">
                     {completeError}
@@ -314,27 +369,13 @@ export function EventDetailPage() {
                   onSaved={(venue) => setEvent({ ...event, venue })}
                 />
 
-                <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
-                  <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
-                    Registration
-                  </h2>
-                  {event.registration.required ? (
-                    <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-                      <Field label="Opens" value={formatDateTime(event.registration.opensAt)} />
-                      <Field label="Closes" value={formatDateTime(event.registration.closesAt)} />
-                      <Field
-                        label="Capacity"
-                        value={event.registration.capacity?.toString() ?? null}
-                      />
-                      <Field
-                        label="Waitlist"
-                        value={event.registration.waitlistEnabled ? "Enabled" : "Disabled"}
-                      />
-                    </dl>
-                  ) : (
-                    <p className="mt-4 text-sm text-slate-500">Registration is not required</p>
-                  )}
-                </section>
+<RegistrationSettingsSection
+                  eventId={event.id}
+                  status={event.status}
+                  registration={event.registration}
+                  isOwnOrganiser={role === "organiser" && event.organiserId === user?.id}
+                  onSaved={(registration) => setEvent({ ...event, registration })}
+                />
 
                 {canViewConfirmedArrangements && venueBookings && readiness && (
                   <ConfirmedArrangementsSection
@@ -351,17 +392,30 @@ export function EventDetailPage() {
                     role={role}
                     onReviewStateChange={setReviewState}
                     onUnresolvedChange={setUnresolvedClarification}
-                    onDecided={(decision) =>
-                      navigate("/events", {
-                        replace: true,
-                        state: {
-                          notice:
-                            decision === "approved"
-                              ? "Event approved — now in planning."
-                              : "Event rejected.",
-                        },
-                      })
-                    }
+                    onDecided={(decision) => {
+                      // Stay on the event: reload it so its new status
+                      // (Planning or Rejected) and next steps show here.
+                      setNotice(
+                        decision === "approved" ? "Event approved — now in planning." : "Event rejected.",
+                      );
+                      loadEventDetail(event.id)
+                        .then(setEvent)
+                        .catch(() => {
+                          // The decision is saved; a stale view is corrected on refresh.
+                        });
+                    }}
+                    className="mt-6 text-sm"
+                  />
+                )}
+                {/* SPM-38: unlike ClarificationPanel, a Lead sees this when
+                    the event has no assigned coordinator yet — that's the one
+                    case a Lead decides a change request directly (AC06). */}
+                {(role !== "lead" || !event.assignedCoordinatorId) && (
+                  <ChangeRequestPanel
+                    eventId={event.id}
+                    eventStatus={event.status}
+                    role={role}
+                    isEventAssigned={!!event.assignedCoordinatorId}
                     className="mt-6 text-sm"
                   />
                 )}

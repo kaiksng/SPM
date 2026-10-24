@@ -16,6 +16,7 @@ export * from "./schemas/equipment-arrangement";
 export * from "./schemas/venue-search";
 export * from "./schemas/safety-check";
 export * from "./schemas/event-cancellation";
+export * from "./schemas/registration-settings";
 
 export * from "./domain/role-destination";
 export * from "./domain/role-label";
@@ -32,6 +33,7 @@ export * from "./domain/navigation";
 export * from "./domain/operating-hours";
 export * from "./domain/venue-disruption";
 export * from "./domain/readiness";
+export * from "./domain/event-registration";
 
 export * from "./errors/map-auth-error";
 export * from "./errors/event-submission-error";

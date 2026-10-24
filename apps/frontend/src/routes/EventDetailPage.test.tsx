@@ -9,10 +9,12 @@ vi.mock("@/features/venues/hooks/use-room-layout-options", () => ({
 
 const loadEventDetailMock = vi.fn();
 const listClarificationsMock = vi.fn();
+const listEventChangeRequestsMock = vi.fn();
 const listEventDecisionsMock = vi.fn();
 const loadEventFieldHistoryMock = vi.fn();
 const listEventStatusHistoryMock = vi.fn();
 const completeEventMock = vi.fn();
+const loadEventCompletionAvailableAtMock = vi.fn();
 const updateEventAsCoordinatorMock = vi.fn();
 const listSuggestedVenuesMock = vi.fn();
 const listVenueBookingsForEventMock = vi.fn();
@@ -38,6 +40,13 @@ vi.mock("@/features/event-requests/services/clarifications", () => ({
   respondToClarification: vi.fn(),
 }));
 
+vi.mock("@/features/event-requests/services/change-requests", () => ({
+  listEventChangeRequests: (...args: unknown[]) => listEventChangeRequestsMock(...args),
+  submitEventChangeRequest: vi.fn(),
+  decideEventChangeRequest: vi.fn(),
+  withdrawEventChangeRequest: vi.fn(),
+}));
+
 vi.mock("@/features/event-requests/services/decisions", () => ({
   decideEvent: vi.fn(),
   listEventDecisions: (...args: unknown[]) => listEventDecisionsMock(...args),
@@ -50,6 +59,7 @@ vi.mock("@/features/event-requests/services/field-history", () => ({
 vi.mock("@/features/event-requests/services/event-lifecycle", () => ({
   listEventStatusHistory: (...args: unknown[]) => listEventStatusHistoryMock(...args),
   completeEvent: (...args: unknown[]) => completeEventMock(...args),
+  loadEventCompletionAvailableAt: (...args: unknown[]) => loadEventCompletionAvailableAtMock(...args),
 }));
 
 const cancelEventMock = vi.fn();
@@ -81,6 +91,11 @@ vi.mock("@/features/venues/services/venue-bookings", () => ({
 vi.mock("@/features/safety-check/services/event-readiness", () => ({
   loadEventReadiness: (...args: unknown[]) => loadEventReadinessMock(...args),
   READINESS_ITEM_BADGE_CLASSES: { complete: "", pending: "", needs_review: "", not_required: "" },
+}));
+
+vi.mock("@/features/registrations/services/registration-settings", () => ({
+  loadMainVenueCapacity: vi.fn().mockResolvedValue(null),
+  saveRegistrationSettings: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -127,6 +142,7 @@ const event = {
     closesAt: "2026-09-25T00:00:00.000Z",
     capacity: 100,
     waitlistEnabled: true,
+    withdrawalPermitted: false,
   },
 };
 
@@ -145,11 +161,14 @@ describe("EventDetailPage", () => {
     authState.profile.role = "event_coordinator";
     loadEventDetailMock.mockReset().mockResolvedValue(event);
     listClarificationsMock.mockReset().mockResolvedValue([]);
+    listEventChangeRequestsMock.mockReset().mockResolvedValue([]);
     listEventDecisionsMock.mockReset().mockResolvedValue([]);
     loadEventFieldHistoryMock.mockReset().mockResolvedValue([]);
     listEventStatusHistoryMock.mockReset().mockResolvedValue([]);
     completeEventMock.mockReset().mockResolvedValue({ eventId: "event-1", status: "completed" });
     cancelEventMock.mockReset().mockResolvedValue({ eventId: "event-1", status: "cancelled" });
+    // Long past by default, so Mark as completed is enabled (SPM-46 AC02).
+    loadEventCompletionAvailableAtMock.mockReset().mockResolvedValue("2000-01-01T00:00:00.000Z");
     updateEventAsCoordinatorMock.mockReset().mockResolvedValue("event-1");
     listSuggestedVenuesMock.mockReset().mockResolvedValue([
       { id: "venue-1", name: "Wing B Hall", location: "New Wing Hall", capacity: 200 },
@@ -346,6 +365,30 @@ describe("EventDetailPage", () => {
     expect(
       await screen.findByRole("button", { name: "Mark as completed" }),
     ).toBeInTheDocument();
+    expect(loadEventCompletionAvailableAtMock).toHaveBeenCalledWith("event-1");
+  });
+
+  // SPM-46 AC02: not before the end time plus turnaround, and the coordinator
+  // is told when.
+  it("disables Mark as completed until the event has finished, naming the earliest time", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+    loadEventCompletionAvailableAtMock.mockResolvedValue("2099-01-01T10:30:00.000Z");
+
+    renderPage();
+
+    expect(await screen.findByText(/Can be completed from 1 Jan 2099, 6:30\spm/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark as completed" })).toBeDisabled();
+  });
+
+  it("enables Mark as completed once the event has finished", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+
+    renderPage();
+
+    const button = await screen.findByRole("button", { name: "Mark as completed" });
+    await waitFor(() => expect(loadEventCompletionAvailableAtMock).toHaveBeenCalled());
+    expect(button).toBeEnabled();
+    expect(screen.queryByText(/Can be completed from/)).not.toBeInTheDocument();
   });
 
   it("marks the event completed and updates the badge", async () => {
@@ -481,6 +524,23 @@ describe("EventDetailPage", () => {
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
   });
 
+  // After approving, the coordinator stays on the event and sees it in Planning.
+  it("keeps the coordinator on the event page after approving it", async () => {
+    const user = userEvent.setup();
+    loadEventDetailMock
+      .mockResolvedValueOnce(event)
+      .mockResolvedValueOnce({ ...event, status: "planning" });
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Approve" }));
+    await user.click(await screen.findByRole("button", { name: "Approve event" }));
+
+    expect(await screen.findByText("Event approved — now in planning.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Student Leadership Summit 2" })).toBeInTheDocument();
+    expect(loadEventDetailMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+  });
+
   it("tells the coordinator which area was edited, without a generic sentence or the question", async () => {
     listClarificationsMock.mockResolvedValue([
       {
@@ -535,6 +595,37 @@ describe("EventDetailPage", () => {
       await screen.findByText("This event is unavailable or you do not have access to it."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Student Leadership Summit 2")).not.toBeInTheDocument();
+  });
+
+  // Configure Event Registration: the organiser sets registration from the event page.
+  describe("Configure Event Registration", () => {
+    afterEach(() => {
+      authState.user.id = "20000000-0000-0000-0000-000000000002";
+    });
+
+    // SPM-40 AC02/AC06: in Planning the organiser's only Edit is registration.
+    it("lets the organiser edit registration on their own Planning event", async () => {
+      authState.profile.role = "event_organiser";
+      authState.user.id = event.organiserId;
+      loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
+
+      renderPage();
+
+      expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    });
+
+    // SPM-40 AC07: locked from Pending Safety Check onward.
+    it("offers the organiser no edit once the event is Pending Safety Check", async () => {
+      authState.profile.role = "event_organiser";
+      authState.user.id = event.organiserId;
+      loadEventDetailMock.mockResolvedValue({ ...event, status: "pending_safety_check" });
+
+      renderPage();
+
+      expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    });
   });
 
   // SPM-80 TC-011: the organiser is told their request is awaiting coordinator assignment.
@@ -836,6 +927,17 @@ describe("EventDetailPage", () => {
       expect(await screen.findByText("Confirmed arrangements")).toBeInTheDocument();
       expect(listVenueBookingsForEventMock).toHaveBeenCalledWith("event-1");
       expect(loadEventReadinessMock).toHaveBeenCalledWith("event-1");
+    });
+
+    it("SPM-46 AC05: still shows the organiser the section once the event is Completed", async () => {
+      authState.profile.role = "event_organiser";
+      authState.user.id = event.organiserId;
+      loadEventDetailMock.mockResolvedValue({ ...event, status: "completed" });
+
+      renderPage();
+
+      expect(await screen.findByText("Confirmed arrangements")).toBeInTheDocument();
+      expect(listVenueBookingsForEventMock).toHaveBeenCalledWith("event-1");
     });
 
     it("AC04: does not show the section, or fetch its data, for a non-owning organiser", async () => {
