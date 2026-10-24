@@ -307,6 +307,95 @@ describe("ChangeRequestPanel", () => {
     expect(screen.queryByRole("link", { name: "Apply change" })).not.toBeInTheDocument();
   });
 
+  // SPM-39 AC06: a rejection carries its reason, and the request is no longer pending.
+  it("lets an assigned coordinator reject a pending request with a reason", async () => {
+    listEventChangeRequestsMock.mockResolvedValue([pendingRequest]);
+    decideEventChangeRequestMock.mockResolvedValue({ data: { status: "rejected" } });
+    const user = userEvent.setup();
+
+    renderPanel({
+      eventId: "event-1",
+      eventStatus: "planning",
+      role: "coordinator",
+      isEventAssigned: true,
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Reject" }));
+    await user.type(screen.getByLabelText("Reason for rejecting"), "Not enough notice.");
+    await user.click(screen.getByRole("button", { name: "Reject request" }));
+
+    await waitFor(() =>
+      expect(decideEventChangeRequestMock).toHaveBeenCalledWith(
+        "change-request-1",
+        "rejected",
+        "Not enough notice.",
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument(),
+    );
+  });
+
+  // SPM-39 AC04: anyone else is refused by the database, and the panel says so.
+  it("shows the refusal when a coordinator who isn't assigned tries to decide", async () => {
+    listEventChangeRequestsMock.mockResolvedValue([pendingRequest]);
+    decideEventChangeRequestMock.mockRejectedValue(
+      new Error("Only the assigned coordinator can decide this change request"),
+    );
+    const user = userEvent.setup();
+
+    renderPanel({
+      eventId: "event-1",
+      eventStatus: "planning",
+      role: "coordinator",
+      isEventAssigned: true,
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Approve" }));
+    await user.type(screen.getByLabelText("Implementation notes"), "Move to the afternoon slot");
+    await user.click(screen.getByRole("button", { name: "Approve request" }));
+
+    expect(
+      await screen.findByText("Only the assigned coordinator can decide this change request"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve request" })).toBeInTheDocument();
+  });
+
+  // SPM-39 AC04: the organiser cannot decide their own request.
+  it("does not offer the organiser Approve or Reject on their own pending request", async () => {
+    listEventChangeRequestsMock.mockResolvedValue([pendingRequest]);
+
+    renderPanel({
+      eventId: "event-1",
+      eventStatus: "planning",
+      role: "organiser",
+      isEventAssigned: true,
+    });
+
+    expect(await screen.findByRole("button", { name: "Withdraw request" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
+  });
+
+  // SPM-39 AC07: an Implemented request cannot be applied again.
+  it("does not offer Apply change once the request is Implemented", async () => {
+    listEventChangeRequestsMock.mockResolvedValue([
+      { ...pendingRequest, status: "implemented" as const, implementedAt: "2026-09-15T08:00:00.000Z" },
+    ]);
+
+    renderPanel({
+      eventId: "event-1",
+      eventStatus: "planning",
+      role: "coordinator",
+      isEventAssigned: true,
+    });
+
+    expect(await screen.findByText("Change requests")).toBeInTheDocument();
+    await waitFor(() => expect(listEventChangeRequestsMock).toHaveBeenCalled());
+    expect(screen.queryByRole("link", { name: "Apply change" })).not.toBeInTheDocument();
+    expect(screen.queryByText("An approved change request is waiting for you to apply it.")).not.toBeInTheDocument();
+  });
+
   // Only rejection requires a reason.
   it("blocks rejection without a reason", async () => {
     listEventChangeRequestsMock.mockResolvedValue([pendingRequest]);
