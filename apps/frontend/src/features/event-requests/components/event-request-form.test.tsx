@@ -35,6 +35,31 @@ function values(
 }
 
 describe("EventRequestForm draft mode", () => {
+  // SPM-40 AC01: the request only asks whether registration is required; the
+  // rules themselves are set once the event reaches Planning.
+  it("asks only whether registration is required, even when it is ticked", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Registration request" })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByLabelText(/Attendee registration is required/));
+
+    expect(screen.getByLabelText(/Attendee registration is required/)).toBeChecked();
+    expect(
+      screen.getByText(/You set the registration rules once the event reaches Planning/),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Opens/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Closes/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Capacity/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Waiting list|Waitlist/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/withdraw/i)).not.toBeInTheDocument();
+  });
+
   it("shows only the simple Week 4 Release 1 fields", () => {
     render(
       <EventRequestForm

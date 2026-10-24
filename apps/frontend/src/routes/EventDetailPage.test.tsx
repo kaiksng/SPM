@@ -501,7 +501,7 @@ describe("EventDetailPage", () => {
       authState.user.id = "20000000-0000-0000-0000-000000000002";
     });
 
-    // AC02: the event's own organiser can edit registration in Planning.
+    // SPM-40 AC02/AC06: in Planning the organiser's only Edit is registration.
     it("lets the organiser edit registration on their own Planning event", async () => {
       authState.profile.role = "event_organiser";
       authState.user.id = event.organiserId;
@@ -513,7 +513,7 @@ describe("EventDetailPage", () => {
       expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
     });
 
-    // AC07: locked from Pending Safety Check onward.
+    // SPM-40 AC07: locked from Pending Safety Check onward.
     it("offers the organiser no edit once the event is Pending Safety Check", async () => {
       authState.profile.role = "event_organiser";
       authState.user.id = event.organiserId;
