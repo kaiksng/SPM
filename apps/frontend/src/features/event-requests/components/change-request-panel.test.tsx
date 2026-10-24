@@ -58,6 +58,23 @@ describe("ChangeRequestPanel", () => {
     expect(listEventChangeRequestsMock).not.toHaveBeenCalled();
   });
 
+  // SPM-46 AC07: a Completed event takes no change requests, from anyone.
+  it.each(["organiser", "coordinator"] as const)(
+    "renders nothing for a Completed event, even to the %s",
+    (role) => {
+      const { container } = renderPanel({
+        eventId: "event-1",
+        eventStatus: "completed",
+        role,
+        isEventAssigned: true,
+      });
+
+      expect(container.querySelector("h3")).toBeNull();
+      expect(screen.queryByRole("button", { name: "Request a change" })).not.toBeInTheDocument();
+      expect(listEventChangeRequestsMock).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(["requested", "planning", "confirmed", "pending_safety_check"])(
     "renders for a %s event",
     async (status) => {

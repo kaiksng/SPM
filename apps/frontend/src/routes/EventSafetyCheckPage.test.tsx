@@ -131,6 +131,37 @@ describe("EventSafetyCheckPage", () => {
 
   // This story: the assigned coordinator resolves a flagged item so the
   // event can be resubmitted.
+  // SPM-46 AC07: no safety check action on a Completed event, even for the
+  // assigned coordinator with a flagged item still showing.
+  it("offers no submit or resolve action once the event is Completed", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      id: "event-1",
+      title: "Spring Expo",
+      status: "completed",
+      assignedCoordinatorId: "coordinator-1",
+    });
+    loadEventReadinessMock.mockResolvedValue(
+      readiness({
+        ready: false,
+        venueArrangementStatus: "needs_review",
+        venues: [
+          {
+            bookingId: "booking-1",
+            venueName: "Main Hall",
+            isMainVenue: true,
+            status: "needs_review",
+            needsReviewReason: "Capacity reduced below the event's headcount.",
+          },
+        ],
+      }),
+    );
+    renderPage();
+
+    expect(await screen.findByText("Main Hall")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit for Safety Check" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark resolved" })).not.toBeInTheDocument();
+  });
+
   it("lets the assigned coordinator mark a flagged venue booking resolved", async () => {
     loadEventReadinessMock.mockResolvedValue(
       readiness({
