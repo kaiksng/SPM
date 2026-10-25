@@ -1,6 +1,6 @@
 begin;
 
-select plan(15);
+select plan(19);
 
 -- Event waitlist (202610240002): join / leave / promote-on-withdraw.
 
@@ -128,6 +128,38 @@ select throws_ok(
   $$select public.withdraw_registration('c7000000-0000-0000-0000-0000000000e1', 'c7000000-0000-0000-0000-000000000002')$$,
   '23514', 'Only a confirmed registration can be withdrawn',
   'withdraw_registration refuses an attendee whose row is already withdrawn'
+);
+
+-- register_for_event and join_event_waitlist both used to block an
+-- attendee forever once they withdrew, because the duplicate check matched
+-- any row for (event_id, attendee_id) regardless of status, and the
+-- unique(event_id, attendee_id) constraint meant a fresh insert would
+-- violate it anyway. 202610250003 fixes this by reusing the withdrawn row.
+
+-- register_for_event: register, withdraw, then register again on the same
+-- non-full event (eN) — the exact "register, withdraw, rejoin" flow a real
+-- attendee hit.
+select lives_ok(
+  $$select public.register_for_event('c7000000-0000-0000-0000-0000000000e2', 'c7000000-0000-0000-0000-000000000004')$$,
+  'register_for_event succeeds for a fresh attendee on a non-full event'
+);
+select lives_ok(
+  $$select public.withdraw_registration('c7000000-0000-0000-0000-0000000000e2', 'c7000000-0000-0000-0000-000000000004')$$,
+  'withdraw_registration succeeds, freeing the attendee to try again'
+);
+select is(
+  (public.register_for_event('c7000000-0000-0000-0000-0000000000e2', 'c7000000-0000-0000-0000-000000000004')).status,
+  'registered',
+  'register_for_event lets a withdrawn attendee register again'
+);
+
+-- join_event_waitlist: e1 is full again (attendee-4 now holds the only
+-- seat) and attendee-1's row there is 'withdrawn' from earlier — they
+-- should be able to join the waiting list, not be blocked forever.
+select is(
+  (public.join_event_waitlist('c7000000-0000-0000-0000-0000000000e1', 'c7000000-0000-0000-0000-000000000002')).status,
+  'waitlisted',
+  'join_event_waitlist lets a withdrawn attendee join the waiting list again'
 );
 
 select * from finish();

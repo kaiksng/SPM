@@ -202,7 +202,7 @@ function EventCardCta({
   }
   if (state === "waitlisted") {
     return (
-      <span className="mt-4 block rounded-lg bg-amber-50 py-2 text-center text-sm font-semibold text-amber-800">
+      <span className="mt-4 block rounded-lg bg-amber-100 py-2 text-center text-sm font-semibold text-amber-900">
         On waiting list
       </span>
     );
@@ -223,7 +223,7 @@ function EventCardCta({
   }
   const label = state === "full" ? "Full" : state === "not_open" ? "Opens soon" : "Closed";
   return (
-    <span className="mt-4 block rounded-lg bg-slate-200 py-2 text-center text-sm font-semibold text-slate-400">
+    <span className="mt-4 block rounded-lg bg-slate-100 py-2 text-center text-sm font-semibold text-slate-600">
       {label}
     </span>
   );
