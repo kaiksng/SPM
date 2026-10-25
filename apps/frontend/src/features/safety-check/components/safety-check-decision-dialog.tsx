@@ -4,11 +4,42 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/features/event-requests/components/modal";
 import type { SafetyCheckDecisionOutcome } from "@/features/safety-check/services/safety-check-decisions";
 
+const COPY: Record<
+  SafetyCheckDecisionOutcome,
+  { title: string; body: (flaggedCount: number) => string; reasonLabel: string; reasonRequired: boolean; submitLabel: string }
+> = {
+  approved: {
+    title: "Approve safety arrangement",
+    body: () =>
+      "This event moves straight to Confirmed. Nothing is flagged. The coordinator and organiser are both notified.",
+    reasonLabel: "Note (optional)",
+    reasonRequired: false,
+    submitLabel: "Approve",
+  },
+  changes_requested: {
+    title: "Request changes",
+    body: (flaggedCount) =>
+      `${flaggedCount} item${flaggedCount === 1 ? "" : "s"} will be flagged Needs Review. The coordinator can rework and resubmit for a new review round.`,
+    reasonLabel: "Reason",
+    reasonRequired: true,
+    submitLabel: "Request changes",
+  },
+  rejected: {
+    title: "Reject safety arrangement",
+    body: () =>
+      "Every venue booking and equipment arrangement on this event will be flagged Needs Review. The event returns to Planning — it is not cancelled.",
+    reasonLabel: "Reason",
+    reasonRequired: true,
+    submitLabel: "Reject",
+  },
+};
+
 /**
- * Simplified from DecisionDialog/VenueBookingDecisionDialog: both outcomes
- * here require a reason unconditionally (AC1), unlike the organiser's
- * approve/reject, where only rejection does — so there's no isReject-style
- * branch, just one always-mandatory textarea.
+ * Simplified from DecisionDialog/VenueBookingDecisionDialog: a reason is
+ * mandatory for Request Changes/Reject (AC1) but optional for Approve —
+ * there's nothing to justify when everything checks out — so validation
+ * and copy are driven by the COPY table above rather than an isReject-style
+ * binary branch.
  */
 export function SafetyCheckDecisionDialog({
   decision,
@@ -25,11 +56,11 @@ export function SafetyCheckDecisionDialog({
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>();
-  const isReject = decision === "rejected";
+  const copy = COPY[decision];
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!reason.trim()) {
+    if (copy.reasonRequired && !reason.trim()) {
       setError("Explain the reason for this decision.");
       return;
     }
@@ -48,20 +79,12 @@ export function SafetyCheckDecisionDialog({
   }
 
   return (
-    <Modal
-      titleId="safety-check-decision-title"
-      title={isReject ? "Reject safety arrangement" : "Request changes"}
-      onCancel={onCancel}
-    >
+    <Modal titleId="safety-check-decision-title" title={copy.title} onCancel={onCancel}>
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-        <p className="text-sm text-slate-600">
-          {isReject
-            ? "Every venue booking and equipment arrangement on this event will be flagged Needs Review. The event returns to Planning — it is not cancelled."
-            : `${flaggedCount} item${flaggedCount === 1 ? "" : "s"} will be flagged Needs Review. The coordinator can rework and resubmit for a new review round.`}
-        </p>
+        <p className="text-sm text-slate-600">{copy.body(flaggedCount)}</p>
         <div>
           <label htmlFor="safety-check-decision-reason" className="text-sm font-medium text-slate-700">
-            Reason
+            {copy.reasonLabel}
           </label>
           <textarea
             id="safety-check-decision-reason"
@@ -80,8 +103,13 @@ export function SafetyCheckDecisionDialog({
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="submit" variant={isReject ? "destructive" : "default"} disabled={submitting}>
-            {isReject ? "Reject" : "Request changes"}
+          <Button
+            type="submit"
+            variant={decision === "rejected" ? "destructive" : "default"}
+            className={decision === "approved" ? "bg-emerald-600 text-white hover:bg-emerald-700" : undefined}
+            disabled={submitting}
+          >
+            {copy.submitLabel}
           </Button>
         </div>
       </form>

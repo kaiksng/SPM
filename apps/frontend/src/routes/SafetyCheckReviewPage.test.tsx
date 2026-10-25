@@ -200,4 +200,52 @@ describe("SafetyCheckReviewPage", () => {
       ),
     );
   });
+
+  // This story: Approve, with no reason required.
+  it("submits Approve with no reason and navigates with a confirmation notice", async () => {
+    decideEventSafetyCheckMock.mockResolvedValue({
+      eventId: "event-1",
+      status: "confirmed",
+      outcome: "approved",
+      flaggedBookingCount: 0,
+      flaggedRequirementCount: 0,
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Approve" }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Approve" }));
+
+    await waitFor(() =>
+      expect(decideEventSafetyCheckMock).toHaveBeenCalledWith("event-1", "approved", "", [], []),
+    );
+    expect(navigateMock).toHaveBeenCalledWith(
+      "/safety-checks",
+      expect.objectContaining({
+        replace: true,
+        state: { notice: '"Alumni Homecoming Mixer" approved — it\'s now Confirmed.' },
+      }),
+    );
+  });
+
+  it("submits Approve with an optional note", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Approve" }));
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Note (optional)"), "Looks good.");
+    await user.click(within(dialog).getByRole("button", { name: "Approve" }));
+
+    await waitFor(() =>
+      expect(decideEventSafetyCheckMock).toHaveBeenCalledWith(
+        "event-1",
+        "approved",
+        "Looks good.",
+        [],
+        [],
+      ),
+    );
+  });
 });

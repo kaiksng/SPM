@@ -655,7 +655,7 @@ function SafetyCheckDecisionItem({ decision }: { decision: SafetyCheckDecisionHi
       <p className={`font-semibold ${SAFETY_CHECK_OUTCOME_CLASSES[decision.outcome]}`}>
         Round {decision.round} · {SAFETY_CHECK_OUTCOME_LABELS[decision.outcome]}
       </p>
-      <p className="mt-1 text-slate-600">"{decision.reason}"</p>
+      {decision.reason && <p className="mt-1 text-slate-600">"{decision.reason}"</p>}
       {decision.outcome === "changes_requested" && flaggedCount > 0 && (
         <p className="mt-1 text-xs text-slate-500">
           {flaggedCount} item{flaggedCount === 1 ? "" : "s"} flagged

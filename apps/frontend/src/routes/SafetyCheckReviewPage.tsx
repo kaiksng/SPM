@@ -108,9 +108,11 @@ export function SafetyCheckReviewPage() {
       replace: true,
       state: {
         notice:
-          decision === "changes_requested"
-            ? `Changes requested for "${event?.title}".`
-            : `"${event?.title}" rejected.`,
+          decision === "approved"
+            ? `"${event?.title}" approved — it's now Confirmed.`
+            : decision === "changes_requested"
+              ? `Changes requested for "${event?.title}".`
+              : `"${event?.title}" rejected.`,
       },
     });
   }
@@ -172,6 +174,13 @@ export function SafetyCheckReviewPage() {
               )}
 
               <div className="mt-6 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                  onClick={() => setShowDialog("approved")}
+                >
+                  Approve
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
