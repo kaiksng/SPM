@@ -1,6 +1,6 @@
 begin;
 
-select plan(35);
+select plan(42);
 
 -- SPM-46: Complete an Event (202610210001-202610210003).
 --
@@ -15,7 +15,9 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('c4600000-0000-0000-0000-000000000004', 'spm46-lead@example.test', '{"full_name":"SPM46 Lead","role":"event_coordinator_lead"}'::jsonb),
   ('c4600000-0000-0000-0000-000000000005', 'spm46-venue-staff@example.test', '{"full_name":"SPM46 Venue Staff","role":"venue_staff"}'::jsonb),
   ('c4600000-0000-0000-0000-000000000006', 'spm46-tech-staff@example.test', '{"full_name":"SPM46 Tech Staff","role":"technical_support_staff"}'::jsonb),
-  ('c4600000-0000-0000-0000-000000000007', 'spm46-attendee@example.test', '{"full_name":"SPM46 Attendee","role":"attendee"}'::jsonb);
+  ('c4600000-0000-0000-0000-000000000007', 'spm46-attendee@example.test', '{"full_name":"SPM46 Attendee","role":"attendee"}'::jsonb),
+  ('c4600000-0000-0000-0000-000000000008', 'spm46-safety-officer@example.test', '{"full_name":"SPM46 Safety Officer","role":"safety_officer"}'::jsonb),
+  ('c4600000-0000-0000-0000-000000000009', 'spm46-new-attendee@example.test', '{"full_name":"SPM46 New Attendee","role":"attendee"}'::jsonb);
 
 -- The Hall has a 60-minute turnaround; the Room has none.
 insert into public.venues (id, name, location, capacity, operating_hours, setup_time_minutes, turnaround_time_minutes) values
@@ -224,6 +226,44 @@ select throws_ok(
   'AC07: the attendee cannot change their registration'
 );
 
+select set_config('request.jwt.claims', '{"sub":"c4600000-0000-0000-0000-000000000009","role":"authenticated"}', true);
+select throws_ok(
+  $$select public.register_for_event('c4600000-0000-0000-0000-0000000000b1')$$,
+  '23514', 'This event is not open for registration',
+  'AC07: a new attendee cannot register'
+);
+
+select set_config('request.jwt.claims', '{"sub":"c4600000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok(
+  $$select public.request_event_clarification('c4600000-0000-0000-0000-0000000000b1', 'Which room?')$$,
+  '23514', 'Clarification can only be requested while the event is Requested',
+  'AC07: the coordinator cannot request a clarification'
+);
+select throws_ok(
+  $$select public.submit_event_for_safety_check('c4600000-0000-0000-0000-0000000000b1')$$,
+  '23514', 'Only a Planning event can be submitted for the safety check',
+  'AC07: the coordinator cannot submit the event for the safety check'
+);
+select throws_ok(
+  $$select public.cancel_event('c4600000-0000-0000-0000-0000000000b1', 'No longer needed')$$,
+  '23514', 'An event with status completed cannot be cancelled',
+  'AC07: the coordinator cannot cancel the event'
+);
+
+select set_config('request.jwt.claims', '{"sub":"c4600000-0000-0000-0000-000000000008","role":"authenticated"}', true);
+select throws_ok(
+  $$select public.decide_event_safety_check('c4600000-0000-0000-0000-0000000000b1', 'rejected', 'Unsafe crowd plan')$$,
+  '23514', 'Only an event Pending Safety Check can be decided',
+  'AC07: the Safety Officer cannot decide a safety check'
+);
+
+select set_config('request.jwt.claims', '{"sub":"c4600000-0000-0000-0000-000000000004","role":"authenticated"}', true);
+select throws_ok(
+  $$select public.reassign_event_coordinator('c4600000-0000-0000-0000-0000000000b1', 'c4600000-0000-0000-0000-000000000003', 'Workload')$$,
+  '23514', 'An event with status completed cannot be assigned',
+  'AC07: the Lead cannot reassign the coordinator'
+);
+
 reset role;
 select throws_ok(
   $$insert into public.event_equipment_requirements (event_id, equipment_item_id, equipment_name, quantity, required_from, required_until)
@@ -235,6 +275,16 @@ select is(
   (select row(count(*)::int, bool_or(needs_review)) from public.venue_bookings where event_id = 'c4600000-0000-0000-0000-0000000000b1'),
   row(2, false),
   'AC07: the bookings are unchanged'
+);
+select is(
+  (select row(
+     e.status::text,
+     e.assigned_coordinator_id,
+     (select count(*)::int from public.clarifications where event_id = e.id),
+     (select count(*)::int from public.event_registrations where event_id = e.id))
+   from public.events e where e.id = 'c4600000-0000-0000-0000-0000000000b1'),
+  row('completed'::text, 'c4600000-0000-0000-0000-000000000002'::uuid, 0, 1),
+  'AC07: still Completed, same coordinator, no clarification and no new registration'
 );
 
 -- Venue Staff's venue-wide checks skip Completed events instead of failing.

@@ -160,6 +160,24 @@ describe("POST /change-requests/:changeRequestId/decide", () => {
     });
   });
 
+  // SPM-39 AC06: a rejection reaches the database with its reason.
+  it("passes a rejection and its reason to the database", async () => {
+    rpcMock.mockResolvedValue({
+      data: { id: CHANGE_REQUEST_ID, status: "rejected" },
+      error: null,
+    });
+
+    const response = await authedRequest({ decision: "rejected", reviewNotes: "Not enough notice." });
+
+    expect(response.status).toBe(200);
+    expect(rpcMock).toHaveBeenCalledWith("decide_event_change_request", {
+      p_change_request_id: CHANGE_REQUEST_ID,
+      p_decision: "rejected",
+      p_review_notes: "Not enough notice.",
+      p_actor_id: USER_ID,
+    });
+  });
+
   // SPM-39 AC05: approval needs implementation notes.
   it("rejects an approval without implementation notes before calling the database", async () => {
     const response = await authedRequest({ decision: "approved", reviewNotes: "   " });

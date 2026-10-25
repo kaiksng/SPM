@@ -856,4 +856,36 @@ describe("EventsPage for the Event Coordinator Lead role", () => {
     expect(card).toHaveTextContent("Coordinator One");
     expect(screen.getByRole("button", { name: "Reassign" })).toBeInTheDocument();
   });
+
+  // SPM-46 AC07: a Completed event's coordinator can no longer be reassigned.
+  it("offers the lead no reassign action on a Completed event", async () => {
+    listAllEventsMock.mockResolvedValue([
+      {
+        ...leadEvent,
+        id: "event-done",
+        title: "Finished Summit",
+        status: "completed",
+        assignedCoordinatorId: "coordinator-1",
+        assignedCoordinatorName: "Coordinator One",
+      },
+    ]);
+    listCoordinatorsMock.mockResolvedValue([
+      { id: "coordinator-1", fullName: "Coordinator One", activeEventCount: 0 },
+    ]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByRole("button", { name: /^Oversight/ }));
+    // Oversight shows active events by default; a Completed one needs the filter.
+    await user.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await user.click(await screen.findByRole("option", { name: "Completed" }));
+
+    expect(await screen.findByText("Finished Summit")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reassign" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Assign coordinator" })).not.toBeInTheDocument();
+  });
 });

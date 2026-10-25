@@ -272,6 +272,29 @@ describe("NotificationBell", () => {
     expect(navigateMock).toHaveBeenCalledWith(destination);
   });
 
+  // SPM-39 AC03: a newly assigned coordinator's "waiting for you" notice opens
+  // the event, where the change request is decided or applied.
+  it("opens the event from a change request waiting notification", async () => {
+    listNotificationsMock.mockResolvedValue([
+      {
+        ...UNREAD,
+        id: "n12",
+        type: "event_change" as const,
+        title: "Change request waiting for you",
+        message: 'An approved change request for "Spring Expo" is waiting for you to apply it.',
+        eventId: "e12",
+      },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("Change request waiting for you"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/events/e12");
+  });
+
   // SPM-82: a venue decision (including a rejected replacement) opens the change
   // history, where the outcome and the rejection reason are listed.
   it("routes a venue decision notification to the event's change history", async () => {

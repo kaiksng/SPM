@@ -140,6 +140,9 @@ export function EventVenuePage() {
   const mainBooking = activeBookings.find((booking) => booking.isMainVenue && !booking.replacesBookingId);
   const mainVenueArea = mainBooking?.venueAreaTags[0] ?? mainBooking?.venueLocation ?? null;
   const needsReplacement = disruption?.state === "replacement_required";
+  // SPM-46 AC07: the database refuses every venue booking change on a
+  // Completed event, so offer none — no requests, withdrawals or cancellations.
+  const isCompleted = event?.status === "completed";
 
   return (
     <RoleGate>
@@ -266,12 +269,17 @@ export function EventVenuePage() {
                     busyBookingId={busyBookingId}
                     actionError={actionError}
                     canChangeMain={event.status === "planning"}
+                    readOnly={isCompleted}
                     onWithdraw={handleWithdraw}
                     onConfirmHold={handleConfirmHold}
                     onSetMain={handleSetMain}
                   />
                 )}
-                {activeBookings.length > 0 && !needsReplacement && event.status === "planning" ? (
+                {isCompleted ? (
+                  <p role="status" className="mt-4 rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+                    This event is completed, so its venue bookings can no longer be changed.
+                  </p>
+                ) : activeBookings.length > 0 && !needsReplacement && event.status === "planning" ? (
                   <AdditionalVenuePanel event={event} mainVenueArea={mainVenueArea} />
                 ) : (
                   <SuggestedVenuesPanel
