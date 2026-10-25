@@ -9,7 +9,6 @@ export type SignupFormState =
         email?: string[];
         password?: string[];
         confirmPassword?: string[];
-        role?: string[];
       };
       message?: string;
       redirectTo?: string;
@@ -25,22 +24,24 @@ export async function signup(
     email: formData.get("email"),
     password: formData.get("password"),
     confirmPassword: formData.get("confirmPassword"),
-    role: formData.get("role"),
   });
 
   if (!validatedFields.success) {
     return { errors: validatedFields.error.flatten().fieldErrors };
   }
 
-  const { fullName, email, password, role } = validatedFields.data;
+  const { fullName, email, password } = validatedFields.data;
 
+  // Public signup always creates an attendee — every other role is
+  // provisioned outside this form. See handle_new_user(), which already
+  // defaults profiles.role to 'attendee' when no role metadata is sent.
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
       data: {
         full_name: fullName,
-        role,
+        role: "attendee",
       },
     },
   });
@@ -57,5 +58,5 @@ export async function signup(
     return { message: mapAuthError({ code: "user_already_exists" }) };
   }
 
-  return { redirectTo: getRoleDestination(role) };
+  return { redirectTo: getRoleDestination("attendee") };
 }

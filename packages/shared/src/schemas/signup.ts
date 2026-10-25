@@ -1,17 +1,5 @@
 import { z } from "zod";
 
-// This dropdown is expected to be removed in a future iteration.
-export const signupRoles = [
-  "event_organiser",
-  "event_coordinator",
-  "event_coordinator_lead",
-  "venue_staff",
-  "technical_support_staff",
-  "attendee",
-] as const;
-
-export type SignupRole = (typeof signupRoles)[number];
-
 export const signupSchema = z
   .object({
     fullName: z
@@ -24,7 +12,6 @@ export const signupSchema = z
     // intentionally just a presence check, not an invented complexity rule.
     password: z.string().min(1, "Password is required."),
     confirmPassword: z.string().min(1, "Confirm your password."),
-    role: z.enum(signupRoles, "Choose a role."),
   })
   .refine((fields) => fields.password === fields.confirmPassword, {
     message: "Passwords do not match",

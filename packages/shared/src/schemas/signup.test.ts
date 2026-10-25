@@ -7,7 +7,6 @@ const validFields = {
   email: "jane@example.com",
   password: "correct horse battery staple",
   confirmPassword: "correct horse battery staple",
-  role: "attendee",
 };
 
 describe("signup validation", () => {
@@ -39,20 +38,6 @@ describe("signup validation", () => {
     if (!result.success) {
       const fieldErrors = result.error.flatten().fieldErrors;
       expect(fieldErrors.confirmPassword).toEqual(["Passwords do not match"]);
-    }
-  });
-
-  it("accepts every valid self-signup role", () => {
-    for (const role of [
-      "event_organiser",
-      "event_coordinator",
-      "venue_staff",
-      "technical_support_staff",
-      "attendee",
-    ]) {
-      expect(signupSchema.safeParse({ ...validFields, role }).success).toBe(
-        true,
-      );
     }
   });
 });
