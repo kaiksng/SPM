@@ -14,12 +14,19 @@ const eventIdParamsSchema = z.object({
   eventId: z.uuid(),
 });
 
-const decisionBodySchema = z.object({
-  decision: z.enum(["changes_requested", "rejected"]),
-  reason: z.string().trim().min(1, "Explain the reason for this decision").max(2_000),
-  flaggedBookingIds: z.array(z.uuid()).default([]),
-  flaggedRequirementIds: z.array(z.uuid()).default([]),
-});
+// Reason is mandatory for Request Changes/Reject, optional for Approve —
+// there's nothing to justify when everything checks out.
+const decisionBodySchema = z
+  .object({
+    decision: z.enum(["changes_requested", "rejected", "approved"]),
+    reason: z.string().trim().max(2_000).optional(),
+    flaggedBookingIds: z.array(z.uuid()).default([]),
+    flaggedRequirementIds: z.array(z.uuid()).default([]),
+  })
+  .refine((data) => data.decision === "approved" || !!data.reason, {
+    message: "Explain the reason for this decision",
+    path: ["reason"],
+  });
 
 /**
  * AC05/AC06. Submission is one Postgres transaction (see
@@ -54,14 +61,14 @@ eventSafetyCheckRouter.post(
 );
 
 /**
- * AC1/AC2/AC3/AC4/AC7: Request Changes or Reject, with a mandatory reason
- * either way. decide_event_safety_check is one Postgres transaction —
- * validates the caller is a Safety Officer, the event is Pending Safety
- * Check, and (for Request Changes) that every given id actually belongs to
- * this event; this route only authenticates, validates the body shape, and
- * translates the result. Goes through the service client because the
- * function inserts `notifications` rows, which have no INSERT policy for
- * regular users.
+ * AC1/AC2/AC3/AC4/AC7: Request Changes, Reject, or Approve — a mandatory
+ * reason for the first two, optional for Approve.
+ * decide_event_safety_check is one Postgres transaction — validates the
+ * caller is a Safety Officer, the event is Pending Safety Check, and (for
+ * Request Changes) that every given id actually belongs to this event; this
+ * route only authenticates, validates the body shape, and translates the
+ * result. Goes through the service client because the function inserts
+ * `notifications` rows, which have no INSERT policy for regular users.
  */
 eventSafetyCheckRouter.post(
   "/:eventId/safety-check-decision",
@@ -83,7 +90,7 @@ eventSafetyCheckRouter.post(
     const { data, error } = await getServiceClient().rpc("decide_event_safety_check", {
       p_event_id: params.data.eventId,
       p_decision: body.data.decision,
-      p_reason: body.data.reason,
+      p_reason: body.data.reason ?? "",
       p_flagged_booking_ids: body.data.flaggedBookingIds,
       p_flagged_requirement_ids: body.data.flaggedRequirementIds,
       p_actor_id: req.userId,

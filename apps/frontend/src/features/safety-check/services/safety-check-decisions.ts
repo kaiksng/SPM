@@ -68,7 +68,7 @@ export async function listPendingSafetyCheckEvents(): Promise<PendingSafetyCheck
   }));
 }
 
-export type SafetyCheckDecisionOutcome = "changes_requested" | "rejected";
+export type SafetyCheckDecisionOutcome = "approved" | "changes_requested" | "rejected";
 
 export type SafetyCheckDecisionResult = {
   eventId: string;
@@ -107,8 +107,9 @@ export async function decideEventSafetyCheck(
 export type SafetyCheckDecisionHistoryEntry = {
   id: number;
   round: number;
-  outcome: "approved" | SafetyCheckDecisionOutcome;
-  reason: string;
+  outcome: SafetyCheckDecisionOutcome;
+  /** Null for an Approve decision with no note — the only outcome where a reason is optional. */
+  reason: string | null;
   decidedByName: string | null;
   decidedAt: string;
   flaggedBookingIds: string[];
