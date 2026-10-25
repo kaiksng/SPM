@@ -20,32 +20,16 @@ function renderSignupForm() {
 }
 
 describe("SignupForm", () => {
-  it("renders all five fields, a role dropdown, and a submit button", () => {
+  it("renders all four fields and a submit button, with no role dropdown", () => {
     renderSignupForm();
 
     expect(screen.getByLabelText("Full name")).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(screen.getByLabelText("Confirm password")).toBeInTheDocument();
-    expect(
-      screen.getByRole("combobox", { name: "Role" }),
-    ).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Role" })).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Create account" }),
-    ).toBeInTheDocument();
-  });
-
-  it("offers the available roles as options", async () => {
-    const user = userEvent.setup();
-    renderSignupForm();
-
-    await user.click(screen.getByRole("combobox", { name: "Role" }));
-
-    // Base UI's Select mounts its options in a portal after positioning, a
-    // frame or more after the click — findByRole waits for them, getByRole
-    // checked once and failed intermittently on a loaded CI runner.
-    expect(
-      await screen.findByRole("option", { name: "Event organiser" }),
     ).toBeInTheDocument();
   });
 

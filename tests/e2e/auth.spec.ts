@@ -52,7 +52,9 @@ test("renders the signup form and validates mismatched passwords without calling
   await expect(page.getByLabel("Email")).toBeVisible();
   await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Confirm password")).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "Role" })).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Role" }),
+  ).not.toBeVisible();
 
   await page.getByLabel("Full name").fill("Jane Doe");
   await page.getByLabel("Email").fill("jane@example.com");

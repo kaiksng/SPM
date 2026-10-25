@@ -1,4 +1,3 @@
-import { signupRoles } from "@spm/shared";
 import { useActionState, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
@@ -6,23 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { signup } from "@/features/auth/actions/signup";
-
-const roleLabels: Record<(typeof signupRoles)[number], string> = {
-  event_organiser: "Event organiser",
-  event_coordinator: "Event coordinator",
-  event_coordinator_lead: "Event coordinator lead",
-  venue_staff: "Venue staff",
-  technical_support_staff: "Technical support staff",
-  attendee: "Attendee",
-};
 
 const PASSWORD_MISMATCH_MESSAGE = "Passwords do not match";
 
@@ -131,27 +114,6 @@ export function SignupForm() {
             id="confirmPassword-error"
             className="text-destructive text-sm"
           >
-            {error}
-          </p>
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="role">Role</Label>
-        <Select name="role" items={roleLabels} defaultValue="attendee" required>
-          <SelectTrigger id="role" aria-invalid={Boolean(state?.errors?.role)}>
-            <SelectValue placeholder="Choose a role" />
-          </SelectTrigger>
-          <SelectContent>
-            {signupRoles.map((role) => (
-              <SelectItem key={role} value={role}>
-                {roleLabels[role]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {state?.errors?.role?.map((error) => (
-          <p key={error} className="text-destructive text-sm">
             {error}
           </p>
         ))}
