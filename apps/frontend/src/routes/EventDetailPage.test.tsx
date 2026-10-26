@@ -418,6 +418,7 @@ describe("EventDetailPage", () => {
     );
   });
 
+<<<<<<< HEAD
   // SPM-45 AC2: cancellable from Requested, Planning, Pending Safety Check, Confirmed only.
   describe("SPM-45: cancelling an event", () => {
     it.each(["requested", "planning", "pending_safety_check", "confirmed"])(
@@ -511,6 +512,82 @@ describe("EventDetailPage", () => {
 
       expect(screen.queryByRole("button", { name: "Confirm cancellation" })).not.toBeInTheDocument();
       expect(cancelEventMock).not.toHaveBeenCalled();
+=======
+  describe("SPM-46: who can complete an event, and when", () => {
+    // The Lead's routes only accept a real event id, not "event-1".
+    const EVENT_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
+
+    function renderEvent() {
+      return render(
+        <MemoryRouter initialEntries={[`/events/${EVENT_ID}`]}>
+          <Routes>
+            <Route path="events/:eventId" element={<EventDetailPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+    }
+
+    afterEach(() => {
+      authState.user.id = "20000000-0000-0000-0000-000000000002";
+    });
+
+    // SPM-46 AC03: only the assigned coordinator can complete a finished Confirmed event.
+    it.each([
+      ["organiser", "event_organiser", event.organiserId],
+      ["Event Coordinator Lead", "event_coordinator_lead", "30000000-0000-0000-0000-000000000009"],
+    ])("does not offer Mark as completed to the %s", async (_who, role, userId) => {
+      authState.profile.role = role;
+      authState.user.id = userId;
+      loadEventDetailMock.mockResolvedValue({ ...event, id: EVENT_ID, status: "confirmed" });
+
+      renderEvent();
+
+      expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Mark as completed" })).not.toBeInTheDocument();
+      expect(loadEventCompletionAvailableAtMock).not.toHaveBeenCalled();
+    });
+
+    // SPM-46 AC04: an event that is not Confirmed cannot be completed.
+    it.each(["requested", "planning", "pending_safety_check", "rejected", "cancelled", "completed"])(
+      "does not offer the assigned coordinator Mark as completed on a %s event",
+      async (status) => {
+        loadEventDetailMock.mockResolvedValue({ ...event, id: EVENT_ID, status });
+
+        renderEvent();
+
+        expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Mark as completed" })).not.toBeInTheDocument();
+        expect(loadEventCompletionAvailableAtMock).not.toHaveBeenCalled();
+      },
+    );
+
+    // SPM-46 AC07: no planning or change action is offered on a Completed event.
+    it("offers the assigned coordinator no planning or change actions on a Completed event", async () => {
+      loadEventDetailMock.mockResolvedValue({ ...event, id: EVENT_ID, status: "completed" });
+
+      renderEvent();
+
+      expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+      for (const action of [/Request clarification/, /^Approve$/, /^Reject$/, /Request a change/]) {
+        expect(screen.queryByRole("button", { name: action })).not.toBeInTheDocument();
+      }
+      expect(screen.queryByRole("link", { name: /Edit event/ })).not.toBeInTheDocument();
+      expect(listClarificationsMock).not.toHaveBeenCalled();
+      expect(listEventChangeRequestsMock).not.toHaveBeenCalled();
+    });
+
+    // SPM-46 AC07: the organiser cannot raise a change request on a Completed event.
+    it("does not let the organiser request a change on a Completed event", async () => {
+      authState.profile.role = "event_organiser";
+      authState.user.id = event.organiserId;
+      loadEventDetailMock.mockResolvedValue({ ...event, id: EVENT_ID, status: "completed" });
+
+      renderEvent();
+
+      expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Request a change/ })).not.toBeInTheDocument();
+      expect(listEventChangeRequestsMock).not.toHaveBeenCalled();
+>>>>>>> main
     });
   });
 

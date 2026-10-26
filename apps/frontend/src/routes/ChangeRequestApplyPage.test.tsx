@@ -159,6 +159,24 @@ describe("ChangeRequestApplyPage", () => {
     ).toBeInTheDocument();
   });
 
+  // SPM-39 AC07: a refused apply (e.g. already Implemented) saves nothing and says why.
+  it("shows the refusal and stays on the page when the change cannot be applied", async () => {
+    applyEventChangeRequestMock.mockRejectedValue(
+      new Error("Only an Approved change request can be applied"),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByDisplayValue("Student Leadership Summit");
+    await user.click(screen.getByRole("button", { name: "Apply change" }));
+
+    expect(
+      await screen.findByText("Only an Approved change request can be applied"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/EVENT DETAIL PAGE/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Change applied/)).not.toBeInTheDocument();
+  });
+
   // SPM-39 AC10: the coordinator is told when a new safety review is needed.
   it("says when the event went back to Planning for a new safety review", async () => {
     applyEventChangeRequestMock.mockResolvedValue({

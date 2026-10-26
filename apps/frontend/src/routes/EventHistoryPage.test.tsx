@@ -455,6 +455,27 @@ describe("EventHistoryPage", () => {
     expect(screen.getByText("1 item flagged")).toBeInTheDocument();
   });
 
+  // This story: Approve's reason is optional, unlike the other two outcomes.
+  it("omits the reason line for an Approve decision with no note", async () => {
+    listSafetyCheckDecisionsMock.mockResolvedValue([
+      {
+        id: 1,
+        round: 1,
+        outcome: "approved",
+        reason: null,
+        decidedByName: "Sam Safety",
+        decidedAt: "2026-10-20T14:40:00.000Z",
+        flaggedBookingIds: [],
+        flaggedRequirementIds: [],
+      },
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText("Round 1 · Approved")).toBeInTheDocument();
+    expect(screen.queryByText('""')).not.toBeInTheDocument();
+  });
+
   it("does not show the Safety check reviews section when no decision has been made", async () => {
     renderPage();
 

@@ -23,7 +23,6 @@ const validForm = {
   email: "jane@example.com",
   password: "correct horse battery staple",
   confirmPassword: "correct horse battery staple",
-  role: "event_organiser",
 };
 
 describe("signup action", () => {
@@ -41,7 +40,7 @@ describe("signup action", () => {
     expect(signUp).not.toHaveBeenCalled();
   });
 
-  it("passes full_name and role through signUp's options.data", async () => {
+  it("always passes role: attendee through signUp's options.data", async () => {
     signUp.mockResolvedValue({
       data: { user: { id: "user-1" }, session: {} },
       error: null,
@@ -55,24 +54,10 @@ describe("signup action", () => {
       options: {
         data: {
           full_name: "Jane Doe",
-          role: "event_organiser",
+          role: "attendee",
         },
       },
     });
-    expect(state?.redirectTo).toBe("/events");
-  });
-
-  it("returns the submitted role's destination", async () => {
-    signUp.mockResolvedValue({
-      data: { user: { id: "user-2" }, session: {} },
-      error: null,
-    });
-
-    const state = await signup(
-      undefined,
-      formDataWith({ ...validForm, role: "attendee" }),
-    );
-
     expect(state?.redirectTo).toBe("/browse-events");
   });
 

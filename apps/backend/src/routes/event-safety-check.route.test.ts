@@ -220,10 +220,58 @@ describe("POST /events/:eventId/safety-check-decision", () => {
   });
 
   it("rejects an unrecognised decision value before calling the database", async () => {
-    const response = await decisionRequest({ decision: "approved", reason: "Looks fine" });
+    const response = await decisionRequest({ decision: "maybe", reason: "Looks fine" });
 
     expect(response.status).toBe(422);
     expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  // This story: Approve, with and without a reason — it's optional.
+  it("submits Approve with no reason required", async () => {
+    rpcMock.mockResolvedValue({
+      data: {
+        eventId: EVENT_ID,
+        status: "confirmed",
+        outcome: "approved",
+        flaggedBookingCount: 0,
+        flaggedRequirementCount: 0,
+      },
+      error: null,
+    });
+
+    const response = await decisionRequest({ decision: "approved" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.status).toBe("confirmed");
+    expect(rpcMock).toHaveBeenCalledWith("decide_event_safety_check", {
+      p_event_id: EVENT_ID,
+      p_decision: "approved",
+      p_reason: "",
+      p_flagged_booking_ids: [],
+      p_flagged_requirement_ids: [],
+      p_actor_id: USER_ID,
+    });
+  });
+
+  it("submits Approve with an optional note", async () => {
+    rpcMock.mockResolvedValue({
+      data: {
+        eventId: EVENT_ID,
+        status: "confirmed",
+        outcome: "approved",
+        flaggedBookingCount: 0,
+        flaggedRequirementCount: 0,
+      },
+      error: null,
+    });
+
+    const response = await decisionRequest({ decision: "approved", reason: "Looks great." });
+
+    expect(response.status).toBe(200);
+    expect(rpcMock).toHaveBeenCalledWith(
+      "decide_event_safety_check",
+      expect.objectContaining({ p_reason: "Looks great." }),
+    );
   });
 
   it("maps 42501 to a 403", async () => {

@@ -988,7 +988,7 @@ export type Database = {
           flagged_requirement_ids: string[]
           id: number
           outcome: Database["public"]["Enums"]["event_safety_check_decision_type"]
-          reason: string
+          reason: string | null
           submission_id: number
         }
         Insert: {
@@ -999,7 +999,7 @@ export type Database = {
           flagged_requirement_ids?: string[]
           id?: never
           outcome: Database["public"]["Enums"]["event_safety_check_decision_type"]
-          reason: string
+          reason?: string | null
           submission_id: number
         }
         Update: {
@@ -1010,7 +1010,7 @@ export type Database = {
           flagged_requirement_ids?: string[]
           id?: never
           outcome?: Database["public"]["Enums"]["event_safety_check_decision_type"]
-          reason?: string
+          reason?: string | null
           submission_id?: number
         }
         Relationships: [
