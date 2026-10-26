@@ -82,7 +82,14 @@ export function deriveVenueArrangementOverallStatus(
   return bookings.every((booking) => booking.status === "complete") ? "complete" : "pending";
 }
 
-/** AC01: Arranged -> Complete, Issue -> Needs Review, everything else -> Pending. */
+/**
+ * AC01: Arranged -> Complete, Issue -> Needs Review, everything else -> Pending.
+ * `arrangementStatus` is whatever the server resolved it to — a staff
+ * member's own setting if they ever made one, otherwise event_readiness
+ * (202610260001) auto-derives it the same way automaticEquipmentArrangementStatus
+ * does, so a requirement reserved in full always resolves here as Complete,
+ * never stuck at Pending just because nobody has clicked Arranged yet.
+ */
 export function deriveEquipmentRequirementReadinessStatus(
   arrangementStatus: EquipmentArrangementStatus,
 ): ReadinessStatus {

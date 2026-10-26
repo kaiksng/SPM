@@ -418,7 +418,6 @@ describe("EventDetailPage", () => {
     );
   });
 
-<<<<<<< HEAD
   // SPM-45 AC2: cancellable from Requested, Planning, Pending Safety Check, Confirmed only.
   describe("SPM-45: cancelling an event", () => {
     it.each(["requested", "planning", "pending_safety_check", "confirmed"])(
@@ -512,7 +511,9 @@ describe("EventDetailPage", () => {
 
       expect(screen.queryByRole("button", { name: "Confirm cancellation" })).not.toBeInTheDocument();
       expect(cancelEventMock).not.toHaveBeenCalled();
-=======
+    });
+  });
+
   describe("SPM-46: who can complete an event, and when", () => {
     // The Lead's routes only accept a real event id, not "event-1".
     const EVENT_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
@@ -587,7 +588,6 @@ describe("EventDetailPage", () => {
       expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /Request a change/ })).not.toBeInTheDocument();
       expect(listEventChangeRequestsMock).not.toHaveBeenCalled();
->>>>>>> main
     });
   });
 

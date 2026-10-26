@@ -1,6 +1,6 @@
 begin;
 
-select plan(28);
+select plan(34);
 
 -- Event readiness for the Operational Safety Check
 -- (202610190001_event_readiness_function.sql).
@@ -36,7 +36,9 @@ values
   ('fc000000-0000-0000-0000-0000000000eb', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Equipment not reserved', 'planning', '2099-09-11T10:00:00+08:00', '2099-09-11T12:00:00+08:00', true),
   ('fc000000-0000-0000-0000-0000000000ec', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Equipment flagged issue', 'planning', '2099-09-12T10:00:00+08:00', '2099-09-12T12:00:00+08:00', true),
   ('fc000000-0000-0000-0000-0000000000ed', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Arranged by hand but not reserved', 'planning', '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', true),
-  ('fc000000-0000-0000-0000-0000000000ee', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Main venue has an active conflict', 'planning', '2099-09-14T10:00:00+08:00', '2099-09-14T12:00:00+08:00', true);
+  ('fc000000-0000-0000-0000-0000000000ee', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Main venue has an active conflict', 'planning', '2099-09-14T10:00:00+08:00', '2099-09-14T12:00:00+08:00', true),
+  ('fc000000-0000-0000-0000-0000000000e0', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Equipment reservation needs recheck', 'planning', '2099-09-15T10:00:00+08:00', '2099-09-15T12:00:00+08:00', true),
+  ('fc000000-0000-0000-0000-0000000000ef', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Equipment cannot be reserved in full', 'planning', '2099-09-16T10:00:00+08:00', '2099-09-16T12:00:00+08:00', true);
 
 insert into public.venue_bookings (id, event_id, venue_id, requested_by, starts_at, ends_at, status, is_main_venue, needs_review, expires_at)
 values
@@ -78,12 +80,19 @@ values
   ('fc000000-0000-0000-0000-0000000000f1', 'fc000000-0000-0000-0000-0000000000ea', (select id from v_ids where name = 'mic'), 'Mic', 2, '2099-09-10T10:00:00+08:00', '2099-09-10T12:00:00+08:00'),
   ('fc000000-0000-0000-0000-0000000000f2', 'fc000000-0000-0000-0000-0000000000eb', (select id from v_ids where name = 'mic'), 'Mic', 2, '2099-09-11T10:00:00+08:00', '2099-09-11T12:00:00+08:00'),
   ('fc000000-0000-0000-0000-0000000000f3', 'fc000000-0000-0000-0000-0000000000ec', (select id from v_ids where name = 'mic'), 'Mic', 2, '2099-09-12T10:00:00+08:00', '2099-09-12T12:00:00+08:00'),
-  ('fc000000-0000-0000-0000-0000000000f4', 'fc000000-0000-0000-0000-0000000000ed', (select id from v_ids where name = 'mic'), 'Mic', 2, '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00');
+  ('fc000000-0000-0000-0000-0000000000f4', 'fc000000-0000-0000-0000-0000000000ed', (select id from v_ids where name = 'mic'), 'Mic', 2, '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00'),
+  -- 202610260001: F5 is reserved in full but flagged needs_recheck -- the
+  -- recheck must win over "reserved in full" (Issue, not Arranged). F6
+  -- requests far more than the catalogue has, with no reservation at all
+  -- and no manual status, so it can never be reserved in full (Issue).
+  ('fc000000-0000-0000-0000-0000000000f5', 'fc000000-0000-0000-0000-0000000000e0', (select id from v_ids where name = 'mic'), 'Mic', 2, '2099-09-15T10:00:00+08:00', '2099-09-15T12:00:00+08:00'),
+  ('fc000000-0000-0000-0000-0000000000f6', 'fc000000-0000-0000-0000-0000000000ef', (select id from v_ids where name = 'mic'), 'Mic', 999, '2099-09-16T10:00:00+08:00', '2099-09-16T12:00:00+08:00');
 
-insert into public.equipment_reservations (event_id, equipment_item_id, requirement_id, quantity, starts_at, ends_at, status, requested_by, requested_at, decided_by, decided_at)
+insert into public.equipment_reservations (event_id, equipment_item_id, requirement_id, quantity, starts_at, ends_at, status, requested_by, requested_at, decided_by, decided_at, needs_recheck)
 values
-  ('fc000000-0000-0000-0000-0000000000ea', (select id from v_ids where name = 'mic'), 'fc000000-0000-0000-0000-0000000000f1', 2, '2099-09-10T10:00:00+08:00', '2099-09-10T12:00:00+08:00', 'approved', 'fc000000-0000-0000-0000-000000000004', now(), 'fc000000-0000-0000-0000-000000000004', now()),
-  ('fc000000-0000-0000-0000-0000000000ed', (select id from v_ids where name = 'mic'), 'fc000000-0000-0000-0000-0000000000f4', 1, '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', 'approved', 'fc000000-0000-0000-0000-000000000004', now(), 'fc000000-0000-0000-0000-000000000004', now());
+  ('fc000000-0000-0000-0000-0000000000ea', (select id from v_ids where name = 'mic'), 'fc000000-0000-0000-0000-0000000000f1', 2, '2099-09-10T10:00:00+08:00', '2099-09-10T12:00:00+08:00', 'approved', 'fc000000-0000-0000-0000-000000000004', now(), 'fc000000-0000-0000-0000-000000000004', now(), false),
+  ('fc000000-0000-0000-0000-0000000000ed', (select id from v_ids where name = 'mic'), 'fc000000-0000-0000-0000-0000000000f4', 1, '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', 'approved', 'fc000000-0000-0000-0000-000000000004', now(), 'fc000000-0000-0000-0000-000000000004', now(), false),
+  ('fc000000-0000-0000-0000-0000000000e0', (select id from v_ids where name = 'mic'), 'fc000000-0000-0000-0000-0000000000f5', 2, '2099-09-15T10:00:00+08:00', '2099-09-15T12:00:00+08:00', 'approved', 'fc000000-0000-0000-0000-000000000004', now(), 'fc000000-0000-0000-0000-000000000004', now(), true);
 
 insert into public.equipment_arrangement_updates (requirement_id, event_id, status, updated_by)
 values
@@ -149,9 +158,38 @@ select is(
   'an equipment item carries its requested quantity'
 );
 
+-- 202610260001: AC02 -- with no manual status, a requirement reserved in
+-- full is auto-derived Arranged, so the item badge now agrees with the
+-- section badge (previously showed Pending, the exact "Career Fair" bug).
+select is(
+  (select public.event_readiness('fc000000-0000-0000-0000-0000000000ea') -> 'equipment' -> 0 ->> 'status'),
+  'complete',
+  'AC02: equipment reserved in full with no manual status auto-derives to Complete at the item level too'
+);
+
 -- AC03: requested but not reserved equipment blocks readiness (Pending).
 select is((select (public.event_readiness('fc000000-0000-0000-0000-0000000000eb') ->> 'ready')::boolean), false, 'unreserved equipment blocks readiness');
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000eb') ->> 'equipmentArrangementStatus'), 'pending', 'unreserved equipment rolls up to Pending');
+
+-- 202610260001: AC02 -- not reserved, no manual status, but still fully
+-- available: auto-derives Not started, i.e. item-level Pending too.
+select is(
+  (select public.event_readiness('fc000000-0000-0000-0000-0000000000eb') -> 'equipment' -> 0 ->> 'status'),
+  'pending',
+  'AC02: unreserved but available equipment with no manual status auto-derives to Pending at the item level'
+);
+
+-- 202610260001: AC02 -- reserved in full but flagged needs_recheck, no
+-- manual status: the recheck wins over "reserved in full" (Issue, not
+-- Arranged/Complete).
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e0') ->> 'equipmentArrangementStatus'), 'needs_review', 'AC02: a reservation needing re-check rolls up to Needs Review even though it is reserved in full');
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e0') -> 'equipment' -> 0 ->> 'status'), 'needs_review', 'AC02: the item itself shows Needs Review for a reservation needing re-check');
+
+-- 202610260001: AC02 -- no reservation, no manual status, and the
+-- requested quantity could never be reserved in full (999 of 100 in
+-- service): auto-derives Issue, not Not started/Pending.
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ef') ->> 'equipmentArrangementStatus'), 'needs_review', 'AC02: equipment that can never be reserved in full rolls up to Needs Review');
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ef') -> 'equipment' -> 0 ->> 'status'), 'needs_review', 'AC02: the item itself shows Needs Review when it can never be reserved in full');
 
 -- AC02: equipment flagged Issue is Needs Review.
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ec') ->> 'equipmentArrangementStatus'), 'needs_review', 'AC02: equipment flagged Issue rolls up to Needs Review');
