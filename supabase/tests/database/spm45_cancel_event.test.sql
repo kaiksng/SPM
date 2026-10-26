@@ -124,7 +124,7 @@ select is(
 );
 select is(
   (select row(changed_by, reason) from public.event_status_history where event_id = 'ce000000-0000-0000-0000-0000000000e1' and to_status = 'cancelled'),
-  row('ce000000-0000-0000-0000-000000000002'::uuid, 'The sponsor withdrew funding.'),
+  row('ce000000-0000-0000-0000-000000000002'::uuid, 'The sponsor withdrew funding.'::text),
   'AC4: the history row records the actor and reason'
 );
 
