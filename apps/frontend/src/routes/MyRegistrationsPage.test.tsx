@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listMyRegistrationsMock = vi.fn();
 const leaveWaitlistMock = vi.fn();
+const withdrawRegistrationMock = vi.fn();
 
 const authState = {
   profile: { full_name: "Priya Tan", role: "attendee" },
@@ -18,6 +19,7 @@ vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
 vi.mock("@/features/registrations/services/registrations", () => ({
   listMyRegistrations: (...args: unknown[]) => listMyRegistrationsMock(...args),
   leaveWaitlist: (...args: unknown[]) => leaveWaitlistMock(...args),
+  withdrawRegistration: (...args: unknown[]) => withdrawRegistrationMock(...args),
 }));
 
 import { MyRegistrationsPage } from "./MyRegistrationsPage";
@@ -40,12 +42,14 @@ const registration = {
   status: "registered",
   registeredAt: "2026-11-01T00:00:00Z",
   waitlistPosition: null,
+  withdrawalPermitted: false,
 };
 
 describe("MyRegistrationsPage", () => {
   beforeEach(() => {
     listMyRegistrationsMock.mockReset().mockResolvedValue([]);
     leaveWaitlistMock.mockReset().mockResolvedValue({ data: null });
+    withdrawRegistrationMock.mockReset().mockResolvedValue({ data: null });
   });
 
   it("shows an empty state when the attendee has no registrations", async () => {
@@ -98,5 +102,33 @@ describe("MyRegistrationsPage", () => {
 
     expect(leaveWaitlistMock).toHaveBeenCalledWith("event-1");
     expect(await screen.findByText("No registrations yet")).toBeInTheDocument();
+  });
+
+  // This story: Withdraw is reachable from My Registrations, not just the
+  // single-event page, and only when the organiser permits it.
+  it("hides the withdraw action when the event does not permit it", async () => {
+    listMyRegistrationsMock.mockResolvedValue([registration]);
+    renderPage();
+
+    await screen.findByText("Robotics Showcase");
+    expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument();
+  });
+
+  it("lets the attendee withdraw a registered registration, with an optional reason", async () => {
+    listMyRegistrationsMock.mockResolvedValue([{ ...registration, withdrawalPermitted: true }]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Withdraw" }));
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByLabelText(/Reason/), "Schedule conflict.");
+    await user.click(within(dialog).getByRole("button", { name: "Withdraw" }));
+
+    expect(withdrawRegistrationMock).toHaveBeenCalledWith("event-1", "Schedule conflict.");
+    expect(
+      await screen.findByText("You've withdrawn — your place has been released."),
+    ).toBeInTheDocument();
+    const card = (await screen.findByText("Robotics Showcase")).closest("article")!;
+    expect(within(card).getByText("Withdrawn")).toBeInTheDocument();
   });
 });

@@ -272,6 +272,28 @@ describe("NotificationBell", () => {
     expect(navigateMock).toHaveBeenCalledWith(destination);
   });
 
+  // This story: an attendee has no "events" nav section, so their own
+  // event lives at /browse-events/:id, not /events/:id.
+  it("routes a waitlist-promotion notification to the attendee's registration page", async () => {
+    listNotificationsMock.mockResolvedValue([
+      {
+        ...UNREAD,
+        id: "n13",
+        type: "waitlist_promoted" as const,
+        title: "You're registered!",
+        eventId: "e13",
+      },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("You're registered!"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/browse-events/e13");
+  });
+
   // SPM-39 AC03: a newly assigned coordinator's "waiting for you" notice opens
   // the event, where the change request is decided or applied.
   it("opens the event from a change request waiting notification", async () => {

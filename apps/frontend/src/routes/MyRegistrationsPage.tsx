@@ -11,9 +11,11 @@ import {
   RegistrationFiltersPanel,
   type RegistrationFilterValues,
 } from "@/features/registrations/components/registration-filters";
+import { WithdrawRegistrationDialog } from "@/features/registrations/components/withdraw-registration-dialog";
 import {
   leaveWaitlist,
   listMyRegistrations,
+  withdrawRegistration,
   type MyRegistration,
 } from "@/features/registrations/services/registrations";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -52,6 +54,8 @@ export function MyRegistrationsPage() {
   const [filters, setFilters] = useState<RegistrationFilterValues>(emptyRegistrationFilters);
   const [leavingEventId, setLeavingEventId] = useState<string>();
   const [actionError, setActionError] = useState<string>();
+  const [withdrawDialogFor, setWithdrawDialogFor] = useState<MyRegistration>();
+  const [notice, setNotice] = useState<string>();
 
   useEffect(() => {
     if (!user) {
@@ -88,6 +92,23 @@ export function MyRegistrationsPage() {
       );
     } finally {
       setLeavingEventId(undefined);
+    }
+  }
+
+  async function handleWithdraw(eventId: string, reason: string) {
+    setActionError(undefined);
+    try {
+      await withdrawRegistration(eventId, reason);
+      setRegistrations((current) =>
+        current.map((item) => (item.eventId === eventId ? { ...item, status: "withdrawn" } : item)),
+      );
+      setWithdrawDialogFor(undefined);
+      setNotice("You've withdrawn — your place has been released.");
+    } catch (withdrawError) {
+      const message =
+        withdrawError instanceof Error ? withdrawError.message : "Could not withdraw your registration.";
+      setActionError(message);
+      throw withdrawError;
     }
   }
 
@@ -128,6 +149,11 @@ export function MyRegistrationsPage() {
               {error}
             </p>
           )}
+          {notice && (
+            <p role="status" className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+              {notice}
+            </p>
+          )}
           {actionError && (
             <p role="alert" className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
               {actionError}
@@ -152,10 +178,19 @@ export function MyRegistrationsPage() {
                     registration={registration}
                     leaving={leavingEventId === registration.eventId}
                     onLeaveWaitlist={() => handleLeaveWaitlist(registration.eventId)}
+                    onWithdraw={() => setWithdrawDialogFor(registration)}
                   />
                 </li>
               ))}
             </ol>
+          )}
+
+          {withdrawDialogFor && (
+            <WithdrawRegistrationDialog
+              eventTitle={withdrawDialogFor.title}
+              onCancel={() => setWithdrawDialogFor(undefined)}
+              onSubmit={(reason) => handleWithdraw(withdrawDialogFor.eventId, reason)}
+            />
           )}
         </div>
       </div>
@@ -167,10 +202,12 @@ function RegistrationRow({
   registration,
   leaving,
   onLeaveWaitlist,
+  onWithdraw,
 }: {
   registration: MyRegistration;
   leaving: boolean;
   onLeaveWaitlist: () => void;
+  onWithdraw: () => void;
 }) {
   return (
     <article className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5">
@@ -206,6 +243,11 @@ function RegistrationRow({
         {registration.status === "waitlisted" && (
           <Button type="button" variant="outline" size="sm" disabled={leaving} onClick={onLeaveWaitlist}>
             {leaving ? "Leaving…" : "Leave waiting list"}
+          </Button>
+        )}
+        {registration.status === "registered" && registration.withdrawalPermitted && (
+          <Button type="button" variant="outline" size="sm" onClick={onWithdraw}>
+            Withdraw
           </Button>
         )}
       </div>

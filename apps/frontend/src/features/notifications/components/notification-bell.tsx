@@ -80,6 +80,12 @@ function notificationDestination(notification: NotificationSummary): string | un
   }
   if (notification.type === "equipment_change_review") return "/equipment";
   if (notification.type === "safety_review_reset") return "/safety-checks";
+  // Attendee-facing: an attendee has no "events" nav section (see
+  // navigation.ts) and can't reach /events/:id at all — their own copy of
+  // the event lives at /browse-events/:id instead.
+  if (notification.type === "waitlist_promoted") {
+    return notification.eventId ? `/browse-events/${notification.eventId}` : undefined;
+  }
   if (!notification.eventId) return undefined;
   if (VENUE_DECISION_TYPES.has(notification.type)) return `/events/${notification.eventId}/history`;
   if (

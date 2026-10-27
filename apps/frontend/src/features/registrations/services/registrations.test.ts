@@ -57,12 +57,27 @@ describe("leaveWaitlist", () => {
 });
 
 describe("withdrawRegistration", () => {
-  it("posts to the backend withdraw route", async () => {
+  it("posts to the backend withdraw route with no reason", async () => {
     apiFetchMock.mockResolvedValue({ data: null });
 
     await withdrawRegistration("event-1");
 
-    expect(apiFetchMock).toHaveBeenCalledWith("/events/event-1/withdraw", { method: "POST" });
+    expect(apiFetchMock).toHaveBeenCalledWith("/events/event-1/withdraw", {
+      method: "POST",
+      body: JSON.stringify({ reason: undefined }),
+    });
+  });
+
+  // This story: the reason is optional but is sent through when given.
+  it("posts a given reason", async () => {
+    apiFetchMock.mockResolvedValue({ data: null });
+
+    await withdrawRegistration("event-1", "Can no longer attend.");
+
+    expect(apiFetchMock).toHaveBeenCalledWith("/events/event-1/withdraw", {
+      method: "POST",
+      body: JSON.stringify({ reason: "Can no longer attend." }),
+    });
   });
 });
 
@@ -145,6 +160,7 @@ describe("listMyRegistrations", () => {
             starts_at: "2026-11-28T03:00:00Z",
             ends_at: "2026-11-28T07:00:00Z",
             event_venue_requirements: { preferred_location: "Exhibition Hall" },
+            event_registration_requirements: { withdrawal_permitted: true },
           },
         },
       ],
@@ -163,6 +179,7 @@ describe("listMyRegistrations", () => {
         status: "registered",
         registeredAt: "2026-11-01T00:00:00Z",
         waitlistPosition: null,
+        withdrawalPermitted: true,
       },
     ]);
     // Guards against relying solely on RLS, which also grants any attendee

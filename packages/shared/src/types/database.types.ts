@@ -915,6 +915,7 @@ export type Database = {
           id: string
           registered_at: string
           status: string
+          withdrawal_reason: string | null
           withdrawn_at: string | null
         }
         Insert: {
@@ -923,6 +924,7 @@ export type Database = {
           id?: string
           registered_at?: string
           status?: string
+          withdrawal_reason?: string | null
           withdrawn_at?: string | null
         }
         Update: {
@@ -931,6 +933,7 @@ export type Database = {
           id?: string
           registered_at?: string
           status?: string
+          withdrawal_reason?: string | null
           withdrawn_at?: string | null
         }
         Relationships: [
@@ -2096,6 +2099,7 @@ export type Database = {
           id: string
           registered_at: string
           status: string
+          withdrawal_reason: string | null
           withdrawn_at: string | null
         }
         SetofOptions: {
@@ -2198,6 +2202,7 @@ export type Database = {
           id: string
           registered_at: string
           status: string
+          withdrawal_reason: string | null
           withdrawn_at: string | null
         }
         SetofOptions: {
@@ -2402,7 +2407,7 @@ export type Database = {
         Returns: string
       }
       withdraw_registration: {
-        Args: { p_actor_id?: string; p_event_id: string }
+        Args: { p_actor_id?: string; p_event_id: string; p_reason?: string }
         Returns: undefined
       }
       withdraw_venue_booking_request: {
@@ -2456,6 +2461,7 @@ export type Database = {
         | "venue_change_review"
         | "equipment_change_review"
         | "safety_review_reset"
+        | "waitlist_promoted"
       request_status:
         | "pending"
         | "approved"
@@ -2663,6 +2669,7 @@ export const Constants = {
         "venue_change_review",
         "equipment_change_review",
         "safety_review_reset",
+        "waitlist_promoted",
       ],
       request_status: [
         "pending",

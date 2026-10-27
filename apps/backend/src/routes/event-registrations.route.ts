@@ -11,6 +11,10 @@ export const eventRegistrationsRouter = Router();
 
 const eventIdParamsSchema = z.object({ eventId: z.uuid() });
 
+const withdrawBodySchema = z.object({
+  reason: z.string().trim().max(2_000).optional(),
+});
+
 /**
  * register_for_event re-checks everything (confirmed status, registration
  * window, capacity, duplicate) inside one statement, so two concurrent
@@ -95,9 +99,15 @@ eventRegistrationsRouter.post(
       throw new ApplicationError("VALIDATION", "Enter a valid event id");
     }
 
+    const body = withdrawBodySchema.safeParse(req.body ?? {});
+    if (!body.success) {
+      throw new ApplicationError("VALIDATION", "Enter a valid withdrawal reason");
+    }
+
     const { error } = await getServiceClient().rpc("withdraw_registration", {
       p_event_id: params.data.eventId,
       p_actor_id: req.userId,
+      p_reason: body.data.reason ?? "",
     });
 
     if (error) throw mapRegistrationError(error);

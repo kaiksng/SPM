@@ -208,14 +208,14 @@ describe("POST /events/:eventId/withdraw", () => {
     getUserMock.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
   });
 
-  function withdrawRequest(eventId = EVENT_ID) {
+  function withdrawRequest(body: unknown = undefined, eventId = EVENT_ID) {
     return request(createApp())
       .post(`/events/${eventId}/withdraw`)
       .set("Authorization", "Bearer test-token")
-      .send();
+      .send(body as object);
   }
 
-  it("succeeds with no body", async () => {
+  it("succeeds with no body, passing an empty reason", async () => {
     rpcMock.mockResolvedValue({ data: null, error: null });
 
     const response = await withdrawRequest();
@@ -224,7 +224,29 @@ describe("POST /events/:eventId/withdraw", () => {
     expect(rpcMock).toHaveBeenCalledWith("withdraw_registration", {
       p_event_id: EVENT_ID,
       p_actor_id: USER_ID,
+      p_reason: "",
     });
+  });
+
+  // This story: the reason is optional.
+  it("passes a given reason through", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: null });
+
+    const response = await withdrawRequest({ reason: "Can no longer attend." });
+
+    expect(response.status).toBe(200);
+    expect(rpcMock).toHaveBeenCalledWith("withdraw_registration", {
+      p_event_id: EVENT_ID,
+      p_actor_id: USER_ID,
+      p_reason: "Can no longer attend.",
+    });
+  });
+
+  it("rejects a reason that is too long", async () => {
+    const response = await withdrawRequest({ reason: "x".repeat(2_001) });
+
+    expect(response.status).toBe(422);
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 
   it("maps 23514 (e.g. withdrawal not permitted) to a 422", async () => {

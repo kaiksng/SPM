@@ -1,6 +1,6 @@
 begin;
 
-select plan(19);
+select plan(24);
 
 -- Event waitlist (202610240002): join / leave / promote-on-withdraw.
 
@@ -112,15 +112,31 @@ select throws_ok(
 -- attendee-1 withdraws from the full event: promotes attendee-4 (earliest
 -- remaining waitlisted row — attendee-3 left and rejoined later) straight
 -- to 'registered', no invite/accept step.
+-- This story: the reason is optional, stored when given.
 select lives_ok(
-  $$select public.withdraw_registration('c7000000-0000-0000-0000-0000000000e1', 'c7000000-0000-0000-0000-000000000002')$$,
-  'withdraw_registration succeeds for a registered attendee'
+  $$select public.withdraw_registration('c7000000-0000-0000-0000-0000000000e1', 'c7000000-0000-0000-0000-000000000002', '  Can no longer attend.  ')$$,
+  'withdraw_registration succeeds for a registered attendee, with a reason'
 );
 select results_eq(
   $$select attendee_id, status from public.event_registrations
     where event_id = 'c7000000-0000-0000-0000-0000000000e1' and status = 'registered'$$,
   $$values ('c7000000-0000-0000-0000-000000000004'::uuid, 'registered')$$,
   'the longest-waiting attendee is promoted straight to registered, auto-registered with no invite step'
+);
+select is(
+  (select withdrawal_reason from public.event_registrations
+    where event_id = 'c7000000-0000-0000-0000-0000000000e1' and attendee_id = 'c7000000-0000-0000-0000-000000000002'),
+  'Can no longer attend.',
+  'the given reason is trimmed and stored on the withdrawn row'
+);
+
+-- This story: the promoted attendee is notified, not just silently moved.
+select is(
+  (select row(type, event_id) from public.notifications
+    where recipient_id = 'c7000000-0000-0000-0000-000000000004'
+      and type = 'waitlist_promoted'::public.notification_type),
+  row('waitlist_promoted'::public.notification_type, 'c7000000-0000-0000-0000-0000000000e1'::uuid),
+  'the promoted attendee is notified of their new registered status'
 );
 
 -- A withdrawn (no longer registered) row cannot be withdrawn again.
@@ -145,12 +161,24 @@ select lives_ok(
 );
 select lives_ok(
   $$select public.withdraw_registration('c7000000-0000-0000-0000-0000000000e2', 'c7000000-0000-0000-0000-000000000004')$$,
-  'withdraw_registration succeeds, freeing the attendee to try again'
+  'withdraw_registration succeeds with no reason given, freeing the attendee to try again'
+);
+select is(
+  (select withdrawal_reason from public.event_registrations
+    where event_id = 'c7000000-0000-0000-0000-0000000000e2' and attendee_id = 'c7000000-0000-0000-0000-000000000004'),
+  null::text,
+  'no reason given leaves withdrawal_reason null, not an empty string'
 );
 select is(
   (public.register_for_event('c7000000-0000-0000-0000-0000000000e2', 'c7000000-0000-0000-0000-000000000004')).status,
   'registered',
   'register_for_event lets a withdrawn attendee register again'
+);
+select is(
+  (select withdrawal_reason from public.event_registrations
+    where event_id = 'c7000000-0000-0000-0000-0000000000e2' and attendee_id = 'c7000000-0000-0000-0000-000000000004'),
+  null::text,
+  'registering again clears any prior withdrawal_reason on the reused row'
 );
 
 -- join_event_waitlist: e1 is full again (attendee-4 now holds the only
@@ -160,6 +188,12 @@ select is(
   (public.join_event_waitlist('c7000000-0000-0000-0000-0000000000e1', 'c7000000-0000-0000-0000-000000000002')).status,
   'waitlisted',
   'join_event_waitlist lets a withdrawn attendee join the waiting list again'
+);
+select is(
+  (select withdrawal_reason from public.event_registrations
+    where event_id = 'c7000000-0000-0000-0000-0000000000e1' and attendee_id = 'c7000000-0000-0000-0000-000000000002'),
+  null::text,
+  'joining the waiting list again also clears any prior withdrawal_reason'
 );
 
 select * from finish();
