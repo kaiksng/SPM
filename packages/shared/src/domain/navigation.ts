@@ -89,6 +89,9 @@ const LEAD_ALLOWED_EVENT_PATHS = [
   /^\/events$/,
   new RegExp(`^/events/${UUID_SEGMENT}/history$`, "i"),
   new RegExp(`^/events/${UUID_SEGMENT}$`, "i"),
+  // View Event Registration Information: the Lead sees every event's
+  // registrations, same as the organiser and assigned coordinator.
+  new RegExp(`^/events/${UUID_SEGMENT}/registrations$`, "i"),
 ];
 
 // A handful of roles get one path outside their nav items' own prefix,

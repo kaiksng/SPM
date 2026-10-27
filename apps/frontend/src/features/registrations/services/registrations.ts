@@ -151,6 +151,53 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
   });
 }
 
+export type EventRegistrationEntry = {
+  id: string;
+  attendeeId: string;
+  attendeeName: string | null;
+  status: string;
+  registeredAt: string;
+  withdrawnAt: string | null;
+  waitlistPosition: number | null;
+};
+
+/**
+ * View Event Registration Information: every registration row for one
+ * event, with the attendee's name — for the organiser, the assigned
+ * coordinator, or the Event Coordinator Lead. RLS already scopes the rows
+ * themselves (event_registrations delegates to can_view_event); the
+ * attendee's name comes from a new, narrow profiles grant
+ * (202610270006). No venue or equipment data is fetched here at all —
+ * this is its own query, not the event-detail loader.
+ */
+export async function listEventRegistrations(eventId: string): Promise<EventRegistrationEntry[]> {
+  const { data, error } = await supabase
+    .from("event_registrations")
+    .select(
+      `
+        id, attendee_id, status, registered_at, withdrawn_at,
+        attendee:profiles!event_registrations_attendee_id_fkey ( full_name )
+      `,
+    )
+    .eq("event_id", eventId)
+    .order("registered_at", { ascending: true });
+
+  if (error) throw new Error("We couldn't load this event's registrations.");
+
+  const waitlisted = (data ?? []).filter((row) => row.status === "waitlisted");
+  const waitlistPositions = new Map(waitlisted.map((row, index) => [row.id, index + 1]));
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    attendeeId: row.attendee_id,
+    attendeeName: row.attendee?.full_name ?? null,
+    status: row.status,
+    registeredAt: row.registered_at,
+    withdrawnAt: row.withdrawn_at,
+    waitlistPosition: waitlistPositions.get(row.id) ?? null,
+  }));
+}
+
 async function getOwnWaitlistPositions(eventIds: string[], attendeeId: string) {
   const { data, error } = await supabase
     .from("event_registrations")

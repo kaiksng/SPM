@@ -21,6 +21,7 @@ import {
   getWaitlistPosition,
   joinWaitlist,
   leaveWaitlist,
+  listEventRegistrations,
   listMyRegistrations,
   registerForEvent,
   withdrawRegistration,
@@ -239,5 +240,101 @@ describe("listMyRegistrations", () => {
     const result = await listMyRegistrations("attendee-1");
 
     expect(result[0]?.waitlistPosition).toBe(2);
+  });
+});
+
+describe("listEventRegistrations", () => {
+  beforeEach(() => fromMock.mockReset());
+
+  it("maps each row including the attendee's name, scoped to the given event", async () => {
+    const query = queryBuilder({
+      data: [
+        {
+          id: "reg-1",
+          attendee_id: "attendee-1",
+          status: "registered",
+          registered_at: "2026-11-01T00:00:00Z",
+          withdrawn_at: null,
+          attendee: { full_name: "Avery Attendee" },
+        },
+      ],
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(query);
+
+    await expect(listEventRegistrations("event-1")).resolves.toEqual([
+      {
+        id: "reg-1",
+        attendeeId: "attendee-1",
+        attendeeName: "Avery Attendee",
+        status: "registered",
+        registeredAt: "2026-11-01T00:00:00Z",
+        withdrawnAt: null,
+        waitlistPosition: null,
+      },
+    ]);
+    expect(query.eq).toHaveBeenCalledWith("event_id", "event-1");
+  });
+
+  it("numbers waitlisted rows by registration order, 1-based", async () => {
+    fromMock.mockReturnValueOnce(
+      queryBuilder({
+        data: [
+          {
+            id: "reg-1",
+            attendee_id: "attendee-1",
+            status: "waitlisted",
+            registered_at: "2026-11-01T00:00:00Z",
+            withdrawn_at: null,
+            attendee: { full_name: "First Waiter" },
+          },
+          {
+            id: "reg-2",
+            attendee_id: "attendee-2",
+            status: "waitlisted",
+            registered_at: "2026-11-02T00:00:00Z",
+            withdrawn_at: null,
+            attendee: { full_name: "Second Waiter" },
+          },
+        ],
+        error: null,
+      }),
+    );
+
+    const result = await listEventRegistrations("event-1");
+
+    expect(result[0]?.waitlistPosition).toBe(1);
+    expect(result[1]?.waitlistPosition).toBe(2);
+  });
+
+  it("falls back to null when the attendee's profile isn't joined", async () => {
+    fromMock.mockReturnValueOnce(
+      queryBuilder({
+        data: [
+          {
+            id: "reg-1",
+            attendee_id: "attendee-1",
+            status: "withdrawn",
+            registered_at: "2026-11-01T00:00:00Z",
+            withdrawn_at: "2026-11-05T00:00:00Z",
+            attendee: null,
+          },
+        ],
+        error: null,
+      }),
+    );
+
+    const result = await listEventRegistrations("event-1");
+
+    expect(result[0]?.attendeeName).toBeNull();
+    expect(result[0]?.waitlistPosition).toBeNull();
+  });
+
+  it("throws a friendly error when the query fails", async () => {
+    fromMock.mockReturnValueOnce(queryBuilder({ data: null, error: { message: "boom" } }));
+
+    await expect(listEventRegistrations("event-1")).rejects.toThrow(
+      "We couldn't load this event's registrations.",
+    );
   });
 });

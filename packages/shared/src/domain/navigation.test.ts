@@ -87,6 +87,13 @@ describe("workspace navigation", () => {
         "event_coordinator_lead",
       ),
     ).toBe(true);
+    // View Event Registration Information: the Lead sees every event's registrations.
+    expect(
+      isPathAllowedForRole(
+        "/events/10000000-0000-0000-0000-000000000001/registrations",
+        "event_coordinator_lead",
+      ),
+    ).toBe(true);
   });
 
   // SPM-77 AC02: the Lead cannot reach event editing, venue or creation routes.
@@ -221,12 +228,14 @@ describe("workspace navigation", () => {
 
     // SPM-77 AC02: the Lead's permitted pages are the events dashboard,
     // a read-only event detail and its history.
-    it.each(["/events", `/events/${eventId}`, `/events/${eventId}/history`])(
-      "allows the lead to reach %s",
-      (path) => {
-        expect(isPathAllowedForRole(path, "event_coordinator_lead")).toBe(true);
-      },
-    );
+    it.each([
+      "/events",
+      `/events/${eventId}`,
+      `/events/${eventId}/history`,
+      `/events/${eventId}/registrations`,
+    ])("allows the lead to reach %s", (path) => {
+      expect(isPathAllowedForRole(path, "event_coordinator_lead")).toBe(true);
+    });
 
     // SPM-77 AC02: everything else is outside the Lead's scope.
     it.each([

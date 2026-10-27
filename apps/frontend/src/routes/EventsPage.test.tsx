@@ -390,6 +390,13 @@ describe("EventsPage draft controls", () => {
         "href",
         "/events/finalised-1",
       );
+      // View Event Registration Information: only Confirmed/Completed can have registrations.
+      const registrationsLink = screen.queryByRole("link", { name: "View registrations" });
+      if (status === "confirmed" || status === "completed") {
+        expect(registrationsLink).toHaveAttribute("href", "/events/finalised-1/registrations");
+      } else {
+        expect(registrationsLink).not.toBeInTheDocument();
+      }
     },
   );
 
@@ -524,7 +531,9 @@ describe("EventsPage coordinator view", () => {
       "/events/assigned-1/venue",
     );
 
-    const card = await screen.findByRole("link", { name: /Shernice Test Submission.*Organiser/s });
+    const titles = await screen.findAllByText("Shernice Test Submission");
+    const card = titles.map((title) => title.closest("article")).find((article) => article !== null);
+    if (!card) throw new Error("Expected the event title to be inside an <article> card.");
     expect(within(card).getByText("Venue issue")).toBeInTheDocument();
     // The table sits after the event cards, not above them.
     expect(card.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -593,13 +602,32 @@ describe("EventsPage coordinator view", () => {
     expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
     expect(screen.getByText("Organiser: Kai Test")).toBeInTheDocument();
     expect(listAssignedEventsMock).toHaveBeenCalledWith(authState.user.id);
-    // The card links to the detail page rather than hosting actions itself.
-    expect(screen.getByRole("link", { name: /Shernice Test Submission/ })).toHaveAttribute(
+    // The card's footer links to the detail page via its own "View details" button.
+    expect(await screen.findByRole("link", { name: "View details" })).toHaveAttribute(
       "href",
       "/events/assigned-1",
     );
-    expect(await screen.findByText("View details")).toBeInTheDocument();
+    // View Event Registration Information: not offered while merely requested.
+    expect(screen.queryByRole("link", { name: "View registrations" })).not.toBeInTheDocument();
   });
+
+  // View Event Registration Information: offered once registration could exist.
+  it.each(["confirmed", "completed"])(
+    "offers the coordinator a View registrations link on a %s event",
+    async (status) => {
+      listAssignedEventsMock.mockResolvedValue([{ ...assignedEvent, status }]);
+
+      render(
+        <MemoryRouter initialEntries={["/events"]}>
+          <EventsPage />
+        </MemoryRouter>,
+      );
+
+      expect(
+        await screen.findByRole("link", { name: "View registrations" }),
+      ).toHaveAttribute("href", "/events/assigned-1/registrations");
+    },
+  );
 
   it("shows the Awaiting Organiser badge while a clarification is open", async () => {
     getClarificationReviewStateMock.mockResolvedValue({
@@ -887,5 +915,10 @@ describe("EventsPage for the Event Coordinator Lead role", () => {
     expect(await screen.findByText("Finished Summit")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reassign" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Assign coordinator" })).not.toBeInTheDocument();
+    // View Event Registration Information: offered to the Lead too, once Completed.
+    expect(screen.getByRole("link", { name: "View registrations" })).toHaveAttribute(
+      "href",
+      "/events/event-done/registrations",
+    );
   });
 });

@@ -13,6 +13,7 @@ import { EventRegistrationPage } from "@/routes/EventRegistrationPage";
 import { EventRequestEditorPage } from "@/routes/EventRequestEditorPage";
 import { EventsPage } from "@/routes/EventsPage";
 import { EventEquipmentPage } from "@/routes/EventEquipmentPage";
+import { EventRegistrationsPage } from "@/routes/EventRegistrationsPage";
 import { EventSafetyCheckPage } from "@/routes/EventSafetyCheckPage";
 import { EventVenuePage } from "@/routes/EventVenuePage";
 import { FlaggedBookingsPage } from "@/routes/FlaggedBookingsPage";
@@ -51,6 +52,7 @@ export function App() {
               <Route path="events/:eventId/venue" element={<EventVenuePage />} />
               <Route path="events/:eventId/equipment" element={<EventEquipmentPage />} />
               <Route path="events/:eventId/safety-check" element={<EventSafetyCheckPage />} />
+              <Route path="events/:eventId/registrations" element={<EventRegistrationsPage />} />
               <Route path="events/:eventId/history" element={<EventHistoryPage />} />
               <Route
                 path="events/:eventId/edit"

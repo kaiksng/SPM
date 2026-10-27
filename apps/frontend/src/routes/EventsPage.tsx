@@ -1051,15 +1051,27 @@ function EventCard({
             </>
           ) : (
             <>
-              <Link
-                to={`/events/${event.id}`}
-                className={buttonVariants({
-                  size: "lg",
-                  className: "w-full justify-center",
-                })}
-              >
-                View details
-              </Link>
+              <div className="flex w-full gap-2">
+                <Link
+                  to={`/events/${event.id}`}
+                  className={buttonVariants({
+                    size: "lg",
+                    className: "flex-1 justify-center",
+                  })}
+                >
+                  View details
+                </Link>
+                {/* View Event Registration Information: only once registration could
+                    exist at all, i.e. Confirmed or Completed. */}
+                {(event.status === "confirmed" || event.status === "completed") && (
+                  <Link
+                    to={`/events/${event.id}/registrations`}
+                    className={buttonVariants({ variant: "outline", size: "lg" })}
+                  >
+                    View registrations
+                  </Link>
+                )}
+              </div>
               <span className="self-center text-sm text-slate-500">
                 {isDirectEditBlocked(event.status)
                   ? "This event is finalised. Direct edits are locked — submit a change request instead."
@@ -1104,10 +1116,7 @@ function AssignedEventCard({
   }, [event.id, event.status]);
 
   return (
-    <Link
-      to={`/events/${event.id}`}
-      className="group flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_22px_50px_-34px_rgba(37,99,235,0.35)] motion-reduce:transform-none"
-    >
+    <article className="flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:border-primary/40">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <EventStatusBadge
@@ -1126,7 +1135,7 @@ function AssignedEventCard({
           Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeZone: "Asia/Singapore" }).format(new Date(event.updatedAt))}
         </span>
       </div>
-      <h2 className="mt-5 text-lg font-semibold tracking-tight text-slate-950 group-hover:text-primary">
+      <h2 className="mt-5 text-lg font-semibold tracking-tight text-slate-950">
         {event.title}
       </h2>
       <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
@@ -1170,10 +1179,26 @@ function AssignedEventCard({
           ))}
         </div>
       )}
-      <span className="mt-auto pt-4 text-sm font-medium text-primary group-hover:underline">
-        View details
-      </span>
-    </Link>
+      {/* View Event Registration Information: a second action needs its own
+          link, so this card can no longer be one giant Link wrapping
+          everything — "View details" moved to its own footer button. */}
+      <div className="mt-auto flex gap-2 pt-4">
+        <Link
+          to={`/events/${event.id}`}
+          className={buttonVariants({ size: "lg", className: "flex-1 justify-center" })}
+        >
+          View details
+        </Link>
+        {(event.status === "confirmed" || event.status === "completed") && (
+          <Link
+            to={`/events/${event.id}/registrations`}
+            className={buttonVariants({ variant: "outline", size: "lg" })}
+          >
+            View registrations
+          </Link>
+        )}
+      </div>
+    </article>
   );
 }
 
@@ -1241,6 +1266,14 @@ function LeadEventCard({
         <Link to={`/events/${event.id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
           View details
         </Link>
+        {(event.status === "confirmed" || event.status === "completed") && (
+          <Link
+            to={`/events/${event.id}/registrations`}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            View registrations
+          </Link>
+        )}
         <EventHistoryButton eventId={event.id} />
         {!isReassignmentBlocked && (
           <Button type="button" variant={isAssigned ? "outline" : "default"} onClick={onAssign}>
