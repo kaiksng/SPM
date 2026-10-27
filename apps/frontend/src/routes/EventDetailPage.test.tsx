@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -391,31 +391,68 @@ describe("EventDetailPage", () => {
     expect(screen.queryByText(/Can be completed from/)).not.toBeInTheDocument();
   });
 
-  it("marks the event completed and updates the badge", async () => {
+  // SPM-46: completing cannot be undone, so it is confirmed in a dialog first.
+  it("asks for confirmation before marking the event completed", async () => {
     loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
     const user = userEvent.setup();
 
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Mark as completed" }));
 
+    const dialog = await screen.findByRole("dialog", { name: "Mark this event completed?" });
+    expect(dialog).toHaveTextContent("“Student Leadership Summit 2” will be closed.");
+    expect(dialog).toHaveTextContent("This cannot be undone.");
+    expect(completeEventMock).not.toHaveBeenCalled();
+  });
+
+  it("completes nothing when the coordinator keeps the event open", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Mark as completed" }));
+    await user.click(await screen.findByRole("button", { name: "Keep event open" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(completeEventMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Mark as completed" })).toBeInTheDocument();
+  });
+
+  // SPM-46 AC01: confirming marks the event completed.
+  it("marks the event completed once confirmed and updates the badge", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Mark as completed" }));
+    await user.click(await screen.findByRole("button", { name: "Confirm completion" }));
+
     expect(completeEventMock).toHaveBeenCalledWith("event-1");
     expect(await screen.findByText("completed")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Mark as completed" }),
     ).not.toBeInTheDocument();
   });
 
-  it("shows an error if marking an event completed fails", async () => {
+  // SPM-46 AC02: a refusal is shown in the dialog and the event stays Confirmed.
+  it("shows the refusal inside the dialog if marking an event completed fails", async () => {
     loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
-    completeEventMock.mockRejectedValue(new Error("This event could not be marked completed."));
+    completeEventMock.mockRejectedValue(
+      new Error("Resolve this event's open venue booking requests before marking it completed"),
+    );
     const user = userEvent.setup();
 
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Mark as completed" }));
+    await user.click(await screen.findByRole("button", { name: "Confirm completion" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "This event could not be marked completed.",
+    const dialog = screen.getByRole("dialog", { name: "Mark this event completed?" });
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Resolve this event's open venue booking requests before marking it completed",
     );
+    expect(within(dialog).getByRole("button", { name: "Confirm completion" })).toBeEnabled();
+    expect(screen.queryByText("completed")).not.toBeInTheDocument();
   });
 
   // SPM-45 AC2: cancellable from Requested, Planning, Pending Safety Check, Confirmed only.

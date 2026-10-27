@@ -11,6 +11,7 @@ import { Link, useLocation, useParams } from "react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { CancelEventDialog } from "@/features/event-requests/components/cancel-event-dialog";
+import { CompleteEventDialog } from "@/features/event-requests/components/complete-event-dialog";
 import { ChangeRequestPanel } from "@/features/event-requests/components/change-request-panel";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
 import { ConfirmedArrangementsSection } from "@/features/event-requests/components/confirmed-arrangements-section";
@@ -73,8 +74,7 @@ export function EventDetailPage() {
   const [reviewState, setReviewState] = useState<"open" | "answered">();
   const [unresolvedClarification, setUnresolvedClarification] =
     useState<ClarificationSummary>();
-  const [completing, setCompleting] = useState(false);
-  const [completeError, setCompleteError] = useState<string>();
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [completionAvailableAt, setCompletionAvailableAt] = useState<string>();
   const [venueBookings, setVenueBookings] = useState<VenueBookingRequestSummary[]>();
@@ -173,22 +173,12 @@ export function EventDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the event's id, not the whole object, so handleComplete's setEvent doesn't retrigger this fetch.
   }, [event?.id, canViewConfirmedArrangements]);
 
+  // The dialog shows any error itself, so this one lets it through.
   async function handleComplete() {
     if (!event) return;
-    setCompleting(true);
-    setCompleteError(undefined);
-    try {
-      await completeEvent(event.id);
-      setEvent({ ...event, status: "completed" });
-    } catch (completeErr) {
-      setCompleteError(
-        completeErr instanceof Error
-          ? completeErr.message
-          : "This event could not be marked completed.",
-      );
-    } finally {
-      setCompleting(false);
-    }
+    await completeEvent(event.id);
+    setEvent({ ...event, status: "completed" });
+    setShowCompleteDialog(false);
   }
 
   async function handleCancel(reason: string) {
@@ -271,10 +261,10 @@ export function EventDetailPage() {
                   {canComplete && (
                     <Button
                       size="sm"
-                      disabled={completing || completionNotYetAllowed}
-                      onClick={handleComplete}
+                      disabled={completionNotYetAllowed}
+                      onClick={() => setShowCompleteDialog(true)}
                     >
-                      {completing ? "Marking completed…" : "Mark as completed"}
+                      Mark as completed
                     </Button>
                   )}
                   {isCancellable && (
@@ -290,11 +280,6 @@ export function EventDetailPage() {
                 {canComplete && completionNotYetAllowed && completionAvailableAt && (
                   <p className="mt-2 text-sm text-slate-500">
                     Can be completed from {formatDateTime(completionAvailableAt)}
-                  </p>
-                )}
-                {completeError && (
-                  <p role="alert" className="mt-2 text-sm text-red-700">
-                    {completeError}
                   </p>
                 )}
                 <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
@@ -424,6 +409,13 @@ export function EventDetailPage() {
           )}
         </div>
       </div>
+      {showCompleteDialog && event && (
+        <CompleteEventDialog
+          eventTitle={event.title}
+          onCancel={() => setShowCompleteDialog(false)}
+          onConfirm={handleComplete}
+        />
+      )}
       {showCancelDialog && (
         <CancelEventDialog onCancel={() => setShowCancelDialog(false)} onSubmit={handleCancel} />
       )}
