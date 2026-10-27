@@ -4,7 +4,7 @@
 -- Inputs entered during the test (not inserted): new facility Air conditioning
 -- Source: Logged in as Venue Staff user "Daryl".
 --         "SMU Seminar Room 3-1" (South) exists.
--- Records restored: profile daryl@gmail.com; venue "SMU Seminar Room 3-1" (South, key 00000000-0000-0000-0018-000000000131)
+-- Records restored: profile daryl@gmail.com; venue "SMU Seminar Room 3-1" (South, key 00000000-0000-4000-8018-000000000131)
 -- Must-not-exist conditions enforced: none
 -- Defaults added: Venue values beyond name/location reuse TC-001/TC-002 Test Data: 100 pax, Classroom, Mon-Sun 09:00-18:00 (agreed in Questions)
 -- Safe to re-run: changes this case's test records only; stops without changes if real data would be affected.
@@ -19,7 +19,7 @@ SET LOCAL app.coordinator_reassignment = 'on';
 -- left under those ids (with their own bookings, flags and history) so they can't clash.
 DO $$
 DECLARE v_ids uuid[] := ARRAY[
-  '00000000-0000-4000-8018-000000000131'
+  '00000000-0000-0000-0018-000000000131'
 ]::uuid[];
 BEGIN
   DELETE FROM public.venue_bookings WHERE id = ANY (v_ids);
@@ -48,20 +48,20 @@ DECLARE v_id uuid;
 BEGIN
   -- Must not exist: a copy of this venue that a test account created in the app (e.g. in a
   -- create case). Removed only when no booking or event uses it.
-  DELETE FROM public.venues v WHERE v.name = 'SMU Seminar Room 3-1' AND v.location = 'South' AND v.id <> '00000000-0000-0000-0018-000000000131'
-    AND (v.id::text LIKE '00000000-0000-0000-00%' OR v.updated_by IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')))
+  DELETE FROM public.venues v WHERE v.name = 'SMU Seminar Room 3-1' AND v.location = 'South' AND v.id <> '00000000-0000-4000-8018-000000000131'
+    AND (v.id::text LIKE '00000000-0000-0000-00%' OR v.id::text LIKE '00000000-0000-4000-80%' OR v.updated_by IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')))
     AND NOT EXISTS (SELECT 1 FROM public.venue_bookings b WHERE b.venue_id = v.id)
     AND NOT EXISTS (SELECT 1 FROM public.events e WHERE e.venue_id = v.id);
   -- Clash guard: a real (non-test) venue already uses this name and location.
   IF EXISTS (SELECT 1 FROM public.venues WHERE name = 'SMU Seminar Room 3-1' AND location = 'South'
-             AND id <> '00000000-0000-0000-0018-000000000131') THEN
+             AND id <> '00000000-0000-4000-8018-000000000131') THEN
     RAISE EXCEPTION 'UAT setup stopped: a real venue named "SMU Seminar Room 3-1" at South exists. Nothing was changed.';
   END IF;
-  SELECT id INTO v_id FROM public.venues WHERE id = '00000000-0000-0000-0018-000000000131';
+  SELECT id INTO v_id FROM public.venues WHERE id = '00000000-0000-4000-8018-000000000131';
   IF v_id IS NULL THEN
     INSERT INTO public.venues (id, name, location, area_tags, capacity, operating_hours,
                                setup_time_minutes, turnaround_time_minutes)
-    VALUES ('00000000-0000-0000-0018-000000000131', 'SMU Seminar Room 3-1', 'South', ARRAY['South'], 100,
+    VALUES ('00000000-0000-4000-8018-000000000131', 'SMU Seminar Room 3-1', 'South', ARRAY['South'], 100,
             '[{"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "opensAt": "09:00", "closesAt": "18:00"}]'::jsonb, 0, 0)
     RETURNING id INTO v_id;
   ELSE

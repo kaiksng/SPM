@@ -34,7 +34,7 @@ DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM public.venues v
              WHERE lower(trim(v.name)) = lower('SMU Seminar Room 3-1') AND (v.location IN ('Central Area') OR v.area_tags = ARRAY['Central Area'])
-               AND NOT (v.id::text LIKE '00000000-0000-0000-00%' OR v.updated_by IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')))) THEN
+               AND NOT (v.id::text LIKE '00000000-0000-0000-00%' OR v.id::text LIKE '00000000-0000-4000-80%' OR v.updated_by IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')))) THEN
     RAISE EXCEPTION 'UAT setup stopped: a venue named SMU Seminar Room 3-1 exists that was not created by a test account. Nothing was changed.';
   END IF;
   IF EXISTS (SELECT 1 FROM public.venues v
@@ -44,7 +44,7 @@ BEGIN
     RAISE EXCEPTION 'Venue SMU Seminar Room 3-1 at Central Area has bookings or linked events; remove it by hand before running this file';
   END IF;
   DELETE FROM public.venues v WHERE lower(trim(v.name)) = lower('SMU Seminar Room 3-1') AND (v.location IN ('Central Area') OR v.area_tags = ARRAY['Central Area'])
-    AND (v.id::text LIKE '00000000-0000-0000-00%' OR v.updated_by IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')));
+    AND (v.id::text LIKE '00000000-0000-0000-00%' OR v.id::text LIKE '00000000-0000-4000-80%' OR v.updated_by IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')));
 END $$;
 
 COMMIT;
