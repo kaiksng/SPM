@@ -59,6 +59,7 @@ import {
   listEventRequests,
   type EventDraftSummary,
 } from "@/features/event-requests/services/event-drafts";
+import { FROM_EVENTS_LIST_STATE } from "@/features/event-requests/utils/events-list-navigation";
 import { CHANGE_REQUEST_SUBMITTABLE_STATUSES } from "@/features/event-requests/utils/format-change-request";
 import {
   AffectedVenueBookings,
@@ -1054,6 +1055,7 @@ function EventCard({
               <div className="flex w-full gap-2">
                 <Link
                   to={`/events/${event.id}`}
+                  state={FROM_EVENTS_LIST_STATE}
                   className={buttonVariants({
                     size: "lg",
                     className: "flex-1 justify-center",
@@ -1185,6 +1187,7 @@ function AssignedEventCard({
       <div className="mt-auto flex gap-2 pt-4">
         <Link
           to={`/events/${event.id}`}
+          state={FROM_EVENTS_LIST_STATE}
           className={buttonVariants({ size: "lg", className: "flex-1 justify-center" })}
         >
           View details
@@ -1263,7 +1266,11 @@ function LeadEventCard({
           <span>Organiser: {event.organiserName ?? "Unknown"}</span>
           <span>Coordinator: {event.assignedCoordinatorName ?? "Unassigned"}</span>
         </div>
-        <Link to={`/events/${event.id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+        <Link
+          to={`/events/${event.id}`}
+          state={FROM_EVENTS_LIST_STATE}
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
           View details
         </Link>
         {(event.status === "confirmed" || event.status === "completed") && (

@@ -1,7 +1,9 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { cameFromEventsList } from "@/features/event-requests/utils/events-list-navigation";
 
 const listEventRequestsMock = vi.fn();
 const deleteEventDraftMock = vi.fn();
@@ -609,6 +611,26 @@ describe("EventsPage coordinator view", () => {
     );
     // View Event Registration Information: not offered while merely requested.
     expect(screen.queryByRole("link", { name: "View registrations" })).not.toBeInTheDocument();
+  });
+
+  // The event page only goes back in history to the list when the list opened it.
+  it("tells the event page it was opened from the Events list", async () => {
+    function EventStub() {
+      return <p>FROM LIST: {String(cameFromEventsList(useLocation().state))}</p>;
+    }
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventsPage />} />
+          <Route path="/events/:eventId" element={<EventStub />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("link", { name: "View details" }));
+
+    expect(await screen.findByText("FROM LIST: true")).toBeInTheDocument();
   });
 
   // View Event Registration Information: offered once registration could exist.

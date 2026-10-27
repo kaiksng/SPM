@@ -435,6 +435,49 @@ describe("EventDetailPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  // UI fix: the event's actions sit together in one group, not spread across the header.
+  it("groups Mark as completed with Cancel event in the event actions", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+
+    renderPage();
+
+    const actions = await screen.findByRole("group", { name: "Event actions" });
+    expect(within(actions).getByRole("button", { name: "Mark as completed" })).toBeInTheDocument();
+    expect(within(actions).getByRole("button", { name: "Cancel event" })).toBeInTheDocument();
+  });
+
+  it("keeps the earliest completion time with the event actions", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+    loadEventCompletionAvailableAtMock.mockResolvedValue("2099-01-01T10:30:00.000Z");
+
+    renderPage();
+
+    const note = await screen.findByText(/Can be completed from 1 Jan 2099/);
+    const actions = screen.getByRole("group", { name: "Event actions" });
+    expect(actions.parentElement).toContainElement(note);
+  });
+
+  // UI fix: the organiser's Request a change is near the top of the page,
+  // before the event's details, and appears only once.
+  it("shows the organiser's change requests under the header, before the overview", async () => {
+    authState.profile.role = "event_organiser";
+    authState.user.id = event.organiserId;
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+
+    try {
+      renderPage();
+
+      const requestChange = await screen.findByRole("button", { name: "Request a change" });
+      const overview = screen.getByRole("heading", { name: "Overview" });
+      expect(
+        requestChange.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(screen.getAllByText("Change requests")).toHaveLength(1);
+    } finally {
+      authState.user.id = "20000000-0000-0000-0000-000000000002";
+    }
+  });
+
   // SPM-46 AC02: a refusal is shown in the dialog and the event stays Confirmed.
   it("shows the refusal inside the dialog if marking an event completed fails", async () => {
     loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
