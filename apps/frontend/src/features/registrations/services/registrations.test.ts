@@ -132,26 +132,25 @@ describe("getWaitlistPosition", () => {
 describe("listMyRegistrations", () => {
   beforeEach(() => fromMock.mockReset());
 
-  it("maps each row's event into a flat registration summary", async () => {
-    fromMock.mockReturnValueOnce(
-      queryBuilder({
-        data: [
-          {
-            id: "reg-1",
-            status: "registered",
-            registered_at: "2026-11-01T00:00:00Z",
-            event: {
-              id: "event-1",
-              title: "Robotics Showcase",
-              starts_at: "2026-11-28T03:00:00Z",
-              ends_at: "2026-11-28T07:00:00Z",
-              event_venue_requirements: { preferred_location: "Exhibition Hall" },
-            },
+  it("maps each row's event into a flat registration summary, filtered to this attendee", async () => {
+    const query = queryBuilder({
+      data: [
+        {
+          id: "reg-1",
+          status: "registered",
+          registered_at: "2026-11-01T00:00:00Z",
+          event: {
+            id: "event-1",
+            title: "Robotics Showcase",
+            starts_at: "2026-11-28T03:00:00Z",
+            ends_at: "2026-11-28T07:00:00Z",
+            event_venue_requirements: { preferred_location: "Exhibition Hall" },
           },
-        ],
-        error: null,
-      }),
-    );
+        },
+      ],
+      error: null,
+    });
+    fromMock.mockReturnValueOnce(query);
 
     await expect(listMyRegistrations("attendee-1")).resolves.toEqual([
       {
@@ -166,6 +165,9 @@ describe("listMyRegistrations", () => {
         waitlistPosition: null,
       },
     ]);
+    // Guards against relying solely on RLS, which also grants any attendee
+    // read access to other attendees' rows on a confirmed event.
+    expect(query.eq).toHaveBeenCalledWith("attendee_id", "attendee-1");
   });
 
   it("skips a row whose event is no longer visible", async () => {
