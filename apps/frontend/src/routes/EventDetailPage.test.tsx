@@ -62,6 +62,11 @@ vi.mock("@/features/event-requests/services/event-lifecycle", () => ({
   loadEventCompletionAvailableAt: (...args: unknown[]) => loadEventCompletionAvailableAtMock(...args),
 }));
 
+const cancelEventMock = vi.fn();
+vi.mock("@/features/event-requests/services/event-cancellation", () => ({
+  cancelEvent: (...args: unknown[]) => cancelEventMock(...args),
+}));
+
 // importOriginal below loads the real coordinator-event-edit module (for
 // localDateTime), which imports the Supabase client. Stub the client so the
 // test never needs VITE_SUPABASE_URL — CI's checks job doesn't set it.
@@ -161,6 +166,7 @@ describe("EventDetailPage", () => {
     loadEventFieldHistoryMock.mockReset().mockResolvedValue([]);
     listEventStatusHistoryMock.mockReset().mockResolvedValue([]);
     completeEventMock.mockReset().mockResolvedValue({ eventId: "event-1", status: "completed" });
+    cancelEventMock.mockReset().mockResolvedValue({ eventId: "event-1", status: "cancelled" });
     // Long past by default, so Mark as completed is enabled (SPM-46 AC02).
     loadEventCompletionAvailableAtMock.mockReset().mockResolvedValue("2000-01-01T00:00:00.000Z");
     updateEventAsCoordinatorMock.mockReset().mockResolvedValue("event-1");
@@ -410,6 +416,102 @@ describe("EventDetailPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This event could not be marked completed.",
     );
+  });
+
+  // SPM-45 AC2: cancellable from Requested, Planning, Pending Safety Check, Confirmed only.
+  describe("SPM-45: cancelling an event", () => {
+    it.each(["requested", "planning", "pending_safety_check", "confirmed"])(
+      "offers the assigned coordinator a Cancel event action for a %s event",
+      async (status) => {
+        loadEventDetailMock.mockResolvedValue({ ...event, status });
+
+        renderPage();
+
+        expect(await screen.findByRole("button", { name: "Cancel event" })).toBeInTheDocument();
+      },
+    );
+
+    it.each(["completed", "rejected", "cancelled"])(
+      "does not offer Cancel event for a %s event",
+      async (status) => {
+        loadEventDetailMock.mockResolvedValue({ ...event, status });
+
+        renderPage();
+
+        await screen.findByText("Student Leadership Summit 2");
+        expect(screen.queryByRole("button", { name: "Cancel event" })).not.toBeInTheDocument();
+      },
+    );
+
+    it("does not offer Cancel event to the organiser", async () => {
+      authState.profile.role = "event_organiser";
+      authState.user.id = event.organiserId;
+      loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
+
+      renderPage();
+
+      await screen.findByText("Student Leadership Summit 2");
+      expect(screen.queryByRole("button", { name: "Cancel event" })).not.toBeInTheDocument();
+      authState.user.id = "20000000-0000-0000-0000-000000000002";
+    });
+
+    // AC3: a reason is required before the dialog submits.
+    it("requires a reason before submitting the cancellation", async () => {
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: "Cancel event" }));
+      await user.click(await screen.findByRole("button", { name: "Confirm cancellation" }));
+
+      expect(
+        await screen.findByText("Give a reason for cancelling this event."),
+      ).toBeInTheDocument();
+      expect(cancelEventMock).not.toHaveBeenCalled();
+    });
+
+    it("cancels the event with the given reason and updates the badge", async () => {
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: "Cancel event" }));
+      await user.type(
+        await screen.findByLabelText("Reason for cancelling"),
+        "The venue is no longer available.",
+      );
+      await user.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+
+      expect(cancelEventMock).toHaveBeenCalledWith(
+        "event-1",
+        "The venue is no longer available.",
+      );
+      expect(await screen.findByText("cancelled")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Cancel event" })).not.toBeInTheDocument();
+    });
+
+    it("shows an error if cancelling the event fails", async () => {
+      cancelEventMock.mockRejectedValue(new Error("This event could not be cancelled."));
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: "Cancel event" }));
+      await user.type(await screen.findByLabelText("Reason for cancelling"), "No longer needed.");
+      await user.click(screen.getByRole("button", { name: "Confirm cancellation" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "This event could not be cancelled.",
+      );
+    });
+
+    it("closes the dialog without cancelling when Keep event is chosen", async () => {
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: "Cancel event" }));
+      await user.click(await screen.findByRole("button", { name: "Keep event" }));
+
+      expect(screen.queryByRole("button", { name: "Confirm cancellation" })).not.toBeInTheDocument();
+      expect(cancelEventMock).not.toHaveBeenCalled();
+    });
   });
 
   describe("SPM-46: who can complete an event, and when", () => {

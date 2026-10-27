@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 
 import { errorHandler } from "./middleware/error-handler";
+import { eventCancellationRouter } from "./routes/event-cancellation.route";
 import { eventChangeRequestsRouter } from "./routes/event-change-requests.route";
 import { eventClarificationsRouter } from "./routes/event-clarifications.route";
 import { eventDecisionsRouter } from "./routes/event-decisions.route";
@@ -24,6 +25,7 @@ export function createApp() {
   app.use("/health", healthRouter);
   app.use("/events", eventSubmissionsRouter);
   app.use("/events", eventSafetyCheckRouter);
+  app.use(eventCancellationRouter);
   app.use(eventChangeRequestsRouter);
   app.use(eventClarificationsRouter);
   app.use(eventDecisionsRouter);

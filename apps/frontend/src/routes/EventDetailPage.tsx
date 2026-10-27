@@ -10,6 +10,7 @@ import { Link, useLocation, useParams } from "react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { CancelEventDialog } from "@/features/event-requests/components/cancel-event-dialog";
 import { ChangeRequestPanel } from "@/features/event-requests/components/change-request-panel";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
 import { ConfirmedArrangementsSection } from "@/features/event-requests/components/confirmed-arrangements-section";
@@ -19,6 +20,7 @@ import { EventStatusBadge, StatusBadge } from "@/features/event-requests/compone
 import { EventStatusTimeline } from "@/features/event-requests/components/status-timeline";
 import { VenueFacilitiesSection } from "@/features/event-requests/components/venue-facilities-section";
 import type { ClarificationSummary } from "@/features/event-requests/services/clarifications";
+import { cancelEvent } from "@/features/event-requests/services/event-cancellation";
 import {
   loadEventDetail,
   type EventDetail,
@@ -73,6 +75,7 @@ export function EventDetailPage() {
     useState<ClarificationSummary>();
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string>();
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [completionAvailableAt, setCompletionAvailableAt] = useState<string>();
   const [venueBookings, setVenueBookings] = useState<VenueBookingRequestSummary[]>();
   const [readiness, setReadiness] = useState<EventReadiness>();
@@ -188,6 +191,18 @@ export function EventDetailPage() {
     }
   }
 
+  async function handleCancel(reason: string) {
+    if (!event) return;
+    await cancelEvent(event.id, reason);
+    setEvent({ ...event, status: "cancelled" });
+    setShowCancelDialog(false);
+  }
+
+  const isCancellable =
+    !!event &&
+    role === "coordinator" &&
+    ["requested", "planning", "pending_safety_check", "confirmed"].includes(event.status);
+
   return (
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
@@ -260,6 +275,15 @@ export function EventDetailPage() {
                       onClick={handleComplete}
                     >
                       {completing ? "Marking completed…" : "Mark as completed"}
+                    </Button>
+                  )}
+                  {isCancellable && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setShowCancelDialog(true)}
+                    >
+                      Cancel event
                     </Button>
                   )}
                 </div>
@@ -400,6 +424,9 @@ export function EventDetailPage() {
           )}
         </div>
       </div>
+      {showCancelDialog && (
+        <CancelEventDialog onCancel={() => setShowCancelDialog(false)} onSubmit={handleCancel} />
+      )}
     </RoleGate>
   );
 }

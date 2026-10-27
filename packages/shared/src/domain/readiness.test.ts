@@ -13,34 +13,71 @@ describe("deriveVenueBookingReadinessStatus", () => {
   // AC02/AC07: only Approved, unflagged, undisrupted is Complete.
   it("is Complete when approved, unflagged and undisrupted", () => {
     expect(
-      deriveVenueBookingReadinessStatus({ status: "approved", needsReview: false, disrupted: false }),
+      deriveVenueBookingReadinessStatus({
+        status: "approved",
+        needsReview: false,
+        disrupted: false,
+        hasConflict: false,
+      }),
     ).toBe("complete");
   });
 
   it("is Pending for a Pending request", () => {
-    expect(deriveVenueBookingReadinessStatus({ status: "pending", needsReview: false, disrupted: false })).toBe(
-      "pending",
-    );
+    expect(
+      deriveVenueBookingReadinessStatus({
+        status: "pending",
+        needsReview: false,
+        disrupted: false,
+        hasConflict: false,
+      }),
+    ).toBe("pending");
   });
 
-  // AC07: a tentative hold never counts as complete.
-  it("is Pending for an active (tentative) hold, never Complete", () => {
-    expect(deriveVenueBookingReadinessStatus({ status: "on_hold", needsReview: false, disrupted: false })).toBe(
-      "pending",
-    );
+  // AC02: an active (tentative) hold is named explicitly as Needs Review.
+  it("is Needs Review for an active (tentative) hold, never Complete", () => {
+    expect(
+      deriveVenueBookingReadinessStatus({
+        status: "on_hold",
+        needsReview: false,
+        disrupted: false,
+        hasConflict: false,
+      }),
+    ).toBe("needs_review");
   });
 
   // AC02: a flagged Approved booking is Needs Review.
   it("is Needs Review when approved but flagged", () => {
-    expect(deriveVenueBookingReadinessStatus({ status: "approved", needsReview: true, disrupted: false })).toBe(
-      "needs_review",
-    );
+    expect(
+      deriveVenueBookingReadinessStatus({
+        status: "approved",
+        needsReview: true,
+        disrupted: false,
+        hasConflict: false,
+      }),
+    ).toBe("needs_review");
   });
 
   it("is Needs Review when approved but disrupted", () => {
-    expect(deriveVenueBookingReadinessStatus({ status: "approved", needsReview: false, disrupted: true })).toBe(
-      "needs_review",
-    );
+    expect(
+      deriveVenueBookingReadinessStatus({
+        status: "approved",
+        needsReview: false,
+        disrupted: true,
+        hasConflict: false,
+      }),
+    ).toBe("needs_review");
+  });
+
+  // AC02: a booking flagged Conflict - Needs Review is Needs Review.
+  it("is Needs Review when approved but conflicted", () => {
+    expect(
+      deriveVenueBookingReadinessStatus({
+        status: "approved",
+        needsReview: false,
+        disrupted: false,
+        hasConflict: true,
+      }),
+    ).toBe("needs_review");
   });
 });
 

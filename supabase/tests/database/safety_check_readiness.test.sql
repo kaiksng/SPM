@@ -1,6 +1,6 @@
 begin;
 
-select plan(26);
+select plan(34);
 
 -- Event readiness for the Operational Safety Check
 -- (202610190001_event_readiness_function.sql).
@@ -35,7 +35,10 @@ values
   ('fc000000-0000-0000-0000-0000000000ea', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Equipment reserved in full', 'planning', '2099-09-10T10:00:00+08:00', '2099-09-10T12:00:00+08:00', true),
   ('fc000000-0000-0000-0000-0000000000eb', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Equipment not reserved', 'planning', '2099-09-11T10:00:00+08:00', '2099-09-11T12:00:00+08:00', true),
   ('fc000000-0000-0000-0000-0000000000ec', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Equipment flagged issue', 'planning', '2099-09-12T10:00:00+08:00', '2099-09-12T12:00:00+08:00', true),
-  ('fc000000-0000-0000-0000-0000000000ed', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Arranged by hand but not reserved', 'planning', '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', true);
+  ('fc000000-0000-0000-0000-0000000000ed', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Arranged by hand but not reserved', 'planning', '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', true),
+  ('fc000000-0000-0000-0000-0000000000ee', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Main venue has an active conflict', 'planning', '2099-09-14T10:00:00+08:00', '2099-09-14T12:00:00+08:00', true),
+  ('fc000000-0000-0000-0000-0000000000e0', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Equipment reservation needs recheck', 'planning', '2099-09-15T10:00:00+08:00', '2099-09-15T12:00:00+08:00', true),
+  ('fc000000-0000-0000-0000-0000000000ef', 'fc000000-0000-0000-0000-000000000001', 'fc000000-0000-0000-0000-000000000002', 'Equipment cannot be reserved in full', 'planning', '2099-09-16T10:00:00+08:00', '2099-09-16T12:00:00+08:00', true);
 
 insert into public.venue_bookings (id, event_id, venue_id, requested_by, starts_at, ends_at, status, is_main_venue, needs_review, expires_at)
 values
@@ -52,7 +55,8 @@ values
   ('fc000000-0000-0000-0000-0000000000ba', 'fc000000-0000-0000-0000-0000000000ea', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-10T10:00:00+08:00', '2099-09-10T12:00:00+08:00', 'approved', true, false, null),
   ('fc000000-0000-0000-0000-0000000000bb', 'fc000000-0000-0000-0000-0000000000eb', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-11T10:00:00+08:00', '2099-09-11T12:00:00+08:00', 'approved', true, false, null),
   ('fc000000-0000-0000-0000-0000000000bc', 'fc000000-0000-0000-0000-0000000000ec', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-12T10:00:00+08:00', '2099-09-12T12:00:00+08:00', 'approved', true, false, null),
-  ('fc000000-0000-0000-0000-0000000000bd', 'fc000000-0000-0000-0000-0000000000ed', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', 'approved', true, false, null);
+  ('fc000000-0000-0000-0000-0000000000bd', 'fc000000-0000-0000-0000-0000000000ed', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', 'approved', true, false, null),
+  ('fc000000-0000-0000-0000-0000000000be', 'fc000000-0000-0000-0000-0000000000ee', 'fc000000-0000-0000-0000-000000000010', 'fc000000-0000-0000-0000-000000000002', '2099-09-14T10:00:00+08:00', '2099-09-14T12:00:00+08:00', 'approved', true, false, null);
 
 -- 202610200009: E3's flagged main venue has a recorded reason.
 update public.venue_bookings set needs_review_reason = 'Capacity reduced below the event''s headcount.'
@@ -64,6 +68,11 @@ insert into public.venue_unavailability (id, venue_id, reason, starts_at, ends_a
 insert into public.venue_booking_disruptions (booking_id, block_id) values
   ('fc000000-0000-0000-0000-0000000000b4', 'fc000000-0000-0000-0000-0000000000d1');
 
+-- Active (unresolved) conflict on E14's main booking, flagged against the
+-- same block as a stand-in "other side" of the conflict.
+insert into public.venue_booking_conflicts (booking_id, conflicting_block_id, cause, flagged_by) values
+  ('fc000000-0000-0000-0000-0000000000be', 'fc000000-0000-0000-0000-0000000000d1', 'Overlaps a venue block once setup/turnaround time is applied', 'fc000000-0000-0000-0000-000000000004');
+
 -- Equipment: E10 reserved in full, E11 not reserved, E12 flagged Issue,
 -- E13 hand-set Arranged with only a partial reservation.
 insert into public.event_equipment_requirements (id, event_id, equipment_item_id, equipment_name, quantity, required_from, required_until)
@@ -71,12 +80,19 @@ values
   ('fc000000-0000-0000-0000-0000000000f1', 'fc000000-0000-0000-0000-0000000000ea', (select id from v_ids where name = 'mic'), 'Mic', 2, '2099-09-10T10:00:00+08:00', '2099-09-10T12:00:00+08:00'),
   ('fc000000-0000-0000-0000-0000000000f2', 'fc000000-0000-0000-0000-0000000000eb', (select id from v_ids where name = 'mic'), 'Mic', 2, '2099-09-11T10:00:00+08:00', '2099-09-11T12:00:00+08:00'),
   ('fc000000-0000-0000-0000-0000000000f3', 'fc000000-0000-0000-0000-0000000000ec', (select id from v_ids where name = 'mic'), 'Mic', 2, '2099-09-12T10:00:00+08:00', '2099-09-12T12:00:00+08:00'),
-  ('fc000000-0000-0000-0000-0000000000f4', 'fc000000-0000-0000-0000-0000000000ed', (select id from v_ids where name = 'mic'), 'Mic', 2, '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00');
+  ('fc000000-0000-0000-0000-0000000000f4', 'fc000000-0000-0000-0000-0000000000ed', (select id from v_ids where name = 'mic'), 'Mic', 2, '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00'),
+  -- 202610260001: F5 is reserved in full but flagged needs_recheck -- the
+  -- recheck must win over "reserved in full" (Issue, not Arranged). F6
+  -- requests far more than the catalogue has, with no reservation at all
+  -- and no manual status, so it can never be reserved in full (Issue).
+  ('fc000000-0000-0000-0000-0000000000f5', 'fc000000-0000-0000-0000-0000000000e0', (select id from v_ids where name = 'mic'), 'Mic', 2, '2099-09-15T10:00:00+08:00', '2099-09-15T12:00:00+08:00'),
+  ('fc000000-0000-0000-0000-0000000000f6', 'fc000000-0000-0000-0000-0000000000ef', (select id from v_ids where name = 'mic'), 'Mic', 999, '2099-09-16T10:00:00+08:00', '2099-09-16T12:00:00+08:00');
 
-insert into public.equipment_reservations (event_id, equipment_item_id, requirement_id, quantity, starts_at, ends_at, status, requested_by, requested_at, decided_by, decided_at)
+insert into public.equipment_reservations (event_id, equipment_item_id, requirement_id, quantity, starts_at, ends_at, status, requested_by, requested_at, decided_by, decided_at, needs_recheck)
 values
-  ('fc000000-0000-0000-0000-0000000000ea', (select id from v_ids where name = 'mic'), 'fc000000-0000-0000-0000-0000000000f1', 2, '2099-09-10T10:00:00+08:00', '2099-09-10T12:00:00+08:00', 'approved', 'fc000000-0000-0000-0000-000000000004', now(), 'fc000000-0000-0000-0000-000000000004', now()),
-  ('fc000000-0000-0000-0000-0000000000ed', (select id from v_ids where name = 'mic'), 'fc000000-0000-0000-0000-0000000000f4', 1, '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', 'approved', 'fc000000-0000-0000-0000-000000000004', now(), 'fc000000-0000-0000-0000-000000000004', now());
+  ('fc000000-0000-0000-0000-0000000000ea', (select id from v_ids where name = 'mic'), 'fc000000-0000-0000-0000-0000000000f1', 2, '2099-09-10T10:00:00+08:00', '2099-09-10T12:00:00+08:00', 'approved', 'fc000000-0000-0000-0000-000000000004', now(), 'fc000000-0000-0000-0000-000000000004', now(), false),
+  ('fc000000-0000-0000-0000-0000000000ed', (select id from v_ids where name = 'mic'), 'fc000000-0000-0000-0000-0000000000f4', 1, '2099-09-13T10:00:00+08:00', '2099-09-13T12:00:00+08:00', 'approved', 'fc000000-0000-0000-0000-000000000004', now(), 'fc000000-0000-0000-0000-000000000004', now(), false),
+  ('fc000000-0000-0000-0000-0000000000e0', (select id from v_ids where name = 'mic'), 'fc000000-0000-0000-0000-0000000000f5', 2, '2099-09-15T10:00:00+08:00', '2099-09-15T12:00:00+08:00', 'approved', 'fc000000-0000-0000-0000-000000000004', now(), 'fc000000-0000-0000-0000-000000000004', now(), true);
 
 insert into public.equipment_arrangement_updates (requirement_id, event_id, status, updated_by)
 values
@@ -124,9 +140,9 @@ select is((select (public.event_readiness('fc000000-0000-0000-0000-0000000000e6'
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e7') ->> 'venueArrangementStatus'), 'pending', 'no venue booking at all rolls up to Pending');
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e7') -> 'outstandingItems' -> 0 ->> 'code'), 'no_main_venue', 'the missing main venue is named in outstandingItems');
 
--- AC02 (revised by 202610200012): an active tentative hold never counts as a
--- completed arrangement -- it rolls up to Needs Review, not Pending.
-select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e8') -> 'venues' -> 0 ->> 'status'), 'needs_review', 'AC02: an active tentative hold on the main venue shows Needs Review, never Complete');
+-- AC02/AC07 (revised by 202610200012): an active tentative hold never counts
+-- as a completed arrangement -- it rolls up to Needs Review, not Pending.
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e8') -> 'venues' -> 0 ->> 'status'), 'needs_review', 'AC02/AC07: an active tentative hold on the main venue shows Needs Review, never Complete');
 
 -- AC07: an expired hold is excluded, so there is effectively no main venue.
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e9') ->> 'venueArrangementStatus'), 'pending', 'AC07: an expired hold does not count as a venue booking at all');
@@ -142,9 +158,38 @@ select is(
   'an equipment item carries its requested quantity'
 );
 
+-- 202610260001: AC02 -- with no manual status, a requirement reserved in
+-- full is auto-derived Arranged, so the item badge now agrees with the
+-- section badge (previously showed Pending, the exact "Career Fair" bug).
+select is(
+  (select public.event_readiness('fc000000-0000-0000-0000-0000000000ea') -> 'equipment' -> 0 ->> 'status'),
+  'complete',
+  'AC02: equipment reserved in full with no manual status auto-derives to Complete at the item level too'
+);
+
 -- AC03: requested but not reserved equipment blocks readiness (Pending).
 select is((select (public.event_readiness('fc000000-0000-0000-0000-0000000000eb') ->> 'ready')::boolean), false, 'unreserved equipment blocks readiness');
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000eb') ->> 'equipmentArrangementStatus'), 'pending', 'unreserved equipment rolls up to Pending');
+
+-- 202610260001: AC02 -- not reserved, no manual status, but still fully
+-- available: auto-derives Not started, i.e. item-level Pending too.
+select is(
+  (select public.event_readiness('fc000000-0000-0000-0000-0000000000eb') -> 'equipment' -> 0 ->> 'status'),
+  'pending',
+  'AC02: unreserved but available equipment with no manual status auto-derives to Pending at the item level'
+);
+
+-- 202610260001: AC02 -- reserved in full but flagged needs_recheck, no
+-- manual status: the recheck wins over "reserved in full" (Issue, not
+-- Arranged/Complete).
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e0') ->> 'equipmentArrangementStatus'), 'needs_review', 'AC02: a reservation needing re-check rolls up to Needs Review even though it is reserved in full');
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e0') -> 'equipment' -> 0 ->> 'status'), 'needs_review', 'AC02: the item itself shows Needs Review for a reservation needing re-check');
+
+-- 202610260001: AC02 -- no reservation, no manual status, and the
+-- requested quantity could never be reserved in full (999 of 100 in
+-- service): auto-derives Issue, not Not started/Pending.
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ef') ->> 'equipmentArrangementStatus'), 'needs_review', 'AC02: equipment that can never be reserved in full rolls up to Needs Review');
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ef') -> 'equipment' -> 0 ->> 'status'), 'needs_review', 'AC02: the item itself shows Needs Review when it can never be reserved in full');
 
 -- AC02: equipment flagged Issue is Needs Review.
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ec') ->> 'equipmentArrangementStatus'), 'needs_review', 'AC02: equipment flagged Issue rolls up to Needs Review');
@@ -157,6 +202,11 @@ select is(
 -- A hand-set Arranged status does not by itself mean reserved: only 1 of 2
 -- requested units is actually reserved, so this is Pending, not Complete.
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ed') ->> 'equipmentArrangementStatus'), 'pending', 'a hand-set Arranged status without a full reservation still rolls up to Pending');
+
+-- AC02: an Approved main venue with an active, unresolved
+-- venue_booking_conflicts row is Needs Review, not Complete.
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ee') -> 'venues' -> 0 ->> 'status'), 'needs_review', 'AC02: an approved main venue with an active conflict shows Needs Review');
+select is((select (public.event_readiness('fc000000-0000-0000-0000-0000000000ee') ->> 'ready')::boolean), false, 'an active venue conflict blocks readiness');
 
 -- Access: can_view_event grants every coordinator broad read access (by
 -- design, same as the Events list), so another coordinator CAN still read
