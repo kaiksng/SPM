@@ -174,4 +174,39 @@ describe("EventRegistrationPage", () => {
     expect(leaveWaitlistMock).toHaveBeenCalledWith("event-1");
     expect(await screen.findByRole("button", { name: "Register" })).toBeInTheDocument();
   });
+
+  // can_view_event now also lets an attendee view an event they're (or
+  // were) registered for after it leaves 'confirmed', so this page has to
+  // stop offering live actions and show its real status once that happens.
+  it("shows the event's real status and no actions once it has ended", async () => {
+    getOwnRegistrationStatusMock.mockResolvedValue(null);
+    loadEventDetailMock.mockResolvedValue({ ...baseEvent, status: "completed" });
+    renderPage();
+
+    expect(await screen.findByText("Completed")).toBeInTheDocument();
+    expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
+    expect(screen.getByText("This event has ended.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+  });
+
+  it("shows the attendee was cancelled on, with no mention of registration if they'd withdrawn", async () => {
+    // getOwnRegistrationStatus already treats a withdrawn row as null, so an
+    // attendee who withdrew before the event was cancelled sees no "you
+    // were registered" note — only someone who never acted and was still
+    // registered/waitlisted when it ended should see that.
+    getOwnRegistrationStatusMock.mockResolvedValue(null);
+    loadEventDetailMock.mockResolvedValue({ ...baseEvent, status: "cancelled" });
+    renderPage();
+
+    expect(await screen.findByText("This event was cancelled.")).toBeInTheDocument();
+    expect(screen.queryByText(/You were registered/)).not.toBeInTheDocument();
+  });
+
+  it("tells a still-registered attendee they were registered once the event ends", async () => {
+    getOwnRegistrationStatusMock.mockResolvedValue("registered");
+    loadEventDetailMock.mockResolvedValue({ ...baseEvent, status: "completed" });
+    renderPage();
+
+    expect(await screen.findByText(/You were registered\./)).toBeInTheDocument();
+  });
 });
