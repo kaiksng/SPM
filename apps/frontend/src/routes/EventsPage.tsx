@@ -998,7 +998,10 @@ function EventCard({
         )
       )}
       <div className="mt-auto flex flex-col gap-2">
-        <EventHistoryButton eventId={event.id} />
+        {/* Later cards reach the history through View details (the event
+            page's Change history), like the coordinator's card; Draft and
+            Requested cards have no View details, so they keep it here. */}
+        {(isDraft || isRequested) && <EventHistoryButton eventId={event.id} />}
         <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
           {isDraft ? (
             <>
@@ -1052,28 +1055,7 @@ function EventCard({
             </>
           ) : (
             <>
-              <div className="flex w-full gap-2">
-                <Link
-                  to={`/events/${event.id}`}
-                  state={FROM_EVENTS_LIST_STATE}
-                  className={buttonVariants({
-                    size: "lg",
-                    className: "flex-1 justify-center",
-                  })}
-                >
-                  View details
-                </Link>
-                {/* View Event Registration Information: only once registration could
-                    exist at all, i.e. Confirmed or Completed. */}
-                {(event.status === "confirmed" || event.status === "completed") && (
-                  <Link
-                    to={`/events/${event.id}/registrations`}
-                    className={buttonVariants({ variant: "outline", size: "lg" })}
-                  >
-                    View registrations
-                  </Link>
-                )}
-              </div>
+              <EventCardLinks event={event} />
               <span className="self-center text-sm text-slate-500">
                 {isDirectEditBlocked(event.status)
                   ? "This event is finalised. Direct edits are locked — submit a change request instead."
@@ -1184,24 +1166,42 @@ function AssignedEventCard({
       {/* View Event Registration Information: a second action needs its own
           link, so this card can no longer be one giant Link wrapping
           everything — "View details" moved to its own footer button. */}
-      <div className="mt-auto flex gap-2 pt-4">
-        <Link
-          to={`/events/${event.id}`}
-          state={FROM_EVENTS_LIST_STATE}
-          className={buttonVariants({ size: "lg", className: "flex-1 justify-center" })}
-        >
-          View details
-        </Link>
-        {(event.status === "confirmed" || event.status === "completed") && (
-          <Link
-            to={`/events/${event.id}/registrations`}
-            className={buttonVariants({ variant: "outline", size: "lg" })}
-          >
-            View registrations
-          </Link>
-        )}
+      <div className="mt-auto pt-4">
+        <EventCardLinks event={event} />
       </div>
     </article>
+  );
+}
+
+/**
+ * The footer links shared by the organiser's and coordinator's event cards:
+ * View details and, once registration could exist at all (Confirmed or
+ * Completed), View registrations — the same width, both clearly buttons.
+ */
+function EventCardLinks({ event }: { event: { id: string; status: string } }) {
+  return (
+    <div className="flex w-full gap-2">
+      <Link
+        to={`/events/${event.id}`}
+        state={FROM_EVENTS_LIST_STATE}
+        className={buttonVariants({ size: "lg", className: "flex-1 basis-0 justify-center" })}
+      >
+        View details
+      </Link>
+      {(event.status === "confirmed" || event.status === "completed") && (
+        <Link
+          to={`/events/${event.id}/registrations`}
+          className={buttonVariants({
+            variant: "outline",
+            size: "lg",
+            className:
+              "flex-1 basis-0 justify-center border-primary/30 bg-accent text-primary hover:bg-accent/80",
+          })}
+        >
+          View registrations
+        </Link>
+      )}
+    </div>
   );
 }
 
