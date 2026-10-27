@@ -18,7 +18,7 @@ select ok(
   'join_event_waitlist locks the event''s registration settings row'
 );
 select ok(
-  (select prosrc from pg_proc where oid = 'public.withdraw_registration(uuid, uuid)'::regprocedure)
+  (select prosrc from pg_proc where oid = 'public.withdraw_registration(uuid, uuid, text)'::regprocedure)
     ~* 'perform 1\s+from public\.event_registration_requirements\s+where event_id = p_event_id\s+for update',
   'withdraw_registration takes the same lock before changing registrations'
 );

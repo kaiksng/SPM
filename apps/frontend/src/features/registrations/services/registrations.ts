@@ -24,10 +24,14 @@ export async function leaveWaitlist(eventId: string) {
 
 /**
  * withdraw_registration promotes the longest-waiting attendee straight to
- * 'registered' in the same transaction — no invite/accept step.
+ * 'registered' in the same transaction — no invite/accept step. The reason
+ * is optional — there's nothing to justify, unlike a safety-check decision.
  */
-export async function withdrawRegistration(eventId: string) {
-  return apiFetch(`/events/${eventId}/withdraw`, { method: "POST" });
+export async function withdrawRegistration(eventId: string, reason?: string) {
+  return apiFetch(`/events/${eventId}/withdraw`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
 }
 
 /** The current attendee's own registration status for one event, or null if they have none (or it's withdrawn). */
@@ -83,6 +87,7 @@ export type MyRegistration = {
   status: string;
   registeredAt: string;
   waitlistPosition: number | null;
+  withdrawalPermitted: boolean;
 };
 
 /**
@@ -108,7 +113,8 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
           title,
           starts_at,
           ends_at,
-          event_venue_requirements ( preferred_location )
+          event_venue_requirements ( preferred_location ),
+          event_registration_requirements ( withdrawal_permitted )
         )
       `,
     )
@@ -140,6 +146,7 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
       status: row.status,
       registeredAt: row.registered_at,
       waitlistPosition: waitlistPositions.get(eventId) ?? null,
+      withdrawalPermitted: row.event!.event_registration_requirements?.withdrawal_permitted ?? false,
     };
   });
 }

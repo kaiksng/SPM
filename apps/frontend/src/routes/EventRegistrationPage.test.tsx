@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -146,7 +146,16 @@ describe("EventRegistrationPage", () => {
     expect(registerForEventMock).not.toHaveBeenCalled();
   });
 
-  it("offers to withdraw only when the event permits it", async () => {
+  it("hides the withdraw action when the event does not permit it", async () => {
+    getOwnRegistrationStatusMock.mockResolvedValue("registered");
+    renderPage();
+
+    expect(await screen.findByText("You're registered")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Withdraw registration" })).not.toBeInTheDocument();
+  });
+
+  // This story: the reason is optional, and a successful withdrawal is confirmed explicitly.
+  it("withdraws with an optional reason, confirms, and releases the place", async () => {
     getOwnRegistrationStatusMock.mockResolvedValue("registered");
     loadEventDetailMock.mockResolvedValue({
       ...baseEvent,
@@ -155,11 +164,32 @@ describe("EventRegistrationPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    const withdrawButton = await screen.findByRole("button", { name: "Withdraw registration" });
-    await user.click(withdrawButton);
+    await user.click(await screen.findByRole("button", { name: "Withdraw registration" }));
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByLabelText(/Reason/), "Can no longer attend.");
+    await user.click(within(dialog).getByRole("button", { name: "Withdraw" }));
 
-    expect(withdrawRegistrationMock).toHaveBeenCalledWith("event-1");
+    expect(withdrawRegistrationMock).toHaveBeenCalledWith("event-1", "Can no longer attend.");
+    expect(
+      await screen.findByText("You've withdrawn — your place has been released."),
+    ).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Register" })).toBeInTheDocument();
+  });
+
+  it("withdraws with no reason given", async () => {
+    getOwnRegistrationStatusMock.mockResolvedValue("registered");
+    loadEventDetailMock.mockResolvedValue({
+      ...baseEvent,
+      registration: { ...baseEvent.registration, withdrawalPermitted: true },
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Withdraw registration" }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Withdraw" }));
+
+    expect(withdrawRegistrationMock).toHaveBeenCalledWith("event-1", "");
   });
 
   it("shows the waiting-list position and lets the attendee leave", async () => {

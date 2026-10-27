@@ -7,6 +7,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { loadEventDetail, type EventDetail } from "@/features/event-requests/services/event-details";
 import { RegistrationStatusBadge } from "@/features/registrations/components/registration-status-badge";
+import { WithdrawRegistrationDialog } from "@/features/registrations/components/withdraw-registration-dialog";
 import {
   getOwnRegistrationStatus,
   getRegisteredCount,
@@ -51,6 +52,8 @@ export function EventRegistrationPage() {
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string>();
+  const [showWithdrawDialog, setShowWithdrawDialog] = useState(false);
+  const [withdrawNotice, setWithdrawNotice] = useState<string>();
 
   usePageTitle(event?.title ? `Register — ${event.title}` : "Event registration");
 
@@ -144,20 +147,20 @@ export function EventRegistrationPage() {
    * 'registered' in the same transaction — no invite/accept step, so this
    * attendee's own view only needs to reflect their own withdrawal.
    */
-  async function handleWithdraw() {
+  async function handleWithdraw(reason: string) {
     if (!eventId) return;
-    setSubmitting(true);
     setActionError(undefined);
     try {
-      await withdrawRegistration(eventId);
+      await withdrawRegistration(eventId, reason);
       setOwnStatus(null);
       setRegisteredCount((count) => Math.max(count - 1, 0));
+      setShowWithdrawDialog(false);
+      setWithdrawNotice("You've withdrawn — your place has been released.");
     } catch (withdrawError) {
-      setActionError(
-        withdrawError instanceof Error ? withdrawError.message : "Could not withdraw your registration.",
-      );
-    } finally {
-      setSubmitting(false);
+      const message =
+        withdrawError instanceof Error ? withdrawError.message : "Could not withdraw your registration.";
+      setActionError(message);
+      throw withdrawError;
     }
   }
 
@@ -271,6 +274,12 @@ export function EventRegistrationPage() {
                   </p>
                 )}
 
+                {withdrawNotice && (
+                  <p role="status" className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+                    {withdrawNotice}
+                  </p>
+                )}
+
                 {actionError && (
                   <p role="alert" className="mt-4 text-sm text-red-700">
                     {actionError}
@@ -311,10 +320,9 @@ export function EventRegistrationPage() {
                           type="button"
                           variant="outline"
                           className="mt-3"
-                          disabled={submitting}
-                          onClick={handleWithdraw}
+                          onClick={() => setShowWithdrawDialog(true)}
                         >
-                          {submitting ? "Withdrawing…" : "Withdraw registration"}
+                          Withdraw registration
                         </Button>
                       )}
                     </div>
@@ -378,6 +386,14 @@ export function EventRegistrationPage() {
               >
                 View my registrations
               </button>
+
+              {showWithdrawDialog && (
+                <WithdrawRegistrationDialog
+                  eventTitle={event.title}
+                  onCancel={() => setShowWithdrawDialog(false)}
+                  onSubmit={handleWithdraw}
+                />
+              )}
             </div>
           )}
         </div>
