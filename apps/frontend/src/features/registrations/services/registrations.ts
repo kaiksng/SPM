@@ -86,11 +86,14 @@ export type MyRegistration = {
 };
 
 /**
- * Every event the signed-in attendee has registered for or waitlisted for
- * — RLS already scopes the attendee's own rows; a confirmed event's
- * *other* attendees' rows are also visible (can_view_event grants any
- * attendee read access to a confirmed event), which is what lets this
- * compute the attendee's own position among their waitlisted peers.
+ * Every event the signed-in attendee has registered for or waitlisted for.
+ * Explicitly filtered to this attendee's own rows — event_registrations'
+ * SELECT policy is `attendee_id = auth.uid() OR can_view_event(event_id)`,
+ * and can_view_event grants any attendee read access to a confirmed event,
+ * so without this filter the query would also return every other
+ * attendee's rows on any confirmed event. (getOwnWaitlistPositions below
+ * deliberately relies on that broader grant, scoped by its own explicit
+ * event/status filters, to compute the attendee's position among peers.)
  */
 export async function listMyRegistrations(attendeeId: string): Promise<MyRegistration[]> {
   const { data, error } = await supabase
@@ -109,6 +112,7 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
         )
       `,
     )
+    .eq("attendee_id", attendeeId)
     .order("registered_at", { ascending: false });
 
   if (error) throw new Error("We couldn't load your registrations.");

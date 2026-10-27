@@ -25,6 +25,20 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
   timeZone: "Asia/Singapore",
 });
 
+/**
+ * An attendee can now reach this page for an event they're (or were)
+ * registered for even after it leaves 'confirmed' — see can_view_event's
+ * attendee branch. Previously this page only ever rendered for confirmed
+ * events, so the hero pill hardcoded "Confirmed" and the whole action area
+ * assumed registration was still possible; both need to reflect the real
+ * status once that's no longer guaranteed.
+ */
+const EVENT_STATUS_LABELS: Record<string, string> = {
+  confirmed: "Confirmed",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
 export function EventRegistrationPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
@@ -147,6 +161,8 @@ export function EventRegistrationPage() {
     }
   }
 
+  const isConfirmed = event?.status === "confirmed";
+
   const state = event
     ? computeRegistrationState(
         {
@@ -186,7 +202,7 @@ export function EventRegistrationPage() {
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                 <div className="flex h-44 flex-col justify-between bg-gradient-to-br from-primary to-blue-900 p-5">
                   <span className="w-fit rounded-full border border-white/40 bg-white/15 px-2.5 py-1 text-xs font-semibold text-white">
-                    Confirmed
+                    {EVENT_STATUS_LABELS[event.status] ?? event.status}
                   </span>
                   <h1 className="text-2xl font-semibold tracking-tight text-white">{event.title}</h1>
                 </div>
@@ -220,7 +236,7 @@ export function EventRegistrationPage() {
                   <h2 className="text-xs font-semibold tracking-[0.06em] text-slate-400 uppercase">
                     Registration
                   </h2>
-                  {(state === "full" || state === "waitlisted") && (
+                  {isConfirmed && (state === "full" || state === "waitlisted") && (
                     <RegistrationStatusBadge state={state} />
                   )}
                 </div>
@@ -262,7 +278,15 @@ export function EventRegistrationPage() {
                 )}
 
                 <div className="mt-5 border-t border-slate-100 pt-5">
-                  {state === "open" ? (
+                  {!isConfirmed ? (
+                    <p className="text-sm text-slate-600">
+                      {event.status === "completed"
+                        ? "This event has ended."
+                        : "This event was cancelled."}
+                      {ownStatus === "registered" && " You were registered."}
+                      {ownStatus === "waitlisted" && " You were on the waiting list."}
+                    </p>
+                  ) : state === "open" ? (
                     <>
                       <p className="mb-3 text-xs text-slate-400">Registering as</p>
                       <div className="grid grid-cols-2 gap-3">
