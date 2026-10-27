@@ -51,12 +51,9 @@ export function SafetyCheckItemPicker({
   return (
     <div className="mt-6 space-y-4">
       <section className="rounded-2xl border border-slate-200 bg-white p-6">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
-            Venue arrangements
-          </h2>
-          <ReadinessBadge status={readiness.venueArrangementStatus} />
-        </div>
+        <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
+          Venue arrangements
+        </h2>
         {readiness.venues.length === 0 ? (
           <p className="mt-4 text-sm text-slate-500">No active venue booking for this event.</p>
         ) : (
@@ -90,12 +87,9 @@ export function SafetyCheckItemPicker({
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-6">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
-            Equipment arrangements
-          </h2>
-          <ReadinessBadge status={readiness.equipmentArrangementStatus} />
-        </div>
+        <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
+          Equipment arrangements
+        </h2>
         {readiness.equipment.length === 0 ? (
           <p className="mt-4 text-sm text-slate-500">No equipment was requested for this event.</p>
         ) : (
