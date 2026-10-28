@@ -18,6 +18,13 @@ describe("clarification permitted fields", () => {
     expect(clarificationPermittedFieldKeys).not.toContain("requirements");
   });
 
+  // The event form has no Event type field, so it can't be offered for a new
+  // clarification; old rows that granted it still get a label.
+  it("no longer offers Event type but still labels it for old rows", () => {
+    expect(clarificationPermittedFieldKeys).not.toContain("eventType");
+    expect(clarificationPermittedFieldLabels.eventType).toBe("Event type");
+  });
+
   it("has no duplicate keys", () => {
     expect(new Set(clarificationPermittedFieldKeys).size).toBe(
       clarificationPermittedFieldKeys.length,

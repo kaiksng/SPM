@@ -6,7 +6,7 @@ import type { EventContentArg, EventInput } from "@fullcalendar/core";
 import FullCalendar from "@fullcalendar/react";
 import { ArrowLeft } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 
 import { useAuth } from "@/context/auth-context";
 import { buttonVariants } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
   type VenueAvailabilityPeriod,
 } from "@/features/venues/services/venue-availability";
 import { getVenue, type VenueDetail } from "@/features/venues/services/venues";
+import { cameFromVenueDetail as isFromVenueDetail } from "@/features/venues/utils/venue-detail-navigation";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
@@ -275,6 +276,8 @@ function periodsForDate(
 
 export function VenueAvailabilityPage() {
   const { venueId } = useParams();
+  const navigate = useNavigate();
+  const cameFromVenueDetail = isFromVenueDetail(useLocation().state);
   const { user } = useAuth();
   const [venue, setVenue] = useState<VenueDetail>();
   const [periods, setPeriods] = useState<VenueAvailabilityPeriod[]>([]);
@@ -341,12 +344,25 @@ export function VenueAvailabilityPage() {
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-5xl">
-          <Link
-            to={`/venues/${venueId}`}
-            className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
-          >
-            <ArrowLeft /> Back to {venue?.name ?? "venue"}
-          </Link>
+          {/* Opened from the venue page: go back in history so that page
+              keeps its ?forEvent=... context (the Request this venue panel
+              and its own back link). A fresh /venues/:id link dropped it. */}
+          {cameFromVenueDetail ? (
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
+            >
+              <ArrowLeft /> Back to {venue?.name ?? "venue"}
+            </button>
+          ) : (
+            <Link
+              to={`/venues/${venueId}`}
+              className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
+            >
+              <ArrowLeft /> Back to {venue?.name ?? "venue"}
+            </Link>
+          )}
 
           {loading ? (
             <div className="mt-7 h-[600px] animate-pulse rounded-2xl bg-slate-200/70 motion-reduce:animate-none" />

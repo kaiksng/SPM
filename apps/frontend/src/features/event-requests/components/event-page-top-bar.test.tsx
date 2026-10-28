@@ -16,7 +16,7 @@ describe("EventPageTopBar", () => {
     );
 
     expect(screen.getByRole("link", { name: "Back to event" })).toHaveAttribute("href", "/events/event-1");
-    expect(screen.getByRole("link", { name: "Change history" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "View change history" })).toHaveAttribute(
       "href",
       "/events/event-1/history",
     );
@@ -29,7 +29,7 @@ describe("EventPageTopBar", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.queryByRole("link", { name: "Change history" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View change history" })).not.toBeInTheDocument();
   });
 
   // The Events list keeps its search/filter state in its own URL; a plain

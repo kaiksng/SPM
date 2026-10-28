@@ -815,6 +815,39 @@ describe("EventsPage coordinator view", () => {
     expect(screen.getByText("Autumn Fair")).toBeInTheDocument();
   });
 
+  it("puts Pending events in an 'Awaiting your decision' section above the rest", async () => {
+    listAssignedEventsMock.mockResolvedValue([planningEvent, assignedEvent]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    const awaiting = (await screen.findByRole("heading", { name: /Awaiting your decision/ })).closest("section")!;
+    const others = screen.getByRole("heading", { name: /Your other events/ }).closest("section")!;
+    expect(within(awaiting).getByText("Shernice Test Submission")).toBeInTheDocument();
+    expect(within(awaiting).queryByText("Autumn Fair")).not.toBeInTheDocument();
+    expect(within(others).getByText("Autumn Fair")).toBeInTheDocument();
+    expect(
+      awaiting.compareDocumentPosition(others) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows no section headings when nothing is awaiting a decision", async () => {
+    listAssignedEventsMock.mockResolvedValue([planningEvent]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Autumn Fair")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Awaiting your decision/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Your other events/ })).not.toBeInTheDocument();
+  });
+
   it("shows a removable chip for the active status filter", async () => {
     listAssignedEventsMock.mockResolvedValue([assignedEvent, planningEvent]);
     const user = userEvent.setup();

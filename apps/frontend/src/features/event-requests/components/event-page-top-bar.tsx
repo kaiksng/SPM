@@ -1,7 +1,8 @@
-import { ArrowLeft, History } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router";
 
 import { buttonVariants } from "@/components/ui/button";
+import { EventHistoryButton } from "@/features/event-requests/components/event-history-link";
 import { cameFromEventsList } from "@/features/event-requests/utils/events-list-navigation";
 
 /**
@@ -47,12 +48,7 @@ export function EventPageTopBar({
         </Link>
       )}
       {eventId && (
-        <Link
-          to={`/events/${eventId}/history`}
-          className={buttonVariants({ size: "sm", variant: "outline" })}
-        >
-          <History aria-hidden="true" /> Change history
-        </Link>
+        <EventHistoryButton eventId={eventId} />
       )}
     </div>
   );
