@@ -61,9 +61,10 @@ describe("RoleGate", () => {
       expect(
         screen.getByRole("heading", { name: "You don't have access to this page" }),
       ).toBeInTheDocument();
+      // Their dashboard is the booking Requests page, their first nav item.
       expect(screen.getByRole("link", { name: "Return to dashboard" })).toHaveAttribute(
         "href",
-        "/venues",
+        "/venue-requests",
       );
     });
   });
