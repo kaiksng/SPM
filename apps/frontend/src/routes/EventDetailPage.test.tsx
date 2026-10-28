@@ -535,6 +535,22 @@ describe("EventDetailPage", () => {
       authState.user.id = "20000000-0000-0000-0000-000000000002";
     });
 
+    // AC1: a coordinator who isn't assigned to this event sees no event content
+    // at all (SPM-09 AC02's denial), so the Cancel action is never offered to them.
+    it("does not offer Cancel event to a coordinator who is not assigned to this event", async () => {
+      loadEventDetailMock.mockResolvedValue({
+        ...event,
+        status: "planning",
+        assignedCoordinatorId: "20000000-0000-0000-0000-000000000099",
+        assignedCoordinatorName: "Someone Else",
+      });
+
+      renderPage();
+
+      await screen.findByText("This event is unavailable or you do not have access to it.");
+      expect(screen.queryByRole("button", { name: "Cancel event" })).not.toBeInTheDocument();
+    });
+
     // AC3: a reason is required before the dialog submits.
     it("requires a reason before submitting the cancellation", async () => {
       const user = userEvent.setup();
