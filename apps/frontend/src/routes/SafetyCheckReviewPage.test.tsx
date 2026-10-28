@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const loadEventDetailMock = vi.fn();
 const loadEventReadinessMock = vi.fn();
 const loadLatestSafetyCheckSubmissionMock = vi.fn();
+const loadSafetyReviewDetailsMock = vi.fn();
 const decideEventSafetyCheckMock = vi.fn();
 const navigateMock = vi.fn();
 
@@ -23,6 +24,7 @@ vi.mock("@/features/event-requests/services/event-details", () => ({
 vi.mock("@/features/safety-check/services/event-readiness", () => ({
   loadEventReadiness: (...args: unknown[]) => loadEventReadinessMock(...args),
   loadLatestSafetyCheckSubmission: (...args: unknown[]) => loadLatestSafetyCheckSubmissionMock(...args),
+  loadSafetyReviewDetails: (...args: unknown[]) => loadSafetyReviewDetailsMock(...args),
   READINESS_ITEM_BADGE_CLASSES: {
     complete: "bg-emerald-100 text-emerald-800",
     pending: "bg-slate-200 text-slate-600",
@@ -86,6 +88,30 @@ const readiness = {
   outstandingItems: [],
 };
 
+const reviewDetails = {
+  expectedAttendance: 120,
+  accessibilityNeeds: null,
+  layoutPreference: null,
+  venues: [
+    {
+      bookingId: "booking-1",
+      venueName: "Auditorium Review Copy",
+      location: "Block A",
+      label: "Main programme",
+      isMainVenue: true,
+      capacity: 100,
+      headcount: 120,
+      underCapacity: true,
+      layouts: ["Theatre"],
+      requestedLayoutNotes: null,
+      requestedAccessibilityNotes: null,
+      venueAccessibilityNotes: null,
+      venueDescription: null,
+    },
+  ],
+  equipment: [],
+};
+
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={["/safety-checks/event-1"]}>
@@ -109,6 +135,7 @@ beforeEach(() => {
     flaggedBookingCount: 1,
     flaggedRequirementCount: 1,
   });
+  loadSafetyReviewDetailsMock.mockReset().mockResolvedValue(reviewDetails);
   navigateMock.mockReset();
 });
 
@@ -119,8 +146,37 @@ describe("SafetyCheckReviewPage", () => {
     expect(await screen.findByText("Alumni Homecoming Mixer")).toBeInTheDocument();
     expect(screen.getByText("Round 1 submission")).toBeInTheDocument();
     expect(screen.getByText("Main Auditorium")).toBeInTheDocument();
-    expect(screen.getByText("Main")).toBeInTheDocument();
+    expect(screen.getAllByText("Main")).toHaveLength(2);
     expect(screen.getByText("Projector × 2")).toBeInTheDocument();
+  });
+
+  // SPM-90 AC02/AC03: the review facts are on the page, shortfall highlighted.
+  it("shows the review facts and highlights a venue below the expected attendance", async () => {
+    renderPage();
+
+    expect(await screen.findByText("Auditorium Review Copy")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Expected 120 of capacity 100 — exceeds capacity by 20");
+    expect(loadSafetyReviewDetailsMock).toHaveBeenCalledWith("event-1");
+  });
+
+  // SPM-90 AC03: event information is read-only for the Safety Officer — the
+  // page offers decision buttons and flag checkboxes, never a text field or save.
+  it("offers no way to edit event information", async () => {
+    renderPage();
+
+    await screen.findByText("Auditorium Review Copy");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /save|edit|update/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+  });
+
+  it("shows the page as unavailable when the review details cannot be loaded", async () => {
+    loadSafetyReviewDetailsMock.mockRejectedValue(new Error("This event's review details could not be loaded."));
+    renderPage();
+
+    expect(await screen.findByText("Event unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("This event's review details could not be loaded.");
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
   });
 
   it("shows why a flagged item needs review", async () => {
@@ -202,6 +258,7 @@ describe("SafetyCheckReviewPage", () => {
   });
 
   // This story: Approve, with no reason required.
+  // SPM-90 AC04: Approve (note optional) moves the event to Confirmed.
   it("submits Approve with no reason and navigates with a confirmation notice", async () => {
     decideEventSafetyCheckMock.mockResolvedValue({
       eventId: "event-1",

@@ -2054,6 +2054,10 @@ export type Database = {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json
       }
+      safety_check_review_details: {
+        Args: { p_actor_id?: string; p_event_id: string }
+        Returns: Json
+      }
       event_status_transition_allowed: {
         Args: {
           from_status: Database["public"]["Enums"]["event_status"]
