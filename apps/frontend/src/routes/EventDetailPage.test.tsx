@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -391,31 +391,111 @@ describe("EventDetailPage", () => {
     expect(screen.queryByText(/Can be completed from/)).not.toBeInTheDocument();
   });
 
-  it("marks the event completed and updates the badge", async () => {
+  // SPM-46: completing cannot be undone, so it is confirmed in a dialog first.
+  it("asks for confirmation before marking the event completed", async () => {
     loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
     const user = userEvent.setup();
 
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Mark as completed" }));
 
+    const dialog = await screen.findByRole("dialog", { name: "Mark this event completed?" });
+    expect(dialog).toHaveTextContent("“Student Leadership Summit 2” will be closed.");
+    expect(dialog).toHaveTextContent("This cannot be undone.");
+    expect(completeEventMock).not.toHaveBeenCalled();
+  });
+
+  it("completes nothing when the coordinator keeps the event open", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Mark as completed" }));
+    await user.click(await screen.findByRole("button", { name: "Keep event open" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(completeEventMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Mark as completed" })).toBeInTheDocument();
+  });
+
+  // SPM-46 AC01: confirming marks the event completed.
+  it("marks the event completed once confirmed and updates the badge", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Mark as completed" }));
+    await user.click(await screen.findByRole("button", { name: "Confirm completion" }));
+
     expect(completeEventMock).toHaveBeenCalledWith("event-1");
     expect(await screen.findByText("completed")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Mark as completed" }),
     ).not.toBeInTheDocument();
   });
 
-  it("shows an error if marking an event completed fails", async () => {
+  // UI fix: the event's actions sit together in one group, not spread across the header.
+  it("groups Mark as completed with Cancel event in the event actions", async () => {
     loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
-    completeEventMock.mockRejectedValue(new Error("This event could not be marked completed."));
+
+    renderPage();
+
+    const actions = await screen.findByRole("group", { name: "Event actions" });
+    expect(within(actions).getByRole("button", { name: "Mark as completed" })).toBeInTheDocument();
+    expect(within(actions).getByRole("button", { name: "Cancel event" })).toBeInTheDocument();
+  });
+
+  it("keeps the earliest completion time with the event actions", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+    loadEventCompletionAvailableAtMock.mockResolvedValue("2099-01-01T10:30:00.000Z");
+
+    renderPage();
+
+    const note = await screen.findByText(/Can be completed from 1 Jan 2099/);
+    const actions = screen.getByRole("group", { name: "Event actions" });
+    expect(actions.parentElement).toContainElement(note);
+  });
+
+  // UI fix: the organiser's Request a change is near the top of the page,
+  // before the event's details, and appears only once.
+  it("shows the organiser's change requests under the header, before the overview", async () => {
+    authState.profile.role = "event_organiser";
+    authState.user.id = event.organiserId;
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+
+    try {
+      renderPage();
+
+      const requestChange = await screen.findByRole("button", { name: "Request a change" });
+      const overview = screen.getByRole("heading", { name: "Overview" });
+      expect(
+        requestChange.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(screen.getAllByText("Change requests")).toHaveLength(1);
+    } finally {
+      authState.user.id = "20000000-0000-0000-0000-000000000002";
+    }
+  });
+
+  // SPM-46 AC02: a refusal is shown in the dialog and the event stays Confirmed.
+  it("shows the refusal inside the dialog if marking an event completed fails", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
+    completeEventMock.mockRejectedValue(
+      new Error("Resolve this event's open venue booking requests before marking it completed"),
+    );
     const user = userEvent.setup();
 
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Mark as completed" }));
+    await user.click(await screen.findByRole("button", { name: "Confirm completion" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "This event could not be marked completed.",
+    const dialog = screen.getByRole("dialog", { name: "Mark this event completed?" });
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Resolve this event's open venue booking requests before marking it completed",
     );
+    expect(within(dialog).getByRole("button", { name: "Confirm completion" })).toBeEnabled();
+    expect(screen.queryByText("completed")).not.toBeInTheDocument();
   });
 
   // SPM-45 AC2: cancellable from Requested, Planning, Pending Safety Check, Confirmed only.
@@ -453,6 +533,22 @@ describe("EventDetailPage", () => {
       await screen.findByText("Student Leadership Summit 2");
       expect(screen.queryByRole("button", { name: "Cancel event" })).not.toBeInTheDocument();
       authState.user.id = "20000000-0000-0000-0000-000000000002";
+    });
+
+    // AC1: a coordinator who isn't assigned to this event sees no event content
+    // at all (SPM-09 AC02's denial), so the Cancel action is never offered to them.
+    it("does not offer Cancel event to a coordinator who is not assigned to this event", async () => {
+      loadEventDetailMock.mockResolvedValue({
+        ...event,
+        status: "planning",
+        assignedCoordinatorId: "20000000-0000-0000-0000-000000000099",
+        assignedCoordinatorName: "Someone Else",
+      });
+
+      renderPage();
+
+      await screen.findByText("This event is unavailable or you do not have access to it.");
+      expect(screen.queryByRole("button", { name: "Cancel event" })).not.toBeInTheDocument();
     });
 
     // AC3: a reason is required before the dialog submits.

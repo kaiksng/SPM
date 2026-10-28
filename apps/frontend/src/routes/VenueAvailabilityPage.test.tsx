@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { VenueAvailabilityPeriod } from "@/features/venues/services/venue-availability";
@@ -27,6 +28,7 @@ vi.mock("@/features/venues/services/venue-availability", () => ({
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
 
+import { FROM_VENUE_DETAIL_STATE } from "@/features/venues/utils/venue-detail-navigation";
 import { VenueAvailabilityPage } from "./VenueAvailabilityPage";
 
 const venue = {
@@ -349,5 +351,48 @@ describe("SPM-87: setup and turnaround on the availability calendar", () => {
     expect(percent(setup.style.top)).toBeCloseTo((1 / 14) * 100, 3);
     expect(percent(setup.style.height)).toBeCloseTo((1 / 14) * 100, 3);
     expect(percent(turnaround.style.height)).toBeCloseTo((0.25 / 14) * 100, 3);
+  });
+});
+
+// Bug: a coordinator opened View availability from a venue page reached via
+// "view suggested venue" (/venues/:id?forEvent=...). "Back to <venue>" then
+// linked to a bare /venues/:id, dropping the event context, so the Request
+// this venue panel disappeared and the venue page's own back button led to
+// the calendar. Coming from the venue page, Back must return to that exact URL.
+describe("Back to the venue", () => {
+  function VenueProbe() {
+    const location = useLocation();
+    return <p>VENUE PAGE {location.pathname + location.search}</p>;
+  }
+
+  it("returns to the venue page it came from, keeping the event context", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/venues/venue-1?forEvent=event-1",
+          { pathname: "/venues/venue-1/availability", state: FROM_VENUE_DETAIL_STATE },
+        ]}
+        initialIndex={1}
+      >
+        <Routes>
+          <Route path="venues/:venueId" element={<VenueProbe />} />
+          <Route path="venues/:venueId/availability" element={<VenueAvailabilityPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Back to Seminar Room" }));
+
+    expect(await screen.findByText("VENUE PAGE /venues/venue-1?forEvent=event-1")).toBeInTheDocument();
+  });
+
+  it("links to the venue page when opened directly", async () => {
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "Back to Seminar Room" })).toHaveAttribute(
+      "href",
+      "/venues/venue-1",
+    );
   });
 });

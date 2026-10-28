@@ -1,7 +1,9 @@
-import { ArrowLeft, History } from "lucide-react";
-import { Link, useNavigate } from "react-router";
+import { ArrowLeft } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router";
 
 import { buttonVariants } from "@/components/ui/button";
+import { EventHistoryButton } from "@/features/event-requests/components/event-history-link";
+import { cameFromEventsList } from "@/features/event-requests/utils/events-list-navigation";
 
 /**
  * The top row of every event page: the way back on the left and, on the right,
@@ -22,13 +24,17 @@ export function EventPageTopBar({
    * Go back in browser history instead of linking to `backTo` directly, so
    * the Events list's search/filter state — kept in its own URL — is still
    * there when the user returns, rather than resetting to a bare path.
+   * Only when the page was opened from the Events list: otherwise (e.g. back
+   * from Change history or Venue) the previous entry is that sub-page, and
+   * going back to it would loop.
    */
   useHistoryBack?: boolean;
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
-      {useHistoryBack ? (
+      {useHistoryBack && cameFromEventsList(location.state) ? (
         <button
           type="button"
           onClick={() => navigate(-1)}
@@ -42,12 +48,7 @@ export function EventPageTopBar({
         </Link>
       )}
       {eventId && (
-        <Link
-          to={`/events/${eventId}/history`}
-          className={buttonVariants({ size: "sm", variant: "outline" })}
-        >
-          <History aria-hidden="true" /> Change history
-        </Link>
+        <EventHistoryButton eventId={eventId} />
       )}
     </div>
   );

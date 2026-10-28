@@ -219,16 +219,32 @@ export function EventHistoryPage() {
   const preApprovalChanges = approvedAt
     ? fieldChanges.filter((change) => change.changedAt < approvedAt)
     : fieldChanges;
+  // Edits the organiser made after submitting but before any clarification
+  // round (e.g. while still waiting for the Lead to assign a coordinator).
+  // editsDuringRound only covers edits inside a round, so without this they
+  // were recorded but never shown. Draft-stage edits stay hidden: before the
+  // first submission the event is still the organiser's private work.
+  const firstSubmittedAt = statusHistory.find((change) => change.toStatus === "submitted")?.changedAt;
+  const firstRoundAt = clarifications[0]?.requestedAt;
+  const editsBeforeReview = firstSubmittedAt
+    ? preApprovalChanges.filter(
+        (change) =>
+          change.changedAt >= firstSubmittedAt &&
+          (!firstRoundAt || change.changedAt < firstRoundAt),
+      )
+    : [];
 
   return (
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-3xl">
+          {/* Back to the event this history belongs to, like every other event
+              sub-page; a Safety Officer arrives from their queue instead. */}
           <Link
-            to={isSafetyOfficer ? "/safety-checks" : "/events"}
+            to={isSafetyOfficer ? "/safety-checks" : `/events/${eventId}`}
             className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
           >
-            <ArrowLeft /> {isSafetyOfficer ? "Back to safety checks" : "Back to events"}
+            <ArrowLeft /> {isSafetyOfficer ? "Back to safety checks" : "Back to event"}
           </Link>
 
           <header className="mt-6 border-b border-slate-200 pb-7">
@@ -327,6 +343,18 @@ export function EventHistoryPage() {
 
               <HistoryGroup group="edits" filter={filter}>
               <HistorySection title="Pre-Approved">
+                {editsBeforeReview.length > 0 && (
+                  <div className="mb-4">
+                    <p className="mb-2 text-sm font-medium text-slate-600">
+                      Edited after submission
+                    </p>
+                    <ol className="space-y-3">
+                      {editsBeforeReview.map((change) => (
+                        <FieldChangeItem key={change.id} change={change} />
+                      ))}
+                    </ol>
+                  </div>
+                )}
                 {clarifications.length === 0 ? (
                   <p className="text-sm text-slate-500">No clarification rounds were needed.</p>
                 ) : (

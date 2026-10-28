@@ -335,13 +335,17 @@ describe("EventHistoryPage", () => {
     });
   });
 
-  it("links back to the main events page", async () => {
+  // UI fix: back returns to the event itself, not the Events list.
+  it("links back to the event the history belongs to", async () => {
+    const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByRole("link", { name: /Back to events/ })).toHaveAttribute(
-      "href",
-      "/events",
-    );
+    const back = await screen.findByRole("link", { name: /Back to event/ });
+    expect(back).toHaveAttribute("href", "/events/event-1");
+    expect(screen.queryByRole("link", { name: /Back to events/ })).not.toBeInTheDocument();
+
+    await user.click(back);
+    expect(await screen.findByText("EVENT DETAIL PAGE")).toBeInTheDocument();
   });
 
   it("shows empty states for every section when there is no history yet", async () => {
@@ -597,6 +601,62 @@ describe("EventHistoryPage", () => {
     expect(preApproved?.textContent).not.toContain("Preferred location");
     expect(planning?.textContent).toContain("Preferred location");
     expect(planning?.textContent).not.toContain("Expected attendance");
+  });
+
+  describe("edits made after submission, before any clarification round", () => {
+    const submitted = {
+      id: 1,
+      fromStatus: "draft",
+      toStatus: "submitted",
+      changedById: "organiser-1",
+      changedByName: "Jasmine",
+      changedAt: "2026-09-13T08:00:00.000Z",
+    };
+    const draftEdit = {
+      id: 1,
+      fieldName: "title",
+      previousValue: "Draft title",
+      newValue: "AI summit",
+      changedByName: "Jasmine",
+      changedAt: "2026-09-12T08:00:00.000Z",
+    };
+    const waitingEdit = {
+      id: 2,
+      fieldName: "expectedAttendance",
+      previousValue: "200",
+      newValue: "300",
+      changedByName: "Jasmine",
+      changedAt: "2026-09-13T09:00:00.000Z",
+    };
+
+    it("lists an edit made while the event waits for a coordinator under Pre-Approved", async () => {
+      listEventStatusHistoryMock.mockResolvedValue([submitted]);
+      loadEventFieldHistoryMock.mockResolvedValue([draftEdit, waitingEdit]);
+
+      renderPage();
+
+      const preApproved = (await screen.findByText("Pre-Approved")).closest("section");
+      expect(await within(preApproved!).findByText("Edited after submission")).toBeInTheDocument();
+      expect(preApproved?.textContent).toContain("Expected attendance");
+      expect(preApproved?.textContent).toContain("Jasmine");
+      // Draft-stage edits are the organiser's private work, not history.
+      expect(preApproved?.textContent).not.toContain("Draft title");
+    });
+
+    it("does not repeat an edit already shown inside a clarification round", async () => {
+      listEventStatusHistoryMock.mockResolvedValue([submitted]);
+      listClarificationsMock.mockResolvedValue([answeredClarification]);
+      loadEventFieldHistoryMock.mockResolvedValue([
+        waitingEdit,
+        { ...waitingEdit, id: 3, previousValue: "300", newValue: "80", changedAt: "2026-09-14T08:30:00.000Z" },
+      ]);
+
+      renderPage();
+
+      const preApproved = (await screen.findByText("Pre-Approved")).closest("section");
+      expect(await within(preApproved!).findByText("Edited after submission")).toBeInTheDocument();
+      expect(within(preApproved!).getAllByText(/Expected attendance/)).toHaveLength(2);
+    });
   });
 
   it("shows an empty Planning section when approved but nothing has changed since", async () => {

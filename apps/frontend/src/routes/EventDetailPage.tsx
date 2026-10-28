@@ -11,6 +11,7 @@ import { Link, useLocation, useParams } from "react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { CancelEventDialog } from "@/features/event-requests/components/cancel-event-dialog";
+import { CompleteEventDialog } from "@/features/event-requests/components/complete-event-dialog";
 import { ChangeRequestPanel } from "@/features/event-requests/components/change-request-panel";
 import { ClarificationPanel } from "@/features/event-requests/components/clarification-panel";
 import { ConfirmedArrangementsSection } from "@/features/event-requests/components/confirmed-arrangements-section";
@@ -73,8 +74,7 @@ export function EventDetailPage() {
   const [reviewState, setReviewState] = useState<"open" | "answered">();
   const [unresolvedClarification, setUnresolvedClarification] =
     useState<ClarificationSummary>();
-  const [completing, setCompleting] = useState(false);
-  const [completeError, setCompleteError] = useState<string>();
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [completionAvailableAt, setCompletionAvailableAt] = useState<string>();
   const [venueBookings, setVenueBookings] = useState<VenueBookingRequestSummary[]>();
@@ -173,22 +173,12 @@ export function EventDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the event's id, not the whole object, so handleComplete's setEvent doesn't retrigger this fetch.
   }, [event?.id, canViewConfirmedArrangements]);
 
+  // The dialog shows any error itself, so this one lets it through.
   async function handleComplete() {
     if (!event) return;
-    setCompleting(true);
-    setCompleteError(undefined);
-    try {
-      await completeEvent(event.id);
-      setEvent({ ...event, status: "completed" });
-    } catch (completeErr) {
-      setCompleteError(
-        completeErr instanceof Error
-          ? completeErr.message
-          : "This event could not be marked completed.",
-      );
-    } finally {
-      setCompleting(false);
-    }
+    await completeEvent(event.id);
+    setEvent({ ...event, status: "completed" });
+    setShowCompleteDialog(false);
   }
 
   async function handleCancel(reason: string) {
@@ -198,6 +188,7 @@ export function EventDetailPage() {
     setShowCancelDialog(false);
   }
 
+  const isEditable = !!event && role === "coordinator" && event.status === "planning";
   const isCancellable =
     !!event &&
     role === "coordinator" &&
@@ -256,47 +247,50 @@ export function EventDetailPage() {
                   <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950">
                     {event.title}
                   </h1>
-                  {role === "coordinator" && event.status === "planning" && (
-                    <Link
-                      to={`/events/${event.id}/coordinator-edit`}
-                      className={buttonVariants({
-                        variant: "outline",
-                        size: "sm",
-                        className: "border-primary/30 bg-accent text-primary hover:bg-accent/80",
-                      })}
-                    >
-                      Edit event
-                    </Link>
-                  )}
-                  {canComplete && (
-                    <Button
-                      size="sm"
-                      disabled={completing || completionNotYetAllowed}
-                      onClick={handleComplete}
-                    >
-                      {completing ? "Marking completed…" : "Mark as completed"}
-                    </Button>
-                  )}
-                  {isCancellable && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => setShowCancelDialog(true)}
-                    >
-                      Cancel event
-                    </Button>
+                  {/* One group, so the actions sit together on the right
+                      instead of being spread across the row. */}
+                  {(isEditable || canComplete || isCancellable) && (
+                    <div className="flex flex-col items-end gap-1.5">
+                      <div role="group" aria-label="Event actions" className="flex flex-wrap justify-end gap-2">
+                        {isEditable && (
+                          <Link
+                            to={`/events/${event.id}/coordinator-edit`}
+                            className={buttonVariants({
+                              variant: "outline",
+                              size: "sm",
+                              className: "border-primary/30 bg-accent text-primary hover:bg-accent/80",
+                            })}
+                          >
+                            Edit event
+                          </Link>
+                        )}
+                        {canComplete && (
+                          <Button
+                            size="sm"
+                            disabled={completionNotYetAllowed}
+                            onClick={() => setShowCompleteDialog(true)}
+                          >
+                            Mark as completed
+                          </Button>
+                        )}
+                        {isCancellable && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => setShowCancelDialog(true)}
+                          >
+                            Cancel event
+                          </Button>
+                        )}
+                      </div>
+                      {canComplete && completionNotYetAllowed && completionAvailableAt && (
+                        <p className="text-sm text-slate-500">
+                          Can be completed from {formatDateTime(completionAvailableAt)}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
-                {canComplete && completionNotYetAllowed && completionAvailableAt && (
-                  <p className="mt-2 text-sm text-slate-500">
-                    Can be completed from {formatDateTime(completionAvailableAt)}
-                  </p>
-                )}
-                {completeError && (
-                  <p role="alert" className="mt-2 text-sm text-red-700">
-                    {completeError}
-                  </p>
-                )}
                 <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-500">
                   {event.organiserName && <span>Organiser: {event.organiserName}</span>}
                   {event.assignedCoordinatorName ? (
@@ -314,6 +308,17 @@ export function EventDetailPage() {
                     This event is finalised. Direct edits are locked to keep finalised arrangements
                     accurate — submit a change request instead of editing it directly.
                   </p>
+                )}
+                {/* The organiser's way to change the event, so it sits right
+                    under the header rather than at the bottom of the page. */}
+                {role === "organiser" && (
+                  <ChangeRequestPanel
+                    eventId={event.id}
+                    eventStatus={event.status}
+                    role={role}
+                    isEventAssigned={!!event.assignedCoordinatorId}
+                    className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 text-sm"
+                  />
                 )}
                 {role === "coordinator" &&
                   reviewState === "answered" &&
@@ -340,7 +345,6 @@ export function EventDetailPage() {
                   </h2>
                   <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                     <Field label="Purpose" value={event.purpose} />
-                    <Field label="Event type" value={event.eventType} />
                     <Field
                       label="Expected attendance"
                       value={event.expectedAttendance?.toString() ?? null}
@@ -410,7 +414,7 @@ export function EventDetailPage() {
                 {/* SPM-38: unlike ClarificationPanel, a Lead sees this when
                     the event has no assigned coordinator yet — that's the one
                     case a Lead decides a change request directly (AC06). */}
-                {(role !== "lead" || !event.assignedCoordinatorId) && (
+                {role !== "organiser" && (role !== "lead" || !event.assignedCoordinatorId) && (
                   <ChangeRequestPanel
                     eventId={event.id}
                     eventStatus={event.status}
@@ -424,6 +428,13 @@ export function EventDetailPage() {
           )}
         </div>
       </div>
+      {showCompleteDialog && event && (
+        <CompleteEventDialog
+          eventTitle={event.title}
+          onCancel={() => setShowCompleteDialog(false)}
+          onConfirm={handleComplete}
+        />
+      )}
       {showCancelDialog && (
         <CancelEventDialog onCancel={() => setShowCancelDialog(false)} onSubmit={handleCancel} />
       )}

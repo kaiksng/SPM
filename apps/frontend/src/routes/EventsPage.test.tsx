@@ -1,7 +1,9 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { cameFromEventsList } from "@/features/event-requests/utils/events-list-navigation";
 
 const listEventRequestsMock = vi.fn();
 const deleteEventDraftMock = vi.fn();
@@ -365,6 +367,67 @@ describe("EventsPage draft controls", () => {
     await waitFor(() => expect(cancelButton).toBeDisabled());
   });
 
+  // Standardised cards: like the coordinator's, a card with View details
+  // reaches the change history from inside the event, not from the card.
+  it.each(["planning", "confirmed", "completed", "cancelled"])(
+    "leaves the change history to the event page on a %s organiser card",
+    async (status) => {
+      listEventRequestsMock.mockResolvedValue([
+        { ...requested, id: "later-1", title: "Later Gala", status },
+      ]);
+
+      render(
+        <MemoryRouter initialEntries={["/events"]}>
+          <EventsPage />
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByText("Later Gala")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute("href", "/events/later-1");
+      expect(screen.queryByRole("link", { name: "View change history" })).not.toBeInTheDocument();
+    },
+  );
+
+  // Draft and Requested cards have no View details, so the history stays on the card.
+  it.each(["draft", "requested"])(
+    "keeps View change history on a %s organiser card",
+    async (status) => {
+      listEventRequestsMock.mockResolvedValue([
+        { ...requested, id: "early-1", title: "Early Gala", status },
+      ]);
+
+      render(
+        <MemoryRouter initialEntries={["/events"]}>
+          <EventsPage />
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByText("Early Gala")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "View change history" })).toHaveAttribute(
+        "href",
+        "/events/early-1/history",
+      );
+      expect(screen.queryByRole("link", { name: "View details" })).not.toBeInTheDocument();
+    },
+  );
+
+  // Standardised cards: View details and View registrations share one row.
+  it("puts View details and View registrations side by side on the organiser's card", async () => {
+    listEventRequestsMock.mockResolvedValue([
+      { ...requested, id: "confirmed-1", title: "Confirmed Gala", status: "confirmed" },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    const details = await screen.findByRole("link", { name: "View details" });
+    const registrations = screen.getByRole("link", { name: "View registrations" });
+    expect(details.parentElement).toBe(registrations.parentElement);
+  });
+
   // SPM-11 AC01 + AC02: no edit link, and a pointer to a change request instead.
   it.each(["confirmed", "completed", "rejected", "cancelled"])(
     "directs the organiser to a change request instead of editing a %s event",
@@ -611,6 +674,26 @@ describe("EventsPage coordinator view", () => {
     expect(screen.queryByRole("link", { name: "View registrations" })).not.toBeInTheDocument();
   });
 
+  // The event page only goes back in history to the list when the list opened it.
+  it("tells the event page it was opened from the Events list", async () => {
+    function EventStub() {
+      return <p>FROM LIST: {String(cameFromEventsList(useLocation().state))}</p>;
+    }
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventsPage />} />
+          <Route path="/events/:eventId" element={<EventStub />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("link", { name: "View details" }));
+
+    expect(await screen.findByText("FROM LIST: true")).toBeInTheDocument();
+  });
+
   // View Event Registration Information: offered once registration could exist.
   it.each(["confirmed", "completed"])(
     "offers the coordinator a View registrations link on a %s event",
@@ -730,6 +813,39 @@ describe("EventsPage coordinator view", () => {
 
     expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
     expect(screen.getByText("Autumn Fair")).toBeInTheDocument();
+  });
+
+  it("puts Pending events in an 'Awaiting your decision' section above the rest", async () => {
+    listAssignedEventsMock.mockResolvedValue([planningEvent, assignedEvent]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    const awaiting = (await screen.findByRole("heading", { name: /Awaiting your decision/ })).closest("section")!;
+    const others = screen.getByRole("heading", { name: /Your other events/ }).closest("section")!;
+    expect(within(awaiting).getByText("Shernice Test Submission")).toBeInTheDocument();
+    expect(within(awaiting).queryByText("Autumn Fair")).not.toBeInTheDocument();
+    expect(within(others).getByText("Autumn Fair")).toBeInTheDocument();
+    expect(
+      awaiting.compareDocumentPosition(others) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("shows no section headings when nothing is awaiting a decision", async () => {
+    listAssignedEventsMock.mockResolvedValue([planningEvent]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Autumn Fair")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Awaiting your decision/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Your other events/ })).not.toBeInTheDocument();
   });
 
   it("shows a removable chip for the active status filter", async () => {

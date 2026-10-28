@@ -59,6 +59,7 @@ import {
   listEventRequests,
   type EventDraftSummary,
 } from "@/features/event-requests/services/event-drafts";
+import { FROM_EVENTS_LIST_STATE } from "@/features/event-requests/utils/events-list-navigation";
 import { CHANGE_REQUEST_SUBMITTABLE_STATUSES } from "@/features/event-requests/utils/format-change-request";
 import {
   AffectedVenueBookings,
@@ -237,7 +238,7 @@ function OrganiserEventsView() {
               onClearFilters={() => setFilters(emptyEventFilters)}
             />
           ) : (
-            <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-7 grid auto-rows-fr gap-4 md:grid-cols-2 xl:grid-cols-3">
               {filteredEvents.map((event) => (
                 <EventCard
                   key={event.id}
@@ -322,6 +323,9 @@ function CoordinatorEventsView() {
 
   const notice = (state as LocationState)?.notice;
   const filteredEvents = filterEvents(events, searchQuery, filters);
+  // "requested" is the status the badge labels "Pending".
+  const awaitingDecision = filteredEvents.filter((event) => event.status === "requested");
+  const otherEvents = filteredEvents.filter((event) => event.status !== "requested");
   const statusOptions = [...new Set(events.map((event) => event.status))].sort();
 
   return (
@@ -377,15 +381,54 @@ function CoordinatorEventsView() {
               onClearFilters={() => setFilters(emptyEventFilters)}
             />
           ) : (
-            <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {filteredEvents.map((event) => (
-                <AssignedEventCard
-                  key={event.id}
-                  event={event}
-                  venueIssue={eventsWithVenueIssue.has(event.id)}
-                />
-              ))}
-            </div>
+            <>
+              {/* Pending events wait on this coordinator's approve/reject
+                  decision, so they lead the page instead of mixing in with
+                  events already in planning. */}
+              {awaitingDecision.length > 0 && (
+                <section className="mt-7">
+                  <h2 className="flex items-center gap-3 text-xl font-semibold tracking-tight text-slate-950">
+                    Awaiting your decision
+                    <span className="rounded-full bg-primary px-2.5 py-0.5 text-sm font-semibold text-primary-foreground">
+                      {awaitingDecision.length}
+                    </span>
+                  </h2>
+                  <p className="mt-1 border-b border-slate-200 pb-2 text-sm text-slate-600">
+                    New event requests to approve or reject.
+                  </p>
+                  <div className="mt-4 grid auto-rows-fr gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {awaitingDecision.map((event) => (
+                      <AssignedEventCard
+                        key={event.id}
+                        event={event}
+                        venueIssue={eventsWithVenueIssue.has(event.id)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+              {otherEvents.length > 0 && (
+                <section className="mt-10">
+                  {awaitingDecision.length > 0 && (
+                    <h2 className="flex items-baseline gap-3 border-b border-slate-200 pb-2 text-xl font-semibold tracking-tight text-slate-950">
+                      Your other events
+                      <span className="text-sm font-medium text-slate-500">
+                        {otherEvents.length} event{otherEvents.length === 1 ? "" : "s"}
+                      </span>
+                    </h2>
+                  )}
+                  <div className="mt-4 grid auto-rows-fr gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {otherEvents.map((event) => (
+                      <AssignedEventCard
+                        key={event.id}
+                        event={event}
+                        venueIssue={eventsWithVenueIssue.has(event.id)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </>
           )}
 
           <AffectedVenueBookings disruptions={disruptions} error={disruptionError} />
@@ -656,7 +699,7 @@ function LeadEventsView() {
             ) : filteredQueueEvents.length === 0 ? (
               <NoMatchingEvents />
             ) : (
-              <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <div className="mt-7 grid auto-rows-fr gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {filteredQueueEvents.map((event) => (
                   <LeadEventCard
                     key={event.id}
@@ -671,16 +714,16 @@ function LeadEventsView() {
           ) : filteredOversightGroups.length === 0 ? (
             <NoMatchingEvents />
           ) : (
-            <div className="mt-7 space-y-8">
+            <div className="mt-7 space-y-10">
               {filteredOversightGroups.map((group) => (
                 <section key={group.coordinatorId}>
-                  <h2 className="flex items-baseline gap-2 text-sm font-semibold text-slate-700">
+                  <h2 className="flex items-baseline gap-3 border-b border-slate-200 pb-2 text-xl font-semibold tracking-tight text-slate-950">
                     {group.coordinatorName}
-                    <span className="text-xs font-normal text-slate-400">
+                    <span className="text-sm font-medium text-slate-500">
                       {group.events.length} event{group.events.length === 1 ? "" : "s"}
                     </span>
                   </h2>
-                  <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="mt-4 grid auto-rows-fr gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {group.events.map((event) => (
                       <LeadEventCard
                         key={event.id}
@@ -997,7 +1040,10 @@ function EventCard({
         )
       )}
       <div className="mt-auto flex flex-col gap-2">
-        <EventHistoryButton eventId={event.id} />
+        {/* Later cards reach the history through View details (the event
+            page's Change history), like the coordinator's card; Draft and
+            Requested cards have no View details, so they keep it here. */}
+        {(isDraft || isRequested) && <EventHistoryButton eventId={event.id} />}
         <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
           {isDraft ? (
             <>
@@ -1051,27 +1097,7 @@ function EventCard({
             </>
           ) : (
             <>
-              <div className="flex w-full gap-2">
-                <Link
-                  to={`/events/${event.id}`}
-                  className={buttonVariants({
-                    size: "lg",
-                    className: "flex-1 justify-center",
-                  })}
-                >
-                  View details
-                </Link>
-                {/* View Event Registration Information: only once registration could
-                    exist at all, i.e. Confirmed or Completed. */}
-                {(event.status === "confirmed" || event.status === "completed") && (
-                  <Link
-                    to={`/events/${event.id}/registrations`}
-                    className={buttonVariants({ variant: "outline", size: "lg" })}
-                  >
-                    View registrations
-                  </Link>
-                )}
-              </div>
+              <EventCardLinks event={event} />
               <span className="self-center text-sm text-slate-500">
                 {isDirectEditBlocked(event.status)
                   ? "This event is finalised. Direct edits are locked — submit a change request instead."
@@ -1182,23 +1208,47 @@ function AssignedEventCard({
       {/* View Event Registration Information: a second action needs its own
           link, so this card can no longer be one giant Link wrapping
           everything — "View details" moved to its own footer button. */}
-      <div className="mt-auto flex gap-2 pt-4">
-        <Link
-          to={`/events/${event.id}`}
-          className={buttonVariants({ size: "lg", className: "flex-1 justify-center" })}
-        >
-          View details
-        </Link>
-        {(event.status === "confirmed" || event.status === "completed") && (
-          <Link
-            to={`/events/${event.id}/registrations`}
-            className={buttonVariants({ variant: "outline", size: "lg" })}
-          >
-            View registrations
-          </Link>
-        )}
+      <div className="mt-auto pt-4">
+        <EventCardLinks event={event} />
       </div>
     </article>
+  );
+}
+
+/** The light-blue second button on an event card's footer. */
+const SECONDARY_CARD_ACTION_COLOURS =
+  "justify-center border-primary bg-primary/15 font-semibold text-primary hover:border-primary hover:bg-primary/25 hover:text-primary";
+/** Sits beside View details in a row, sharing its width equally. */
+const SECONDARY_CARD_ACTION = `flex-1 basis-0 ${SECONDARY_CARD_ACTION_COLOURS}`;
+
+/**
+ * The footer links shared by the organiser's and coordinator's event cards:
+ * View details and, once registration could exist at all (Confirmed or
+ * Completed), View registrations — the same width, both clearly buttons.
+ */
+function EventCardLinks({ event }: { event: { id: string; status: string } }) {
+  return (
+    <div className="flex w-full gap-2">
+      <Link
+        to={`/events/${event.id}`}
+        state={FROM_EVENTS_LIST_STATE}
+        className={buttonVariants({ size: "lg", className: "flex-1 basis-0 justify-center" })}
+      >
+        View details
+      </Link>
+      {(event.status === "confirmed" || event.status === "completed") && (
+        <Link
+          to={`/events/${event.id}/registrations`}
+          className={buttonVariants({
+            variant: "outline",
+            size: "lg",
+            className: SECONDARY_CARD_ACTION,
+          })}
+        >
+          View registrations
+        </Link>
+      )}
+    </div>
   );
 }
 
@@ -1263,23 +1313,45 @@ function LeadEventCard({
           <span>Organiser: {event.organiserName ?? "Unknown"}</span>
           <span>Coordinator: {event.assignedCoordinatorName ?? "Unassigned"}</span>
         </div>
-        <Link to={`/events/${event.id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
-          View details
-        </Link>
-        {(event.status === "confirmed" || event.status === "completed") && (
-          <Link
-            to={`/events/${event.id}/registrations`}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-          >
-            View registrations
-          </Link>
-        )}
+        {/* Same footer as the coordinator's card: a solid View details with
+            the card's other action beside it, both the same width. */}
+        <div className="flex flex-col gap-2">
+          <div className="flex w-full gap-2">
+            <Link
+              to={`/events/${event.id}`}
+              state={FROM_EVENTS_LIST_STATE}
+              className={buttonVariants({ size: "lg", className: "flex-1 basis-0 justify-center" })}
+            >
+              View details
+            </Link>
+            {!isReassignmentBlocked && (
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                className={SECONDARY_CARD_ACTION}
+                onClick={onAssign}
+              >
+                {isAssigned ? "Reassign" : "Assign coordinator"}
+              </Button>
+            )}
+          </div>
+          {(event.status === "confirmed" || event.status === "completed") && (
+            <Link
+              to={`/events/${event.id}/registrations`}
+              className={buttonVariants({
+                variant: "outline",
+                size: "lg",
+                // Its own row in a column: full width, not flex-1 — in a
+                // column flex-1 basis-0 shrinks the height instead.
+                className: `w-full ${SECONDARY_CARD_ACTION_COLOURS}`,
+              })}
+            >
+              View registrations
+            </Link>
+          )}
+        </div>
         <EventHistoryButton eventId={event.id} />
-        {!isReassignmentBlocked && (
-          <Button type="button" variant={isAssigned ? "outline" : "default"} onClick={onAssign}>
-            {isAssigned ? "Reassign" : "Assign coordinator"}
-          </Button>
-        )}
       </div>
     </article>
   );
@@ -1342,7 +1414,7 @@ function EmptyState() {
 
 function LoadingList() {
   return (
-    <div aria-label="Loading event requests" className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div aria-label="Loading event requests" className="mt-7 grid auto-rows-fr gap-4 md:grid-cols-2 xl:grid-cols-3">
       {[0, 1, 2].map((item) => (
         <div key={item} className="h-56 animate-pulse rounded-2xl bg-slate-200/70 motion-reduce:animate-none" />
       ))}
