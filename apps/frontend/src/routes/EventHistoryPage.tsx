@@ -224,11 +224,13 @@ export function EventHistoryPage() {
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-3xl">
+          {/* Back to the event this history belongs to, like every other event
+              sub-page; a Safety Officer arrives from their queue instead. */}
           <Link
-            to={isSafetyOfficer ? "/safety-checks" : "/events"}
+            to={isSafetyOfficer ? "/safety-checks" : `/events/${eventId}`}
             className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
           >
-            <ArrowLeft /> {isSafetyOfficer ? "Back to safety checks" : "Back to events"}
+            <ArrowLeft /> {isSafetyOfficer ? "Back to safety checks" : "Back to event"}
           </Link>
 
           <header className="mt-6 border-b border-slate-200 pb-7">

@@ -335,13 +335,17 @@ describe("EventHistoryPage", () => {
     });
   });
 
-  it("links back to the main events page", async () => {
+  // UI fix: back returns to the event itself, not the Events list.
+  it("links back to the event the history belongs to", async () => {
+    const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByRole("link", { name: /Back to events/ })).toHaveAttribute(
-      "href",
-      "/events",
-    );
+    const back = await screen.findByRole("link", { name: /Back to event/ });
+    expect(back).toHaveAttribute("href", "/events/event-1");
+    expect(screen.queryByRole("link", { name: /Back to events/ })).not.toBeInTheDocument();
+
+    await user.click(back);
+    expect(await screen.findByText("EVENT DETAIL PAGE")).toBeInTheDocument();
   });
 
   it("shows empty states for every section when there is no history yet", async () => {

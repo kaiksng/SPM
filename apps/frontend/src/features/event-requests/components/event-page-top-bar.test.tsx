@@ -3,6 +3,8 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { describe, expect, it } from "vitest";
 
+import { FROM_EVENTS_LIST_STATE } from "@/features/event-requests/utils/events-list-navigation";
+
 import { EventPageTopBar } from "./event-page-top-bar";
 
 describe("EventPageTopBar", () => {
@@ -42,7 +44,13 @@ describe("EventPageTopBar", () => {
     }
 
     render(
-      <MemoryRouter initialEntries={["/events?status=planning", "/events/event-1"]} initialIndex={1}>
+      <MemoryRouter
+        initialEntries={[
+          "/events?status=planning",
+          { pathname: "/events/event-1", state: FROM_EVENTS_LIST_STATE },
+        ]}
+        initialIndex={1}
+      >
         <Routes>
           <Route
             path="/events"
@@ -64,5 +72,32 @@ describe("EventPageTopBar", () => {
     await user.click(screen.getByRole("button", { name: "Back to events" }));
 
     expect(lastSearch).toBe("?status=planning");
+  });
+
+  // UI bug: Events → event → Change history → "Back to event" → "Back to
+  // events" went back to Change history. Without the Events list's state,
+  // the previous entry isn't the list, so "Back to events" links to it.
+  it("links to backTo instead of going back when the page was not opened from the Events list", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events", "/events/event-1", "/events/event-1/history", "/events/event-1"]} initialIndex={3}>
+        <Routes>
+          <Route path="/events" element={<p>EVENTS LIST</p>} />
+          <Route path="/events/event-1/history" element={<p>CHANGE HISTORY</p>} />
+          <Route
+            path="/events/event-1"
+            element={<EventPageTopBar backTo="/events" backLabel="Back to events" eventId="event-1" useHistoryBack />}
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const back = screen.getByRole("link", { name: "Back to events" });
+    expect(back).toHaveAttribute("href", "/events");
+    await user.click(back);
+
+    expect(await screen.findByText("EVENTS LIST")).toBeInTheDocument();
+    expect(screen.queryByText("CHANGE HISTORY")).not.toBeInTheDocument();
   });
 });

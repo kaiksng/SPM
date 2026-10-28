@@ -1,7 +1,9 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { cameFromEventsList } from "@/features/event-requests/utils/events-list-navigation";
 
 const listEventRequestsMock = vi.fn();
 const deleteEventDraftMock = vi.fn();
@@ -365,6 +367,67 @@ describe("EventsPage draft controls", () => {
     await waitFor(() => expect(cancelButton).toBeDisabled());
   });
 
+  // Standardised cards: like the coordinator's, a card with View details
+  // reaches the change history from inside the event, not from the card.
+  it.each(["planning", "confirmed", "completed", "cancelled"])(
+    "leaves the change history to the event page on a %s organiser card",
+    async (status) => {
+      listEventRequestsMock.mockResolvedValue([
+        { ...requested, id: "later-1", title: "Later Gala", status },
+      ]);
+
+      render(
+        <MemoryRouter initialEntries={["/events"]}>
+          <EventsPage />
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByText("Later Gala")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute("href", "/events/later-1");
+      expect(screen.queryByRole("link", { name: "View change history" })).not.toBeInTheDocument();
+    },
+  );
+
+  // Draft and Requested cards have no View details, so the history stays on the card.
+  it.each(["draft", "requested"])(
+    "keeps View change history on a %s organiser card",
+    async (status) => {
+      listEventRequestsMock.mockResolvedValue([
+        { ...requested, id: "early-1", title: "Early Gala", status },
+      ]);
+
+      render(
+        <MemoryRouter initialEntries={["/events"]}>
+          <EventsPage />
+        </MemoryRouter>,
+      );
+
+      expect(await screen.findByText("Early Gala")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "View change history" })).toHaveAttribute(
+        "href",
+        "/events/early-1/history",
+      );
+      expect(screen.queryByRole("link", { name: "View details" })).not.toBeInTheDocument();
+    },
+  );
+
+  // Standardised cards: View details and View registrations share one row.
+  it("puts View details and View registrations side by side on the organiser's card", async () => {
+    listEventRequestsMock.mockResolvedValue([
+      { ...requested, id: "confirmed-1", title: "Confirmed Gala", status: "confirmed" },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    const details = await screen.findByRole("link", { name: "View details" });
+    const registrations = screen.getByRole("link", { name: "View registrations" });
+    expect(details.parentElement).toBe(registrations.parentElement);
+  });
+
   // SPM-11 AC01 + AC02: no edit link, and a pointer to a change request instead.
   it.each(["confirmed", "completed", "rejected", "cancelled"])(
     "directs the organiser to a change request instead of editing a %s event",
@@ -609,6 +672,26 @@ describe("EventsPage coordinator view", () => {
     );
     // View Event Registration Information: not offered while merely requested.
     expect(screen.queryByRole("link", { name: "View registrations" })).not.toBeInTheDocument();
+  });
+
+  // The event page only goes back in history to the list when the list opened it.
+  it("tells the event page it was opened from the Events list", async () => {
+    function EventStub() {
+      return <p>FROM LIST: {String(cameFromEventsList(useLocation().state))}</p>;
+    }
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventsPage />} />
+          <Route path="/events/:eventId" element={<EventStub />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("link", { name: "View details" }));
+
+    expect(await screen.findByText("FROM LIST: true")).toBeInTheDocument();
   });
 
   // View Event Registration Information: offered once registration could exist.
