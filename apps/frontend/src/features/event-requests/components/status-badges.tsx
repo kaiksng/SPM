@@ -1,3 +1,6 @@
+import type { RegistrationAction } from "@spm/shared";
+import { CircleAlert } from "lucide-react";
+
 /**
  * Colour-codes the lifecycle status badge so Pending/Submitted, Confirmed
  * and Rejected read as visibly distinct states at a glance, not just by
@@ -61,12 +64,31 @@ export function AwaitingOrganiserBadge() {
   );
 }
 
+/**
+ * The one way to tell the viewer an event needs *their* action. Use it for
+ * anything the person looking at the card must do, so "action needed" looks
+ * the same everywhere.
+ */
+export function ActionNeededBadge({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+      <CircleAlert className="size-3.5" aria-hidden="true" />
+      {children}
+    </span>
+  );
+}
+
 /** A clarification is open: shown to the organiser, who needs to act. */
 export function ClarificationRequiredBadge() {
+  return <ActionNeededBadge>Clarification Required</ActionNeededBadge>;
+}
+
+/** Registration the organiser still has to fix before the safety check. */
+export function RegistrationActionBadge({ action }: { action: RegistrationAction }) {
   return (
-    <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
-      Clarification Required
-    </span>
+    <ActionNeededBadge>
+      {action === "setup" ? "Registration setup needed" : "Registration capacity too high"}
+    </ActionNeededBadge>
   );
 }
 

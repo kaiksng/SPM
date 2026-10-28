@@ -4,6 +4,7 @@ import {
   eventDraftSchema,
   toEventDraftPayload,
   type EventRequestFormValues,
+  type RegistrationSettingsSnapshot,
 } from "@spm/shared";
 
 import {
@@ -25,6 +26,8 @@ export type EventDraftSummary = {
   assignedCoordinatorId: string | null;
   // PB-04 AC02: the organiser can see who is coordinating their request.
   assignedCoordinatorName: string | null;
+  // So the card can flag registration the organiser still has to set up.
+  registration: RegistrationSettingsSnapshot;
 };
 
 
@@ -46,7 +49,13 @@ export async function listEventRequests(organiserId: string) {
         updated_at,
         submitted_at,
         assigned_coordinator_id,
-        assigned_coordinator:profiles!events_assigned_coordinator_id_fkey (full_name)
+        assigned_coordinator:profiles!events_assigned_coordinator_id_fkey (full_name),
+        event_registration_requirements (
+          registration_required,
+          registration_opens_at,
+          registration_closes_at,
+          attendee_capacity
+        )
       `,
     )
     .eq("organiser_id", organiserId)
@@ -66,6 +75,12 @@ export async function listEventRequests(organiserId: string) {
       submittedAt: event.submitted_at,
       assignedCoordinatorId: event.assigned_coordinator_id,
       assignedCoordinatorName: event.assigned_coordinator?.full_name ?? null,
+      registration: {
+        required: event.event_registration_requirements?.registration_required ?? false,
+        opensAt: event.event_registration_requirements?.registration_opens_at ?? null,
+        closesAt: event.event_registration_requirements?.registration_closes_at ?? null,
+        capacity: event.event_registration_requirements?.attendee_capacity ?? null,
+      },
     }),
   );
 }

@@ -133,7 +133,8 @@ export function RegistrationSettingsSection({
   }
 
   return (
-    <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
+    // id: the organiser's registration notifications link to #registration.
+    <section id="registration" className="mt-4 scroll-mt-6 rounded-2xl border border-slate-200 bg-white p-6">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">Registration</h2>
         {canEdit && !editing && (

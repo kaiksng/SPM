@@ -69,6 +69,13 @@ export function EventDetailPage() {
     (location.state as { notice?: string } | null)?.notice,
   );
   const [event, setEvent] = useState<EventDetail>();
+  // A registration notification links straight to the Registration section.
+  const eventLoaded = Boolean(event);
+  useEffect(() => {
+    if (location.hash === "#registration" && eventLoaded) {
+      document.getElementById("registration")?.scrollIntoView?.({ block: "start" });
+    }
+  }, [location.hash, eventLoaded]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [reviewState, setReviewState] = useState<"open" | "answered">();
