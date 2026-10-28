@@ -15,7 +15,6 @@ export const clarificationPermittedFieldKeys = [
   "title",
   "purpose",
   "description",
-  "eventType",
   "expectedAttendance",
   "startsAt",
   "endsAt",
@@ -33,9 +32,11 @@ export type ClarificationPermittedField =
  * an already-stored clarification row from before the split still renders a
  * label instead of its raw field key; it is deliberately absent from
  * clarificationPermittedFieldKeys, so it is never offered for a new request.
+ * "eventType" is retired the same way: the event form has no Event type field
+ * (Purpose covers it), so an organiser granted it had nothing to edit.
  */
 export const clarificationPermittedFieldLabels: Readonly<
-  Record<ClarificationPermittedField | "requirements", string>
+  Record<ClarificationPermittedField | "requirements" | "eventType", string>
 > = {
   title: "Event name",
   purpose: "Purpose",

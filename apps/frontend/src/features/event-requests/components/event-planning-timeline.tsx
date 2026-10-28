@@ -13,11 +13,12 @@ import { cn } from "@/lib/utils";
  * far a rejected/cancelled event actually got, so it conservatively shows
  * only "Event Request" as reached for both.
  *
- * The dot shows progress (filled = reached). The label shows what can be
- * opened: every link reads as clickable whether or not its stage is reached
- * (a coordinator opens Safety Check while still in Planning to see whether
- * they can submit), and only a stage with no page is greyed until reached.
- * The page being viewed is highlighted.
+ * The dot shows progress (filled = reached). A stage with no page is greyed
+ * until reached. A linked stage stays a link throughout, but is greyed until
+ * the stage before it is reached: a coordinator opens Safety Check while
+ * still in Planning to see whether they can submit, but it means nothing to
+ * a request that hasn't been approved yet. The page being viewed is
+ * highlighted.
  */
 const STAGE_RANK: Record<string, number> = {
   draft: 0,
@@ -69,6 +70,10 @@ export function EventPlanningTimeline({
       <ol>
         {STAGES.map((stage, index) => {
           const reached = currentRank >= stage.rank;
+          // A linked stage reads as usable from the stage before it: Safety
+          // Check is worked on during Planning, so it only greys out while
+          // the event is still a request.
+          const usable = currentRank >= stage.rank - 1;
           const linkHref =
             stage.id === "requested"
               ? `/events/${eventId}`
@@ -96,7 +101,11 @@ export function EventPlanningTimeline({
                   aria-current={pathname === linkHref ? "page" : undefined}
                   className={cn(
                     "text-sm font-medium hover:text-primary hover:underline",
-                    pathname === linkHref ? "font-semibold text-primary" : "text-slate-900",
+                    pathname === linkHref
+                      ? "font-semibold text-primary"
+                      : usable
+                        ? "text-slate-900"
+                        : "text-slate-400",
                   )}
                 >
                   {stage.label}

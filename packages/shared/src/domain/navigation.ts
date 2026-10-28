@@ -57,7 +57,9 @@ const NAV_ITEMS: Record<NavItemId, NavItem> = {
 const ROLE_NAV_ITEM_IDS = {
   event_organiser: ["events", "venues", "equipment"],
   event_coordinator: ["events", "venues", "equipment"],
-  venue_staff: ["venues", "requests", "flagged-bookings"],
+  // Requests first: deciding pending booking requests is venue staff's main
+  // job, so it is also their landing page (getRoleDestination).
+  venue_staff: ["requests", "venues", "flagged-bookings"],
   technical_support_staff: ["equipment-requests", "equipment-inventory", "equipment-unavailability"],
   attendee: ["browse-events", "my-registrations"],
   // View-only for now: the Lead's dashboard is the shared "events" section,

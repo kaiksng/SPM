@@ -345,7 +345,6 @@ export function EventDetailPage() {
                   </h2>
                   <dl className="mt-4 grid gap-4 sm:grid-cols-2">
                     <Field label="Purpose" value={event.purpose} />
-                    <Field label="Event type" value={event.eventType} />
                     <Field
                       label="Expected attendance"
                       value={event.expectedAttendance?.toString() ?? null}

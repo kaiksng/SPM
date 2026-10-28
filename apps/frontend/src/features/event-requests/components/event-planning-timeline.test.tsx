@@ -41,6 +41,14 @@ describe("EventPlanningTimeline", () => {
     expect(screen.getByRole("link", { name: "Safety Check" })).not.toHaveClass("text-slate-400");
   });
 
+  it("greys out the Safety Check link while the event is still a request", () => {
+    renderTimeline("requested");
+
+    const link = screen.getByRole("link", { name: "Safety Check" });
+    expect(link).toHaveClass("text-slate-400");
+    expect(link).toHaveAttribute("href", "/events/event-1/safety-check");
+  });
+
   it("greys out only a stage with no page until it is reached", () => {
     renderTimeline("planning");
 

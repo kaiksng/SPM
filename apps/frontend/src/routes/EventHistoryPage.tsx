@@ -219,6 +219,20 @@ export function EventHistoryPage() {
   const preApprovalChanges = approvedAt
     ? fieldChanges.filter((change) => change.changedAt < approvedAt)
     : fieldChanges;
+  // Edits the organiser made after submitting but before any clarification
+  // round (e.g. while still waiting for the Lead to assign a coordinator).
+  // editsDuringRound only covers edits inside a round, so without this they
+  // were recorded but never shown. Draft-stage edits stay hidden: before the
+  // first submission the event is still the organiser's private work.
+  const firstSubmittedAt = statusHistory.find((change) => change.toStatus === "submitted")?.changedAt;
+  const firstRoundAt = clarifications[0]?.requestedAt;
+  const editsBeforeReview = firstSubmittedAt
+    ? preApprovalChanges.filter(
+        (change) =>
+          change.changedAt >= firstSubmittedAt &&
+          (!firstRoundAt || change.changedAt < firstRoundAt),
+      )
+    : [];
 
   return (
     <RoleGate>
@@ -329,6 +343,18 @@ export function EventHistoryPage() {
 
               <HistoryGroup group="edits" filter={filter}>
               <HistorySection title="Pre-Approved">
+                {editsBeforeReview.length > 0 && (
+                  <div className="mb-4">
+                    <p className="mb-2 text-sm font-medium text-slate-600">
+                      Edited after submission
+                    </p>
+                    <ol className="space-y-3">
+                      {editsBeforeReview.map((change) => (
+                        <FieldChangeItem key={change.id} change={change} />
+                      ))}
+                    </ol>
+                  </div>
+                )}
                 {clarifications.length === 0 ? (
                   <p className="text-sm text-slate-500">No clarification rounds were needed.</p>
                 ) : (

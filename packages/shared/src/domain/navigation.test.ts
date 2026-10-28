@@ -15,10 +15,11 @@ describe("workspace navigation", () => {
     ).toEqual(["events", "venues", "equipment"]);
   });
 
-  it("gives venue staff the venues, booking requests, and flagged bookings sections", () => {
+  // Requests comes first, so venue staff land on it after signing in.
+  it("gives venue staff the booking requests, venues, and flagged bookings sections", () => {
     expect(getNavItemsForRole("venue_staff").map((item) => item.id)).toEqual([
-      "venues",
       "requests",
+      "venues",
       "flagged-bookings",
     ]);
   });
