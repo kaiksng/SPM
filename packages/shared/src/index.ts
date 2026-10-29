@@ -34,6 +34,7 @@ export * from "./domain/operating-hours";
 export * from "./domain/venue-disruption";
 export * from "./domain/readiness";
 export * from "./domain/safety-review";
+export * from "./domain/event-document";
 export * from "./domain/event-registration";
 export * from "./domain/registration-action";
 

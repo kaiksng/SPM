@@ -3,6 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// SPM-37: the page's documents section has its own tests; here it just has nothing attached.
+vi.mock("@/features/event-documents/services/event-documents", () => ({
+  listEventDocuments: vi.fn().mockResolvedValue([]),
+  uploadEventDocument: vi.fn(),
+  getEventDocumentUrl: vi.fn(),
+  removeEventDocument: vi.fn(),
+}));
+
 vi.mock("@/features/venues/hooks/use-room-layout-options", () => ({
   useRoomLayoutOptions: () => ["Theatre", "Classroom", "Boardroom", "Banquet", "Open Floor", "Auditorium", "Exhibition"],
 }));
@@ -455,6 +463,26 @@ describe("EventDetailPage", () => {
     const note = await screen.findByText(/Can be completed from 1 Jan 2099/);
     const actions = screen.getByRole("group", { name: "Event actions" });
     expect(actions.parentElement).toContainElement(note);
+  });
+
+  // SPM-37: the event's own organiser can attach documents; a coordinator only sees them.
+  it("offers the event's own organiser the document upload, and a coordinator only the list", async () => {
+    authState.profile.role = "event_organiser";
+    authState.user.id = event.organiserId;
+    try {
+      const own = renderPage();
+      expect(await screen.findByRole("region", { name: "Supporting documents" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Attach a document")).toBeInTheDocument();
+      own.unmount();
+
+      authState.profile.role = "event_coordinator";
+      authState.user.id = "20000000-0000-0000-0000-000000000002";
+      renderPage();
+      expect(await screen.findByRole("region", { name: "Supporting documents" })).toBeInTheDocument();
+      expect(screen.queryByLabelText("Attach a document")).not.toBeInTheDocument();
+    } finally {
+      authState.user.id = "20000000-0000-0000-0000-000000000002";
+    }
   });
 
   // UI fix: the organiser's Request a change is near the top of the page,

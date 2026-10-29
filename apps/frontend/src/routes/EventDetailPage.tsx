@@ -19,6 +19,7 @@ import { EventPageTopBar } from "@/features/event-requests/components/event-page
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
 import { EventStatusBadge, StatusBadge } from "@/features/event-requests/components/status-badges";
 import { EventStatusTimeline } from "@/features/event-requests/components/status-timeline";
+import { EventDocumentsSection } from "@/features/event-documents/components/event-documents-section";
 import { VenueFacilitiesSection } from "@/features/event-requests/components/venue-facilities-section";
 import type { ClarificationSummary } from "@/features/event-requests/services/clarifications";
 import { cancelEvent } from "@/features/event-requests/services/event-cancellation";
@@ -386,6 +387,13 @@ export function EventDetailPage() {
                   registration={event.registration}
                   isOwnOrganiser={role === "organiser" && event.organiserId === user?.id}
                   onSaved={(registration) => setEvent({ ...event, registration })}
+                />
+
+                <EventDocumentsSection
+                  eventId={event.id}
+                  status={event.status}
+                  isOwnOrganiser={role === "organiser" && event.organiserId === user?.id}
+                  currentUserId={user?.id}
                 />
 
                 {canViewConfirmedArrangements && venueBookings && readiness && (
