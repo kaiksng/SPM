@@ -840,7 +840,8 @@ describe("EquipmentPage event requests (SPM-31)", () => {
     ]);
     // The event header still summarises all of its items.
     expect(await screen.findByRole("listitem", { name: "Annual Gala" })).toHaveTextContent("3 of 4 items have an issue");
-    expect(screen.getByRole("listitem", { name: "Tech Talk" })).toHaveTextContent("All equipment available");
+    // Nothing wrong, but nothing reserved yet either: not green.
+    expect(screen.getByRole("listitem", { name: "Tech Talk" })).toHaveTextContent("1 of 1 item still to arrange");
   });
 
   it("sorts each item into one tab, and shows them all under All", async () => {
@@ -1137,6 +1138,45 @@ describe("EquipmentPage reserving equipment", () => {
       "Report issue",
       "Add note",
     ]);
+  });
+
+  // Green means done: the event badge is green only when every item is reserved
+  // in full, and a reservation's box only once it covers the whole request.
+  it("shows green only for equipment that is fully arranged", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(
+      eventWith([
+        {
+          ...base,
+          availableQuantity: 100,
+          status: "available",
+          reservation: { id: "res-1", quantity: 50, needsRecheck: false, recheckReason: null, reservedByName: null, reservedAt: null },
+          arrangement: { status: "arranged", automatic: false, note: "Reserved 50 of 50", updatedByName: "Tess Support", updatedAt: hours(-1), history: [] },
+        },
+      ]),
+    );
+    renderPage();
+
+    const card = await screen.findByRole("listitem", { name: "Spring Expo" });
+    expect(within(card).getByText("All equipment arranged")).toHaveClass("bg-emerald-100");
+    expect(within(card).getByText(/Reserved 50 of 50/, { selector: "p" }).parentElement).toHaveClass("bg-emerald-50");
+  });
+
+  it("shows a part-reserved item in amber, not green", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(
+      eventWith([
+        {
+          ...base,
+          availableQuantity: 100,
+          status: "available",
+          reservation: { id: "res-1", quantity: 40, needsRecheck: false, recheckReason: null, reservedByName: null, reservedAt: null },
+        },
+      ]),
+    );
+    renderPage();
+
+    const card = await screen.findByRole("listitem", { name: "Spring Expo" });
+    expect(within(card).getByText("1 of 1 item still to arrange")).not.toHaveClass("bg-emerald-100");
+    expect(within(card).getByText(/Reserved 40 of 50/, { selector: "p" }).parentElement).toHaveClass("bg-amber-50");
   });
 
   it("offers no main button once an item is reserved in full", async () => {
