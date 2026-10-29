@@ -2,6 +2,7 @@ import {
   asRoomLayoutType,
   emptyEventRequestFormValues,
   toEventDraftPayload,
+  type EquipmentRequirementFormValues,
   type EventRequestFormValues,
   type EventStatus,
 } from "@spm/shared";
@@ -144,4 +145,19 @@ export async function updateEventAsCoordinator(
   }
 
   return data;
+}
+
+/**
+ * Saves a change to a Planning event's equipment alone, as the Equipment
+ * page's Request equipment / Edit / Remove do: the event is reloaded the
+ * same way CoordinatorEventEditPage loads it and resent unchanged except for
+ * its equipment, so every other field stays exactly as SPM-10 locks it.
+ * Rows keep their ids, so only the changed item counts as changed.
+ */
+export async function saveEventEquipment(
+  eventId: string,
+  change: (equipment: EquipmentRequirementFormValues[]) => EquipmentRequirementFormValues[],
+) {
+  const values = await loadEventForCoordinatorEdit(eventId);
+  return updateEventAsCoordinator(eventId, { ...values, equipment: change(values.equipment) });
 }

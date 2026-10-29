@@ -142,7 +142,10 @@ export function EventVenuePage() {
   const needsReplacement = disruption?.state === "replacement_required";
   // SPM-46 AC07: the database refuses every venue booking change on a
   // Completed event, so offer none — no requests, withdrawals or cancellations.
-  const isCompleted = event?.status === "completed";
+  // A Cancelled or Rejected event is closed the same way: it will never need
+  // a venue, so it gets no suggestions either.
+  const closedStatus =
+    event && ["completed", "cancelled", "rejected"].includes(event.status) ? event.status : undefined;
 
   return (
     <RoleGate>
@@ -269,15 +272,15 @@ export function EventVenuePage() {
                     busyBookingId={busyBookingId}
                     actionError={actionError}
                     canChangeMain={event.status === "planning"}
-                    readOnly={isCompleted}
+                    readOnly={!!closedStatus}
                     onWithdraw={handleWithdraw}
                     onConfirmHold={handleConfirmHold}
                     onSetMain={handleSetMain}
                   />
                 )}
-                {isCompleted ? (
+                {closedStatus ? (
                   <p role="status" className="mt-4 rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
-                    This event is completed, so its venue bookings can no longer be changed.
+                    This event is {closedStatus}, so its venue bookings can no longer be changed.
                   </p>
                 ) : activeBookings.length > 0 && !needsReplacement && event.status === "planning" ? (
                   <AdditionalVenuePanel event={event} mainVenueArea={mainVenueArea} />

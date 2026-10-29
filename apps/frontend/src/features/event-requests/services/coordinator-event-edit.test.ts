@@ -7,7 +7,11 @@ const { fromMock, rpcMock } = vi.hoisted(() => ({ fromMock: vi.fn(), rpcMock: vi
 
 vi.mock("@/lib/supabase-client", () => ({ supabase: { from: fromMock, rpc: rpcMock } }));
 
-import { loadEventForCoordinatorEdit, updateEventAsCoordinator } from "./coordinator-event-edit";
+import {
+  loadEventForCoordinatorEdit,
+  saveEventEquipment,
+  updateEventAsCoordinator,
+} from "./coordinator-event-edit";
 
 const formValues: EventRequestFormValues = {
   ...emptyEventRequestFormValues,
@@ -191,5 +195,55 @@ describe("updateEventAsCoordinator", () => {
     await expect(updateEventAsCoordinator("event-1", formValues)).rejects.toThrow(
       "This event could not be updated. Your form values are still here.",
     );
+  });
+});
+
+describe("saveEventEquipment", () => {
+  // The Equipment page's Request equipment / Edit / Remove: only the equipment
+  // changes; everything else is resent exactly as it was loaded.
+  it("reloads the Planning event and resends it with only its equipment changed", async () => {
+    fromMock.mockReturnValue(
+      queryBuilder({
+        data: {
+          id: "event-1",
+          title: "Career Fair",
+          purpose: "Connect students with employers",
+          description: null,
+          event_type: "Exhibition",
+          expected_attendance: 300,
+          starts_at: "2099-01-01T02:00:00.000Z",
+          ends_at: "2099-01-01T08:00:00.000Z",
+          status: "planning",
+          event_venue_requirements: null,
+          event_required_facilities: [],
+          event_equipment_requirements: [],
+          event_registration_requirements: null,
+        },
+        error: null,
+      }),
+    );
+    rpcMock.mockResolvedValue({ data: "event-1", error: null });
+    const added = {
+      id: "",
+      equipmentItemId: "item-1",
+      legacyName: "",
+      quantity: "2",
+      requiredFrom: "2099-01-01T10:00",
+      requiredUntil: "2099-01-01T16:00",
+      notes: "",
+    };
+
+    await saveEventEquipment("event-1", (equipment) => [...equipment, added]);
+
+    const query = fromMock.mock.results[0]!.value;
+    expect(query.in).toHaveBeenCalledWith("status", ["planning"]);
+    const [name, args] = rpcMock.mock.calls[0]!;
+    expect(name).toBe("update_event_as_coordinator");
+    expect(args.updates).toMatchObject({
+      title: "Career Fair",
+      expectedAttendance: "300",
+      equipment: [{ equipmentItemId: "item-1", quantity: "2" }],
+    });
+    expect(args.updates.startsAt).toBe("2099-01-01T02:00:00.000Z");
   });
 });

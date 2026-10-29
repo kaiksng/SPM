@@ -32,6 +32,17 @@ describe("EventPageTopBar", () => {
     expect(screen.queryByRole("link", { name: "View change history" })).not.toBeInTheDocument();
   });
 
+  it("leaves out the history link when the page turns it off", () => {
+    render(
+      <MemoryRouter>
+        <EventPageTopBar backTo="/events/event-1" backLabel="Back to event" eventId="event-1" showHistory={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("link", { name: "Back to event" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View change history" })).not.toBeInTheDocument();
+  });
+
   // The Events list keeps its search/filter state in its own URL; a plain
   // Link to a bare "/events" would discard it, so "Back to events" instead
   // goes back in browser history to restore that exact URL.

@@ -6,7 +6,12 @@ import type {
   EventEquipmentAvailability,
 } from "@/features/equipment/services/equipment-availability";
 
-import { arrangementStatusCounts, arrangementStatusesLoaded, eventsWithArrangementStatus } from "./request-groups";
+import {
+  arrangementStatusesLoaded,
+  equipmentRequestTab,
+  equipmentRequestTabCounts,
+  eventsInEquipmentRequestTab,
+} from "./request-groups";
 
 const arrangement = (status: EquipmentArrangementStatus) =>
   status === "not_started"
@@ -41,27 +46,63 @@ const event = (id: string, results: EquipmentAvailabilityResult[]): EventEquipme
   results,
 });
 
-describe("arrangement status tabs (SPM-28)", () => {
+describe("Event requests tabs: All / Need attention / Arranged / Issue", () => {
+  // Arranged means the stock is held, so "e" is reserved in full.
+  const heldInFull = { id: "r", quantity: 5, needsRecheck: false, recheckReason: null, reservedByName: null, reservedAt: null };
   const events = [
     event("expo", [result("a", "not_started"), result("b", "issue"), result("c", "in_progress")]),
-    event("talk", [result("d", "not_started")]),
+    event("talk", [result("d", "not_started"), { ...result("e", "arranged"), reservation: heldInFull }]),
   ];
+  const ids = (tab: Parameters<typeof eventsInEquipmentRequestTab>[1]) =>
+    eventsInEquipmentRequestTab(events, tab).map(({ event, results }) => [
+      event.id,
+      results.map((item) => item.requirementId),
+    ]);
 
-  it("keeps only each event's items with that status, and leaves out events with none", () => {
-    expect(
-      eventsWithArrangementStatus(events, "not_started").map(({ event, results }) => [
-        event.id,
-        results.map((item) => item.requirementId),
-      ]),
-    ).toEqual([
-      ["expo", ["a"]],
+  // Not started and In progress are both still being arranged.
+  it("lists Not started and In progress items under Need attention, and leaves out events with none", () => {
+    expect(ids("attention")).toEqual([
+      ["expo", ["a", "c"]],
       ["talk", ["d"]],
     ]);
-    expect(eventsWithArrangementStatus(events, "arranged")).toEqual([]);
+    expect(ids("arranged")).toEqual([["talk", ["e"]]]);
+    expect(ids("issue")).toEqual([["expo", ["b"]]]);
   });
 
-  it("counts items per status", () => {
-    expect(arrangementStatusCounts(events)).toEqual({ not_started: 2, in_progress: 1, arranged: 0, issue: 1 });
+  it("lists every item under All", () => {
+    expect(ids("all")).toEqual([
+      ["expo", ["a", "b", "c"]],
+      ["talk", ["d", "e"]],
+    ]);
+  });
+
+  it("counts each tab, with All the sum of the other three", () => {
+    expect(equipmentRequestTabCounts(events)).toEqual({ all: 5, attention: 3, arranged: 1, issue: 1 });
+  });
+
+  // Something wrong goes under Issue whatever the arrangement status says.
+  it.each([
+    ["an Arranged item that is not available in full", { ...result("x", "arranged"), status: "partially_available" as const }],
+    ["a Not started item that is unavailable", { ...result("x", "not_started"), status: "unavailable" as const }],
+    [
+      "an Arranged item whose reservation needs re-checking",
+      {
+        ...result("x", "arranged"),
+        reservation: { id: "r", quantity: 5, needsRecheck: true, recheckReason: "The event date or time changed" },
+      } as unknown as EquipmentAvailabilityResult,
+    ],
+  ])("puts %s under Issue", (_what, item) => {
+    expect(equipmentRequestTab(item)).toBe("issue");
+  });
+
+  // Arranged means the stock is held: marked Arranged with too little reserved is still to do.
+  it("lists an item marked Arranged without its stock held under Need attention", () => {
+    expect(equipmentRequestTab(result("x", "arranged"))).toBe("attention");
+    expect(
+      equipmentRequestTab({ ...result("x", "arranged"), reservation: { ...heldInFull, quantity: 2 } }),
+    ).toBe("attention");
+    // Equipment outside the catalogue can't be reserved, so marking it is enough.
+    expect(equipmentRequestTab({ ...result("x", "arranged"), equipmentItemId: null })).toBe("arranged");
   });
 
   it("knows when the statuses couldn't be loaded", () => {
@@ -82,8 +123,9 @@ describe("arrangement status tabs (SPM-28)", () => {
     };
     const withOrphan = [{ ...event("gala", []), orphanedReservations: [orphan] }];
 
-    expect(arrangementStatusCounts(withOrphan)).toEqual({ not_started: 0, in_progress: 0, arranged: 0, issue: 1 });
-    expect(eventsWithArrangementStatus(withOrphan, "issue").map(({ event, orphanedReservations }) => [event.id, orphanedReservations.length])).toEqual([["gala", 1]]);
-    expect(eventsWithArrangementStatus(withOrphan, "not_started")).toEqual([]);
+    expect(equipmentRequestTabCounts(withOrphan)).toEqual({ all: 1, attention: 0, arranged: 0, issue: 1 });
+    expect(eventsInEquipmentRequestTab(withOrphan, "issue").map(({ event, orphanedReservations }) => [event.id, orphanedReservations.length])).toEqual([["gala", 1]]);
+    expect(eventsInEquipmentRequestTab(withOrphan, "all").map(({ orphanedReservations }) => orphanedReservations.length)).toEqual([1]);
+    expect(eventsInEquipmentRequestTab(withOrphan, "attention")).toEqual([]);
   });
 });

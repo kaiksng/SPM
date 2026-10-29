@@ -16,10 +16,13 @@ export function EventPageTopBar({
   backLabel,
   eventId,
   useHistoryBack = false,
+  showHistory = true,
 }: {
   backTo: string;
   backLabel: string;
   eventId: string | undefined;
+  /** Off on a page whose own action takes the top-right spot (e.g. Equipment). */
+  showHistory?: boolean;
   /**
    * Go back in browser history instead of linking to `backTo` directly, so
    * the Events list's search/filter state — kept in its own URL — is still
@@ -47,7 +50,7 @@ export function EventPageTopBar({
           <ArrowLeft /> {backLabel}
         </Link>
       )}
-      {eventId && (
+      {eventId && showHistory && (
         <EventHistoryButton eventId={eventId} />
       )}
     </div>

@@ -63,6 +63,30 @@ describe("EventPlanningTimeline", () => {
     expect(screen.getByRole("link", { name: "Venue" })).not.toHaveAttribute("aria-current");
   });
 
+  // Nothing to book or reserve until the event is in Planning, so Venue and
+  // Equipment are not links while it is still a request (or was rejected as one).
+  it.each(["draft", "requested", "clarification_requested", "rejected"])(
+    "shows Venue and Equipment as plain text on a %s event",
+    (status) => {
+      renderTimeline(status);
+
+      for (const name of ["Venue", "Equipment"]) {
+        expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
+        expect(screen.getByText(name)).toHaveClass("text-slate-400");
+      }
+    },
+  );
+
+  it.each(["planning", "pending_safety_check", "confirmed", "completed", "cancelled"])(
+    "links Venue and Equipment on a %s event",
+    (status) => {
+      renderTimeline(status);
+
+      expect(screen.getByRole("link", { name: "Venue" })).toHaveAttribute("href", "/events/event-1/venue");
+      expect(screen.getByRole("link", { name: "Equipment" })).toHaveAttribute("href", "/events/event-1/equipment");
+    },
+  );
+
   it("highlights a Planning sub-page being viewed", () => {
     renderTimeline("planning", "/events/event-1/equipment");
 
