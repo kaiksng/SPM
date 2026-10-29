@@ -1,33 +1,57 @@
-import type { EquipmentArrangementStatus } from "@spm/shared";
-
 import type {
   EquipmentAvailabilityResult,
   EventEquipmentAvailability,
 } from "@/features/equipment/services/equipment-availability";
 
 /**
- * The Event requests tabs follow each item's arrangement status (SPM-28):
- * Not started / In progress / Arranged / Issue. Availability and
- * reservations still show inside each item's row. A reservation whose
- * request was removed needs releasing, so it is listed under Issue.
+ * The Event requests tabs: All, then each item in exactly one of
+ *   Need attention — still being arranged (Not started / In progress);
+ *   Arranged       — arranged, with nothing wrong;
+ *   Issue          — set to Issue, or anything wrong whatever its arrangement
+ *                    status: not available in full, or a reservation flagged
+ *                    for re-check. A reservation whose request was removed
+ *                    needs releasing, so it is listed under Issue too.
+ * The arrangement status itself (SPM-28) still shows on each item.
  */
-export function eventsWithArrangementStatus(events: EventEquipmentAvailability[], status: EquipmentArrangementStatus) {
+export const equipmentRequestTabs = ["all", "attention", "arranged", "issue"] as const;
+export type EquipmentRequestTab = (typeof equipmentRequestTabs)[number];
+
+export const equipmentRequestTabLabels: Readonly<Record<EquipmentRequestTab, string>> = {
+  all: "All",
+  attention: "Need attention",
+  arranged: "Arranged",
+  issue: "Issue",
+};
+
+/** Not available in full, or reserved but flagged for re-checking. */
+export function hasEquipmentProblem(result: EquipmentAvailabilityResult) {
+  return result.status !== "available" || Boolean(result.reservation?.needsRecheck);
+}
+
+/** The one status tab an item belongs to. */
+export function equipmentRequestTab(result: EquipmentAvailabilityResult): Exclude<EquipmentRequestTab, "all"> {
+  if (result.arrangement?.status === "issue" || hasEquipmentProblem(result)) return "issue";
+  if (result.arrangement?.status === "arranged") return "arranged";
+  return "attention";
+}
+
+export function eventsInEquipmentRequestTab(events: EventEquipmentAvailability[], tab: EquipmentRequestTab) {
   return events.flatMap((event) => {
-    const results = event.results.filter((result) => result.arrangement?.status === status);
-    const orphanedReservations = status === "issue" ? (event.orphanedReservations ?? []) : [];
+    const results =
+      tab === "all" ? event.results : event.results.filter((result) => equipmentRequestTab(result) === tab);
+    const orphanedReservations = tab === "all" || tab === "issue" ? (event.orphanedReservations ?? []) : [];
     return results.length > 0 || orphanedReservations.length > 0 ? [{ event, results, orphanedReservations }] : [];
   });
 }
 
-/** How many items have each arrangement status, across all events. */
-export function arrangementStatusCounts(
-  events: EventEquipmentAvailability[],
-): Record<EquipmentArrangementStatus, number> {
-  const counts: Record<EquipmentArrangementStatus, number> = { not_started: 0, in_progress: 0, arranged: 0, issue: 0 };
+/** How many items are in each tab, across all events. */
+export function equipmentRequestTabCounts(events: EventEquipmentAvailability[]): Record<EquipmentRequestTab, number> {
+  const counts: Record<EquipmentRequestTab, number> = { all: 0, attention: 0, arranged: 0, issue: 0 };
   for (const event of events) {
-    for (const result of event.results) if (result.arrangement) counts[result.arrangement.status] += 1;
+    for (const result of event.results) counts[equipmentRequestTab(result)] += 1;
     counts.issue += event.orphanedReservations?.length ?? 0;
   }
+  counts.all = counts.attention + counts.arranged + counts.issue;
   return counts;
 }
 

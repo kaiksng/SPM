@@ -1,12 +1,9 @@
 import {
-  equipmentArrangementStatuses,
-  equipmentArrangementStatusLabels,
   equipmentAvailabilityStatusLabels,
   equipmentShortage,
   isEquipmentReservationAllowed,
   overallEquipmentAvailability,
   type EquipmentArrangementFormValues,
-  type EquipmentArrangementStatus,
   type EquipmentAvailabilityStatus,
 } from "@spm/shared";
 import { CalendarDays, Search } from "lucide-react";
@@ -27,9 +24,13 @@ import type {
   OrphanedReservation,
 } from "@/features/equipment/services/equipment-availability";
 import {
-  arrangementStatusCounts,
   arrangementStatusesLoaded,
-  eventsWithArrangementStatus,
+  equipmentRequestTab,
+  equipmentRequestTabCounts,
+  equipmentRequestTabLabels,
+  equipmentRequestTabs,
+  eventsInEquipmentRequestTab,
+  type EquipmentRequestTab,
 } from "@/features/equipment/utils/request-groups";
 import { StatusBadge } from "@/features/event-requests/components/status-badges";
 import { cn } from "@/lib/utils";
@@ -70,9 +71,9 @@ type PendingAction = {
  * SPM-31: each open event's requested equipment against what can be
  * provided — and, from here, reserving it, changing or releasing the
  * reservation, re-checking one flagged after a change, and (SPM-28)
- * updating its arrangement status and note. Items are sorted into tabs by
- * arrangement status (Not started / In progress / Arranged / Issue), each
- * shown under its event.
+ * updating its arrangement status and note. Items are sorted into tabs —
+ * All / Need attention / Arranged / Issue (see request-groups) — each shown
+ * under its event.
  */
 export function EventEquipmentAvailabilityList({
   events,
@@ -82,7 +83,7 @@ export function EventEquipmentAvailabilityList({
   onUpdateArrangement,
 }: { events: EventEquipmentAvailability[] } & Handlers) {
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<EquipmentArrangementStatus>("not_started");
+  const [tab, setTab] = useState<EquipmentRequestTab>("all");
   const [pending, setPending] = useState<PendingAction>();
   const [releasing, setReleasing] = useState<{ event: EventEquipmentAvailability; reservation: OrphanedReservation }>();
   const [rowError, setRowError] = useState<{ requirementId: string; message: string }>();
@@ -105,9 +106,9 @@ export function EventEquipmentAvailabilityList({
   // Without the statuses (e.g. the SPM-28 migration isn't applied), every
   // item is listed untabbed rather than hidden.
   const tabbed = arrangementStatusesLoaded(searched);
-  const counts = arrangementStatusCounts(searched);
+  const counts = equipmentRequestTabCounts(searched);
   const visible = tabbed
-    ? eventsWithArrangementStatus(searched, tab)
+    ? eventsInEquipmentRequestTab(searched, tab)
     : searched.map((event) => ({
         event,
         results: event.results,
@@ -134,8 +135,8 @@ export function EventEquipmentAvailabilityList({
       </div>
 
       {tabbed && (
-        <div role="tablist" aria-label="Arrangement status" className="mt-5 flex flex-wrap gap-2">
-          {equipmentArrangementStatuses.map((key) => (
+        <div role="tablist" aria-label="Equipment requests" className="mt-5 flex flex-wrap gap-2">
+          {equipmentRequestTabs.map((key) => (
             <button
               key={key}
               type="button"
@@ -149,7 +150,7 @@ export function EventEquipmentAvailabilityList({
                   : "border-slate-200 bg-white text-slate-600 hover:border-primary/40 hover:text-slate-900",
               )}
             >
-              {equipmentArrangementStatusLabels[key]}
+              {equipmentRequestTabLabels[key]}
               <span
                 className={cn(
                   "rounded-full px-1.5 text-xs font-semibold",
@@ -238,17 +239,12 @@ export function EventEquipmentAvailabilityList({
   );
 }
 
-const emptyTabMessages: Readonly<Record<EquipmentArrangementStatus, string>> = {
-  not_started: "Every requested item has been started on.",
-  in_progress: "Nothing is in progress.",
+const emptyTabMessages: Readonly<Record<EquipmentRequestTab, string>> = {
+  all: "No open events have requested equipment.",
+  attention: "Nothing is waiting to be arranged.",
   arranged: "Nothing has been arranged yet.",
   issue: "No items have an issue.",
 };
-
-/** Not available, or reserved but flagged for re-checking. */
-function needsAttention(result: EquipmentAvailabilityResult) {
-  return result.status !== "available" || Boolean(result.reservation?.needsRecheck);
-}
 
 function EventCard({
   event,
@@ -270,12 +266,13 @@ function EventCard({
   onRecheck: (result: EquipmentAvailabilityResult) => void;
 }) {
   const reservationsAllowed = isEquipmentReservationAllowed(event.status);
-  const shortCount = event.results.filter(needsAttention).length;
+  // The same items the Issue tab lists, so the badge and the tab agree.
+  const issueCount = event.results.filter((result) => equipmentRequestTab(result) === "issue").length;
   const reservedCount = event.results.filter((result) => result.reservation).length;
   const worst = overallEquipmentAvailability(event.results.map((result) => result.status));
-  // A flagged reservation needs attention even when the items are available.
+  // A flagged reservation or an Issue status is a problem even when the items are available.
   const tone: EquipmentAvailabilityStatus =
-    shortCount === 0 ? "available" : worst && worst !== "available" ? worst : "partially_available";
+    issueCount === 0 ? "available" : worst && worst !== "available" ? worst : "partially_available";
 
   return (
     <li aria-label={event.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -292,9 +289,9 @@ function EventCard({
         </div>
         <div className="flex flex-col items-end gap-1">
           <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", statusStyles[tone])}>
-            {shortCount === 0
+            {issueCount === 0
               ? "All equipment available"
-              : `${shortCount} of ${event.results.length} item${event.results.length === 1 ? "" : "s"} need attention`}
+              : `${issueCount} of ${event.results.length} item${event.results.length === 1 ? " has" : "s have"} an issue`}
           </span>
           <span className="text-xs text-slate-500">
             {reservedCount} of {event.results.length} reserved

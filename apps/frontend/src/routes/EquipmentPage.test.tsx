@@ -132,8 +132,8 @@ async function renderUnavailability() {
   await screen.findByRole("heading", { name: "Unavailability records" });
 }
 
-/** Event requests are sorted into tabs by arrangement status (SPM-28). */
-async function showTab(name: "Not started" | "In progress" | "Arranged" | "Issue") {
+/** Event requests are sorted into tabs: All / Need attention / Arranged / Issue. */
+async function showTab(name: "All" | "Need attention" | "Arranged" | "Issue") {
   await userEvent.setup().click(await screen.findByRole("tab", { name: new RegExp(`^${name}`) }));
 }
 
@@ -740,24 +740,25 @@ describe("EquipmentPage event requests (SPM-31)", () => {
     ]);
   });
 
-  // SPM-28: tabs follow the arrangement status; nobody has started on these yet.
-  it("opens on Not started, counting each arrangement status", async () => {
+  // Nobody has started on these yet; the three Annual Gala items that cannot
+  // be supplied in full count as Issue even though they are Not started.
+  it("opens on All, counting each tab", async () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Event requests" })).toBeInTheDocument();
-    expect(await screen.findByRole("tab", { name: /^Not started/ })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("tab", { name: /^All/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Not started5",
-      "In progress0",
+      "All5",
+      "Need attention2",
       "Arranged0",
-      "Issue0",
+      "Issue3",
     ]);
     // The event header still summarises all of its items.
-    expect(await screen.findByRole("listitem", { name: "Annual Gala" })).toHaveTextContent("3 of 4 items need attention");
+    expect(await screen.findByRole("listitem", { name: "Annual Gala" })).toHaveTextContent("3 of 4 items have an issue");
     expect(screen.getByRole("listitem", { name: "Tech Talk" })).toHaveTextContent("All equipment available");
   });
 
-  it("sorts each item into the tab for its arrangement status", async () => {
+  it("sorts each item into one tab, and shows them all under All", async () => {
     const started = (status: string) => ({
       status,
       note: null,
@@ -781,9 +782,16 @@ describe("EquipmentPage event requests (SPM-31)", () => {
     ]);
     renderPage();
 
-    const notStarted = await screen.findByRole("listitem", { name: "Annual Gala" });
-    expect(within(notStarted).getByText("Projector × 3")).toBeInTheDocument();
-    expect(within(notStarted).queryByText(/Smoke machine/)).not.toBeInTheDocument();
+    const all = await screen.findByRole("listitem", { name: "Annual Gala" });
+    expect(within(all).getByText("Projector × 3")).toBeInTheDocument();
+    expect(within(all).getByText("Smoke machine × 3")).toBeInTheDocument();
+
+    // Not started and In progress are both still to be arranged.
+    await showTab("Need attention");
+    const attention = await screen.findByRole("listitem", { name: "Annual Gala" });
+    expect(within(attention).getByText("Projector × 3")).toBeInTheDocument();
+    expect(within(attention).getByText("Wireless microphone × 3")).toBeInTheDocument();
+    expect(within(attention).queryByText(/Smoke machine/)).not.toBeInTheDocument();
 
     await showTab("Issue");
     const issue = await screen.findByRole("listitem", { name: "Annual Gala" });
@@ -1014,7 +1022,7 @@ describe("EquipmentPage reserving equipment", () => {
     renderPage();
 
     expect(await screen.findByText("Needs re-check: The event date or time changed")).toBeInTheDocument();
-    expect(screen.getByRole("listitem", { name: "Spring Expo" })).toHaveTextContent("1 of 1 item need attention");
+    expect(screen.getByRole("listitem", { name: "Spring Expo" })).toHaveTextContent("1 of 1 item has an issue");
     await user.click(screen.getByRole("button", { name: "Re-check" }));
 
     await waitFor(() => expect(changeEquipmentReservationMock).toHaveBeenCalledWith("res-1", 40));
