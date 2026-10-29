@@ -2,7 +2,7 @@ begin;
 
 select plan(16);
 
--- safety_check_review_details (202610280001): the facts a Safety Officer
+-- safety_check_review_details (202610280002): the facts a Safety Officer
 -- reviews. Same access rule as event_readiness: a Safety Officer can read
 -- an event only while it is Pending Safety Check.
 
