@@ -6,11 +6,12 @@ import {
   type EquipmentArrangementFormValues,
   type EquipmentAvailabilityStatus,
 } from "@spm/shared";
-import { CalendarDays, Search } from "lucide-react";
+import { CalendarDays, Ellipsis, Search } from "lucide-react";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { ArrangementDialog } from "@/features/equipment/components/arrangement-dialog";
 import { ArrangementBadge, ArrangementDetails } from "@/features/equipment/components/equipment-arrangement";
 import {
@@ -62,7 +63,8 @@ type Handlers = {
 };
 
 type PendingAction = {
-  action: ReservationAction | "arrangement";
+  /** "top_up" is Reserve the rest: a Change that starts at the full request. */
+  action: ReservationAction | "arrangement" | "top_up";
   event: EventEquipmentAvailability;
   result: EquipmentAvailabilityResult;
 };
@@ -222,14 +224,20 @@ export function EventEquipmentAvailabilityList({
 
       {pending && pending.action !== "arrangement" && (
         <ReservationDialog
-          action={pending.action}
+          action={pending.action === "top_up" ? "change" : pending.action}
           eventTitle={pending.event.title}
           result={pending.result}
+          startQuantity={
+            pending.action === "top_up"
+              ? Math.min(pending.result.requestedQuantity, pending.result.availableQuantity)
+              : undefined
+          }
           onCancel={() => setPending(undefined)}
           onConfirm={async ({ quantity, reason }) => {
             const reservationId = pending.result.reservation?.id;
             if (pending.action === "reserve") await onReserve(pending.result.requirementId, quantity);
-            else if (pending.action === "change" && reservationId) await onChange(reservationId, quantity);
+            else if ((pending.action === "change" || pending.action === "top_up") && reservationId)
+              await onChange(reservationId, quantity);
             else if (reservationId) await onRelease(reservationId, reason);
             setPending(undefined);
           }}
@@ -346,6 +354,34 @@ function ResultRow({
   const poolAvailable = Math.max(result.availableQuantity - ownReserved, 0);
   const canReserve =
     !reservation && result.status !== "unknown" && result.availableQuantity > 0 && !result.itemRetired;
+  // Reserved in part, and more is free to take.
+  const canTopUp = Boolean(
+    reservation &&
+      reservation.quantity < result.requestedQuantity &&
+      result.availableQuantity > reservation.quantity &&
+      !result.itemRetired,
+  );
+  const inIssue = equipmentRequestTab(result) === "issue";
+
+  // One main button: the next step for this item. Everything else is under ⋯.
+  let mainAction: { label: string; run: () => void } | undefined;
+  if (reservationsAllowed && reservation?.needsRecheck) {
+    mainAction = { label: "Re-check", run: onRecheck };
+  } else if (reservationsAllowed && canReserve) {
+    mainAction = { label: inIssue ? "Reserve available" : "Reserve", run: () => onAction("reserve") };
+  } else if (reservationsAllowed && canTopUp) {
+    mainAction = { label: "Reserve the rest", run: () => onAction("top_up") };
+  } else if (inIssue && result.arrangement) {
+    // Set by hand, or nothing more can be reserved: the status and note say what happens next.
+    mainAction = { label: "Set status & note", run: () => onAction("arrangement") };
+  }
+  const moreActions: Array<{ label: string; run: () => void }> = [];
+  if (reservationsAllowed && reservation) moreActions.push({ label: "Change quantity", run: () => onAction("change") });
+  // Releasing gives units back, so it stays open whatever the event's status.
+  if (reservation) moreActions.push({ label: "Release", run: () => onAction("release") });
+  if (result.arrangement && mainAction?.label !== "Set status & note") {
+    moreActions.push({ label: "Set status & note", run: () => onAction("arrangement") });
+  }
 
   return (
     <li className="grid gap-3 px-5 py-4 text-sm sm:grid-cols-[1fr_auto] sm:items-start">
@@ -430,37 +466,34 @@ function ResultRow({
             )}
           </>
         )}
-        <div className="mt-1 flex flex-wrap justify-end gap-1.5">
-          {result.arrangement && (
-            <Button type="button" size="sm" variant="outline" onClick={() => onAction("arrangement")}>
-              Update arrangement
-            </Button>
-          )}
+        <div className="mt-1 flex flex-wrap items-center justify-end gap-1.5">
           {!reservationsAllowed && (canReserve || reservation) && (
             <span className="max-w-56 text-right text-xs text-slate-500">
               Can't reserve or change while the event awaits its safety check
             </span>
           )}
-          {reservationsAllowed && canReserve && (
-            <Button type="button" size="sm" onClick={() => onAction("reserve")}>
-              Reserve
+          {mainAction && (
+            <Button type="button" size="sm" onClick={mainAction.run}>
+              {mainAction.label}
             </Button>
           )}
-          {reservationsAllowed && reservation?.needsRecheck && (
-            <Button type="button" size="sm" onClick={onRecheck}>
-              Re-check
-            </Button>
-          )}
-          {reservationsAllowed && reservation && (
-            <Button type="button" size="sm" variant="outline" onClick={() => onAction("change")}>
-              Change
-            </Button>
-          )}
-          {/* Releasing gives units back, so it stays open whatever the event's status. */}
-          {reservation && (
-            <Button type="button" size="sm" variant="ghost" onClick={() => onAction("release")}>
-              Release
-            </Button>
+          {moreActions.length > 0 && (
+            // Not modal: a small dropdown has no reason to lock the page's scrolling.
+            <Menu modal={false}>
+              <MenuTrigger
+                aria-label={`More actions for ${result.equipmentName}`}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                <Ellipsis aria-hidden="true" />
+              </MenuTrigger>
+              <MenuContent>
+                {moreActions.map((item) => (
+                  <MenuItem key={item.label} onClick={item.run}>
+                    {item.label}
+                  </MenuItem>
+                ))}
+              </MenuContent>
+            </Menu>
           )}
         </div>
       </div>

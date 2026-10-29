@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
 
+/** How many dialogs are open, so the page unlocks only when the last one closes. */
+let openDialogCount = 0;
+
 /**
  * Shared dialog shell for the event-requests feature's popups (request
  * clarification, approve/reject, change history). `size="large"` is for
@@ -33,11 +36,15 @@ export function Modal({
   }, [onCancel]);
 
   // Scrolling over the dialog or its backdrop must not move the page behind.
+  // Counted rather than saved-and-restored: a dialog opened from a menu would
+  // otherwise save the menu's own lock and put it back on close, leaving the
+  // page unscrollable.
   useEffect(() => {
-    const previous = document.body.style.overflow;
+    openDialogCount += 1;
     document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = previous;
+      openDialogCount -= 1;
+      if (openDialogCount === 0) document.body.style.overflow = "";
     };
   }, []);
 

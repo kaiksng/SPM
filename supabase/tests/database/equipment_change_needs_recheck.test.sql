@@ -46,8 +46,8 @@ select is(
 );
 select is(
   (select count(*)::int from public.equipment_arrangement_updates where requirement_id = (select id from v_ids where name = 'worked')),
-  2,
-  'the earlier Arranged entry stays in the history (SPM-28 AC03)'
+  3,
+  'the earlier entries (Arranged by hand, then the reservation) stay in the history (SPM-28 AC03)'
 );
 select is(
   (select row(needs_recheck, recheck_reason) from public.equipment_reservations where id = (select id from v_ids where name = 'res-worked')),
@@ -83,7 +83,7 @@ select is(
 update public.event_equipment_requirements set quantity = quantity where id = (select id from v_ids where name = 'worked');
 select is(
   (select count(*)::int from public.equipment_arrangement_updates where requirement_id = (select id from v_ids where name = 'worked')),
-  2,
+  3,
   'saving a request unchanged adds nothing'
 );
 
