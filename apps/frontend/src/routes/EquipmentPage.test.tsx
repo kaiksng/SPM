@@ -797,12 +797,18 @@ describe("EquipmentPage event requests (SPM-31)", () => {
     const attention = await screen.findByRole("listitem", { name: "Annual Gala" });
     expect(within(attention).getByText("Projector × 3")).toBeInTheDocument();
     expect(within(attention).getByText("Wireless microphone × 3")).toBeInTheDocument();
-    expect(within(attention).queryByText(/Smoke machine/)).not.toBeInTheDocument();
+    // The event's other item is still in view, below, with no actions.
+    const alsoNeeded = within(attention).getByRole("region", { name: "Also needed for Annual Gala" });
+    expect(within(alsoNeeded).getByText("Smoke machine × 3")).toBeInTheDocument();
+    expect(within(alsoNeeded).queryByRole("button")).not.toBeInTheDocument();
 
     await showTab("Issue");
     const issue = await screen.findByRole("listitem", { name: "Annual Gala" });
-    expect(within(issue).getByText("Smoke machine × 3")).toBeInTheDocument();
-    expect(within(issue).queryByText("Projector × 3")).not.toBeInTheDocument();
+    expect(within(issue).getByRole("button", { name: "More actions for Smoke machine" })).toBeInTheDocument();
+    expect(within(issue).queryByRole("button", { name: "More actions for Projector" })).not.toBeInTheDocument();
+    expect(
+      within(within(issue).getByRole("region", { name: "Also needed for Annual Gala" })).getByText("Projector × 3"),
+    ).toBeInTheDocument();
 
     await showTab("Arranged");
     expect(await screen.findByText("Nothing has been arranged yet.")).toBeInTheDocument();
@@ -876,8 +882,8 @@ describe("EquipmentPage reserving equipment", () => {
     reservation: null as null | Record<string, unknown>,
     arrangement: NOT_STARTED as Record<string, unknown>,
   };
-  const eventWith = (results: Array<Record<string, unknown>>) => [
-    { id: "event-expo", title: "Spring Expo", status: "planning", startsAt: hours(24), endsAt: hours(28), results },
+  const eventWith = (results: Array<Record<string, unknown>>, status = "planning") => [
+    { id: "event-expo", title: "Spring Expo", status, startsAt: hours(24), endsAt: hours(28), results },
   ];
 
   // AC4/AC5: a reservation whose request was removed still holds stock; staff find it under Issue and release it.
@@ -1017,6 +1023,40 @@ describe("EquipmentPage reserving equipment", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save change" }));
 
     await waitFor(() => expect(changeEquipmentReservationMock).toHaveBeenCalledWith("res-1", 50));
+  });
+
+  // A Confirmed event's equipment was arranged before it was confirmed.
+  it("lists a Confirmed event's equipment but offers nothing more to reserve", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(
+      eventWith(
+        [
+          { ...base, availableQuantity: 100, status: "available" },
+          {
+            ...base,
+            requirementId: "req-mic",
+            equipmentName: "Microphone",
+            availableQuantity: 100,
+            status: "available",
+            reservation: { id: "res-1", quantity: 20, needsRecheck: false, recheckReason: null, reservedByName: null, reservedAt: null },
+          },
+        ],
+        "confirmed",
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByText("Projector × 50")).toBeInTheDocument();
+    expect(screen.getByText("Microphone × 50")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Reserve/ })).not.toBeInTheDocument();
+    expect(
+      screen.getAllByText("Event confirmed. Its equipment is already arranged, so nothing more can be reserved."),
+    ).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: "More actions for Microphone" }));
+    expect((await screen.findAllByRole("menuitem")).map((item) => item.textContent)).toEqual([
+      "Release",
+      "Set status & note",
+    ]);
   });
 
   it("offers no main button once an item is reserved in full", async () => {
@@ -1336,7 +1376,8 @@ describe("EquipmentPage arrangement status (SPM-28)", () => {
     expect(within(status).getAllByRole("option").map((option) => option.textContent)).toEqual([
       "Not started",
       "In progress",
-      "Arranged",
+      // Nothing is reserved yet, so Arranged can't be chosen.
+      "Arranged (reserve the full quantity first)",
       "Issue",
     ]);
     await user.selectOptions(status, "Issue");
@@ -1357,7 +1398,7 @@ describe("EquipmentPage arrangement status (SPM-28)", () => {
 
   // AC03/AC04/AC05: current values, who and when, and every earlier update in order.
   it("shows the current status and note, who updated it, and the history in order", async () => {
-    listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([{ ...base, arrangement: updated }]));
+    listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([{ ...base, arrangement: updated, reservation: { id: "res-1", quantity: 5, needsRecheck: false, recheckReason: null, reservedByName: "Tess Support", reservedAt: hours(-2) } }]));
     renderPage();
     await showTab("Arranged");
 
@@ -1373,9 +1414,21 @@ describe("EquipmentPage arrangement status (SPM-28)", () => {
     expect(entries[2]).toMatch(/^Arranged · Delivered to Hall A/);
   });
 
+  // Arranged means the stock is held: marked Arranged with nothing reserved is still to do.
+  it("lists an item marked Arranged without its stock held under Need attention, saying why", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([{ ...base, arrangement: updated }]));
+    renderPage();
+    await showTab("Need attention");
+
+    const row = (await screen.findByText("Projector × 5")).closest("li")!;
+    expect(within(row).getByText("Arrangement: Arranged")).toBeInTheDocument();
+    expect(within(row).getByText("Marked Arranged, but the full quantity isn't reserved yet.")).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Reserve" })).toBeInTheDocument();
+  });
+
   // AC05: opening again starts from the current values.
   it("opens the update on the current status and note", async () => {
-    listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([{ ...base, arrangement: updated }]));
+    listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([{ ...base, arrangement: updated, reservation: { id: "res-1", quantity: 5, needsRecheck: false, recheckReason: null, reservedByName: "Tess Support", reservedAt: hours(-2) } }]));
     const user = userEvent.setup();
     renderPage();
     await showTab("Arranged");
@@ -1424,7 +1477,7 @@ describe("EquipmentPage arrangement status (SPM-28)", () => {
 
     await chooseMoreAction(user, "Projector", "Set status & note");
     const dialog = screen.getByRole("dialog");
-    await user.selectOptions(within(dialog).getByLabelText("Arrangement status"), "Arranged");
+    await user.selectOptions(within(dialog).getByLabelText("Arrangement status"), "In progress");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
     expect(

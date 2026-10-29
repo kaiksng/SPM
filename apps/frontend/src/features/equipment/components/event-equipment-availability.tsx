@@ -26,6 +26,7 @@ import type {
 } from "@/features/equipment/services/equipment-availability";
 import {
   arrangementStatusesLoaded,
+  canBeArranged,
   equipmentRequestTab,
   equipmentRequestTabCounts,
   equipmentRequestTabLabels,
@@ -199,6 +200,7 @@ export function EventEquipmentAvailabilityList({
           eventTitle={pending.event.title}
           equipmentName={pending.result.equipmentName}
           arrangement={pending.result.arrangement}
+          canArrange={canBeArranged(pending.result)}
           onCancel={() => setPending(undefined)}
           onSave={async (values) => {
             await onUpdateArrangement(pending.result.requirementId, values);
@@ -273,7 +275,16 @@ function EventCard({
   onAction: (action: PendingAction["action"], result: EquipmentAvailabilityResult) => void;
   onRecheck: (result: EquipmentAvailabilityResult) => void;
 }) {
-  const reservationsAllowed = isEquipmentReservationAllowed(event.status);
+  // A Confirmed event's equipment was arranged before it could be confirmed
+  // (readiness), so nothing more is reserved for it here.
+  const confirmed = event.status === "confirmed";
+  const reservationsAllowed = isEquipmentReservationAllowed(event.status) && !confirmed;
+  const lockNote = confirmed
+    ? "Event confirmed. Its equipment is already arranged, so nothing more can be reserved."
+    : "Can't reserve or change while the event awaits its safety check";
+  // The tab shows only some of the event's items; the rest are listed below
+  // so the event's whole equipment list is always in view.
+  const otherResults = event.results.filter((result) => !results.includes(result));
   // The same items the Issue tab lists, so the badge and the tab agree.
   const issueCount = event.results.filter((result) => equipmentRequestTab(result) === "issue").length;
   const reservedCount = event.results.filter((result) => result.reservation).length;
@@ -312,6 +323,7 @@ function EventCard({
             key={result.requirementId}
             result={result}
             reservationsAllowed={reservationsAllowed}
+            lockNote={lockNote}
             error={rowError?.requirementId === result.requirementId ? rowError.message : undefined}
             onAction={(action) => onAction(action, result)}
             onRecheck={() => onRecheck(result)}
@@ -325,6 +337,26 @@ function EventCard({
           />
         ))}
       </ul>
+      {otherResults.length > 0 && (
+        <section aria-label={`Also needed for ${event.title}`} className="border-t border-slate-100 bg-slate-50/60 px-5 py-3">
+          <h4 className="text-xs font-semibold tracking-wide text-slate-400 uppercase">Also needed for this event</h4>
+          <ul className="mt-2 space-y-1.5 text-sm">
+            {otherResults.map((result) => (
+              <li key={result.requirementId} className="flex flex-wrap items-center gap-2 text-slate-700">
+                <span>
+                  {result.equipmentName} × {result.requestedQuantity}
+                </span>
+                {result.arrangement && <ArrangementBadge arrangement={result.arrangement} />}
+                {result.reservation && (
+                  <span className="text-xs text-slate-500">
+                    {result.reservation.quantity} of {result.requestedQuantity} reserved
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </li>
   );
 }
@@ -332,13 +364,19 @@ function EventCard({
 function ResultRow({
   result,
   reservationsAllowed,
+  lockNote,
   error,
   onAction,
   onRecheck,
 }: {
   result: EquipmentAvailabilityResult;
-  /** False while the event awaits its safety check: the database refuses reserving, changing and re-checking. */
+  /**
+   * False while the event awaits its safety check (the database refuses
+   * reserving, changing and re-checking) or once it is Confirmed.
+   */
   reservationsAllowed: boolean;
+  /** Why reserving is off, shown when it is. */
+  lockNote: string;
   error?: string;
   onAction: (action: PendingAction["action"]) => void;
   onRecheck: () => void;
@@ -362,6 +400,9 @@ function ResultRow({
       !result.itemRetired,
   );
   const inIssue = equipmentRequestTab(result) === "issue";
+  const reservedInFull = Boolean(
+    reservation && !reservation.needsRecheck && reservation.quantity >= result.requestedQuantity,
+  );
 
   // One main button: the next step for this item. Everything else is under ⋯.
   let mainAction: { label: string; run: () => void } | undefined;
@@ -441,6 +482,9 @@ function ResultRow({
           </div>
         )}
         {result.arrangement && <ArrangementDetails arrangement={result.arrangement} />}
+        {result.arrangement?.status === "arranged" && !canBeArranged(result) && (
+          <p className="mt-1 text-amber-900">Marked Arranged, but the full quantity isn't reserved yet.</p>
+        )}
         {error && (
           <p role="alert" className="mt-2 text-red-700">
             {error}
@@ -467,10 +511,11 @@ function ResultRow({
           </>
         )}
         <div className="mt-1 flex flex-wrap items-center justify-end gap-1.5">
-          {!reservationsAllowed && (canReserve || reservation) && (
-            <span className="max-w-56 text-right text-xs text-slate-500">
-              Can't reserve or change while the event awaits its safety check
-            </span>
+          {!reservationsAllowed && (canReserve || canTopUp || reservation) && (
+            <span className="max-w-56 text-right text-xs text-slate-500">{lockNote}</span>
+          )}
+          {reservationsAllowed && reservedInFull && (
+            <span className="text-xs text-slate-500">Reserved in full, nothing to do</span>
           )}
           {mainAction && (
             <Button type="button" size="sm" onClick={mainAction.run}>

@@ -1,6 +1,6 @@
 begin;
 
-select plan(29);
+select plan(30);
 
 -- SPM: update_equipment_arrangement no longer permits edits while an event
 -- is Pending Safety Check (202610190005) — the coordinator's technical
@@ -119,11 +119,20 @@ select isnt(
   'a note-only change is saved (SPM-28 AC04)'
 );
 
+-- Arranged means the stock is held (202610290004): refused until the full
+-- quantity is reserved. Reserving records Arranged itself (202610290003).
+select throws_ok(
+  $$select public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), 'arranged', 'Delivered')$$,
+  '23514', 'Reserve the full quantity before marking this equipment Arranged',
+  'Arranged is refused while nothing is reserved'
+);
+insert into v_ids select 'res-planning', public.reserve_equipment((select id from v_ids where name = 'req-planning'), 2);
+
 -- AC05: repeated updates, including back to an earlier status, and clearing the note.
 select isnt(
   public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), 'arranged', 'Delivered'),
   null,
-  'the status moves on to Arranged (SPM-28 AC05)'
+  'the status moves on to Arranged once the stock is held (SPM-28 AC05)'
 );
 select isnt(
   public.update_equipment_arrangement((select id from v_ids where name = 'req-planning'), 'issue', 'One mic is faulty'),
@@ -139,7 +148,8 @@ select results_eq(
   $$select status, coalesce(note, '(none)') from public.equipment_arrangement_updates
     where requirement_id = (select id from v_ids where name = 'req-planning') order by id$$,
   $$values ('in_progress'::text, 'Borrowing 2 from Block B'::text), ('in_progress', 'Block B said yes'),
-           ('arranged', 'Delivered'), ('issue', 'One mic is faulty'), ('in_progress', '(none)')$$,
+           ('arranged', 'Reserved 2 of 2'), ('arranged', 'Delivered'), ('issue', 'One mic is faulty'),
+           ('in_progress', '(none)')$$,
   'every update is kept, in order (SPM-28 AC03, AC05)'
 );
 
@@ -196,7 +206,7 @@ select throws_ok(
 select set_config('request.jwt.claims', '{"sub":"e8000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select is(
   (select count(*)::integer from public.equipment_arrangement_updates where event_id = 'e8000000-0000-0000-0000-0000000000e1'),
-  6,
+  7,
   'other Technical Support Staff see the history'
 );
 select is(
@@ -208,7 +218,7 @@ select is(
 select set_config('request.jwt.claims', '{"sub":"e8000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is(
   (select count(*)::integer from public.equipment_arrangement_updates where event_id = 'e8000000-0000-0000-0000-0000000000e1'),
-  6,
+  7,
   'the assigned coordinator sees the history'
 );
 select is(

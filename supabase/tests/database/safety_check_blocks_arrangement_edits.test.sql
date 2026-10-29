@@ -69,7 +69,7 @@ update public.events set status = 'planning' where id = 'fe000000-0000-0000-0000
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"fe000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select isnt(
-  public.update_equipment_arrangement('fe000000-0000-0000-0000-0000000000a1', 'arranged', null),
+  public.update_equipment_arrangement('fe000000-0000-0000-0000-0000000000a1', 'in_progress', null),
   null,
   'equipment arrangements can be updated again once the event returns to Planning'
 );

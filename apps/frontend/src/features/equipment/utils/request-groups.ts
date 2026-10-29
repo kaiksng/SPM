@@ -28,10 +28,22 @@ export function hasEquipmentProblem(result: EquipmentAvailabilityResult) {
   return result.status !== "available" || Boolean(result.reservation?.needsRecheck);
 }
 
+/**
+ * Arranged means the stock is held: the full quantity reserved, no re-check
+ * outstanding. Equipment outside the catalogue can't be reserved here, so a
+ * hand-set Arranged is the only record of it (202610290004).
+ */
+export function canBeArranged(result: EquipmentAvailabilityResult) {
+  if (result.equipmentItemId === null) return true;
+  const { reservation } = result;
+  return Boolean(reservation && !reservation.needsRecheck && reservation.quantity >= result.requestedQuantity);
+}
+
 /** The one status tab an item belongs to. */
 export function equipmentRequestTab(result: EquipmentAvailabilityResult): Exclude<EquipmentRequestTab, "all"> {
   if (result.arrangement?.status === "issue" || hasEquipmentProblem(result)) return "issue";
-  if (result.arrangement?.status === "arranged") return "arranged";
+  // Marked Arranged without its stock held is still work to do.
+  if (result.arrangement?.status === "arranged" && canBeArranged(result)) return "arranged";
   return "attention";
 }
 

@@ -22,12 +22,15 @@ export function ArrangementDialog({
   eventTitle,
   equipmentName,
   arrangement,
+  canArrange = true,
   onCancel,
   onSave,
 }: {
   eventTitle: string;
   equipmentName: string;
   arrangement: EquipmentArrangementState;
+  /** False until the full quantity is reserved: Arranged means the stock is held. */
+  canArrange?: boolean;
   onCancel: () => void;
   onSave: (values: EquipmentArrangementFormValues) => Promise<void>;
 }) {
@@ -80,11 +83,17 @@ export function ArrangementDialog({
             }
           >
             {equipmentArrangementStatuses.map((status) => (
-              <option key={status} value={status}>
+              <option key={status} value={status} disabled={status === "arranged" && !canArrange}>
                 {equipmentArrangementStatusLabels[status]}
+                {status === "arranged" && !canArrange ? " (reserve the full quantity first)" : ""}
               </option>
             ))}
           </select>
+          {!canArrange && (
+            <p className="mt-1 text-xs text-slate-500">
+              Arranged needs the full quantity reserved, so the stock is held for this event.
+            </p>
+          )}
         </div>
         <div>
           <label htmlFor="arrangement-note" className="mb-1 block font-medium text-slate-900">

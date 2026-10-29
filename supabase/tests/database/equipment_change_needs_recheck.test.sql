@@ -29,7 +29,7 @@ insert into v_ids select notes, id from public.event_equipment_requirements wher
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"ec000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select public.update_equipment_arrangement((select id from v_ids where name = 'worked'), 'arranged', 'Delivered to the hall');
+select public.update_equipment_arrangement((select id from v_ids where name = 'worked'), 'in_progress', 'Delivered to the hall');
 insert into v_ids select 'res-worked', public.reserve_equipment((select id from v_ids where name = 'worked'), 2);
 insert into v_ids select 'res-notes', public.reserve_equipment((select id from v_ids where name = 'notes-only'), 1);
 reset role;
@@ -42,12 +42,12 @@ select is(
   (select row(status, note, updated_by) from public.equipment_arrangement_updates
    where requirement_id = (select id from v_ids where name = 'worked') order by id desc limit 1),
   row('issue'::text, 'The coordinator changed this request. Re-check it.'::text, 'ec000000-0000-0000-0000-000000000003'::uuid),
-  'a hand-set Arranged status is reset to Issue when the coordinator changes the quantity'
+  'an Arranged item is reset to Issue when the coordinator changes the quantity'
 );
 select is(
   (select count(*)::int from public.equipment_arrangement_updates where requirement_id = (select id from v_ids where name = 'worked')),
   3,
-  'the earlier entries (Arranged by hand, then the reservation) stay in the history (SPM-28 AC03)'
+  'the earlier entries (In progress by hand, then Arranged by the reservation) stay in the history (SPM-28 AC03)'
 );
 select is(
   (select row(needs_recheck, recheck_reason) from public.equipment_reservations where id = (select id from v_ids where name = 'res-worked')),

@@ -47,9 +47,11 @@ const event = (id: string, results: EquipmentAvailabilityResult[]): EventEquipme
 });
 
 describe("Event requests tabs: All / Need attention / Arranged / Issue", () => {
+  // Arranged means the stock is held, so "e" is reserved in full.
+  const heldInFull = { id: "r", quantity: 5, needsRecheck: false, recheckReason: null, reservedByName: null, reservedAt: null };
   const events = [
     event("expo", [result("a", "not_started"), result("b", "issue"), result("c", "in_progress")]),
-    event("talk", [result("d", "not_started"), result("e", "arranged")]),
+    event("talk", [result("d", "not_started"), { ...result("e", "arranged"), reservation: heldInFull }]),
   ];
   const ids = (tab: Parameters<typeof eventsInEquipmentRequestTab>[1]) =>
     eventsInEquipmentRequestTab(events, tab).map(({ event, results }) => [
@@ -91,6 +93,16 @@ describe("Event requests tabs: All / Need attention / Arranged / Issue", () => {
     ],
   ])("puts %s under Issue", (_what, item) => {
     expect(equipmentRequestTab(item)).toBe("issue");
+  });
+
+  // Arranged means the stock is held: marked Arranged with too little reserved is still to do.
+  it("lists an item marked Arranged without its stock held under Need attention", () => {
+    expect(equipmentRequestTab(result("x", "arranged"))).toBe("attention");
+    expect(
+      equipmentRequestTab({ ...result("x", "arranged"), reservation: { ...heldInFull, quantity: 2 } }),
+    ).toBe("attention");
+    // Equipment outside the catalogue can't be reserved, so marking it is enough.
+    expect(equipmentRequestTab({ ...result("x", "arranged"), equipmentItemId: null })).toBe("arranged");
   });
 
   it("knows when the statuses couldn't be loaded", () => {
