@@ -7,6 +7,7 @@
 -- Must-not-exist conditions enforced: conflict flags on Bigbang Event, BTS Event; other active bookings of these test events (cancelled); active blocks on these test venues during the bookings (removed)
 -- Defaults added: Venue location Central Area, capacity 200, Theatre layout, Mon-Sun 08:00-22:00 (agreed in Questions); Events: organiser jasmine@gmail.com, coordinator joyce@gmail.com (ITZY: jonathan@gmail.com), status Planning, 100 pax; Requested times: the approved booking 1 Oct 2026 10:00, the pending one 10:05 (so the pending one is the later booking)
 -- Safe to re-run: changes this case's test records only; stops without changes if real data would be affected.
+-- Workflow records: status history to the event's status; Lead's coordinator assignment (tom@gmail.com) and the coordinator's approval of the request
 -- Run with: pnpm uat:setup spm88_tc003   (from the repo root; see tests/uat_data/README.md)
 
 BEGIN;
@@ -309,6 +310,94 @@ END $$;
 -- Must not exist: conflict flags on Bigbang Event, BTS Event (they start not flagged).
 DELETE FROM public.venue_booking_conflicts
 WHERE booking_id IN ('00000000-0000-4000-8088-000000000301', '00000000-0000-4000-8088-000000000302') OR conflicting_booking_id IN ('00000000-0000-4000-8088-000000000301', '00000000-0000-4000-8088-000000000302');
+
+-- Workflow records (valid business state): what the event's status implies, as if it went through the app.
+-- Profile and role for tom@gmail.com (Event Coordinator Lead). Auth is only read, never written.
+DO $$
+DECLARE v_id uuid := (SELECT id FROM auth.users WHERE lower(email) = 'tom@gmail.com');
+BEGIN
+  IF v_id IS NULL THEN
+    RAISE EXCEPTION 'Test account % is missing from Supabase Auth; ask the team to create it (this file never creates Auth users)', 'tom@gmail.com';
+  END IF;
+  INSERT INTO public.profiles AS p (id, full_name, email, role)
+  VALUES (v_id, 'Tom', 'tom@gmail.com', 'event_coordinator_lead')
+  ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role
+  WHERE p.role IS DISTINCT FROM EXCLUDED.role;
+END $$;
+
+-- "Bigbang Event" (Planning): status history Draft -> Requested -> Planning, Tom assigned Joyce and Joyce approved the request.
+-- Only rows of this test event; each set is rewritten only when it differs from the starting state.
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.event_coordinator_assignments WHERE event_id = '00000000-0000-4000-8088-000000000201') <> 1
+     OR NOT EXISTS (SELECT 1 FROM public.event_coordinator_assignments WHERE event_id = '00000000-0000-4000-8088-000000000201' AND previous_coordinator_id IS NULL
+                    AND new_coordinator_id = (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com') AND changed_by = (SELECT id FROM auth.users WHERE lower(email) = 'tom@gmail.com')
+                    AND changed_at = '2026-10-02 09:00:00+08' AND ended_at IS NULL) THEN
+    DELETE FROM public.event_coordinator_assignments WHERE event_id = '00000000-0000-4000-8088-000000000201';
+    INSERT INTO public.event_coordinator_assignments (event_id, previous_coordinator_id, new_coordinator_id, changed_by, changed_at)
+    VALUES ('00000000-0000-4000-8088-000000000201', NULL, (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), (SELECT id FROM auth.users WHERE lower(email) = 'tom@gmail.com'), '2026-10-02 09:00:00+08');
+  END IF;
+  IF (SELECT count(*) FROM public.event_decisions WHERE event_id = '00000000-0000-4000-8088-000000000201') <> 1
+     OR NOT EXISTS (SELECT 1 FROM public.event_decisions WHERE event_id = '00000000-0000-4000-8088-000000000201' AND decision = 'approved'
+                    AND decided_by = (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com') AND decided_at = '2026-10-03 09:00:00+08') THEN
+    DELETE FROM public.event_decisions WHERE event_id = '00000000-0000-4000-8088-000000000201';
+    INSERT INTO public.event_decisions (event_id, decided_by, decision, rationale, decided_at)
+    VALUES ('00000000-0000-4000-8088-000000000201', (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), 'approved', 'Request is complete; approved for planning.', '2026-10-03 09:00:00+08');
+  END IF;
+  IF (SELECT coalesce(array_agg(row(h.changed_at, h.changed_by, h.from_status, h.to_status, h.reason)::text ORDER BY h.changed_at), '{}')
+      FROM public.event_status_history h WHERE h.event_id = '00000000-0000-4000-8088-000000000201')
+     IS DISTINCT FROM
+     (SELECT array_agg(row(f.at, f.who, f.fr, f.t, NULL::text)::text ORDER BY f.at)
+      FROM (VALUES
+      ('2026-09-29 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), NULL::public.event_status, 'draft'::public.event_status),
+      ('2026-10-01 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), 'draft'::public.event_status, 'requested'::public.event_status),
+      ('2026-10-03 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), 'requested'::public.event_status, 'planning'::public.event_status)) f(at, who, fr, t)) THEN
+    DELETE FROM public.event_status_history WHERE event_id = '00000000-0000-4000-8088-000000000201';
+    INSERT INTO public.event_status_history (event_id, changed_at, changed_by, from_status, to_status)
+    SELECT '00000000-0000-4000-8088-000000000201', f.at, f.who, f.fr, f.t
+    FROM (VALUES
+      ('2026-09-29 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), NULL::public.event_status, 'draft'::public.event_status),
+      ('2026-10-01 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), 'draft'::public.event_status, 'requested'::public.event_status),
+      ('2026-10-03 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), 'requested'::public.event_status, 'planning'::public.event_status)) f(at, who, fr, t);
+  END IF;
+END $$;
+
+-- "BTS Event" (Planning): status history Draft -> Requested -> Planning, Tom assigned Joyce and Joyce approved the request.
+-- Only rows of this test event; each set is rewritten only when it differs from the starting state.
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.event_coordinator_assignments WHERE event_id = '00000000-0000-4000-8088-000000000202') <> 1
+     OR NOT EXISTS (SELECT 1 FROM public.event_coordinator_assignments WHERE event_id = '00000000-0000-4000-8088-000000000202' AND previous_coordinator_id IS NULL
+                    AND new_coordinator_id = (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com') AND changed_by = (SELECT id FROM auth.users WHERE lower(email) = 'tom@gmail.com')
+                    AND changed_at = '2026-10-02 09:00:00+08' AND ended_at IS NULL) THEN
+    DELETE FROM public.event_coordinator_assignments WHERE event_id = '00000000-0000-4000-8088-000000000202';
+    INSERT INTO public.event_coordinator_assignments (event_id, previous_coordinator_id, new_coordinator_id, changed_by, changed_at)
+    VALUES ('00000000-0000-4000-8088-000000000202', NULL, (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), (SELECT id FROM auth.users WHERE lower(email) = 'tom@gmail.com'), '2026-10-02 09:00:00+08');
+  END IF;
+  IF (SELECT count(*) FROM public.event_decisions WHERE event_id = '00000000-0000-4000-8088-000000000202') <> 1
+     OR NOT EXISTS (SELECT 1 FROM public.event_decisions WHERE event_id = '00000000-0000-4000-8088-000000000202' AND decision = 'approved'
+                    AND decided_by = (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com') AND decided_at = '2026-10-03 09:00:00+08') THEN
+    DELETE FROM public.event_decisions WHERE event_id = '00000000-0000-4000-8088-000000000202';
+    INSERT INTO public.event_decisions (event_id, decided_by, decision, rationale, decided_at)
+    VALUES ('00000000-0000-4000-8088-000000000202', (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), 'approved', 'Request is complete; approved for planning.', '2026-10-03 09:00:00+08');
+  END IF;
+  IF (SELECT coalesce(array_agg(row(h.changed_at, h.changed_by, h.from_status, h.to_status, h.reason)::text ORDER BY h.changed_at), '{}')
+      FROM public.event_status_history h WHERE h.event_id = '00000000-0000-4000-8088-000000000202')
+     IS DISTINCT FROM
+     (SELECT array_agg(row(f.at, f.who, f.fr, f.t, NULL::text)::text ORDER BY f.at)
+      FROM (VALUES
+      ('2026-09-29 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), NULL::public.event_status, 'draft'::public.event_status),
+      ('2026-10-01 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), 'draft'::public.event_status, 'requested'::public.event_status),
+      ('2026-10-03 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), 'requested'::public.event_status, 'planning'::public.event_status)) f(at, who, fr, t)) THEN
+    DELETE FROM public.event_status_history WHERE event_id = '00000000-0000-4000-8088-000000000202';
+    INSERT INTO public.event_status_history (event_id, changed_at, changed_by, from_status, to_status)
+    SELECT '00000000-0000-4000-8088-000000000202', f.at, f.who, f.fr, f.t
+    FROM (VALUES
+      ('2026-09-29 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), NULL::public.event_status, 'draft'::public.event_status),
+      ('2026-10-01 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), 'draft'::public.event_status, 'requested'::public.event_status),
+      ('2026-10-03 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), 'requested'::public.event_status, 'planning'::public.event_status)) f(at, who, fr, t);
+  END IF;
+END $$;
 
 COMMIT;
 
