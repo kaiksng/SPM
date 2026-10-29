@@ -307,8 +307,24 @@ function EventCard({
   const reservedCount = event.results.filter((result) => result.reservation).length;
   const worst = overallEquipmentAvailability(event.results.map((result) => result.status));
   // A flagged reservation or an Issue status is a problem even when the items are available.
-  const tone: EquipmentAvailabilityStatus =
-    issueCount === 0 ? "available" : worst && worst !== "available" ? worst : "partially_available";
+  // Green only when the work is done: every item Arranged with its stock held.
+  const allArranged =
+    event.results.length > 0 &&
+    (event.orphanedReservations?.length ?? 0) === 0 &&
+    event.results.every((result) => equipmentRequestTab(result) === "arranged");
+  const toArrange = event.results.filter((result) => equipmentRequestTab(result) !== "arranged").length;
+  const badge =
+    issueCount > 0
+      ? {
+          label: `${issueCount} of ${event.results.length} item${event.results.length === 1 ? " has" : "s have"} an issue`,
+          className: statusStyles[worst && worst !== "available" ? worst : "partially_available"],
+        }
+      : allArranged
+        ? { label: "All equipment arranged", className: statusStyles.available }
+        : {
+            label: `${toArrange} of ${event.results.length} item${event.results.length === 1 ? "" : "s"} still to arrange`,
+            className: statusStyles.unknown,
+          };
 
   return (
     <li aria-label={event.title} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -324,10 +340,8 @@ function EventCard({
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", statusStyles[tone])}>
-            {issueCount === 0
-              ? "All equipment available"
-              : `${issueCount} of ${event.results.length} item${event.results.length === 1 ? " has" : "s have"} an issue`}
+          <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", badge.className)}>
+            {badge.label}
           </span>
           <span className="text-xs text-slate-500">
             {reservedCount} of {event.results.length} reserved
@@ -493,7 +507,8 @@ function ResultRow({
           <div
             className={cn(
               "mt-2 rounded-lg border px-3 py-2",
-              reservation.needsRecheck ? "border-amber-300 bg-amber-50" : "border-emerald-200 bg-emerald-50",
+              // Green only once it is done: reserved in full with nothing to re-check.
+              reservedInFull ? "border-emerald-200 bg-emerald-50" : "border-amber-300 bg-amber-50",
             )}
           >
             <p className="font-medium text-slate-900">
