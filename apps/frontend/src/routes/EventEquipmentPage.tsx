@@ -9,7 +9,7 @@ import {
 } from "@spm/shared";
 import { CirclePlus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
@@ -29,6 +29,7 @@ import {
   type EquipmentArrangement,
 } from "@/features/event-requests/services/equipment-arrangements";
 import { loadEventDetail, type EventDetail } from "@/features/event-requests/services/event-details";
+import { wantsEquipmentRequest } from "@/features/event-requests/utils/equipment-request-navigation";
 import {
   toEquipmentFormValues,
   type EquipmentRequirement,
@@ -137,6 +138,17 @@ export function EventEquipmentPage() {
   const canEditEquipment = Boolean(
     user && event?.assignedCoordinatorId === user.id && event.status === "planning",
   );
+
+  // Arriving from the catalogue's "Equipment request": open Request equipment
+  // once, then drop the request so a refresh or Back does not reopen it.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const openRequestOnArrival = wantsEquipmentRequest(location.state);
+  useEffect(() => {
+    if (!openRequestOnArrival || loading || !event) return;
+    if (canEditEquipment) setDialog({ kind: "request" });
+    navigate(location.pathname, { replace: true, state: null });
+  }, [openRequestOnArrival, loading, event, canEditEquipment, navigate, location.pathname]);
 
   return (
     <RoleGate>

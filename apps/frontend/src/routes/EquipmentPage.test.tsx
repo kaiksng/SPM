@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const authState = {
@@ -12,6 +12,11 @@ const authState = {
 
 vi.mock("@/context/auth-context", () => ({ useAuth: () => authState }));
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
+
+const listAssignedEventsMock = vi.fn();
+vi.mock("@/features/event-requests/services/assigned-events", () => ({
+  listAssignedEvents: (...args: unknown[]) => listAssignedEventsMock(...args),
+}));
 
 const service = {
   listInventory: vi.fn(),
@@ -1116,6 +1121,75 @@ describe("EquipmentPage for other roles", () => {
     await user.type(screen.getByLabelText("Search equipment"), "no such item");
 
     expect(await screen.findByText("No matching equipment")).toBeInTheDocument();
+  });
+
+  describe("Equipment request", () => {
+    function EventEquipmentStub() {
+      const state = useLocation().state as { openEquipmentRequest?: boolean } | null;
+      return <p>EVENT EQUIPMENT PAGE, request open: {String(state?.openEquipmentRequest === true)}</p>;
+    }
+
+    function renderCatalogue() {
+      return render(
+        <MemoryRouter initialEntries={["/equipment"]}>
+          <Routes>
+            <Route path="equipment" element={<EquipmentPage />} />
+            <Route path="events/:eventId/equipment" element={<EventEquipmentStub />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+    }
+
+    beforeEach(() => {
+      authState.profile = { full_name: "Cory Coordinator", role: "event_coordinator" };
+      listAssignedEventsMock.mockReset().mockResolvedValue([
+        { id: "event-plan", title: "Planning Gala", status: "planning", startsAt: "2099-03-01T02:00:00.000Z" },
+        { id: "event-conf", title: "Confirmed Gala", status: "confirmed", startsAt: "2099-03-02T02:00:00.000Z" },
+        { id: "event-req", title: "Requested Gala", status: "requested", startsAt: null },
+      ]);
+    });
+
+    // Equipment is requested for one event: only the coordinator's own Planning
+    // events are offered, and choosing one opens its Request equipment dialog.
+    it("asks which of the coordinator's Planning events, then opens its Request equipment", async () => {
+      const user = userEvent.setup();
+      renderCatalogue();
+
+      await user.click(await screen.findByRole("button", { name: "Equipment request" }));
+      const dialog = await screen.findByRole("dialog", { name: "Request equipment for which event?" });
+      expect(listAssignedEventsMock).toHaveBeenCalledWith("support-1");
+      expect(await within(dialog).findByText("Planning Gala")).toBeInTheDocument();
+      expect(within(dialog).queryByText("Confirmed Gala")).not.toBeInTheDocument();
+      expect(within(dialog).queryByText("Requested Gala")).not.toBeInTheDocument();
+
+      await user.click(within(dialog).getByRole("button", { name: /Planning Gala/ }));
+
+      expect(await screen.findByText("EVENT EQUIPMENT PAGE, request open: true")).toBeInTheDocument();
+    });
+
+    it("says so when none of the coordinator's events are in Planning", async () => {
+      listAssignedEventsMock.mockResolvedValue([
+        { id: "event-conf", title: "Confirmed Gala", status: "confirmed", startsAt: null },
+      ]);
+      const user = userEvent.setup();
+      renderCatalogue();
+
+      await user.click(await screen.findByRole("button", { name: "Equipment request" }));
+
+      expect(await screen.findByText(/None of your events are in Planning/)).toBeInTheDocument();
+      expect(screen.queryByText("Confirmed Gala")).not.toBeInTheDocument();
+    });
+
+    it("closes without going anywhere on Cancel", async () => {
+      const user = userEvent.setup();
+      renderCatalogue();
+
+      await user.click(await screen.findByRole("button", { name: "Equipment request" }));
+      await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Equipment request" })).toBeInTheDocument();
+    });
   });
 
   it("keeps a coordinator out of the Technical Support Staff inventory page", () => {

@@ -6,7 +6,8 @@ import { useEffect, useRef } from "react";
  * content that needs room to scroll (the change-history dialog) — it fixes
  * the dialog to roughly half the viewport and scrolls its body while keeping
  * the title and close affordance in place; the default stays a compact
- * form-sized dialog.
+ * form-sized dialog, but never taller than the screen: a long body scrolls
+ * inside it. While any dialog is open the page behind does not scroll.
  */
 export function Modal({
   titleId,
@@ -31,6 +32,15 @@ export function Modal({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onCancel]);
 
+  // Scrolling over the dialog or its backdrop must not move the page behind.
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4 backdrop-blur-sm">
       <div
@@ -40,13 +50,15 @@ export function Modal({
         className={
           size === "large"
             ? "flex h-[50vh] min-h-[420px] w-[50vw] min-w-[360px] flex-col rounded-2xl bg-white p-6 shadow-2xl"
-            : "w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            : "flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col rounded-2xl bg-white p-6 shadow-2xl"
         }
       >
         <h2 id={titleId} className="shrink-0 text-lg font-semibold text-slate-950">
           {title}
         </h2>
-        <div className={size === "large" ? "mt-4 flex-1 overflow-y-auto" : ""}>{children}</div>
+        <div className={size === "large" ? "mt-4 flex-1 overflow-y-auto" : "-mx-1 min-h-0 overflow-y-auto px-1"}>
+          {children}
+        </div>
         <button ref={closeButton} type="button" className="sr-only" onClick={onCancel}>
           Close
         </button>

@@ -43,6 +43,7 @@ vi.mock("@/features/event-requests/services/equipment", async (importOriginal) =
   ]),
 }));
 
+import { OPEN_EQUIPMENT_REQUEST_STATE } from "@/features/event-requests/utils/equipment-request-navigation";
 import { localDateTime } from "@/features/event-requests/utils/local-date-time";
 
 import { EventEquipmentPage } from "./EventEquipmentPage";
@@ -295,6 +296,34 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
       // The page reloads with the new equipment.
       expect(await screen.findByRole("button", { name: "Request equipment" })).toBeInTheDocument();
       expect(loadEventDetailMock).toHaveBeenCalledTimes(3);
+    });
+
+    // Arriving from the catalogue's "Equipment request" opens the dialog straight away.
+    function renderFromCatalogue() {
+      return render(
+        <MemoryRouter
+          initialEntries={[{ pathname: "/events/event-1/equipment", state: OPEN_EQUIPMENT_REQUEST_STATE }]}
+        >
+          <Routes>
+            <Route path="events/:eventId/equipment" element={<EventEquipmentPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+    }
+
+    it("opens Request equipment on arrival from the catalogue", async () => {
+      await asAssignedCoordinator();
+      renderFromCatalogue();
+
+      expect(await screen.findByRole("dialog", { name: "Request equipment" })).toBeInTheDocument();
+    });
+
+    it("does not open it for someone who cannot request equipment for this event", async () => {
+      await asAssignedCoordinator({ status: "confirmed" });
+      renderFromCatalogue();
+
+      expect(await screen.findByText("Projector × 3")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
     // Request equipment takes the top-right spot; the history is on the event page.

@@ -14,6 +14,7 @@ import {
   listEquipmentCatalogue,
   type EquipmentCatalogueItem,
 } from "@/features/equipment/services/equipment-unavailability";
+import { ChooseEquipmentEventDialog } from "@/features/event-requests/components/choose-equipment-event-dialog";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
@@ -79,6 +80,8 @@ export function EquipmentPage({ section = "requests" }: { section?: EquipmentSec
  * children, so a blocked role never triggers the fetch.
  */
 function CoordinatorEquipmentCatalogue({ canRequest }: { canRequest: boolean }) {
+  const { user } = useAuth();
+  const [choosingEvent, setChoosingEvent] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") ?? "");
   const [filters, setFilters] = useState<EquipmentFilterValues>(() => ({
@@ -139,19 +142,24 @@ function CoordinatorEquipmentCatalogue({ canRequest }: { canRequest: boolean }) 
   }
 
   return (
-    <EquipmentCatalogue
-      items={items}
-      searchQuery={searchQuery}
-      onSearchChange={setSearchQuery}
-      filters={filters}
-      onFiltersChange={setFilters}
-      action={
-        canRequest ? (
-          <Button type="button" size="sm">
-            <FilePlus2 /> Equipment request
-          </Button>
-        ) : undefined
-      }
-    />
+    <>
+      <EquipmentCatalogue
+        items={items}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        filters={filters}
+        onFiltersChange={setFilters}
+        action={
+          canRequest ? (
+            <Button type="button" size="sm" onClick={() => setChoosingEvent(true)}>
+              <FilePlus2 /> Equipment request
+            </Button>
+          ) : undefined
+        }
+      />
+      {choosingEvent && user && (
+        <ChooseEquipmentEventDialog coordinatorId={user.id} onCancel={() => setChoosingEvent(false)} />
+      )}
+    </>
   );
 }
