@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const loadEventDetailMock = vi.fn();
 const getOwnRegistrationStatusMock = vi.fn();
@@ -238,5 +238,113 @@ describe("EventRegistrationPage", () => {
     renderPage();
 
     expect(await screen.findByText(/You were registered\./)).toBeInTheDocument();
+  });
+});
+
+// SPM-41 (register for a Confirmed event) and SPM-42 (waiting list), with a
+// real registration window. Only Date is faked, so findBy… still polls.
+describe("EventRegistrationPage registration window", () => {
+  const sgt = new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Singapore" });
+  const period = { opensAt: "2026-10-01T01:00:00Z", closesAt: "2026-11-30T10:00:00Z" };
+
+  function withRegistration(registration: { opensAt?: string; closesAt?: string; waitlistEnabled?: boolean }) {
+    loadEventDetailMock.mockResolvedValue({
+      ...baseEvent,
+      registration: { ...baseEvent.registration, ...period, ...registration },
+    });
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-15T02:00:00Z"));
+    withRegistration({});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // SPM-41 AC01: before registering, the confirmed details, remaining places and registration period are shown.
+  it("shows the event's details, remaining places and registration period before registering", async () => {
+    renderPage();
+
+    expect(await screen.findByText("AI Innovation Summit")).toBeInTheDocument();
+    expect(
+      screen.getByText(`${sgt.format(new Date(baseEvent.startsAt))} – ${sgt.format(new Date(baseEvent.endsAt))}`),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Auditorium")).toBeInTheDocument();
+    expect(screen.getByText("A full day of talks and workshops on applied AI.")).toBeInTheDocument();
+    expect(screen.getByText("18 of 50 spots left")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        `Registration period: ${sgt.format(new Date(period.opensAt))} – ${sgt.format(new Date(period.closesAt))}`,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Register" })).toBeInTheDocument();
+  });
+
+  // SPM-41 AC02: registering confirms it and the registered count rises by one.
+  it("lowers the places left by one after registering", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByText("18 of 50 spots left")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Register" }));
+
+    expect(await screen.findByText("Added to your registrations.")).toBeInTheDocument();
+    expect(screen.getByText("17 of 50 spots left")).toBeInTheDocument();
+  });
+
+  // SPM-41 AC03: before registration opens, the attendee cannot register and the count is unchanged.
+  it("offers no Register before registration opens", async () => {
+    withRegistration({ opensAt: "2026-12-01T01:00:00Z", closesAt: "2026-12-20T10:00:00Z" });
+    renderPage();
+
+    expect(
+      await screen.findByText(`Registration opens ${sgt.format(new Date("2026-12-01T01:00:00Z"))}. Check back then.`),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+    expect(screen.getByText("18 of 50 spots left")).toBeInTheDocument();
+  });
+
+  // SPM-41 AC03: after registration closes, the attendee cannot register and the count is unchanged.
+  it("offers no Register after registration closes", async () => {
+    withRegistration({ opensAt: "2026-09-01T01:00:00Z", closesAt: "2026-10-10T10:00:00Z" });
+    renderPage();
+
+    expect(await screen.findByText("Registration for this event is closed.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+    expect(screen.getByText("18 of 50 spots left")).toBeInTheDocument();
+    expect(registerForEventMock).not.toHaveBeenCalled();
+  });
+
+  // SPM-42 AC01: the waiting-list option appears only while registration is open.
+  it.each([
+    ["closed", { opensAt: "2026-09-01T01:00:00Z", closesAt: "2026-10-10T10:00:00Z" }, "Registration for this event is closed."],
+    ["not yet open", { opensAt: "2026-12-01T01:00:00Z", closesAt: "2026-12-20T10:00:00Z" }, /Registration opens/],
+  ])("offers no waiting list on a full event whose registration is %s", async (_label, dates, message) => {
+    getRegisteredCountMock.mockResolvedValue(50);
+    withRegistration({ ...dates, waitlistEnabled: true });
+    renderPage();
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Join waiting list" })).not.toBeInTheDocument();
+    expect(screen.getByText("0 of 50 spots left")).toBeInTheDocument();
+  });
+
+  // SPM-42 AC02: an attendee already Registered or already waiting cannot join the waiting list.
+  it.each([
+    ["registered", "You're registered"],
+    ["waitlisted", /You're on the waiting list/],
+  ] as const)("offers no waiting list to an attendee who is already %s", async (status, message) => {
+    getRegisteredCountMock.mockResolvedValue(50);
+    getOwnRegistrationStatusMock.mockResolvedValue(status);
+    getWaitlistPositionMock.mockResolvedValue(status === "waitlisted" ? 1 : null);
+    withRegistration({ waitlistEnabled: true });
+    renderPage();
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Join waiting list" })).not.toBeInTheDocument();
+    expect(joinWaitlistMock).not.toHaveBeenCalled();
   });
 });
