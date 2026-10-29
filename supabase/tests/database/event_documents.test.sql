@@ -1,6 +1,6 @@
 begin;
 
-select plan(31);
+select plan(33);
 
 -- SPM-37: supporting documents. Organiser attaches and removes their own;
 -- only people who may see the event's documents can list them; attendees and
@@ -152,6 +152,11 @@ select set_config('request.jwt.claims', '{"sub":"fe700000-0000-0000-0000-0000000
 select is((select count(*)::int from storage.objects where bucket_id = 'event-documents'), 0, 'AC05: an unrelated organiser cannot read stored files');
 select set_config('request.jwt.claims', '{"sub":"fe700000-0000-0000-0000-000000000006","role":"authenticated"}', true);
 select is((select count(*)::int from storage.objects where bucket_id = 'event-documents'), 0, 'AC05: a coordinator who is not assigned cannot read stored files');
+
+-- The access helpers are not open to signed-out visitors.
+reset role;
+select ok(not has_function_privilege('anon', 'public.can_access_event_documents(uuid)', 'execute'), 'a signed-out visitor cannot call the documents access check');
+select ok(not has_function_privilege('anon', 'public.event_documents_open(uuid)', 'execute'), 'a signed-out visitor cannot ask whether an event accepts documents');
 
 select * from finish();
 rollback;
