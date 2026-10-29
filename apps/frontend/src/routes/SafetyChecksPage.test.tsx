@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -83,3 +83,67 @@ describe("SafetyChecksPage", () => {
     expect(screen.queryByText("Pending safety checks")).not.toBeInTheDocument();
   });
 });
+
+// SPM-90 AC01: the queue shows what is known about each event and copes with what is not.
+describe("SafetyChecksPage queue details", () => {
+  beforeEach(() => {
+    authState.profile.role = "safety_officer";
+    listPendingSafetyCheckEventsMock.mockReset().mockResolvedValue([PENDING_EVENT]);
+  });
+
+  it("shows 'Unknown' for a missing organiser or coordinator, and 'Schedule not set' for a missing schedule", async () => {
+    listPendingSafetyCheckEventsMock.mockResolvedValue([
+      { ...PENDING_EVENT, organiserName: null, coordinatorName: null, startsAt: null, endsAt: null, expectedAttendance: null, round: null },
+    ]);
+    renderPage();
+
+    expect(await screen.findByText("Organiser: Unknown")).toBeInTheDocument();
+    expect(screen.getByText("Coordinator: Unknown")).toBeInTheDocument();
+    expect(screen.getByText("Schedule not set")).toBeInTheDocument();
+    expect(screen.queryByText(/attendees/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Round/)).not.toBeInTheDocument();
+  });
+
+  // SPM-90 AC04: after approving, the Safety Officer returns to the queue and is told the event is Confirmed.
+  it("shows the notice handed over after a decision", async () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/safety-checks", state: { notice: '"Alumni Homecoming Mixer" approved — it\'s now Confirmed.' } }]}>
+        <SafetyChecksPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent("approved — it's now Confirmed.");
+  });
+
+  it("shows the expected attendance when it is known", async () => {
+    renderPage();
+
+    expect(await screen.findByText(/~120 attendees/)).toBeInTheDocument();
+  });
+
+  it("uses a plain message when the queue fails to load without one", async () => {
+    listPendingSafetyCheckEventsMock.mockRejectedValue("boom");
+    renderPage();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The safety check queue is unavailable.");
+  });
+
+  it("ignores a queue that arrives after the Safety Officer has left the page", async () => {
+    let resolveQueue: (items: unknown[]) => void = () => {};
+    listPendingSafetyCheckEventsMock.mockReturnValueOnce(new Promise((resolve) => { resolveQueue = resolve; }));
+    const first = renderPage();
+    first.unmount();
+    resolveQueue([PENDING_EVENT]);
+
+    let rejectQueue: (reason: unknown) => void = () => {};
+    listPendingSafetyCheckEventsMock.mockReturnValueOnce(new Promise((_, reject) => { rejectQueue = reject; }));
+    const second = renderPage();
+    second.unmount();
+    rejectQueue(new Error("too late"));
+
+    await waitFor(() => expect(listPendingSafetyCheckEventsMock).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Alumni Homecoming Mixer")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+

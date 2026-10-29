@@ -648,3 +648,71 @@ function formatDateTime(date: Date) {
     timeZone: "Asia/Singapore",
   }).format(date);
 }
+
+// SPM-82 AC06: Venue Staff can reject a proposed replacement (the original then stays Disrupted).
+describe("VenueRequestsPage replacement decisions", () => {
+  async function openProposal() {
+    const user = userEvent.setup();
+    listVenueBookingRequestsMock.mockResolvedValue([original, replacement, ordinary]);
+    listVenueDisruptionsMock.mockResolvedValue([disruption]);
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: /Career Fair/ }));
+    const card = screen.getByRole("article", { name: "Replacement request for Career Fair" });
+    return { user, proposal: within(card).getByRole("region", { name: "Proposed replacement" }) };
+  }
+
+  it("rejects the proposed replacement with a reason", async () => {
+    const { user, proposal } = await openProposal();
+
+    await user.click(within(proposal).getByRole("button", { name: "Reject" }));
+    const dialog = screen.getByRole("dialog", { name: "Reject venue booking request" });
+    await user.type(within(dialog).getByLabelText("Reason for rejecting"), "Too small for the event");
+    await user.click(within(dialog).getByRole("button", { name: "Reject request" }));
+
+    await waitFor(() => expect(decideVenueBookingRequestMock).toHaveBeenCalledWith("booking-2", "rejected", "Too small for the event"));
+  });
+
+  it("closes the decision dialog without deciding when Venue Staff cancel", async () => {
+    const { user, proposal } = await openProposal();
+
+    await user.click(within(proposal).getByRole("button", { name: "Approve" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(decideVenueBookingRequestMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("VenueRequestsPage searching and loading", () => {
+  it("says no request matched when the search finds nothing", async () => {
+    const user = userEvent.setup();
+    listVenueBookingRequestsMock.mockResolvedValue([ordinary]);
+    renderPage();
+
+    await user.type(await screen.findByPlaceholderText("Search by event or venue"), "zzz-no-such-event");
+
+    expect(screen.getByRole("heading", { name: "No matching requests" })).toBeInTheDocument();
+  });
+
+  it("ignores responses that arrive after Venue Staff have left the page", async () => {
+    let resolveRequests: (items: unknown[]) => void = () => {};
+    let resolveDisruptions: (items: unknown[]) => void = () => {};
+    listVenueBookingRequestsMock.mockReturnValueOnce(new Promise((resolve) => { resolveRequests = resolve; }));
+    listVenueDisruptionsMock.mockReturnValueOnce(new Promise((resolve) => { resolveDisruptions = resolve; }));
+    const first = renderPage();
+    first.unmount();
+    resolveRequests([ordinary]);
+    resolveDisruptions([disruption]);
+
+    let rejectRequests: (reason: unknown) => void = () => {};
+    listVenueBookingRequestsMock.mockReturnValueOnce(new Promise((_, reject) => { rejectRequests = reject; }));
+    const second = renderPage();
+    second.unmount();
+    rejectRequests(new Error("too late"));
+
+    await waitFor(() => expect(listVenueBookingRequestsMock).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Evening Talk")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+

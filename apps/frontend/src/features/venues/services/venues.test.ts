@@ -25,6 +25,7 @@ import {
   getVenue,
   listAtRiskBookings,
   listFlaggedBookingConflicts,
+  listVenueBufferTimeChanges,
   listSuggestedVenues,
   listVenues,
   recheckAllVenueConflicts,
@@ -714,3 +715,39 @@ describe("recheckAllVenueConflicts", () => {
     await expect(recheckAllVenueConflicts()).rejects.toThrow("Request failed with status 500");
   });
 });
+
+// SPM-86 AC04: each setup/turnaround change records who, what it was, what it became, and when.
+describe("listVenueBufferTimeChanges", () => {
+  it("returns the changes newest first, with the staff member, the old and new value and the time", async () => {
+    const query = queryBuilder({
+      data: [
+        { id: 2, field_name: "turnaround_time_minutes", previous_value: 0, new_value: 30, changed_at: "2026-10-01T02:00:00Z", changed_by: { full_name: "Sam Staff" } },
+        { id: 1, field_name: "setup_time_minutes", previous_value: 5, new_value: 15, changed_at: "2026-09-30T02:00:00Z", changed_by: null },
+      ],
+      error: null,
+    });
+    fromMock.mockReturnValue(query);
+
+    await expect(listVenueBufferTimeChanges("venue-1")).resolves.toEqual([
+      { id: 2, field: "turnaround_time_minutes", previousValue: 0, newValue: 30, changedByName: "Sam Staff", changedAt: "2026-10-01T02:00:00Z" },
+      { id: 1, field: "setup_time_minutes", previousValue: 5, newValue: 15, changedByName: null, changedAt: "2026-09-30T02:00:00Z" },
+    ]);
+    expect(fromMock).toHaveBeenCalledWith("venue_buffer_time_changes");
+    expect(query.eq).toHaveBeenCalledWith("venue_id", "venue-1");
+    expect(query.order).toHaveBeenCalledWith("changed_at", { ascending: false });
+  });
+
+  it("returns an empty history when nothing was ever changed", async () => {
+    fromMock.mockReturnValue(queryBuilder({ data: null, error: null }));
+
+    await expect(listVenueBufferTimeChanges("venue-1")).resolves.toEqual([]);
+  });
+
+  // SPM-86 AC05: only Venue Staff can read the history; anyone else's read is refused.
+  it("says the history is unavailable when the read is refused", async () => {
+    fromMock.mockReturnValue(queryBuilder({ data: null, error: { code: "42501", message: "denied" } }));
+
+    await expect(listVenueBufferTimeChanges("venue-1")).rejects.toThrow("This venue's change history is unavailable.");
+  });
+});
+

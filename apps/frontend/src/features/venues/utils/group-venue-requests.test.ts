@@ -149,3 +149,13 @@ describe("venueRequestItemMatches", () => {
     expect(venueRequestItemMatches(group!, "nothing like this")).toBe(false);
   });
 });
+
+describe("venueRequestItemMatches when the requester is unknown", () => {
+  it("still matches on the event and venue, and not on a name nobody recorded", () => {
+    const [item] = groupVenueRequests([request({ id: "solo", requestedByName: null })]);
+
+    expect(venueRequestItemMatches(item!, "career")).toBe(true);
+    expect(venueRequestItemMatches(item!, "priya")).toBe(false);
+  });
+});
+

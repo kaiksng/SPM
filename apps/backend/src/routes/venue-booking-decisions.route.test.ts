@@ -62,6 +62,17 @@ describe("POST /venue-bookings/:bookingId/decide", () => {
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
+  // SPM-82: approving or rejecting a replacement names the booking by id; a malformed id never reaches the database.
+  it("rejects a booking id that is not valid before calling the database", async () => {
+    const response = await request(createApp())
+      .post("/venue-bookings/not-a-booking/decide")
+      .set("Authorization", "Bearer test-token")
+      .send({ decision: "approved", reason: "" });
+
+    expect(response.status).toBe(422);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
   it("rejects a blank reason for a rejection before calling the database", async () => {
     const response = await authedRequest({ decision: "rejected", reason: "   " });
 

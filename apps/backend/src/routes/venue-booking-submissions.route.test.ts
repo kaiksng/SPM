@@ -280,6 +280,17 @@ describe("POST /venue-bookings/:bookingId/withdraw", () => {
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
+  // SPM-85 AC10: a malformed booking id never reaches the database.
+  it("rejects a booking id that is not valid before calling the database", async () => {
+    const response = await request(createApp())
+      .post("/venue-bookings/not-a-booking/withdraw")
+      .set("Authorization", "Bearer test-token")
+      .send({ reason: "Not needed" });
+
+    expect(response.status).toBe(422);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
   it("AC10: rejects a missing or blank reason before calling the database", async () => {
     expect((await withdrawRequest({})).status).toBe(422);
     expect((await withdrawRequest({ reason: "   " })).status).toBe(422);
