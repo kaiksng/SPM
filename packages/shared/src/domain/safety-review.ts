@@ -1,6 +1,6 @@
 /**
  * What the Safety Officer reviews for an event. Mirrors the jsonb returned
- * by public.safety_check_review_details (202610280002); the RPC is the
+ * by public.safety_check_review_details (202610280001); the RPC is the
  * source of truth, these types document its shape for both apps.
  */
 export type SafetyReviewVenue = {
