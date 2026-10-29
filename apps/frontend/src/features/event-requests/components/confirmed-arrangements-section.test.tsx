@@ -78,6 +78,44 @@ describe("ConfirmedArrangementsSection", () => {
     expect(within(venueSection).getByText("Main venue")).toBeInTheDocument();
   });
 
+  // SPM-35 AC05: all of an event's venue bookings are listed, each with its
+  // own period, not just the main venue's.
+  it("AC05: lists every confirmed venue booking with its own period", () => {
+    const main = booking({ id: "b-main", label: "Main Programme" });
+    const breakout = booking({
+      id: "b-breakout",
+      label: "Breakout Room",
+      venueName: "Breakout Hall",
+      isMainVenue: false,
+      startsAt: "2099-04-06T05:00:00.000Z",
+      endsAt: "2099-04-06T06:00:00.000Z",
+    });
+    render(
+      <ConfirmedArrangementsSection
+        event={event()}
+        bookings={[main, breakout]}
+        readiness={readiness({
+          venues: [
+            { bookingId: "b-main", venueName: "Auditorium", isMainVenue: true, status: "complete", needsReviewReason: null },
+            { bookingId: "b-breakout", venueName: "Breakout Room", isMainVenue: false, status: "complete", needsReviewReason: null },
+          ],
+        })}
+      />,
+    );
+
+    const venueSection = screen.getByText("Confirmed", { selector: "h4" }).closest("div")!;
+    const mainRow = within(venueSection).getByText("Main Programme").closest("li")!;
+    const breakoutRow = within(venueSection).getByText("Breakout Room").closest("li")!;
+    expect(mainRow).not.toBe(breakoutRow);
+    expect(within(mainRow).getByText("Auditorium")).toBeInTheDocument();
+    expect(within(breakoutRow).getByText("Breakout Hall")).toBeInTheDocument();
+    const mainPeriod = within(mainRow).getByText(/Apr 2099/).textContent;
+    const breakoutPeriod = within(breakoutRow).getByText(/Apr 2099/).textContent;
+    expect(mainPeriod).toBeTruthy();
+    expect(breakoutPeriod).toBeTruthy();
+    expect(mainPeriod).not.toEqual(breakoutPeriod);
+  });
+
   it("AC02: shows Not Required instead of an empty equipment list", () => {
     render(
       <ConfirmedArrangementsSection

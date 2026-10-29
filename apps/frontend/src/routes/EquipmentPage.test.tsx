@@ -168,6 +168,41 @@ async function renderInventory() {
   await screen.findByRole("heading", { name: "Inventory" });
 }
 
+let lastEquipmentSearch = "";
+function EquipmentLocationSpy() {
+  lastEquipmentSearch = useLocation().search;
+  return null;
+}
+
+/** Renders EquipmentPage with a spy that records its URL as filters/search change. */
+function renderPageWithLocationSpy(path = "/equipment") {
+  lastEquipmentSearch = "";
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route
+          path="equipment"
+          element={
+            <>
+              <EquipmentPage />
+              <EquipmentLocationSpy />
+            </>
+          }
+        />
+        <Route
+          path="equipment/inventory"
+          element={
+            <>
+              <EquipmentPage section="inventory" />
+              <EquipmentLocationSpy />
+            </>
+          }
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
 // SPM-48 AC01: technical support staff get the inventory actions their role permits.
 describe("EquipmentPage inventory for Technical Support Staff", () => {
   it("summarises equipment types and what is out of service", async () => {
@@ -270,6 +305,50 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
     await user.type(await screen.findByLabelText("Search equipment"), "mic");
     expect(screen.getByText("No equipment yet")).toBeInTheDocument();
     expect(screen.queryByText(/No equipment matches your search/)).not.toBeInTheDocument();
+  });
+
+  // SPM-74 AC03: the "Show retired" toggle is its own removable chip.
+  it("shows a removable chip for the 'Show retired' toggle", async () => {
+    const items = inventory();
+    items[1]!.retiredAt = hours(-5);
+    service.listInventory.mockResolvedValue(items);
+    const user = userEvent.setup();
+    await renderInventory();
+
+    await user.click(screen.getByLabelText("Show retired"));
+    const chip = await screen.findByRole("button", { name: "Remove Showing retired filter" });
+    expect(screen.getByText("Projector")).toBeInTheDocument();
+
+    await user.click(chip);
+
+    expect(
+      screen.queryByRole("button", { name: "Remove Showing retired filter" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Projector")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Show retired")).not.toBeChecked();
+  });
+
+  // SPM-74 AC05/AC07: the inventory's filters and search persist in the URL
+  // and restore from it, same as the catalogue and Venues views.
+  it("keeps the inventory's active filters and search in the URL", async () => {
+    const user = userEvent.setup();
+    renderPageWithLocationSpy("/equipment/inventory");
+    await screen.findByRole("heading", { name: "Inventory" });
+
+    await user.click(screen.getByRole("radio", { name: "Visual" }));
+    await user.type(screen.getByLabelText("Search equipment"), "proj");
+
+    expect(lastEquipmentSearch).toContain("category=Visual");
+    expect(lastEquipmentSearch).toContain("q=proj");
+  });
+
+  it("restores the inventory's filters and search from the URL on mount", async () => {
+    renderPage("/equipment/inventory?category=Visual&q=proj");
+    await screen.findByRole("heading", { name: "Inventory" });
+
+    expect(await screen.findByText("Projector")).toBeInTheDocument();
+    expect(screen.queryByText("Wireless microphone")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Search equipment")).toHaveValue("proj");
   });
 
   it("lists each unit by ID with the out-of-service one flagged", async () => {
@@ -1293,6 +1372,78 @@ describe("EquipmentPage for other roles", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Equipment request" })).toBeInTheDocument();
     });
+  });
+
+  // SPM-74 AC01/AC06: the read-only catalogue offers the same "Show retired"
+  // filter as the inventory view.
+  it("filters the coordinator's catalogue by 'Show retired'", async () => {
+    authState.profile = { full_name: "Cory Coordinator", role: "event_coordinator" };
+    service.listEquipmentCatalogue.mockResolvedValue([
+      { id: "item-mic", name: "Wireless microphone", category: "Audio", code: "mic", totalQuantity: 3, retiredAt: null },
+      { id: "item-proj", name: "Projector", category: "Visual", code: "proj", totalQuantity: 0, retiredAt: hours(-5) },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("Wireless microphone");
+    expect(screen.queryByText("Projector")).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Show retired"));
+    expect(screen.getByText("Projector")).toBeInTheDocument();
+  });
+
+  // SPM-74 AC03/AC04: chips and "Clear filters" work the same way on the
+  // read-only catalogue as on the inventory view.
+  it("shows removable chips and a 'Clear filters' action on the coordinator's catalogue", async () => {
+    authState.profile = { full_name: "Cory Coordinator", role: "event_coordinator" };
+    service.listEquipmentCatalogue.mockResolvedValue([
+      { id: "item-mic", name: "Wireless microphone", category: "Audio", code: "mic", totalQuantity: 3, retiredAt: null },
+      { id: "item-proj", name: "Projector", category: "Visual", code: "proj", totalQuantity: 2, retiredAt: null },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("Wireless microphone");
+    await user.click(screen.getByRole("radio", { name: "Visual" }));
+
+    const chip = await screen.findByRole("button", { name: "Remove Visual filter" });
+    expect(screen.getByRole("button", { name: "Clear filters" })).toBeInTheDocument();
+    await user.click(chip);
+
+    expect(screen.getByText("Wireless microphone")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove Visual filter" })).not.toBeInTheDocument();
+  });
+
+  // SPM-74 AC05/AC07: the coordinator catalogue's filters and search persist
+  // in the URL and restore from it.
+  it("keeps the coordinator catalogue's active filters and search in the URL", async () => {
+    authState.profile = { full_name: "Cory Coordinator", role: "event_coordinator" };
+    service.listEquipmentCatalogue.mockResolvedValue([
+      { id: "item-mic", name: "Wireless microphone", category: "Audio", code: "mic", totalQuantity: 3, retiredAt: null },
+      { id: "item-proj", name: "Projector", category: "Visual", code: "proj", totalQuantity: 2, retiredAt: null },
+    ]);
+    const user = userEvent.setup();
+    renderPageWithLocationSpy("/equipment");
+
+    await screen.findByText("Wireless microphone");
+    await user.click(screen.getByRole("radio", { name: "Visual" }));
+    await user.type(screen.getByLabelText("Search equipment"), "proj");
+
+    expect(lastEquipmentSearch).toContain("category=Visual");
+    expect(lastEquipmentSearch).toContain("q=proj");
+  });
+
+  it("restores the coordinator catalogue's filters and search from the URL on mount", async () => {
+    authState.profile = { full_name: "Cory Coordinator", role: "event_coordinator" };
+    service.listEquipmentCatalogue.mockResolvedValue([
+      { id: "item-mic", name: "Wireless microphone", category: "Audio", code: "mic", totalQuantity: 3, retiredAt: null },
+      { id: "item-proj", name: "Projector", category: "Visual", code: "proj", totalQuantity: 2, retiredAt: null },
+    ]);
+    renderPage("/equipment?category=Visual&q=proj");
+
+    expect(await screen.findByText("Projector")).toBeInTheDocument();
+    expect(screen.queryByText("Wireless microphone")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Search equipment")).toHaveValue("proj");
   });
 
   it("keeps a coordinator out of the Technical Support Staff inventory page", () => {

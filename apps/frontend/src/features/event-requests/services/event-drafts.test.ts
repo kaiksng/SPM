@@ -21,6 +21,12 @@ const row = {
   submitted_at: "2098-12-01T02:00:00.000Z",
   assigned_coordinator_id: "coordinator-1",
   assigned_coordinator: { full_name: "Joyce" },
+  event_registration_requirements: {
+    registration_required: true,
+    registration_opens_at: null,
+    registration_closes_at: null,
+    attendee_capacity: 80,
+  },
 };
 
 beforeEach(() => {
@@ -54,6 +60,8 @@ describe("listEventRequests", () => {
             submitted_at: null,
             assigned_coordinator_id: null,
             assigned_coordinator: null,
+            // No registration row yet: treated as not required.
+            event_registration_requirements: null,
           },
         ],
         error: null,
@@ -72,6 +80,12 @@ describe("listEventRequests", () => {
         submittedAt: "2098-12-01T02:00:00.000Z",
         assignedCoordinatorId: "coordinator-1",
         assignedCoordinatorName: "Joyce",
+        registration: {
+          required: true,
+          opensAt: null,
+          closesAt: null,
+          capacity: 80,
+        },
       },
       {
         id: "event-2",
@@ -84,6 +98,7 @@ describe("listEventRequests", () => {
         submittedAt: null,
         assignedCoordinatorId: null,
         assignedCoordinatorName: null,
+        registration: { required: false, opensAt: null, closesAt: null, capacity: null },
       },
     ]);
   });

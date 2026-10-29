@@ -294,6 +294,28 @@ describe("NotificationBell", () => {
     expect(navigateMock).toHaveBeenCalledWith("/browse-events/e13");
   });
 
+  // The organiser's registration set-up / over-capacity notice opens the
+  // event's Registration section, where they fix it.
+  it("routes a registration notification to the event's Registration section", async () => {
+    listNotificationsMock.mockResolvedValue([
+      {
+        ...UNREAD,
+        id: "n14",
+        type: "registration_update" as const,
+        title: "Set up registration",
+        eventId: "e14",
+      },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("Set up registration"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/events/e14#registration");
+  });
+
   // SPM-39 AC03: a newly assigned coordinator's "waiting for you" notice opens
   // the event, where the change request is decided or applied.
   it("opens the event from a change request waiting notification", async () => {

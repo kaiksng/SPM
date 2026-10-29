@@ -2,7 +2,11 @@ import {
   clarificationPermittedFieldLabels,
   isDirectEditBlocked,
   isoToSingaporeLocal,
+  isRegistrationSetupIncomplete,
+  registrationActionNeeded,
   type ClarificationPermittedField,
+  type RegistrationAction,
+  type RegistrationSettingsSnapshot,
 } from "@spm/shared";
 import {
   CalendarDays,
@@ -39,7 +43,11 @@ import {
   type EventFilterValues,
 } from "@/features/event-requests/components/event-filters";
 import { EventHistoryButton } from "@/features/event-requests/components/event-history-link";
-import { EventStatusBadge, StatusBadge } from "@/features/event-requests/components/status-badges";
+import {
+  EventStatusBadge,
+  RegistrationActionBadge,
+  StatusBadge,
+} from "@/features/event-requests/components/status-badges";
 import {
   assignEventCoordinator,
   listAllEvents,
@@ -66,6 +74,7 @@ import {
   splitVenueDisruptions,
   useVenueDisruptions,
 } from "@/features/venues/components/affected-venue-bookings";
+import { loadMainVenueCapacity } from "@/features/registrations/services/registration-settings";
 import { PagePlaceholder } from "@/features/workspace/components/page-placeholder";
 import { ListToolbar } from "@/features/workspace/components/list-toolbar";
 import { usePageTitle } from "@/hooks/use-page-title";
@@ -970,6 +979,41 @@ function useHasPendingChangeRequest(eventId: string, eventStatus: string) {
   return hasPending;
 }
 
+/**
+ * Registration the organiser still has to set up or fix on a Planning event
+ * (Configure Event Registration). The venue's capacity is only fetched when
+ * the settings are complete, since only then can capacity be the problem.
+ */
+function useRegistrationAction(
+  eventId: string,
+  status: string,
+  registration: RegistrationSettingsSnapshot,
+): RegistrationAction | null {
+  const [venueCapacity, setVenueCapacity] = useState<number | null>(null);
+  const needsVenueCapacity =
+    status === "planning" &&
+    registration.required &&
+    registration.capacity !== null &&
+    !isRegistrationSetupIncomplete(registration);
+
+  useEffect(() => {
+    if (!needsVenueCapacity) return;
+    let active = true;
+    loadMainVenueCapacity(eventId)
+      .then((capacity) => {
+        if (active) setVenueCapacity(capacity);
+      })
+      .catch(() => {
+        // Only the over-capacity hint is lost; the database still blocks it.
+      });
+    return () => {
+      active = false;
+    };
+  }, [eventId, needsVenueCapacity]);
+
+  return registrationActionNeeded(status, registration, needsVenueCapacity ? venueCapacity : null);
+}
+
 function EventCard({
   event,
   onDelete,
@@ -985,6 +1029,7 @@ function EventCard({
   const isRequested = event.status === "requested";
   const [reviewState, setReviewState] = useState<"open" | "answered">();
   const hasPendingChange = useHasPendingChangeRequest(event.id, event.status);
+  const registrationAction = useRegistrationAction(event.id, event.status, event.registration);
   return (
     <article className="group flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_22px_50px_-34px_rgba(37,99,235,0.35)] motion-reduce:transform-none">
       <div className="flex items-start justify-between gap-3">
@@ -995,6 +1040,7 @@ function EventCard({
             role="organiser"
           />
           {hasPendingChange && <ChangeRequestBadge />}
+          {registrationAction && <RegistrationActionBadge action={registrationAction} />}
         </div>
         <span className="shrink-0 text-xs text-slate-400">
           Updated {new Intl.DateTimeFormat("en-SG", { dateStyle: "medium", timeZone: "Asia/Singapore" }).format(new Date(event.updatedAt))}
