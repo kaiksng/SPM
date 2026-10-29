@@ -212,6 +212,17 @@ describe("POST /events/:eventId/safety-check-decision", () => {
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
+  // SPM-90 AC06: a malformed event id never reaches the database, so no event can be approved by guessing.
+  it("rejects an event id that is not valid before calling the database", async () => {
+    const response = await request(createApp())
+      .post("/events/not-an-event/safety-check-decision")
+      .set("Authorization", "Bearer test-token")
+      .send({ decision: "approved" });
+
+    expect(response.status).toBe(422);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
   it("rejects a blank reason before calling the database", async () => {
     const response = await decisionRequest({ decision: "rejected", reason: "   " });
 

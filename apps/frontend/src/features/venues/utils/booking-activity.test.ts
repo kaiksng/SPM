@@ -108,3 +108,21 @@ describe("buildBookingActivity", () => {
     expect(entries.filter((entry) => entry.kind === "disrupted")).toHaveLength(1);
   });
 });
+
+describe("buildBookingActivity request details", () => {
+  // SPM-82 AC08 / SPM-85 AC12: a replacement request says which disrupted booking it replaces, and where it was.
+  it("describes a replacement for a disrupted booking, with or without the original venue", () => {
+    const named = buildBookingActivity([booking({ replacesBookingId: "b-0", replacesVenueName: "Auditorium" })]);
+    const unnamed = buildBookingActivity([booking({ replacesBookingId: "b-0", replacesVenueName: null })]);
+
+    expect(named[0]?.detail).toBe("Replacement for the disrupted booking at Auditorium · 40 people");
+    expect(unnamed[0]?.detail).toBe("Replacement for the disrupted booking · 40 people");
+  });
+
+  it("leaves the detail empty when there is no headcount and nothing is replaced", () => {
+    const [entry] = buildBookingActivity([booking({ expectedHeadcount: null })]);
+
+    expect(entry?.detail).toBeNull();
+  });
+});
+

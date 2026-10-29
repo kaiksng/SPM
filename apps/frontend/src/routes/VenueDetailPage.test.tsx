@@ -620,3 +620,130 @@ describe("VenueDetailPage", () => {
     expect(submitVenueBookingRequestMock).not.toHaveBeenCalled();
   });
 });
+
+// SPM-85 / SPM-82 / SPM-24: the venue page a coordinator reviews before requesting a booking.
+describe("VenueDetailPage loading and requesting", () => {
+  it("says why the venue could not be loaded, and that it was not found", async () => {
+    getVenueMock.mockRejectedValueOnce(new Error("Venue lookup failed"));
+    const failed = renderPage("/venues/venue-1");
+    expect(await screen.findByText("Venue unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Venue lookup failed");
+    failed.unmount();
+
+    getVenueMock.mockRejectedValueOnce("boom");
+    const unknown = renderPage("/venues/venue-1");
+    expect(await screen.findByRole("alert")).toHaveTextContent("This venue is unavailable or you do not have access to it.");
+    unknown.unmount();
+
+    getVenueMock.mockResolvedValueOnce(null);
+    renderPage("/venues/venue-1");
+    expect(await screen.findByRole("alert")).toHaveTextContent("This venue could not be found.");
+  });
+
+  it("ignores a venue that arrives after the coordinator has left the page", async () => {
+    let resolveVenue: (value: unknown) => void = () => {};
+    getVenueMock.mockReturnValueOnce(new Promise((resolve) => { resolveVenue = resolve; }));
+    const first = renderPage("/venues/venue-1");
+    first.unmount();
+    resolveVenue(venue);
+
+    let rejectVenue: (reason: unknown) => void = () => {};
+    getVenueMock.mockReturnValueOnce(new Promise((_, reject) => { rejectVenue = reject; }));
+    const second = renderPage("/venues/venue-1");
+    second.unmount();
+    rejectVenue(new Error("too late"));
+
+    await waitFor(() => expect(getVenueMock).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Auditorium")).not.toBeInTheDocument();
+    expect(screen.queryByText("Venue unavailable")).not.toBeInTheDocument();
+  });
+
+  it("goes back through the browser history from the venue catalogue", async () => {
+    const user = userEvent.setup();
+    renderPage("/venues/venue-1");
+
+    await user.click(await screen.findByRole("button", { name: /Back to venues/ }));
+
+    expect(navigateMock).toHaveBeenCalledWith(-1);
+  });
+
+  // SPM-85: a notification about a cancelled booking opens the venue's Activity section.
+  it("scrolls to the Activity section when opened from a notification", async () => {
+    authState.profile.role = "venue_staff";
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    renderPage("/venues/venue-1#activity");
+
+    await screen.findByText("No bookings have been requested at this venue yet.");
+
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("still shows the venue when its activity cannot be loaded", async () => {
+    authState.profile.role = "venue_staff";
+    listVenueBookingsForVenueMock.mockRejectedValue(new Error("activity unavailable"));
+    renderPage("/venues/venue-1");
+
+    expect(await screen.findByText("Auditorium")).toBeInTheDocument();
+    expect(await screen.findByText("No bookings have been requested at this venue yet.")).toBeInTheDocument();
+  });
+
+  // SPM-24: when availability cannot be confirmed, the coordinator cannot request the venue.
+  it("does not let the coordinator request a venue whose availability could not be verified", async () => {
+    checkVenueBookingAvailabilityMock.mockRejectedValue(new Error("offline"));
+    renderPage("/venues/venue-1?forEvent=event-1");
+
+    expect(await screen.findByText("Availability could not be verified. Return to the event and try again.")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Request venue" })).toBeDisabled();
+  });
+
+  it("uses a plain message when a request fails without one", async () => {
+    submitVenueBookingRequestMock.mockRejectedValue("boom");
+    const user = userEvent.setup();
+    renderPage("/venues/venue-1?forEvent=event-1");
+
+    await user.click(await screen.findByRole("button", { name: "Request venue" }));
+
+    expect(await screen.findByText("This venue booking request could not be submitted.")).toBeInTheDocument();
+  });
+});
+
+// SPM-21 / SPM-85: the coordinator is told when a venue is outside the organiser's preferred location.
+describe("VenueDetailPage preferred location advisory", () => {
+  const withPreferred = (preferredLocation: string) =>
+    loadEventDetailMock.mockResolvedValue({ ...event, venue: { ...event.venue, preferredLocation } });
+
+  it("says nothing when the venue is tagged with the organiser's preferred area", async () => {
+    withPreferred("Bugis");
+    getVenueMock.mockResolvedValue({ ...venue, location: "Block A", areaTags: ["Bugis"] });
+    renderPage("/venues/venue-1?forEvent=event-1");
+
+    await screen.findByRole("button", { name: "Request venue" });
+    expect(screen.queryByText(/The organiser requested/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the venue's address when it has no area tags", async () => {
+    withPreferred("Bugis");
+    getVenueMock.mockResolvedValue({ ...venue, location: "Bugis Junction", areaTags: [] });
+    renderPage("/venues/venue-1?forEvent=event-1");
+
+    await screen.findByRole("button", { name: "Request venue" });
+    expect(screen.queryByText(/The organiser requested/)).not.toBeInTheDocument();
+  });
+
+  it("names the venue's area when it is tagged with a different one", async () => {
+    withPreferred("Bugis");
+    getVenueMock.mockResolvedValue({ ...venue, location: "Block A", areaTags: ["Central Area"] });
+    renderPage("/venues/venue-1?forEvent=event-1");
+
+    expect(await screen.findByText(/The organiser requested Bugis, but this venue is in Central Area/)).toBeInTheDocument();
+  });
+
+  it("says nothing when a free-text preferred location appears in the venue's address", async () => {
+    withPreferred("campus");
+    renderPage("/venues/venue-1?forEvent=event-1");
+
+    await screen.findByRole("button", { name: "Request venue" });
+    expect(screen.queryByText(/The organiser requested/)).not.toBeInTheDocument();
+  });
+});

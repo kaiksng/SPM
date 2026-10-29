@@ -476,3 +476,110 @@ describe("EventVenuePage", () => {
     expect(screen.queryByRole("region", { name: "Disrupted venue booking" })).not.toBeInTheDocument();
   });
 });
+
+// SPM-85 / SPM-82: loading the event's venue page, and what it shows when information is missing.
+describe("EventVenuePage loading and details", () => {
+  it("says why the event could not be loaded, with a plain message when none is given", async () => {
+    loadEventDetailMock.mockRejectedValueOnce(new Error("Event not found"));
+    const failed = renderPage();
+    expect(await screen.findByText("Event unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Event not found");
+    failed.unmount();
+
+    loadEventDetailMock.mockRejectedValueOnce("boom");
+    renderPage();
+    expect(await screen.findByRole("alert")).toHaveTextContent("This event is unavailable or you do not have access to it.");
+  });
+
+  it("loads nothing and shows no venue information when the page address names no event", () => {
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="events" element={<EventVenuePage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(loadEventDetailMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("Suggested venues")).not.toBeInTheDocument();
+  });
+
+  it("ignores a response that arrives after the coordinator has left the page", async () => {
+    let resolveEvent: (value: unknown) => void = () => {};
+    loadEventDetailMock.mockReturnValueOnce(new Promise((resolve) => { resolveEvent = resolve; }));
+    const first = renderPage();
+    first.unmount();
+    resolveEvent(event);
+
+    let rejectEvent: (reason: unknown) => void = () => {};
+    loadEventDetailMock.mockReturnValueOnce(new Promise((_, reject) => { rejectEvent = reject; }));
+    const second = renderPage();
+    second.unmount();
+    rejectEvent(new Error("too late"));
+
+    await waitFor(() => expect(loadEventDetailMock).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Event unavailable")).not.toBeInTheDocument();
+    expect(screen.queryByText("Career Fair")).not.toBeInTheDocument();
+  });
+
+  it("says 'Not provided' for event details the organiser left out", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      ...event,
+      startsAt: null,
+      endsAt: null,
+      expectedAttendance: null,
+      venue: { ...event.venue, preferredLocation: "", facilities: [] },
+    });
+    renderPage();
+
+    expect(await screen.findByText("Suggested venues")).toBeInTheDocument();
+    expect(screen.getAllByText("Not provided").length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("lists the facilities the event requires", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, venue: { ...event.venue, facilities: ["Projector", "Microphone"] } });
+    renderPage();
+
+    expect(await screen.findByText("Projector")).toBeInTheDocument();
+    expect(screen.getByText("Microphone")).toBeInTheDocument();
+  });
+});
+
+describe("EventVenuePage main venue and disruption details", () => {
+  const second = () => booking({ id: "booking-2", label: "Breakout 1", isMainVenue: false });
+
+  // SPM-85 AC07: changing the main venue can fail, and the coordinator is told why next to that booking.
+  it("shows why the main venue could not be changed, with a plain message when none is given", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([booking(), second()]);
+    setMainVenueBookingMock.mockRejectedValueOnce(new Error("Only an Approved booking can be the main venue"));
+    const user = userEvent.setup();
+    renderPage();
+
+    const list = await screen.findByRole("region", { name: "Venue bookings" });
+    await user.click(within(list).getByRole("button", { name: "Make main venue" }));
+    expect(await screen.findByText("Only an Approved booking can be the main venue")).toBeInTheDocument();
+
+    setMainVenueBookingMock.mockRejectedValueOnce("boom");
+    await user.click(within(await screen.findByRole("region", { name: "Venue bookings" })).getByRole("button", { name: "Make main venue" }));
+    expect(await screen.findByText("The main venue could not be changed.")).toBeInTheDocument();
+  });
+
+  // SPM-82: the block's category is shown on its own when the block has no description.
+  it("shows only the block's category when the block has no description", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([booking({ venueName: "Auditorium", status: "approved" })]);
+    listVenueDisruptionsMock.mockResolvedValue([
+      {
+        id: "disruption-1", bookingId: "booking-1", eventId: "event-1", eventTitle: "Career Fair", venueId: "venue-1",
+        venueName: "Auditorium", bookingStartsAt: "2099-04-06T02:00:00.000Z", bookingEndsAt: "2099-04-06T04:00:00.000Z",
+        blockReasonCategory: "renovation" as const, blockReason: "", blockStartsAt: "2099-04-06T04:00:00.000Z",
+        blockEndsAt: "2099-04-06T06:00:00.000Z", flaggedAt: "2099-04-01T00:00:00.000Z", clearedAt: null,
+        replacementBookingId: null, state: "replacement_required" as const,
+      },
+    ]);
+    renderPage();
+
+    const card = await screen.findByRole("region", { name: "Disrupted venue booking" });
+    expect(within(card).getByText("Renovation")).toBeInTheDocument();
+    expect(within(card).queryByText(/Renovation –/)).not.toBeInTheDocument();
+  });
+});

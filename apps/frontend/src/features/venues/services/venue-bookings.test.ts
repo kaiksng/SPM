@@ -17,10 +17,12 @@ vi.mock("@/lib/api-client", async (importOriginal) => {
 import {
   checkVenueBookingAvailability,
   confirmVenueBookingHold,
+  decideVenueBookingRequest,
   getActiveVenueBooking,
   getVenueBookingRequest,
   listVenueBookingRequests,
   listVenueBookingsForEvent,
+  listVenueBookingsForVenue,
   placeVenueBookingHold,
   requestReplacementVenue,
   setMainVenueBooking,
@@ -607,3 +609,99 @@ describe("placing and confirming a hold", () => {
     );
   });
 });
+
+// SPM-85 AC12: a venue's Activity log lists every booking ever made there, for Venue Staff.
+describe("listVenueBookingsForVenue", () => {
+  it("returns the venue's bookings newest first, capped, with the venue each replacement replaced", async () => {
+    const query = queryBuilder({
+      data: [
+        bookingRow({ id: "booking-2", replaces_booking_id: "booking-1", venue_id: "venue-2", venues: { name: "Grand Hall", venue_layouts: [{ layout_name: "Theatre" }] } }),
+        bookingRow({ id: "booking-1", venues: { name: "Auditorium", venue_layouts: [] } }),
+      ],
+      error: null,
+    });
+    fromMock.mockReturnValue(query);
+
+    const bookings = await listVenueBookingsForVenue("venue-2");
+
+    expect(query.eq).toHaveBeenCalledWith("venue_id", "venue-2");
+    expect(query.order).toHaveBeenCalledWith("requested_at", { ascending: false });
+    expect(query.limit).toHaveBeenCalledWith(100);
+    expect(bookings.map((booking) => booking.id)).toEqual(["booking-2", "booking-1"]);
+    expect(bookings[0]).toMatchObject({ venueLayouts: ["Theatre"], replacesVenueName: "Auditorium" });
+  });
+
+  it("returns an empty list when nothing was ever booked", async () => {
+    fromMock.mockReturnValue(queryBuilder({ data: null, error: null }));
+
+    await expect(listVenueBookingsForVenue("venue-2")).resolves.toEqual([]);
+  });
+
+  it("says the activity is unavailable when it cannot be read", async () => {
+    fromMock.mockReturnValue(queryBuilder({ data: null, error: { message: "denied" } }));
+
+    await expect(listVenueBookingsForVenue("venue-2")).rejects.toThrow("This venue's activity is unavailable.");
+  });
+});
+
+describe("loading booking lists that fail or are empty", () => {
+  it("explains when an event's booking history or the staff request list cannot be loaded", async () => {
+    fromMock.mockReturnValueOnce(queryBuilder({ data: null, error: { message: "boom" } }));
+    await expect(listVenueBookingsForEvent("event-1")).rejects.toThrow("This event's venue booking history is unavailable.");
+
+    fromMock.mockReturnValueOnce(queryBuilder({ data: null, error: { message: "boom" } }));
+    await expect(listVenueBookingRequests()).rejects.toThrow("Venue booking requests are unavailable.");
+  });
+
+  it("returns nothing for an event or request list the database sends back empty", async () => {
+    fromMock.mockReturnValueOnce(queryBuilder({ data: null, error: null }));
+    await expect(listVenueBookingsForEvent("event-1")).resolves.toEqual([]);
+
+    fromMock.mockReturnValueOnce(queryBuilder({ data: null, error: null }));
+    await expect(listVenueBookingRequests()).resolves.toEqual([]);
+  });
+
+  it("names a booking's venue 'Unknown venue' when its venue record is missing", async () => {
+    fromMock.mockReturnValue(
+      queryBuilder({
+        data: { id: "b-1", venue_id: "v-1", starts_at: "2099-04-06T02:00:00Z", ends_at: "2099-04-06T04:00:00Z", status: "approved", expires_at: null, replaces_booking_id: null, venues: null },
+        error: null,
+      }),
+    );
+
+    await expect(getActiveVenueBooking("event-1")).resolves.toMatchObject({ venueName: "Unknown venue" });
+  });
+
+  it("shows a booking with no recorded facilities as having none", async () => {
+    fromMock.mockReturnValue(queryBuilder({ data: [bookingRow({ required_facilities: null })], error: null }));
+
+    const [booking] = await listVenueBookingsForEvent("event-1");
+
+    expect(booking?.eventVenueRequirements.facilities).toEqual([]);
+  });
+});
+
+describe("checkVenueBookingAvailability failures", () => {
+  it("says the availability could not be checked when the database errors or answers nothing", async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: { message: "boom" } });
+    await expect(checkVenueBookingAvailability("venue-1", "event-1")).rejects.toThrow("This venue's availability could not be checked.");
+
+    rpcMock.mockResolvedValueOnce({ data: null, error: null });
+    await expect(checkVenueBookingAvailability("venue-1", "event-1")).rejects.toThrow("This venue's availability could not be checked.");
+  });
+});
+
+describe("decideVenueBookingRequest", () => {
+  // SPM-82: Venue Staff approve or reject a replacement through the same decision endpoint.
+  it("sends the decision and reason to the booking's decide endpoint", async () => {
+    apiFetchMock.mockResolvedValue({ data: {} });
+
+    await decideVenueBookingRequest("booking-2", "approved", "Fits the event");
+
+    expect(apiFetchMock).toHaveBeenCalledWith("/venue-bookings/booking-2/decide", {
+      method: "POST",
+      body: JSON.stringify({ decision: "approved", reason: "Fits the event" }),
+    });
+  });
+});
+
