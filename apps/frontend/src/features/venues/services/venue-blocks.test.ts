@@ -133,6 +133,13 @@ describe("previewVenueBlockImpact", () => {
 });
 
 describe("createVenueBlock", () => {
+  // SPM-83 AC: a block that overlaps nothing returns no affected bookings, even if the database omits the list.
+  it("returns an empty list when the database sends no affected bookings", async () => {
+    rpcMock.mockResolvedValue({ data: { blockId: "block-9" }, error: null });
+
+    await expect(createVenueBlock(values)).resolves.toEqual({ blockId: "block-9", affected: [] });
+  });
+
   // SPM-83 AC01/AC02: category and description are sent; overlapping bookings come back.
   it("sends the category and trimmed description and returns the affected bookings", async () => {
     const affected = [

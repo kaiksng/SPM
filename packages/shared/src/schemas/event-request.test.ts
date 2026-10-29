@@ -112,6 +112,71 @@ describe("event draft validation", () => {
   });
 });
 
+describe("event draft details", () => {
+  // SPM-2 AC: a Draft keeps what was entered; values are trimmed before they are stored.
+  it("trims the required facilities sent for storage", () => {
+    const parsed = eventDraftSchema.parse(
+      draft({ venue: { ...emptyEventRequestFormValues.venue, facilities: ["  Projector ", "Microphone"] } }),
+    );
+
+    expect(toEventDraftPayload(parsed).venue.facilities).toEqual(["Projector", "Microphone"]);
+  });
+
+  it("keeps an entered registration capacity instead of deriving one from the attendance", () => {
+    const parsed = eventDraftSchema.parse(
+      draft({
+        expectedAttendance: "80",
+        registration: { ...emptyEventRequestFormValues.registration, required: true, capacity: "50" },
+      }),
+    );
+
+    expect(toEventDraftPayload(parsed).registration).toMatchObject({ required: true, capacity: "50" });
+  });
+
+  it("does not store registration details when registration is not required", () => {
+    const parsed = eventDraftSchema.parse(
+      draft({
+        registration: {
+          ...emptyEventRequestFormValues.registration,
+          required: false,
+          opensAt: "2099-03-01T09:00",
+          closesAt: "2099-03-02T09:00",
+          capacity: "50",
+          waitlistEnabled: true,
+        },
+      }),
+    );
+
+    expect(toEventDraftPayload(parsed).registration).toEqual({
+      required: false,
+      opensAt: null,
+      closesAt: null,
+      capacity: null,
+      waitlistEnabled: false,
+    });
+  });
+
+  it("rejects registration that closes at or before it opens", () => {
+    const issues = (closesAt: string) => {
+      const result = eventDraftSchema.safeParse(
+        draft({
+          registration: {
+            ...emptyEventRequestFormValues.registration,
+            required: true,
+            opensAt: "2099-03-01T09:00",
+            closesAt,
+          },
+        }),
+      );
+      return result.success ? [] : result.error.issues.map((issue) => issue.message);
+    };
+
+    expect(issues("2099-03-01T09:00")).toContain("Registration closing time must be after its opening time");
+    expect(issues("2099-02-28T09:00")).toContain("Registration closing time must be after its opening time");
+    expect(issues("2099-03-01T09:01")).not.toContain("Registration closing time must be after its opening time");
+  });
+});
+
 describe("equipment requirement validation", () => {
   const validItem = {
     ...emptyEquipmentRequirement(),
@@ -129,6 +194,11 @@ describe("equipment requirement validation", () => {
     }
     return errors;
   }
+
+  it("rejects a required period that is not a real date and time", () => {
+    expect(equipmentErrors({ requiredFrom: "not a date" })["equipment.0.requiredFrom"]).toBe("Enter a valid date and time");
+    expect(equipmentErrors({ requiredUntil: "not a date" })["equipment.0.requiredUntil"]).toBe("Enter a valid date and time");
+  });
 
   it("accepts a catalogue item with a quantity and required period", () => {
     expect(equipmentErrors({})).toEqual({});

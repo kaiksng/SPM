@@ -156,4 +156,20 @@ describe("listVenueDisruptionsForCoordinator", () => {
       "We couldn't load your affected venue bookings.",
     );
   });
+
+  // SPM-82: only a replacement that names the booking it replaces marks that booking as Replacement Requested.
+  it("ignores a pending request that does not name a booking to replace, and tolerates no list at all", async () => {
+    mockQueries([row()], null, [{ id: "pending-1", replaces_booking_id: null }]);
+    await expect(listVenueDisruptionsForCoordinator()).resolves.toEqual([
+      expect.objectContaining({ replacementBookingId: null, state: "replacement_required" }),
+    ]);
+
+    fromMock.mockReset();
+    fromMock
+      .mockReturnValueOnce(queryBuilder({ data: [row()], error: null }))
+      .mockReturnValueOnce(queryBuilder({ data: null, error: null }));
+    await expect(listVenueDisruptionsForCoordinator()).resolves.toEqual([
+      expect.objectContaining({ replacementBookingId: null, state: "replacement_required" }),
+    ]);
+  });
 });

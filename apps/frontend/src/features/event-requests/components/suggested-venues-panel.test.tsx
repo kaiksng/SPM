@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -44,7 +44,7 @@ const otherVenue = {
   location: "Building 2",
 };
 
-function renderPanel(replacing?: { bookingId: string; venueId: string }) {
+function renderPanel(replacing?: { bookingId: string; venueId: string }, hasActiveBooking = false) {
   const event: EventDetail = {
     id: "event-1", title: "Planning event", purpose: null, description: null,
     eventType: null, expectedAttendance: 20,
@@ -57,7 +57,7 @@ function renderPanel(replacing?: { bookingId: string; venueId: string }) {
   };
   return render(
     <MemoryRouter>
-      <SuggestedVenuesPanel event={event} hasActiveBooking={false} replacing={replacing} />
+      <SuggestedVenuesPanel event={event} hasActiveBooking={hasActiveBooking} replacing={replacing} />
     </MemoryRouter>,
   );
 }
@@ -245,5 +245,65 @@ describe("SuggestedVenuesPanel", () => {
 
     expect(screen.getByText("Suggested venues")).toBeInTheDocument();
     expect(screen.queryByText("Auditorium")).not.toBeInTheDocument();
+  });
+});
+
+// SPM-82: while choosing a replacement the coordinator sees suggestions, or why there are none.
+describe("SuggestedVenuesPanel loading and results", () => {
+  it("shows why the suggestions could not be loaded, with a plain message when none is given", async () => {
+    listSuggestedVenuesMock.mockRejectedValueOnce(new Error("Catalogue offline"));
+    const failed = renderPanel();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Catalogue offline");
+    failed.unmount();
+
+    listSuggestedVenuesMock.mockRejectedValueOnce("boom");
+    renderPanel();
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't load suggested venues for this event.");
+  });
+
+  it("says no venue matches when none meets the requirements", async () => {
+    listSuggestedVenuesMock.mockResolvedValue([]);
+    renderPanel();
+
+    expect(await screen.findByText("No matching venues")).toBeInTheDocument();
+  });
+
+  it("carries the venue's availability into its link when it is known", async () => {
+    listSuggestedVenuesMock.mockResolvedValue([{ ...venue, availabilityStatus: "available" }]);
+    renderPanel();
+
+    expect(await screen.findByRole("link", { name: "View details" })).toHaveAttribute("href", "/venues/venue-1?forEvent=event-1&status=available");
+  });
+
+  // SPM-21 AC: a coordinator can browse venues even when the event already has an active request, but only to review them.
+  it("opens a venue for review only when the event already has an active venue request", async () => {
+    renderPanel(undefined, true);
+
+    expect(await screen.findByRole("link", { name: "View details" })).toHaveAttribute("href", expect.stringContaining("&explore=1"));
+  });
+
+  it("opens a venue without a status when its availability is not known", async () => {
+    listSuggestedVenuesMock.mockResolvedValue([{ ...venue, availabilityStatus: undefined }]);
+    renderPanel();
+
+    expect(await screen.findByRole("link", { name: "View details" })).toHaveAttribute("href", "/venues/venue-1?forEvent=event-1");
+  });
+
+  it("ignores suggestions that arrive after the coordinator has left the page", async () => {
+    let resolveList: (items: unknown[]) => void = () => {};
+    listSuggestedVenuesMock.mockReturnValueOnce(new Promise((resolve) => { resolveList = resolve; }));
+    const first = renderPanel();
+    first.unmount();
+    resolveList([venue]);
+
+    let rejectList: (reason: unknown) => void = () => {};
+    listSuggestedVenuesMock.mockReturnValueOnce(new Promise((_, reject) => { rejectList = reject; }));
+    const second = renderPanel();
+    second.unmount();
+    rejectList(new Error("too late"));
+
+    await waitFor(() => expect(listSuggestedVenuesMock).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Conference Room A")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

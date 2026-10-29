@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -115,3 +115,69 @@ describe("EventVenueBookings: a booking request on hold", () => {
     expect(within(item).queryByRole("button", { name: "Confirm request" })).not.toBeInTheDocument();
   });
 });
+
+// SPM-85 AC10: the coordinator releases one booking at a time, always giving a reason.
+describe("EventVenueBookings: releasing a booking", () => {
+  it("withdraws a Pending booking after a reason is given, then closes the dialog", async () => {
+    const user = userEvent.setup();
+    renderBookings([booking()]);
+
+    await user.click(screen.getByRole("button", { name: "Withdraw request" }));
+    const dialog = screen.getByRole("dialog", { name: "Withdraw request: Main Programme" });
+    await user.click(within(dialog).getByRole("button", { name: "Confirm withdrawal" }));
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("Give a reason for withdrawing or cancelling this venue booking.");
+    expect(onWithdraw).not.toHaveBeenCalled();
+
+    await user.type(within(dialog).getByLabelText("Reason"), "  Moving to another room ");
+    await user.click(within(dialog).getByRole("button", { name: "Confirm withdrawal" }));
+
+    await waitFor(() => expect(onWithdraw).toHaveBeenCalledWith("b-1", "Moving to another room"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("cancels an Approved booking, and keeps it when the coordinator changes their mind", async () => {
+    const user = userEvent.setup();
+    renderBookings([booking({ status: "approved" })]);
+
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    expect(screen.getByRole("dialog", { name: "Cancel confirmed booking: Main Programme" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Keep booking" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(onWithdraw).not.toHaveBeenCalled();
+  });
+
+  it("shows why a booking could not be released, with a plain message when none is given", async () => {
+    const user = userEvent.setup();
+    onWithdraw.mockRejectedValueOnce(new Error("A replacement is pending for this booking"));
+    renderBookings([booking({ status: "approved" })]);
+
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    const dialog = screen.getByRole("dialog");
+    await user.type(within(dialog).getByLabelText("Reason"), "Not needed");
+    await user.click(within(dialog).getByRole("button", { name: "Confirm cancellation" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("A replacement is pending for this booking");
+
+    onWithdraw.mockRejectedValueOnce("boom");
+    await user.click(within(dialog).getByRole("button", { name: "Confirm cancellation" }));
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("This booking could not be released."));
+  });
+});
+
+// SPM-85: a rejected booking stays visible with what is known about who rejected it, when, and why.
+describe("EventVenueBookings: a rejected booking", () => {
+  it("shows who rejected it, when, and the reason", () => {
+    renderBookings([booking({ status: "rejected", decidedByName: "Sam", decidedAt: "2099-04-02T02:00:00.000Z", decisionNotes: "Room reserved" })]);
+
+    expect(screen.getByText(`Rejected by Sam on ${dateTimeFormatter.format(new Date("2099-04-02T02:00:00.000Z"))}.`)).toBeInTheDocument();
+    expect(screen.getByText(/Reason: Room reserved/)).toBeInTheDocument();
+  });
+
+  it("shows only what is known when the decision has no name, time or reason", () => {
+    renderBookings([booking({ status: "rejected" })]);
+
+    expect(screen.getByText("Rejected.")).toBeInTheDocument();
+    expect(screen.queryByText(/Reason:/)).not.toBeInTheDocument();
+  });
+});
+

@@ -306,3 +306,101 @@ describe("SafetyCheckReviewPage", () => {
     );
   });
 });
+
+// SPM-90 AC04/AC06: approving from the review page, and what happens when the page or the decision fails.
+describe("SafetyCheckReviewPage approving and loading", () => {
+  it("closes the decision dialog without deciding when the Safety Officer cancels", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Approve" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(decideEventSafetyCheckMock).not.toHaveBeenCalled();
+  });
+
+  // SPM-90 AC06: an event that is no longer Pending Safety Check cannot be approved; the refusal is shown.
+  it("shows why an approval was refused, on the page and in the dialog, and stays on the review", async () => {
+    const user = userEvent.setup();
+    decideEventSafetyCheckMock.mockRejectedValueOnce(new Error("Only an event Pending Safety Check can be decided"));
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Approve" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Approve" }));
+
+    expect((await screen.findAllByText("Only an event Pending Safety Check can be decided")).length).toBeGreaterThanOrEqual(1);
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it("uses a plain message when a decision fails without one", async () => {
+    const user = userEvent.setup();
+    decideEventSafetyCheckMock.mockRejectedValueOnce("boom");
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Approve" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Approve" }));
+
+    expect((await screen.findAllByText("This decision could not be submitted.")).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("says why the review could not be loaded, with a plain message when none is given", async () => {
+    loadEventDetailMock.mockRejectedValueOnce(new Error("Event not found or you do not have access to it"));
+    const failed = renderPage();
+    expect(await screen.findByText("Event unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Event not found or you do not have access to it");
+    failed.unmount();
+
+    loadEventDetailMock.mockRejectedValueOnce("boom");
+    renderPage();
+    expect(await screen.findByRole("alert")).toHaveTextContent("This event is unavailable or you do not have access to it.");
+  });
+
+  it("loads nothing when the page address names no event", () => {
+    render(
+      <MemoryRouter initialEntries={["/safety-checks"]}>
+        <Routes>
+          <Route path="safety-checks" element={<SafetyCheckReviewPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(loadEventDetailMock).not.toHaveBeenCalled();
+    expect(loadSafetyReviewDetailsMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores a response that arrives after the Safety Officer has left the page", async () => {
+    let resolveEvent: (value: unknown) => void = () => {};
+    loadEventDetailMock.mockReturnValueOnce(new Promise((resolve) => { resolveEvent = resolve; }));
+    const first = renderPage();
+    first.unmount();
+    resolveEvent(event);
+
+    let rejectEvent: (reason: unknown) => void = () => {};
+    loadEventDetailMock.mockReturnValueOnce(new Promise((_, reject) => { rejectEvent = reject; }));
+    const second = renderPage();
+    second.unmount();
+    rejectEvent(new Error("too late"));
+
+    await waitFor(() => expect(loadEventDetailMock).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Alumni Homecoming Mixer")).not.toBeInTheDocument();
+    expect(screen.queryByText("Event unavailable")).not.toBeInTheDocument();
+  });
+
+  it("shows the event as having no schedule or attendance when the organiser left them out", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, startsAt: null, endsAt: null, expectedAttendance: null });
+    renderPage();
+
+    expect(await screen.findByText("Schedule not set")).toBeInTheDocument();
+    expect(screen.queryByText(/attendees/)).not.toBeInTheDocument();
+  });
+
+  it("still opens the review when the latest submission cannot be read", async () => {
+    loadLatestSafetyCheckSubmissionMock.mockRejectedValue(new Error("not readable"));
+    renderPage();
+
+    expect(await screen.findByText("Alumni Homecoming Mixer")).toBeInTheDocument();
+    expect(screen.queryByText(/submission$/)).not.toBeInTheDocument();
+  });
+});
+

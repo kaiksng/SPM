@@ -402,3 +402,50 @@ describe("VenueForm", () => {
     });
   });
 });
+
+// SPM-86: setup and turnaround time are entered in whole minutes, both defaulting to 0.
+describe("VenueForm setup and turnaround time", () => {
+  beforeEach(() => {
+    onSave.mockReset().mockResolvedValue(undefined);
+  });
+
+  // SPM-86 AC01: both default to 0.
+  it("starts a new venue with both times at 0 minutes", () => {
+    renderForm({ initialValues: structuredClone(emptyVenueFormValues) });
+
+    expect(fields.setupTime()).toHaveValue(0);
+    expect(fields.turnaroundTime()).toHaveValue(0);
+  });
+
+  // SPM-86 AC01: the saved values are shown and can be changed.
+  it("shows the venue's saved setup and turnaround time and saves a change to one of them", async () => {
+    const user = userEvent.setup();
+    renderForm({ initialValues: validValues({ setupTimeMinutes: "15", turnaroundTimeMinutes: "30" }) });
+    expect(fields.setupTime()).toHaveValue(15);
+    expect(fields.turnaroundTime()).toHaveValue(30);
+
+    await user.clear(fields.turnaroundTime());
+    await user.type(fields.turnaroundTime(), "45");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ setupTimeMinutes: "15", turnaroundTimeMinutes: "45" })));
+  });
+
+  // SPM-86 AC02: negative or non-numeric values are rejected and the affected field is identified.
+  it.each([
+    ["setup time", () => fields.setupTime(), "-5", "Enter setup time as 0 or a positive whole number"],
+    ["setup time", () => fields.setupTime(), "1.5", "Enter setup time as 0 or a positive whole number"],
+    ["turnaround time", () => fields.turnaroundTime(), "-1", "Enter turnaround time as 0 or a positive whole number"],
+    ["turnaround time", () => fields.turnaroundTime(), "", "Enter turnaround time as 0 or a positive whole number"],
+  ])("rejects %s %j beside its own field and does not save", async (_label, field, value, message) => {
+    const user = userEvent.setup();
+    renderForm();
+
+    fireEvent.change(field(), { target: { value } });
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(field()).toHaveAttribute("aria-invalid", "true");
+    expect(onSave).not.toHaveBeenCalled();
+  });
+});

@@ -244,6 +244,7 @@ describe("venueFormSchema", () => {
     });
   });
 
+  // SPM-86 AC01/AC02: whole minutes from 0; negative, fractional, non-numeric and blank values are rejected.
   describe.each(["setupTimeMinutes", "turnaroundTimeMinutes"] as const)("%s", (field) => {
     const message =
       field === "setupTimeMinutes"
@@ -328,3 +329,13 @@ describe("toVenuePayload", () => {
     expect(toVenuePayload(validValues({ location: "", areaTags: ["Bugis"] })).location).toBe("Bugis");
   });
 });
+
+describe("toVenuePayload location", () => {
+  // A venue's address is optional; the area chosen stands in for it, and a venue with neither keeps it blank.
+  it("uses the typed address, else the chosen area, else nothing", () => {
+    expect(toVenuePayload(validValues({ location: "  Block A  ", areaTags: ["Bugis"] })).location).toBe("Block A");
+    expect(toVenuePayload(validValues({ location: "  ", areaTags: ["Bugis"] })).location).toBe("Bugis");
+    expect(toVenuePayload(validValues({ location: "  ", areaTags: [] })).location).toBe("");
+  });
+});
+

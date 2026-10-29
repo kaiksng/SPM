@@ -114,7 +114,9 @@ function OrganiserEventsView() {
 
   // Kept in the URL so it's still there when the user goes back from a detail page.
   useEffect(() => {
-    setSearchParams(eventParamsFromFilters(searchQuery, filters), { replace: true });
+    // Keep the navigation state: replacing the URL would otherwise drop the
+    // notice (e.g. "Draft saved.") the previous page handed over.
+    setSearchParams(eventParamsFromFilters(searchQuery, filters), { replace: true, state });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, filters]);
 
@@ -293,7 +295,9 @@ function CoordinatorEventsView() {
 
   // Kept in the URL so it's still there when the user goes back from a detail page.
   useEffect(() => {
-    setSearchParams(eventParamsFromFilters(searchQuery, filters), { replace: true });
+    // Keep the navigation state: replacing the URL would otherwise drop the
+    // notice (e.g. "Draft saved.") the previous page handed over.
+    setSearchParams(eventParamsFromFilters(searchQuery, filters), { replace: true, state });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, filters]);
   // Events with a venue disruption that still needs attention get a badge.
