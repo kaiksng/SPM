@@ -19,6 +19,7 @@ import { ApiError } from "@/lib/api-client";
 import {
   loadEventReadiness,
   loadLatestSafetyCheckSubmission,
+  loadSafetyReviewDetails,
   submitEventForSafetyCheck,
 } from "./event-readiness";
 
@@ -47,6 +48,33 @@ describe("loadEventReadiness", () => {
 
     await expect(loadEventReadiness("event-1")).rejects.toThrow(
       "This event's readiness could not be checked.",
+    );
+  });
+});
+
+describe("loadSafetyReviewDetails", () => {
+  beforeEach(() => {
+    rpcMock.mockReset();
+  });
+
+  // SPM-90 AC02: the review facts come from the read-only RPC.
+  it("returns the review details from the RPC", async () => {
+    const details = { expectedAttendance: 80, accessibilityNeeds: null, layoutPreference: null, venues: [], equipment: [] };
+    rpcMock.mockResolvedValue({ data: details, error: null });
+
+    await expect(loadSafetyReviewDetails("event-1")).resolves.toEqual(details);
+    expect(rpcMock).toHaveBeenCalledWith("safety_check_review_details", { p_event_id: "event-1" });
+  });
+
+  it("throws when the RPC errors or returns nothing", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: "nope" } });
+    await expect(loadSafetyReviewDetails("event-1")).rejects.toThrow(
+      "This event's review details could not be loaded.",
+    );
+
+    rpcMock.mockResolvedValue({ data: null, error: null });
+    await expect(loadSafetyReviewDetails("event-1")).rejects.toThrow(
+      "This event's review details could not be loaded.",
     );
   });
 });

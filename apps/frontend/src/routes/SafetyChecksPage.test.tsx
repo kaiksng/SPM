@@ -28,6 +28,7 @@ const PENDING_EVENT = {
   endsAt: "2099-04-06T04:00:00.000Z",
   expectedAttendance: 120,
   round: 1,
+  submittedAt: "2026-10-20T09:00:00.000Z",
 };
 
 function renderPage() {
