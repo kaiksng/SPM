@@ -1,6 +1,6 @@
 begin;
 
-select plan(26);
+select plan(31);
 
 -- SPM-45: Cancel an Event (202610200001_cancel_event.sql).
 
@@ -39,7 +39,11 @@ values
   ('ce000000-0000-0000-0000-0000000000e6', 'ce000000-0000-0000-0000-000000000001', 'ce000000-0000-0000-0000-000000000002', 'SPM45 Event Six', 'rejected', '2099-06-06T10:00:00+08:00', '2099-06-06T12:00:00+08:00', true),
   ('ce000000-0000-0000-0000-0000000000e7', 'ce000000-0000-0000-0000-000000000001', 'ce000000-0000-0000-0000-000000000002', 'SPM45 Event Seven', 'cancelled', '2099-06-07T10:00:00+08:00', '2099-06-07T12:00:00+08:00', true),
   -- e8: unassigned (no coordinator) — denied.
-  ('ce000000-0000-0000-0000-0000000000e8', 'ce000000-0000-0000-0000-000000000001', null, 'SPM45 Event Eight', 'requested', '2099-06-08T10:00:00+08:00', '2099-06-08T12:00:00+08:00', true);
+  ('ce000000-0000-0000-0000-0000000000e8', 'ce000000-0000-0000-0000-000000000001', null, 'SPM45 Event Eight', 'requested', '2099-06-08T10:00:00+08:00', '2099-06-08T12:00:00+08:00', true),
+  -- e9: Planning, with two Approved venue bookings — used to contrast
+  -- withdrawing a single booking (releases only that one) against
+  -- cancel_event (releases every booking at once).
+  ('ce000000-0000-0000-0000-0000000000e9', 'ce000000-0000-0000-0000-000000000001', 'ce000000-0000-0000-0000-000000000002', 'SPM45 Event Nine', 'planning', '2099-06-09T10:00:00+08:00', '2099-06-09T12:00:00+08:00', true);
 
 insert into public.venue_bookings (id, event_id, venue_id, requested_by, starts_at, ends_at, status, is_main_venue)
 values
@@ -63,6 +67,11 @@ values
 
 insert into public.event_registrations (event_id, attendee_id, status)
 values ('ce000000-0000-0000-0000-0000000000e1', 'ce000000-0000-0000-0000-000000000007', 'registered');
+
+insert into public.venue_bookings (id, event_id, venue_id, requested_by, starts_at, ends_at, status, is_main_venue, label)
+values
+  ('ce000000-0000-0000-0000-0000000000b9', 'ce000000-0000-0000-0000-0000000000e9', 'ce000000-0000-0000-0000-000000000010', 'ce000000-0000-0000-0000-000000000002', '2099-06-09T10:00:00+08:00', '2099-06-09T12:00:00+08:00', 'approved', true, 'Main Programme'),
+  ('ce000000-0000-0000-0000-0000000000ba', 'ce000000-0000-0000-0000-0000000000e9', 'ce000000-0000-0000-0000-000000000010', 'ce000000-0000-0000-0000-000000000002', '2099-06-09T14:00:00+08:00', '2099-06-09T16:00:00+08:00', 'approved', false, 'Breakout Room');
 
 create temporary table spm45_result (label text primary key, body jsonb);
 grant all on spm45_result to authenticated;
@@ -228,6 +237,51 @@ select is(
   'AC9: the organiser can still see the event''s full status history after cancellation'
 );
 reset role;
+
+-- AC9 note: a Safety Officer's visibility is deliberately scoped to events
+-- currently Pending Safety Check (can_view_event, 202610200005) — once an
+-- event is Cancelled they lose visibility too, same as any other status
+-- they were never otherwise party to. Not re-tested here; it isn't a gap.
+
+-- AC8 extended: once Cancelled, a new venue booking request for the event
+-- is refused too, not only a new registration.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"ce000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok(
+  $$select public.submit_venue_booking_request('ce000000-0000-0000-0000-0000000000e1'::uuid, 'ce000000-0000-0000-0000-000000000010'::uuid)$$,
+  '23514', 'Only a Planning event can have a venue booking request submitted',
+  'AC8: a new venue booking request on a Cancelled event is refused'
+);
+
+-- Contrast: withdrawing/cancelling a single booking releases only that
+-- booking — cancelling the whole event is the only action that releases
+-- every booking at once.
+select lives_ok(
+  $$select public.withdraw_venue_booking_request('ce000000-0000-0000-0000-0000000000ba'::uuid, 'ce000000-0000-0000-0000-000000000002'::uuid, 'Breakout session dropped')$$,
+  'the coordinator can cancel a single Approved venue booking'
+);
+reset role;
+select is(
+  (select row(
+     (select status::text from public.venue_bookings where id = 'ce000000-0000-0000-0000-0000000000b9'),
+     (select status::text from public.venue_bookings where id = 'ce000000-0000-0000-0000-0000000000ba')
+   )),
+  row('approved'::text, 'cancelled'::text),
+  'cancelling a single booking leaves the event''s other booking untouched'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"ce000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select lives_ok(
+  $$select public.cancel_event('ce000000-0000-0000-0000-0000000000e9', 'Event no longer needed')$$,
+  'the coordinator can cancel the whole event'
+);
+reset role;
+select is(
+  (select count(*)::int from public.venue_bookings where event_id = 'ce000000-0000-0000-0000-0000000000e9' and status = 'cancelled'),
+  2,
+  'cancelling the whole event releases every one of its bookings at once'
+);
 
 select * from finish();
 rollback;
