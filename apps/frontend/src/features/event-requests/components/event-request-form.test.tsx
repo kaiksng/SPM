@@ -1,6 +1,7 @@
 import {
   EventSubmissionError,
   emptyEventRequestFormValues,
+  eventDraftSchema as eventDraftSchemaForTest,
   eventSubmissionSchema,
   type EventRequestFormValues,
 } from "@spm/shared";
@@ -655,5 +656,180 @@ describe("EventRequestForm submit mode (PB-03)", () => {
     expect(screen.getByLabelText(/Event name/)).toHaveValue(
       "Complete-looking request",
     );
+  });
+});
+
+// SPM-2: the Draft keeps whatever the organiser filled in; only the event name is mandatory.
+describe("EventRequestForm draft fields", () => {
+  it("saves a Draft with the purpose, description, location, layout and accessibility the organiser chose", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(<EventRequestForm initialValues={values({ title: "Open Day" })} onSave={onSave} onCancel={vi.fn()} />);
+
+    await user.selectOptions(screen.getByLabelText(/^Purpose/), "Conference");
+    await user.type(screen.getByLabelText(/^Description/), "Annual open day");
+    await user.selectOptions(screen.getByLabelText(/^Preferred location/), "Bugis");
+    await user.selectOptions(screen.getByLabelText(/^Room layout/), "Theatre");
+    await user.type(screen.getByLabelText(/^Accessibility needs/), "Two wheelchair spaces");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Open Day",
+        purpose: "Conference",
+        description: "Annual open day",
+        venue: expect.objectContaining({
+          preferredLocation: "Bugis",
+          layoutNotes: "Theatre",
+          accessibilityNotes: "Two wheelchair spaces",
+        }),
+      }),
+    );
+  });
+
+  // SPM-2 AC: all the latest saved values are displayed when the Draft is reopened.
+  it("keeps a saved room layout that is no longer in the standard list", () => {
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Legacy", venue: { ...emptyEventRequestFormValues.venue, layoutNotes: "U-shape with stage" } })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/^Room layout/)).toHaveValue("U-shape with stage");
+    expect(screen.getByRole("option", { name: "U-shape with stage" })).toBeInTheDocument();
+  });
+
+  it("shows the notes of a previously saved equipment entry that is not in the catalogue", () => {
+    render(
+      <EventRequestForm
+        initialValues={values({
+          title: "Legacy",
+          equipment: [{ id: "legacy-row", equipmentItemId: "", legacyName: "Old projector", quantity: "1", requiredFrom: "", requiredUntil: "", notes: "Rear of hall" }],
+        })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Notes: Rear of hall/)).toBeInTheDocument();
+  });
+
+  it("explains when the equipment catalogue cannot be loaded", async () => {
+    vi.mocked(loadEquipmentCatalogue).mockRejectedValueOnce(new Error("Catalogue offline"));
+    render(<EventRequestForm initialValues={values({ title: "Open Day" })} onSave={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Catalogue offline");
+  });
+});
+
+describe("EventRequestForm failures and in-progress actions", () => {
+  it("uses a plain message when saving or submitting fails without one", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Open Day" })}
+        onSave={vi.fn().mockRejectedValue("boom")}
+        onSubmitRequest={vi.fn().mockRejectedValue("boom")}
+        submissionSchema={eventDraftSchemaForTest}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(await screen.findByText("Your draft could not be saved. Try again.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Submit request" }));
+    expect(await screen.findByText("Your event request could not be submitted. Try again.")).toBeInTheDocument();
+  });
+
+  it("shows that a submission is in progress and blocks a second click", async () => {
+    const user = userEvent.setup();
+    let finish: () => void = () => {};
+    const onSubmitRequest = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Open Day" })}
+        onSave={vi.fn()}
+        onSubmitRequest={onSubmitRequest}
+        submissionSchema={eventDraftSchemaForTest}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Submit request" }));
+
+    expect(await screen.findByRole("button", { name: "Submitting…" })).toBeDisabled();
+    expect(onSubmitRequest).toHaveBeenCalledOnce();
+    finish();
+    expect(await screen.findByRole("button", { name: "Submit request" })).toBeEnabled();
+  });
+
+  it("does nothing when a submit action has no submission rules to check against", async () => {
+    const user = userEvent.setup();
+    const onSubmitRequest = vi.fn();
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Open Day" })}
+        onSave={vi.fn()}
+        onSubmitRequest={onSubmitRequest}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Submit request" }));
+
+    expect(onSubmitRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("EventRequestForm with several equipment rows", () => {
+  const row = (id: string, itemId: string, quantity: string) => ({
+    id,
+    equipmentItemId: itemId,
+    legacyName: "",
+    quantity,
+    requiredFrom: "2099-04-01T08:00",
+    requiredUntil: "2099-04-01T13:00",
+    notes: "",
+  });
+
+  // SPM-2 AC: editing one part of a Draft leaves the rest as saved.
+  it("changes only the row that was edited", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Open Day", equipment: [row("r1", MICROPHONE_ID, "1"), row("r2", PROJECTOR_ID, "5")] })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const quantities = screen.getAllByLabelText(/^Quantity/);
+    await user.clear(quantities[0]!);
+    await user.type(quantities[0]!, "3");
+
+    expect(screen.getAllByLabelText(/^Quantity/)[0]).toHaveValue(3);
+    expect(screen.getAllByLabelText(/^Quantity/)[1]).toHaveValue(5);
+  });
+
+  it("replaces only the legacy row that was chosen for replacement", async () => {
+    const user = userEvent.setup();
+    const legacy = (id: string, name: string) => ({ ...row(id, "", "1"), legacyName: name, requiredFrom: "", requiredUntil: "" });
+    render(
+      <EventRequestForm
+        initialValues={values({ title: "Legacy", equipment: [legacy("l1", "Old projector"), legacy("l2", "Old speaker")] })}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await screen.findAllByRole("option", { name: "Projector" });
+    await user.selectOptions(screen.getAllByLabelText("Replace with catalogue equipment")[0]!, PROJECTOR_ID);
+
+    expect(screen.queryByText(/Old projector/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Old speaker × 1/)).toBeInTheDocument();
   });
 });

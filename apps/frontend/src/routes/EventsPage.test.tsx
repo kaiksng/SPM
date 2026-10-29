@@ -712,6 +712,165 @@ describe("EventsPage draft controls", () => {
       expect(screen.queryByText("Kai Test Draft")).not.toBeInTheDocument(),
     );
   });
+
+  // SPM-2 AC: cancelling the deletion confirmation keeps the Draft unchanged and available.
+  it("keeps the Draft when the confirmation is dismissed with Escape", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Kai Test Draft");
+    await user.click(screen.getByRole("button", { name: "Delete Kai Test Draft" }));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Delete this draft?");
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Kai Test Draft")).toBeInTheDocument();
+    expect(deleteEventDraftMock).not.toHaveBeenCalled();
+  });
+
+  // SPM-2 AC: the Draft is only gone once it was actually deleted.
+  it("keeps the Draft and says why when the deletion fails", async () => {
+    deleteEventDraftMock.mockRejectedValueOnce(new Error("This draft could not be deleted."));
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Kai Test Draft");
+    await user.click(screen.getByRole("button", { name: "Delete Kai Test Draft" }));
+    await user.click(screen.getByRole("button", { name: "Delete draft" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("This draft could not be deleted.");
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Kai Test Draft")).toBeInTheDocument();
+  });
+
+  it("uses a plain message when the deletion fails without one", async () => {
+    deleteEventDraftMock.mockRejectedValueOnce("boom");
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Kai Test Draft");
+    await user.click(screen.getByRole("button", { name: "Delete Kai Test Draft" }));
+    await user.click(screen.getByRole("button", { name: "Delete draft" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("This draft could not be deleted.");
+  });
+
+  // SPM-2 AC: a Draft the organiser cannot read is not displayed.
+  it("explains when the organiser's requests cannot be loaded", async () => {
+    listEventRequestsMock.mockRejectedValueOnce(new Error("We couldn't load your event requests."));
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't load your event requests.");
+    expect(screen.queryByText("Kai Test Draft")).not.toBeInTheDocument();
+  });
+
+  it("uses a plain message when loading fails without one", async () => {
+    listEventRequestsMock.mockRejectedValueOnce("boom");
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't load your event requests.");
+  });
+
+  it("loads nothing when no user is signed in", async () => {
+    const signedIn = authState.user;
+    (authState as { user: unknown }).user = null;
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.queryByText("Kai Test Draft")).not.toBeInTheDocument());
+    expect(listEventRequestsMock).not.toHaveBeenCalled();
+    (authState as { user: unknown }).user = signedIn;
+  });
+
+  // SPM-2 AC: a Draft can be saved with only the event name, and is shown as a Draft.
+  it("shows a Draft saved with only a name, with no purpose yet", async () => {
+    listEventRequestsMock.mockResolvedValue([{ ...draft, purpose: null }]);
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Kai Test Draft")).toBeInTheDocument();
+    expect(screen.getByText("Purpose not added yet")).toBeInTheDocument();
+    expect(screen.getByText("draft")).toBeInTheDocument();
+  });
+
+  // SPM-2: after saving, the organiser is told the Draft was saved. Loading the list rewrites the URL
+  // (to keep the filters), which used to drop this notice.
+  it("shows the notice passed from the editor after a save", async () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/events", state: { notice: "Draft saved." } }]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Draft saved.");
+  });
+
+  it("keeps the confirmation open when a key other than Escape is pressed", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Kai Test Draft");
+    await user.click(screen.getByRole("button", { name: "Delete Kai Test Draft" }));
+    await user.keyboard("a");
+
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+  });
+
+  it("ignores a late list or a late failure after the organiser has left the page", async () => {
+    let resolveList: (items: unknown[]) => void = () => {};
+    listEventRequestsMock.mockReturnValueOnce(new Promise((resolve) => { resolveList = resolve; }));
+    const first = render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+    first.unmount();
+    resolveList([draft]);
+
+    let rejectList: (reason: unknown) => void = () => {};
+    listEventRequestsMock.mockReturnValueOnce(new Promise((_, reject) => { rejectList = reject; }));
+    const second = render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+    second.unmount();
+    rejectList(new Error("too late"));
+
+    await waitFor(() => expect(listEventRequestsMock).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Kai Test Draft")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });
 
 const assignedEvent = {
@@ -868,6 +1027,18 @@ describe("EventsPage coordinator view", () => {
     );
     // View Event Registration Information: not offered while merely requested.
     expect(screen.queryByRole("link", { name: "View registrations" })).not.toBeInTheDocument();
+  });
+
+  // Loading the list rewrites the URL (to keep the filters); that must not drop the notice the previous page handed over.
+  it("still shows the notice handed over by the previous page", async () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/events", state: { notice: "Decision recorded." } }]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Decision recorded.");
   });
 
   // The event page only goes back in history to the list when the list opened it.
