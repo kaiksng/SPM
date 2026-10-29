@@ -190,6 +190,29 @@ describe("VenueDetailPage", () => {
     expect(listVenueBufferTimeChangesMock).toHaveBeenCalledWith("venue-1");
   });
 
+  // SPM-86: the change log is a convenience; the venue's current values still show if it cannot be read.
+  it("still shows the venue's setup and turnaround time when the change history cannot be loaded", async () => {
+    authState.profile.role = "venue_staff";
+    listVenueBufferTimeChangesMock.mockRejectedValue(new Error("history unavailable"));
+    renderPage("/venues/venue-1");
+
+    expect(await screen.findByText("15 min")).toBeInTheDocument();
+    expect(await screen.findByText("No setup or turnaround time changes recorded yet.")).toBeInTheDocument();
+  });
+
+  it("ignores a change history that arrives after the page was left", async () => {
+    authState.profile.role = "venue_staff";
+    let resolveHistory: (rows: unknown[]) => void = () => {};
+    listVenueBufferTimeChangesMock.mockReturnValueOnce(new Promise((resolve) => { resolveHistory = resolve; }));
+    const view = renderPage("/venues/venue-1");
+    await waitFor(() => expect(listVenueBufferTimeChangesMock).toHaveBeenCalledTimes(1));
+
+    view.unmount();
+    resolveHistory([{ id: 1, field: "setup_time_minutes", previousValue: 0, newValue: 5, changedByName: "Sam", changedAt: "2026-10-01T02:00:00.000Z" }]);
+
+    expect(screen.queryByText(/Setup time changed/)).not.toBeInTheDocument();
+  });
+
   it("tells Venue Staff when no setup or turnaround change has been recorded", async () => {
     authState.profile.role = "venue_staff";
     renderPage("/venues/venue-1");
