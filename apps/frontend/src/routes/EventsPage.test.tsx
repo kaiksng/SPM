@@ -108,6 +108,32 @@ const requested = {
   registration: noRegistration,
 };
 
+let lastEventsSearch = "";
+function EventsLocationSpy() {
+  lastEventsSearch = useLocation().search;
+  return null;
+}
+
+/** Renders EventsPage with a spy that records its URL as filters/search change. */
+function renderEventsPageWithLocationSpy(initialEntries: string[] = ["/events"]) {
+  lastEventsSearch = "";
+  return render(
+    <MemoryRouter initialEntries={initialEntries}>
+      <Routes>
+        <Route
+          path="/events"
+          element={
+            <>
+              <EventsPage />
+              <EventsLocationSpy />
+            </>
+          }
+        />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
 // Configure Event Registration: a Planning event's card tells the organiser
 // when registration needs their action before the safety check.
 describe("EventsPage organiser registration action", () => {
@@ -300,6 +326,59 @@ describe("EventsPage draft controls", () => {
     expect(await screen.findByText("No matching events")).toBeInTheDocument();
   });
 
+  // SPM-74 AC03: each active filter is its own removable chip.
+  it("shows a removable chip for the organiser's status filter", async () => {
+    listEventRequestsMock.mockResolvedValue([draft, requested]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Shernice Test Submission");
+    await user.click(screen.getByRole("radio", { name: "Pending" }));
+
+    const chip = await screen.findByRole("button", { name: "Remove Pending filter" });
+    await user.click(chip);
+
+    expect(await screen.findByText("Kai Test Draft")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Remove Pending filter" }),
+    ).not.toBeInTheDocument();
+  });
+
+  // SPM-74 AC05: the organiser's search term and filters persist in the URL.
+  it("keeps the organiser's active filters and search in the URL", async () => {
+    listEventRequestsMock.mockResolvedValue([draft, requested]);
+    const user = userEvent.setup();
+    renderEventsPageWithLocationSpy();
+
+    await screen.findByText("Shernice Test Submission");
+    await user.click(screen.getByRole("radio", { name: "Pending" }));
+    await user.type(screen.getByPlaceholderText("Search events"), "Shernice");
+
+    expect(lastEventsSearch).toContain("status=requested");
+    expect(lastEventsSearch).toContain("q=Shernice");
+  });
+
+  // SPM-74 AC07: returning to the list (e.g. via back navigation) restores
+  // the same search and filters the organiser left, instead of resetting.
+  it("restores the organiser's filters and search from the URL on mount", async () => {
+    listEventRequestsMock.mockResolvedValue([draft, requested]);
+
+    render(
+      <MemoryRouter initialEntries={["/events?status=requested&q=Shernice"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Shernice Test Submission")).toBeInTheDocument();
+    expect(screen.queryByText("Kai Test Draft")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search events")).toHaveValue("Shernice");
+  });
+
   it("shows a distinct no-match state with a clear-filters action, and clears back to the full list", async () => {
     listEventRequestsMock.mockResolvedValue([draft, requested]);
     const user = userEvent.setup();
@@ -353,6 +432,23 @@ describe("EventsPage draft controls", () => {
     expect(
       await screen.findByRole("button", { name: `Cancel ${requested.title}` }),
     ).toBeEnabled();
+  });
+
+  // SPM-80: an unassigned Requested event tells the organiser it's waiting
+  // on the Lead, rather than looking stuck with no explanation.
+  it("tells the organiser their Requested event is awaiting coordinator assignment", async () => {
+    listEventRequestsMock.mockResolvedValue([
+      { ...requested, assignedCoordinatorId: null, assignedCoordinatorName: null },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Awaiting coordinator assignment")).toBeInTheDocument();
+    expect(screen.queryByText(/^Coordinator:/)).not.toBeInTheDocument();
   });
 
   // SPM-38: the event's own status doesn't change while a change request is
@@ -662,6 +758,20 @@ describe("EventsPage coordinator view", () => {
     state: "replacement_required" as const,
   };
 
+  // SPM-80 AC: the unassigned queue and oversight view are Lead-only.
+  it("does not show the Lead's unassigned queue or oversight view to a coordinator", async () => {
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Shernice Test Submission");
+    expect(screen.queryByText("Event Coordinator Lead workspace")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Unassigned queue/)).not.toBeInTheDocument();
+    expect(listAllEventsMock).not.toHaveBeenCalled();
+  });
+
   // SPM-83 AC: coordinators see their events with affected venue bookings in a
   // table below the event cards, and the affected event's own card carries a badge.
   it("shows open venue disruptions in a table below the events and badges the affected event", async () => {
@@ -901,6 +1011,36 @@ describe("EventsPage coordinator view", () => {
     expect(screen.getByText("Autumn Fair")).toBeInTheDocument();
   });
 
+  // SPM-74 AC05: the coordinator's active filters and search persist in the URL.
+  it("keeps the coordinator's active filters and search in the URL", async () => {
+    listAssignedEventsMock.mockResolvedValue([assignedEvent, planningEvent]);
+    const user = userEvent.setup();
+    renderEventsPageWithLocationSpy();
+
+    await screen.findByText("Autumn Fair");
+    await user.click(screen.getByRole("radio", { name: "Planning" }));
+    await user.type(screen.getByPlaceholderText("Search events"), "Autumn");
+
+    expect(lastEventsSearch).toContain("status=planning");
+    expect(lastEventsSearch).toContain("q=Autumn");
+  });
+
+  // SPM-74 AC07: returning to the list restores the same search and filters
+  // the coordinator left, instead of resetting.
+  it("restores the coordinator's filters and search from the URL on mount", async () => {
+    listAssignedEventsMock.mockResolvedValue([assignedEvent, planningEvent]);
+
+    render(
+      <MemoryRouter initialEntries={["/events?status=planning&q=Autumn"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Autumn Fair")).toBeInTheDocument();
+    expect(screen.queryByText("Shernice Test Submission")).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search events")).toHaveValue("Autumn");
+  });
+
   it("puts Pending events in an 'Awaiting your decision' section above the rest", async () => {
     listAssignedEventsMock.mockResolvedValue([planningEvent, assignedEvent]);
 
@@ -962,6 +1102,110 @@ describe("EventsPage for the Event Coordinator Lead role", () => {
     listCoordinatorsMock.mockReset();
     assignEventCoordinatorMock.mockReset().mockResolvedValue(undefined);
     hasPendingChangeRequestMock.mockReset().mockResolvedValue(false);
+  });
+
+  // SPM-80: an empty unassigned queue says so rather than looking blank/broken.
+  it("shows 'No unassigned events' when the queue is empty", async () => {
+    listAllEventsMock.mockResolvedValue([]);
+    listCoordinatorsMock.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("No unassigned events")).toBeInTheDocument();
+  });
+
+  // SPM-80: an empty oversight list (no assigned events yet) says so too.
+  it("shows 'No events assigned yet' when no event has a coordinator", async () => {
+    listAllEventsMock.mockResolvedValue([]);
+    listCoordinatorsMock.mockResolvedValue([]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("button", { name: /^Oversight/ }));
+
+    expect(await screen.findByText("No events assigned yet")).toBeInTheDocument();
+  });
+
+  // SPM-80 AC: the unassigned queue lists events oldest submission first.
+  it("lists unassigned events oldest submission first", async () => {
+    listAllEventsMock.mockResolvedValue([
+      { ...leadEvent, id: "event-newer", title: "Newer Request", submittedAt: "2026-09-12T08:00:00.000Z" },
+      { ...leadEvent, id: "event-older", title: "Older Request", submittedAt: "2026-09-10T08:00:00.000Z" },
+    ]);
+    listCoordinatorsMock.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Newer Request");
+    const titles = screen
+      .getAllByText(/Request$/)
+      .map((element) => element.textContent);
+    expect(titles).toEqual(["Older Request", "Newer Request"]);
+  });
+
+  // SPM-80 AC: Oversight can be narrowed by coordinator and status together.
+  it("combines the coordinator and status filters in Oversight", async () => {
+    listAllEventsMock.mockResolvedValue([
+      {
+        ...leadEvent,
+        id: "event-c1-planning",
+        title: "Coordinator One Planning Event",
+        status: "planning",
+        assignedCoordinatorId: "coordinator-1",
+        assignedCoordinatorName: "Coordinator One",
+      },
+      {
+        ...leadEvent,
+        id: "event-c1-confirmed",
+        title: "Coordinator One Confirmed Event",
+        status: "confirmed",
+        assignedCoordinatorId: "coordinator-1",
+        assignedCoordinatorName: "Coordinator One",
+      },
+      {
+        ...leadEvent,
+        id: "event-c2-planning",
+        title: "Coordinator Two Planning Event",
+        status: "planning",
+        assignedCoordinatorId: "coordinator-2",
+        assignedCoordinatorName: "Coordinator Two",
+      },
+    ]);
+    listCoordinatorsMock.mockResolvedValue([
+      { id: "coordinator-1", fullName: "Coordinator One", activeEventCount: 2 },
+      { id: "coordinator-2", fullName: "Coordinator Two", activeEventCount: 1 },
+    ]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByRole("button", { name: /^Oversight/ }));
+    await screen.findByText("Coordinator One Planning Event");
+
+    await user.click(screen.getByRole("combobox", { name: "Filter by coordinator" }));
+    await user.click(await screen.findByRole("option", { name: "Coordinator One" }));
+    await user.click(screen.getByRole("combobox", { name: "Filter by status" }));
+    await user.click(await screen.findByRole("option", { name: "Planning" }));
+
+    expect(await screen.findByText("Coordinator One Planning Event")).toBeInTheDocument();
+    expect(screen.queryByText("Coordinator One Confirmed Event")).not.toBeInTheDocument();
+    expect(screen.queryByText("Coordinator Two Planning Event")).not.toBeInTheDocument();
   });
 
   // SPM-80 TC-014: a coordinator with no active events still appears in
