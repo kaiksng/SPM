@@ -184,7 +184,7 @@ shared UAT password, which is kept with the team and not in this repo.
 | andy@gmail.com, benny@gmail.com | Technical Support Staff |
 | tom@gmail.com | Event Coordinator Lead |
 | sally@gmail.com | Safety Officer |
-| joseph@gmail.com, daniel@gmail.com | Attendee |
+| joseph@gmail.com, daniel@gmail.com, bernard@gmail.com | Attendee |
 
 ## What a script changes
 
