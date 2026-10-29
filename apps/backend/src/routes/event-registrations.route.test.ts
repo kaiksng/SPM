@@ -215,6 +215,7 @@ describe("POST /events/:eventId/withdraw", () => {
       .send(body as object);
   }
 
+  // SPM-43 AC01: the withdrawal reason is optional.
   it("succeeds with no body, passing an empty reason", async () => {
     rpcMock.mockResolvedValue({ data: null, error: null });
 
@@ -229,6 +230,7 @@ describe("POST /events/:eventId/withdraw", () => {
   });
 
   // This story: the reason is optional.
+  // SPM-43 AC01: an optional reason is recorded with the withdrawal.
   it("passes a given reason through", async () => {
     rpcMock.mockResolvedValue({ data: null, error: null });
 
@@ -249,6 +251,7 @@ describe("POST /events/:eventId/withdraw", () => {
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
+  // SPM-43 scenario 2: a withdrawal the organiser does not permit is rejected.
   it("maps 23514 (e.g. withdrawal not permitted) to a 422", async () => {
     rpcMock.mockResolvedValue({
       data: null,

@@ -283,6 +283,26 @@ describe("workspace navigation", () => {
   });
 
   // SPM-77 AC03: the Safety Officer's only section is Safety Checks.
+  describe("SPM-44: who can open an event's registration information", () => {
+    const path = "/events/10000000-0000-0000-0000-000000000001/registrations";
+
+    // SPM-44 AC01 + AC02: the organiser, coordinator and Lead can reach it
+    // (which event each may see is decided by the event's own access rules).
+    it.each(["event_organiser", "event_coordinator", "event_coordinator_lead"] as const)(
+      "allows %s to reach it",
+      (role) => {
+        expect(isPathAllowedForRole(path, role)).toBe(true);
+      },
+    );
+
+    it.each(["venue_staff", "technical_support_staff", "attendee", "safety_officer"] as const)(
+      "blocks %s from it",
+      (role) => {
+        expect(isPathAllowedForRole(path, role)).toBe(false);
+      },
+    );
+  });
+
   it("gives the safety officer only the safety checks section", () => {
     expect(
       getNavItemsForRole("safety_officer").map((item) => item.id),

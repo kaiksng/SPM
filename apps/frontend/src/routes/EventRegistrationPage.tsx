@@ -5,9 +5,12 @@ import { useNavigate, useParams } from "react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
-import { loadEventDetail, type EventDetail } from "@/features/event-requests/services/event-details";
 import { RegistrationStatusBadge } from "@/features/registrations/components/registration-status-badge";
 import { WithdrawRegistrationDialog } from "@/features/registrations/components/withdraw-registration-dialog";
+import {
+  loadAttendeeEventDetail,
+  type AttendeeEventDetail,
+} from "@/features/registrations/services/attendee-event";
 import {
   getOwnRegistrationStatus,
   getRegisteredCount,
@@ -44,7 +47,7 @@ export function EventRegistrationPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const [event, setEvent] = useState<EventDetail>();
+  const [event, setEvent] = useState<AttendeeEventDetail>();
   const [registeredCount, setRegisteredCount] = useState(0);
   const [ownStatus, setOwnStatus] = useState<OwnRegistrationStatus>(null);
   const [waitlistPosition, setWaitlistPosition] = useState<number | null>(null);
@@ -62,10 +65,10 @@ export function EventRegistrationPage() {
     let active = true;
     setLoading(true);
     Promise.all([
-      loadEventDetail(eventId),
+      loadAttendeeEventDetail(eventId),
       getRegisteredCount(eventId),
       getOwnRegistrationStatus(eventId, user.id),
-      getWaitlistPosition(eventId, user.id),
+      getWaitlistPosition(eventId),
     ])
       .then(([detail, count, status, position]) => {
         if (!active) return;
@@ -115,7 +118,7 @@ export function EventRegistrationPage() {
     try {
       await joinWaitlist(eventId);
       setOwnStatus("waitlisted");
-      if (user) setWaitlistPosition(await getWaitlistPosition(eventId, user.id));
+      if (user) setWaitlistPosition(await getWaitlistPosition(eventId));
     } catch (joinError) {
       setActionError(
         joinError instanceof Error ? joinError.message : "Could not join the waiting list.",

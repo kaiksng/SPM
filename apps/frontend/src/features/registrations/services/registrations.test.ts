@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryBuilder } from "@/test/supabase-mock";
 
-const { fromMock, apiFetchMock } = vi.hoisted(() => ({
+const { fromMock, rpcMock, apiFetchMock } = vi.hoisted(() => ({
   fromMock: vi.fn(),
+  rpcMock: vi.fn(),
   apiFetchMock: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase-client", () => ({
-  supabase: { from: fromMock },
+  supabase: { from: fromMock, rpc: rpcMock },
 }));
 
 vi.mock("@/lib/api-client", () => ({
@@ -23,6 +24,7 @@ import {
   leaveWaitlist,
   listEventRegistrations,
   listMyRegistrations,
+  loadRegistrationCounts,
   registerForEvent,
   withdrawRegistration,
 } from "./registrations";
@@ -97,6 +99,7 @@ describe("getOwnRegistrationStatus", () => {
     await expect(getOwnRegistrationStatus("event-1", "attendee-1")).resolves.toBeNull();
   });
 
+  // SPM-43 scenario 3: a withdrawn row counts as no registration, so registering again is a new request.
   it("returns null when the attendee's row is withdrawn", async () => {
     fromMock.mockReturnValueOnce(queryBuilder({ data: { status: "withdrawn" }, error: null }));
 
@@ -104,44 +107,93 @@ describe("getOwnRegistrationStatus", () => {
   });
 });
 
-describe("getRegisteredCount", () => {
-  beforeEach(() => fromMock.mockReset());
+// SPM-44: attendees can no longer read other attendees' rows, so counts and
+// waiting-list positions come from the event_registration_counts function.
+describe("loadRegistrationCounts", () => {
+  beforeEach(() => rpcMock.mockReset());
 
-  it("returns the count from the query", async () => {
-    fromMock.mockReturnValueOnce(queryBuilder({ data: null, error: null, count: 7 } as never));
+  it("asks the database for the numbers only, for the given events", async () => {
+    rpcMock.mockResolvedValue({
+      data: [
+        { event_id: "event-1", registered_count: 7, own_waitlist_position: null },
+        { event_id: "event-2", registered_count: 50, own_waitlist_position: 3 },
+      ],
+      error: null,
+    });
 
-    await expect(getRegisteredCount("event-1")).resolves.toBe(7);
+    const counts = await loadRegistrationCounts(["event-1", "event-2"]);
+
+    expect(rpcMock).toHaveBeenCalledWith("event_registration_counts", { p_event_ids: ["event-1", "event-2"] });
+    expect(counts.get("event-1")).toEqual({ registeredCount: 7, ownWaitlistPosition: null });
+    expect(counts.get("event-2")).toEqual({ registeredCount: 50, ownWaitlistPosition: 3 });
   });
 
-  it("defaults to 0 when count is null", async () => {
-    fromMock.mockReturnValueOnce(queryBuilder({ data: null, error: null, count: null } as never));
+  it("makes no call when there are no events", async () => {
+    await expect(loadRegistrationCounts([])).resolves.toEqual(new Map());
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("throws a friendly error when the call fails", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: "boom" } });
+
+    await expect(loadRegistrationCounts(["event-1"])).rejects.toThrow(
+      "We couldn't check this event's registrations.",
+    );
+  });
+});
+
+describe("getRegisteredCount", () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+    rpcMock.mockReset();
+  });
+
+  it("returns the event's registered count without reading anyone's row", async () => {
+    rpcMock.mockResolvedValue({
+      data: [{ event_id: "event-1", registered_count: 7, own_waitlist_position: null }],
+      error: null,
+    });
+
+    await expect(getRegisteredCount("event-1")).resolves.toBe(7);
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it("defaults to 0 when the event is not returned", async () => {
+    rpcMock.mockResolvedValue({ data: [], error: null });
 
     await expect(getRegisteredCount("event-1")).resolves.toBe(0);
+  });
+
+  it("throws the capacity message when the count cannot be read", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: "boom" } });
+
+    await expect(getRegisteredCount("event-1")).rejects.toThrow("We couldn't check this event's capacity.");
   });
 });
 
 describe("getWaitlistPosition", () => {
-  beforeEach(() => fromMock.mockReset());
+  beforeEach(() => {
+    fromMock.mockReset();
+    rpcMock.mockReset();
+  });
 
-  it("returns the 1-based position among waitlisted rows, oldest first", async () => {
-    fromMock.mockReturnValueOnce(
-      queryBuilder({
-        data: [
-          { attendee_id: "someone-else" },
-          { attendee_id: "attendee-1" },
-          { attendee_id: "another" },
-        ],
-        error: null,
-      }),
-    );
+  it("returns the signed-in attendee's own 1-based position", async () => {
+    rpcMock.mockResolvedValue({
+      data: [{ event_id: "event-1", registered_count: 50, own_waitlist_position: 2 }],
+      error: null,
+    });
 
-    await expect(getWaitlistPosition("event-1", "attendee-1")).resolves.toBe(2);
+    await expect(getWaitlistPosition("event-1")).resolves.toBe(2);
+    expect(fromMock).not.toHaveBeenCalled();
   });
 
   it("returns null when the attendee isn't on the waiting list", async () => {
-    fromMock.mockReturnValueOnce(queryBuilder({ data: [], error: null }));
+    rpcMock.mockResolvedValue({
+      data: [{ event_id: "event-1", registered_count: 50, own_waitlist_position: null }],
+      error: null,
+    });
 
-    await expect(getWaitlistPosition("event-1", "attendee-1")).resolves.toBeNull();
+    await expect(getWaitlistPosition("event-1")).resolves.toBeNull();
   });
 });
 
@@ -183,8 +235,8 @@ describe("listMyRegistrations", () => {
         withdrawalPermitted: true,
       },
     ]);
-    // Guards against relying solely on RLS, which also grants any attendee
-    // read access to other attendees' rows on a confirmed event.
+    // Keeps it "my registrations" for any signed-in user, including an
+    // organiser or coordinator who can also read the rows of events they manage.
     expect(query.eq).toHaveBeenCalledWith("attendee_id", "attendee-1");
   });
 
@@ -207,6 +259,10 @@ describe("listMyRegistrations", () => {
   });
 
   it("includes the attendee's waiting-list position for a waitlisted row", async () => {
+    rpcMock.mockReset().mockResolvedValue({
+      data: [{ event_id: "event-1", registered_count: 20, own_waitlist_position: 2 }],
+      error: null,
+    });
     fromMock
       .mockReturnValueOnce(
         queryBuilder({
@@ -226,26 +282,21 @@ describe("listMyRegistrations", () => {
           ],
           error: null,
         }),
-      )
-      .mockReturnValueOnce(
-        queryBuilder({
-          data: [
-            { event_id: "event-1", attendee_id: "someone-else" },
-            { event_id: "event-1", attendee_id: "attendee-1" },
-          ],
-          error: null,
-        }),
       );
 
     const result = await listMyRegistrations("attendee-1");
 
     expect(result[0]?.waitlistPosition).toBe(2);
+    // SPM-44: the position comes from the counts function, not other attendees' rows.
+    expect(rpcMock).toHaveBeenCalledWith("event_registration_counts", { p_event_ids: ["event-1"] });
+    expect(fromMock).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("listEventRegistrations", () => {
   beforeEach(() => fromMock.mockReset());
 
+  // SPM-44 AC04: attendee name, status and registration time, for one event.
   it("maps each row including the attendee's name, scoped to the given event", async () => {
     const query = queryBuilder({
       data: [
@@ -276,6 +327,7 @@ describe("listEventRegistrations", () => {
     expect(query.eq).toHaveBeenCalledWith("event_id", "event-1");
   });
 
+  // SPM-44 AC04: waiting-list position where applicable.
   it("numbers waitlisted rows by registration order, 1-based", async () => {
     fromMock.mockReturnValueOnce(
       queryBuilder({
