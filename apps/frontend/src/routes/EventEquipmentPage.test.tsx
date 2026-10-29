@@ -26,6 +26,24 @@ const loadEquipmentArrangementStatusesMock = vi.fn();
 vi.mock("@/features/equipment/services/equipment-arrangement-status", () => ({
   loadEquipmentArrangementStatuses: (...args: unknown[]) => loadEquipmentArrangementStatusesMock(...args),
 }));
+const saveEventEquipmentMock = vi.fn();
+vi.mock("@/features/event-requests/services/coordinator-event-edit", async () => ({
+  ...(await vi.importActual<typeof import("@/features/event-requests/utils/local-date-time")>(
+    "@/features/event-requests/utils/local-date-time",
+  )),
+  saveEventEquipment: (...args: unknown[]) => saveEventEquipmentMock(...args),
+}));
+// The real toEquipmentFormValues is kept; only the catalogue load is faked.
+vi.mock("@/lib/supabase-client", () => ({ supabase: {} }));
+vi.mock("@/features/event-requests/services/equipment", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/event-requests/services/equipment")>()),
+  loadEquipmentCatalogue: vi.fn().mockResolvedValue([
+    { id: "item-req-proj", name: "Projector", category: "Visual", retired: false },
+    { id: "item-mic", name: "Wired microphone", category: "Audio", retired: false },
+  ]),
+}));
+
+import { localDateTime } from "@/features/event-requests/utils/local-date-time";
 
 import { EventEquipmentPage } from "./EventEquipmentPage";
 
@@ -224,35 +242,154 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  // The assigned coordinator changes equipment on the edit page, reachable
-  // from here while the event is in Planning (the only time it is editable).
-  it("offers the assigned coordinator Edit equipment while the event is in Planning", async () => {
-    loadEventDetailMock.mockResolvedValue({
-      ...(await loadEventDetailMock()),
-      assignedCoordinatorId: "coordinator-1",
+  describe("requesting and changing equipment from this page", () => {
+    // The assigned coordinator's Planning event, with its own period.
+    async function asAssignedCoordinator(overrides: Record<string, unknown> = {}) {
+      loadEventDetailMock.mockResolvedValue({
+        ...(await loadEventDetailMock()),
+        assignedCoordinatorId: "coordinator-1",
+        startsAt: "2099-07-01T02:00:00.000Z",
+        endsAt: "2099-07-01T04:00:00.000Z",
+        ...overrides,
+      });
+    }
+
+    // Runs the change the page sent, the way saveEventEquipment applies it.
+    function applySavedChange(current: Array<{ id: string; quantity: string }>) {
+      const change = saveEventEquipmentMock.mock.calls[0]![1] as (
+        equipment: Array<{ id: string; quantity: string }>,
+      ) => Array<Record<string, string>>;
+      return change(current);
+    }
+
+    beforeEach(() => {
+      saveEventEquipmentMock.mockReset().mockResolvedValue("event-1");
     });
-    renderPage();
 
-    expect(await screen.findByRole("link", { name: "Edit equipment" })).toHaveAttribute(
-      "href",
-      "/events/event-1/coordinator-edit",
-    );
-  });
+    it("requests a new item for the event's own period, shown but not editable", async () => {
+      await asAssignedCoordinator();
+      const user = userEvent.setup();
+      renderPage();
 
-  it.each([
-    ["another coordinator", "coordinator-2", "planning"],
-    ["the assigned coordinator of a Confirmed event", "coordinator-1", "confirmed"],
-    ["the assigned coordinator of a Requested event", "coordinator-1", "requested"],
-  ])("does not offer Edit equipment to %s", async (_who, assignedCoordinatorId, status) => {
-    loadEventDetailMock.mockResolvedValue({
-      ...(await loadEventDetailMock()),
-      assignedCoordinatorId,
-      status,
+      await user.click(await screen.findByRole("button", { name: "Request equipment" }));
+      const dialog = await screen.findByRole("dialog", { name: "Request equipment" });
+      expect(dialog).toHaveTextContent("Required period");
+      expect(within(dialog).queryByDisplayValue(/2099-07-01T/)).not.toBeInTheDocument();
+
+      await user.selectOptions(await within(dialog).findByRole("combobox"), "item-mic");
+      await user.type(within(dialog).getByRole("spinbutton"), "2");
+      await user.type(within(dialog).getByLabelText("Technical requirements"), "XLR");
+      await user.click(within(dialog).getByRole("button", { name: "Request equipment" }));
+
+      expect(saveEventEquipmentMock).toHaveBeenCalledWith("event-1", expect.any(Function));
+      expect(applySavedChange([])).toEqual([
+        expect.objectContaining({
+          id: "",
+          equipmentItemId: "item-mic",
+          quantity: "2",
+          notes: "XLR",
+          requiredFrom: localDateTime("2099-07-01T02:00:00.000Z"),
+          requiredUntil: localDateTime("2099-07-01T04:00:00.000Z"),
+        }),
+      ]);
+      // The page reloads with the new equipment.
+      expect(await screen.findByRole("button", { name: "Request equipment" })).toBeInTheDocument();
+      expect(loadEventDetailMock).toHaveBeenCalledTimes(3);
     });
-    renderPage();
 
-    expect(await screen.findByText("Projector × 3")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Edit equipment" })).not.toBeInTheDocument();
+    // Request equipment takes the top-right spot; the history is on the event page.
+    it("shows Request equipment instead of View change history", async () => {
+      await asAssignedCoordinator();
+      renderPage();
+
+      expect(await screen.findByRole("button", { name: "Request equipment" })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "View change history" })).not.toBeInTheDocument();
+    });
+
+    it("saves nothing until an item and a quantity are given", async () => {
+      await asAssignedCoordinator();
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: "Request equipment" }));
+      const dialog = await screen.findByRole("dialog", { name: "Request equipment" });
+      await user.click(within(dialog).getByRole("button", { name: "Request equipment" }));
+
+      expect(await within(dialog).findByText("Choose equipment from the catalogue")).toBeInTheDocument();
+      expect(within(dialog).getByText("Enter a quantity")).toBeInTheDocument();
+      expect(saveEventEquipmentMock).not.toHaveBeenCalled();
+    });
+
+    it("edits one item from its own card and leaves the others unchanged", async () => {
+      await asAssignedCoordinator();
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: "Edit Projector" }));
+      const dialog = await screen.findByRole("dialog", { name: "Edit Projector" });
+      // Reserved by Technical Support Staff, so a change goes back to them.
+      expect(dialog).toHaveTextContent("Changing it sends it back to Technical Support Staff to check again.");
+      const quantity = within(dialog).getByRole("spinbutton");
+      expect(quantity).toHaveValue(3);
+      await user.clear(quantity);
+      await user.type(quantity, "4");
+      await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+
+      const saved = applySavedChange([
+        { id: "req-proj", quantity: "3" },
+        { id: "req-mic", quantity: "10" },
+      ]);
+      expect(saved).toEqual([
+        expect.objectContaining({ id: "req-proj", quantity: "4" }),
+        { id: "req-mic", quantity: "10" },
+      ]);
+    });
+
+    it("removes one item after confirming", async () => {
+      await asAssignedCoordinator();
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: "Remove Projector" }));
+      const dialog = await screen.findByRole("dialog", { name: "Remove Projector?" });
+      expect(dialog).toHaveTextContent("It is reserved, so Technical Support Staff will be asked to check and release it.");
+      await user.click(within(dialog).getByRole("button", { name: "Remove" }));
+
+      expect(
+        applySavedChange([
+          { id: "req-proj", quantity: "3" },
+          { id: "req-mic", quantity: "10" },
+        ]),
+      ).toEqual([{ id: "req-mic", quantity: "10" }]);
+    });
+
+    it("keeps the dialog open and shows why when the save is refused", async () => {
+      await asAssignedCoordinator();
+      saveEventEquipmentMock.mockRejectedValue(new Error("Quantity must be a positive whole number"));
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: "Edit Projector" }));
+      const dialog = await screen.findByRole("dialog", { name: "Edit Projector" });
+      await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+
+      expect(await within(dialog).findByText("Quantity must be a positive whole number")).toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: "Edit Projector" })).toBeInTheDocument();
+    });
+
+    it.each([
+      ["another coordinator", { assignedCoordinatorId: "coordinator-2" }],
+      ["the assigned coordinator of a Confirmed event", { status: "confirmed" }],
+      ["the assigned coordinator of a Requested event", { status: "requested" }],
+    ])("offers no request, edit or remove to %s", async (_who, overrides) => {
+      await asAssignedCoordinator(overrides);
+      renderPage();
+
+      expect(await screen.findByText("Projector × 3")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Request equipment" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Remove / })).not.toBeInTheDocument();
+    });
   });
 
   it("hides the status from anyone other than the assigned coordinator", async () => {

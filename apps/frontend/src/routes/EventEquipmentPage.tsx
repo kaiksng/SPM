@@ -5,23 +5,34 @@ import {
   describeEquipmentReservationEvent,
   equipmentReservationActionLabels,
   type EquipmentArrangementState,
+  type EquipmentRequirementFormValues,
 } from "@spm/shared";
+import { CirclePlus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 
-import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { ArrangementBadge, ArrangementDetails } from "@/features/equipment/components/equipment-arrangement";
 import { loadEquipmentArrangementStatuses } from "@/features/equipment/services/equipment-arrangement-status";
+import { EquipmentRequestDialog } from "@/features/event-requests/components/equipment-request-dialog";
 import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
+import { Modal } from "@/features/event-requests/components/modal";
+import {
+  localDateTime,
+  saveEventEquipment,
+} from "@/features/event-requests/services/coordinator-event-edit";
 import {
   EVENT_COMPLETED_RELEASE_REASON,
   listEquipmentArrangements,
   type EquipmentArrangement,
 } from "@/features/event-requests/services/equipment-arrangements";
 import { loadEventDetail, type EventDetail } from "@/features/event-requests/services/event-details";
-import type { EquipmentRequirement } from "@/features/event-requests/services/equipment";
+import {
+  toEquipmentFormValues,
+  type EquipmentRequirement,
+} from "@/features/event-requests/services/equipment";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { cn } from "@/lib/utils";
 import { RoleGate } from "@/routes/RoleGate";
@@ -55,6 +66,12 @@ export function EventEquipmentPage() {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  const [dialog, setDialog] = useState<
+    | { kind: "request" }
+    | { kind: "edit" | "remove"; requirement: EquipmentRequirement }
+  >();
+  // Bumped after a save so the page reloads with the new equipment.
+  const [reloadKey, setReloadKey] = useState(0);
 
   usePageTitle(event?.title ? `Equipment — ${event.title}` : "Equipment");
 
@@ -90,7 +107,16 @@ export function EventEquipmentPage() {
     return () => {
       active = false;
     };
-  }, [eventId]);
+  }, [eventId, reloadKey]);
+
+  async function saveEquipment(
+    change: (equipment: EquipmentRequirementFormValues[]) => EquipmentRequirementFormValues[],
+  ) {
+    if (!eventId) return;
+    await saveEventEquipment(eventId, change);
+    setDialog(undefined);
+    setReloadKey((key) => key + 1);
+  }
 
   const liveByRequirement = new Map(
     arrangements
@@ -105,8 +131,9 @@ export function EventEquipmentPage() {
   // SPM-28 visibility: the assigned coordinator. Anyone else who can open
   // this page would see every item as Not started, so the status is hidden.
   const showArrangementStatus = Boolean(arrangementStatuses && user && event?.assignedCoordinatorId === user.id);
-  // Equipment is changed on the coordinator's edit page, which only allows
-  // it for the assigned coordinator while the event is in Planning.
+  // Requested, edited and removed here by the assigned coordinator, and only
+  // while the event is in Planning — the same rule update_event_as_coordinator
+  // enforces.
   const canEditEquipment = Boolean(
     user && event?.assignedCoordinatorId === user.id && event.status === "planning",
   );
@@ -115,7 +142,13 @@ export function EventEquipmentPage() {
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-5xl">
-          <EventPageTopBar backTo={`/events/${eventId}`} backLabel="Back to event" eventId={eventId} />
+          {/* The change history stays a click away on the event page. */}
+          <EventPageTopBar
+            backTo={`/events/${eventId}`}
+            backLabel="Back to event"
+            eventId={eventId}
+            showHistory={false}
+          />
 
           {loading ? (
             <div className="mt-7 h-96 animate-pulse rounded-2xl bg-slate-200/70 motion-reduce:animate-none" />
@@ -135,16 +168,14 @@ export function EventEquipmentPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950">Equipment</h1>
                   {canEditEquipment && (
-                    <Link
-                      to={`/events/${event.id}/coordinator-edit`}
-                      className={buttonVariants({
-                        variant: "outline",
-                        size: "sm",
-                        className: "border-primary/30 bg-accent text-primary hover:bg-accent/80",
-                      })}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setDialog({ kind: "request" })}
                     >
-                      Edit equipment
-                    </Link>
+                      <CirclePlus /> Request equipment
+                    </Button>
                   )}
                 </div>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
@@ -179,6 +210,8 @@ export function EventEquipmentPage() {
                                 ))
                               : undefined
                           }
+                          onEdit={canEditEquipment ? () => setDialog({ kind: "edit", requirement }) : undefined}
+                          onRemove={canEditEquipment ? () => setDialog({ kind: "remove", requirement }) : undefined}
                         />
                       ))}
                       {orphaned.map((reservation) => (
@@ -232,7 +265,98 @@ export function EventEquipmentPage() {
           )}
         </div>
       </div>
+      {event && dialog?.kind === "request" && (
+        <EquipmentRequestDialog
+          title="Request equipment"
+          submitLabel="Request equipment"
+          // A new item is needed for the event's own period.
+          initialValues={{
+            id: "",
+            equipmentItemId: "",
+            legacyName: "",
+            quantity: "",
+            requiredFrom: localDateTime(event.startsAt),
+            requiredUntil: localDateTime(event.endsAt),
+            notes: "",
+          }}
+          periodLabel={formatPeriod(event.startsAt, event.endsAt)}
+          reserved={false}
+          onCancel={() => setDialog(undefined)}
+          onSubmit={(values) => saveEquipment((equipment) => [...equipment, values])}
+        />
+      )}
+      {dialog?.kind === "edit" && (
+        <EquipmentRequestDialog
+          title={`Edit ${dialog.requirement.equipmentName}`}
+          submitLabel="Save changes"
+          initialValues={toEquipmentFormValues([dialog.requirement])[0]!}
+          periodLabel={formatPeriod(dialog.requirement.requiredFrom, dialog.requirement.requiredUntil)}
+          reserved={liveByRequirement.has(dialog.requirement.id)}
+          onCancel={() => setDialog(undefined)}
+          onSubmit={(values) =>
+            saveEquipment((equipment) => equipment.map((item) => (item.id === values.id ? values : item)))
+          }
+        />
+      )}
+      {dialog?.kind === "remove" && (
+        <RemoveEquipmentDialog
+          requirement={dialog.requirement}
+          reserved={liveByRequirement.has(dialog.requirement.id)}
+          onCancel={() => setDialog(undefined)}
+          onConfirm={() =>
+            saveEquipment((equipment) => equipment.filter((item) => item.id !== dialog.requirement.id))
+          }
+        />
+      )}
     </RoleGate>
+  );
+}
+
+function RemoveEquipmentDialog({
+  requirement,
+  reserved,
+  onCancel,
+  onConfirm,
+}: {
+  requirement: EquipmentRequirement;
+  reserved: boolean;
+  onCancel: () => void;
+  onConfirm: () => Promise<unknown>;
+}) {
+  const [removing, setRemoving] = useState(false);
+  const [error, setError] = useState<string>();
+
+  async function handleConfirm() {
+    setRemoving(true);
+    setError(undefined);
+    try {
+      await onConfirm();
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : "This equipment could not be removed.");
+      setRemoving(false);
+    }
+  }
+
+  return (
+    <Modal titleId="remove-equipment-dialog-title" title={`Remove ${requirement.equipmentName}?`} onCancel={onCancel}>
+      <div className="mt-4 space-y-4 text-sm">
+        <p className="leading-6 text-slate-600">
+          {requirement.equipmentName} × {requirement.quantity} will no longer be requested for this event.
+          {reserved && " It is reserved, so Technical Support Staff will be asked to check and release it."}
+        </p>
+        {error && (
+          <p role="alert" className="text-red-700">{error}</p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Keep it
+          </Button>
+          <Button type="button" variant="destructive" disabled={removing} onClick={handleConfirm}>
+            {removing ? "Removing…" : "Remove"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -240,11 +364,16 @@ function RequirementArrangement({
   requirement,
   reservation,
   arrangement,
+  onEdit,
+  onRemove,
 }: {
   requirement: EquipmentRequirement;
   reservation?: EquipmentArrangement;
   /** SPM-28 status, note and history; absent when the viewer may not see it. */
   arrangement?: EquipmentArrangementState;
+  /** Only for the assigned coordinator while the event is in Planning. */
+  onEdit?: () => void;
+  onRemove?: () => void;
 }) {
   const state = !reservation ? "pending" : reservation.needsRecheck ? "recheck" : "reserved";
   return (
@@ -290,6 +419,33 @@ function RequirementArrangement({
           )}
           <ReservationHistory reservation={reservation} />
         </>
+      )}
+      {(onEdit || onRemove) && (
+        <div className="mt-3 flex gap-2">
+          {onEdit && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label={`Edit ${requirement.equipmentName}`}
+              onClick={onEdit}
+            >
+              Edit
+            </Button>
+          )}
+          {onRemove && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label={`Remove ${requirement.equipmentName}`}
+              onClick={onRemove}
+              className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+            >
+              Remove
+            </Button>
+          )}
+        </div>
       )}
     </li>
   );
