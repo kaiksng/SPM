@@ -12,7 +12,10 @@ import { useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
-import { ArrangementDialog } from "@/features/equipment/components/arrangement-dialog";
+import {
+  ArrangementDialog,
+  type ArrangementDialogMode,
+} from "@/features/equipment/components/arrangement-dialog";
 import { ArrangementBadge, ArrangementDetails } from "@/features/equipment/components/equipment-arrangement";
 import {
   ReleaseReservationDialog,
@@ -27,6 +30,7 @@ import type {
 import {
   arrangementStatusesLoaded,
   canBeArranged,
+  reservationArrangementStatus,
   equipmentRequestTab,
   equipmentRequestTabCounts,
   equipmentRequestTabLabels,
@@ -63,9 +67,13 @@ type Handlers = {
   onUpdateArrangement: (requirementId: string, values: EquipmentArrangementFormValues) => Promise<void>;
 };
 
+function isArrangementMode(action: PendingAction["action"]): action is ArrangementDialogMode {
+  return action === "report" || action === "note" || action === "resolve";
+}
+
 type PendingAction = {
   /** "top_up" is Reserve the rest: a Change that starts at the full request. */
-  action: ReservationAction | "arrangement" | "top_up";
+  action: ReservationAction | ArrangementDialogMode | "top_up";
   event: EventEquipmentAvailability;
   result: EquipmentAvailabilityResult;
 };
@@ -195,12 +203,21 @@ export function EventEquipmentAvailabilityList({
         </ul>
       )}
 
-      {pending?.action === "arrangement" && pending.result.arrangement && (
+      {pending && isArrangementMode(pending.action) && pending.result.arrangement && (
         <ArrangementDialog
+          mode={pending.action}
           eventTitle={pending.event.title}
           equipmentName={pending.result.equipmentName}
           arrangement={pending.result.arrangement}
-          canArrange={canBeArranged(pending.result)}
+          status={
+            pending.action === "report"
+              ? "issue"
+              : pending.action === "resolve" ||
+                  // A note keeps the status, unless that is an Arranged whose stock is not held.
+                  (pending.result.arrangement.status === "arranged" && !canBeArranged(pending.result))
+                ? reservationArrangementStatus(pending.result)
+                : pending.result.arrangement.status
+          }
           onCancel={() => setPending(undefined)}
           onSave={async (values) => {
             await onUpdateArrangement(pending.result.requirementId, values);
@@ -224,7 +241,7 @@ export function EventEquipmentAvailabilityList({
         />
       )}
 
-      {pending && pending.action !== "arrangement" && (
+      {pending && !isArrangementMode(pending.action) && (
         <ReservationDialog
           action={pending.action === "top_up" ? "change" : pending.action}
           eventTitle={pending.event.title}
@@ -323,6 +340,7 @@ function EventCard({
             key={result.requirementId}
             result={result}
             reservationsAllowed={reservationsAllowed}
+            arrangementsAllowed={event.status === "planning" || confirmed}
             lockNote={lockNote}
             error={rowError?.requirementId === result.requirementId ? rowError.message : undefined}
             onAction={(action) => onAction(action, result)}
@@ -364,6 +382,7 @@ function EventCard({
 function ResultRow({
   result,
   reservationsAllowed,
+  arrangementsAllowed,
   lockNote,
   error,
   onAction,
@@ -375,6 +394,8 @@ function ResultRow({
    * reserving, changing and re-checking) or once it is Confirmed.
    */
   reservationsAllowed: boolean;
+  /** Reporting an issue and notes: Planning and Confirmed only (frozen during the safety check). */
+  arrangementsAllowed: boolean;
   /** Why reserving is off, shown when it is. */
   lockNote: string;
   error?: string;
@@ -412,16 +433,22 @@ function ResultRow({
     mainAction = { label: inIssue ? "Reserve available" : "Reserve", run: () => onAction("reserve") };
   } else if (reservationsAllowed && canTopUp) {
     mainAction = { label: "Reserve the rest", run: () => onAction("top_up") };
-  } else if (inIssue && result.arrangement) {
-    // Set by hand, or nothing more can be reserved: the status and note say what happens next.
-    mainAction = { label: "Set status & note", run: () => onAction("arrangement") };
+  }
+  // An issue staff reported themselves comes before anything else: it is
+  // resolved first, then the item carries on from its reservation.
+  const reportedIssue = Boolean(result.arrangement?.status === "issue" && !result.arrangement.automatic);
+  const reserveStep = mainAction;
+  if (arrangementsAllowed && reportedIssue && !reservation?.needsRecheck) {
+    mainAction = { label: "Resolve issue", run: () => onAction("resolve") };
   }
   const moreActions: Array<{ label: string; run: () => void }> = [];
+  if (reserveStep && mainAction !== reserveStep) moreActions.push(reserveStep);
   if (reservationsAllowed && reservation) moreActions.push({ label: "Change quantity", run: () => onAction("change") });
   // Releasing gives units back, so it stays open whatever the event's status.
   if (reservation) moreActions.push({ label: "Release", run: () => onAction("release") });
-  if (result.arrangement && mainAction?.label !== "Set status & note") {
-    moreActions.push({ label: "Set status & note", run: () => onAction("arrangement") });
+  if (arrangementsAllowed && result.arrangement) {
+    if (!reportedIssue) moreActions.push({ label: "Report issue", run: () => onAction("report") });
+    moreActions.push({ label: "Add note", run: () => onAction("note") });
   }
 
   return (

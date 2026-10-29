@@ -1,3 +1,5 @@
+import type { EquipmentArrangementStatus } from "@spm/shared";
+
 import type {
   EquipmentAvailabilityResult,
   EventEquipmentAvailability,
@@ -37,6 +39,13 @@ export function canBeArranged(result: EquipmentAvailabilityResult) {
   if (result.equipmentItemId === null) return true;
   const { reservation } = result;
   return Boolean(reservation && !reservation.needsRecheck && reservation.quantity >= result.requestedQuantity);
+}
+
+/** What the item's reservation says, as reserving records it (202610290003). */
+export function reservationArrangementStatus(result: EquipmentAvailabilityResult): EquipmentArrangementStatus {
+  const { reservation } = result;
+  if (reservation && !reservation.needsRecheck && reservation.quantity >= result.requestedQuantity) return "arranged";
+  return reservation ? "in_progress" : "not_started";
 }
 
 /** The one status tab an item belongs to. */
