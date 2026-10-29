@@ -7,6 +7,7 @@
 -- Must-not-exist conditions enforced: other active bookings of these test events (cancelled)
 -- Defaults added: Event title, date (Thu 10 Dec 2026 18:00-21:00), 50 pax, status Requested, organiser kenneth@gmail.com (agreed in Questions)
 -- Safe to re-run: changes this case's test records only; stops without changes if real data would be affected.
+-- Workflow records: status history to the event's status
 -- Run with: pnpm uat:setup spm17_tc005   (from the repo root; see tests/uat_data/README.md)
 
 BEGIN;
@@ -83,6 +84,27 @@ UPDATE public.venue_bookings
 SET status = 'cancelled', cancelled_at = now(), cancellation_reason = 'Reset by UAT setup'
 WHERE event_id = '0f3ef1fb-631d-4eaf-8e7c-fe3882cbb1a1' AND status IN ('pending', 'approved', 'on_hold')
   AND id <> ALL ('{}'::uuid[]);
+
+-- Workflow records (valid business state): what the event's status implies, as if it went through the app.
+-- "Annual Partner Appreciation Dinner" (Requested): status history Draft -> Requested.
+-- Only rows of this test event; each set is rewritten only when it differs from the starting state.
+DO $$
+BEGIN
+  IF (SELECT coalesce(array_agg(row(h.changed_at, h.changed_by, h.from_status, h.to_status, h.reason)::text ORDER BY h.changed_at), '{}')
+      FROM public.event_status_history h WHERE h.event_id = '0f3ef1fb-631d-4eaf-8e7c-fe3882cbb1a1')
+     IS DISTINCT FROM
+     (SELECT array_agg(row(f.at, f.who, f.fr, f.t, NULL::text)::text ORDER BY f.at)
+      FROM (VALUES
+      ('2026-09-29 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'kenneth@gmail.com'), NULL::public.event_status, 'draft'::public.event_status),
+      ('2026-10-01 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'kenneth@gmail.com'), 'draft'::public.event_status, 'requested'::public.event_status)) f(at, who, fr, t)) THEN
+    DELETE FROM public.event_status_history WHERE event_id = '0f3ef1fb-631d-4eaf-8e7c-fe3882cbb1a1';
+    INSERT INTO public.event_status_history (event_id, changed_at, changed_by, from_status, to_status)
+    SELECT '0f3ef1fb-631d-4eaf-8e7c-fe3882cbb1a1', f.at, f.who, f.fr, f.t
+    FROM (VALUES
+      ('2026-09-29 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'kenneth@gmail.com'), NULL::public.event_status, 'draft'::public.event_status),
+      ('2026-10-01 09:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'kenneth@gmail.com'), 'draft'::public.event_status, 'requested'::public.event_status)) f(at, who, fr, t);
+  END IF;
+END $$;
 
 COMMIT;
 
