@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,12 +7,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // nothing can reach a real Supabase project.
 vi.mock("@/lib/supabase-client", () => ({ supabase: {} }));
 
+const listVenueDisruptionsMock = vi.fn();
+vi.mock("@/features/venues/services/venue-disruptions", () => ({
+  listVenueDisruptionsForCoordinator: (...args: unknown[]) => listVenueDisruptionsMock(...args),
+}));
+
 import type { VenueDisruption } from "@/features/venues/services/venue-disruptions";
 
 import {
   AffectedVenueBookings,
   RESOLVED_VISIBLE_DAYS,
   splitVenueDisruptions,
+  useVenueDisruptions,
 } from "./affected-venue-bookings";
 
 const NOW = new Date("2099-04-20T00:00:00.000Z");
@@ -179,3 +185,58 @@ describe("AffectedVenueBookings", () => {
     expect(screen.queryByRole("region")).not.toBeInTheDocument();
   });
 });
+
+// SPM-83 AC12: the coordinator's own disrupted bookings are loaded for the Events page.
+describe("useVenueDisruptions", () => {
+  beforeEach(() => {
+    listVenueDisruptionsMock.mockReset();
+  });
+
+  it("loads the signed-in coordinator's disruptions", async () => {
+    listVenueDisruptionsMock.mockResolvedValue([disruption()]);
+
+    const { result } = renderHook(() => useVenueDisruptions());
+
+    await waitFor(() => expect(result.current.disruptions).toHaveLength(1));
+    expect(result.current.error).toBeUndefined();
+  });
+
+  it("reports why they could not be loaded, with a plain message when none is given", async () => {
+    listVenueDisruptionsMock.mockRejectedValueOnce(new Error("Permission denied"));
+    const failed = renderHook(() => useVenueDisruptions());
+    await waitFor(() => expect(failed.result.current.error).toBe("Permission denied"));
+
+    listVenueDisruptionsMock.mockRejectedValueOnce("boom");
+    const unknown = renderHook(() => useVenueDisruptions());
+    await waitFor(() => expect(unknown.result.current.error).toBe("We couldn't load your affected venue bookings."));
+    expect(unknown.result.current.disruptions).toEqual([]);
+  });
+
+  it("ignores a response that arrives after the page was left", async () => {
+    let resolveList: (items: unknown[]) => void = () => {};
+    listVenueDisruptionsMock.mockReturnValueOnce(new Promise((resolve) => { resolveList = resolve; }));
+    const late = renderHook(() => useVenueDisruptions());
+    late.unmount();
+    resolveList([disruption()]);
+
+    let rejectList: (reason: unknown) => void = () => {};
+    listVenueDisruptionsMock.mockReturnValueOnce(new Promise((_, reject) => { rejectList = reject; }));
+    const lateFailure = renderHook(() => useVenueDisruptions());
+    lateFailure.unmount();
+    rejectList(new Error("too late"));
+
+    await waitFor(() => expect(listVenueDisruptionsMock).toHaveBeenCalledTimes(2));
+    expect(late.result.current.disruptions).toEqual([]);
+    expect(lateFailure.result.current.error).toBeUndefined();
+  });
+});
+
+describe("AffectedVenueBookings block descriptions", () => {
+  it("shows only the category when the block has no description", () => {
+    renderPanel([disruption({ blockReason: "" })]);
+
+    expect(screen.getByText("Maintenance")).toBeInTheDocument();
+    expect(screen.queryByText(/Maintenance –/)).not.toBeInTheDocument();
+  });
+});
+
