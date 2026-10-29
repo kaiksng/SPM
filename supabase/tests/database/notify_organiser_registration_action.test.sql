@@ -2,7 +2,7 @@ begin;
 
 select plan(10);
 
--- 202610280001: the organiser is notified when registration needs their action.
+-- 202610280002: the organiser is notified when registration needs their action.
 
 insert into auth.users (id, email, raw_user_meta_data) values
   ('c6000000-0000-0000-0000-000000000001', 'nra-organiser@example.test', '{"full_name":"NRA Organiser","role":"event_organiser"}'::jsonb),
