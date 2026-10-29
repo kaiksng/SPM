@@ -4,6 +4,7 @@ import {
   type RegistrationState,
 } from "@spm/shared";
 
+import { loadRegistrationCounts } from "@/features/registrations/services/registrations";
 import { supabase } from "@/lib/supabase-client";
 
 export type BrowseEventSummary = {
@@ -56,39 +57,29 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
   const eventIds = data.map((event) => event.id);
   if (eventIds.length === 0) return [];
 
-  const { data: registrations, error: registrationsError } = await supabase
-    .from("event_registrations")
-    .select("event_id, attendee_id, status, registered_at")
-    .in("event_id", eventIds)
-    .order("registered_at", { ascending: true });
+  // SPM-44: only the attendee's own rows are readable; places taken and the
+  // attendee's waiting-list position come from loadRegistrationCounts.
+  const [{ data: ownRegistrations, error: registrationsError }, counts] = await Promise.all([
+    supabase
+      .from("event_registrations")
+      .select("event_id, status")
+      .in("event_id", eventIds)
+      .eq("attendee_id", attendeeId),
+    loadRegistrationCounts(eventIds).catch(() => null),
+  ]);
 
-  if (registrationsError) throw new Error("We couldn't load events.");
+  if (registrationsError || !counts) throw new Error("We couldn't load events.");
 
-  const registeredCounts = new Map<string, number>();
   const ownStatusByEvent = new Map<string, OwnRegistrationStatus>();
-  const waitlistPositionByEvent = new Map<string, number>();
-  for (const registration of registrations) {
-    if (registration.status === "registered") {
-      registeredCounts.set(
-        registration.event_id,
-        (registeredCounts.get(registration.event_id) ?? 0) + 1,
-      );
-    }
-    if (registration.status === "waitlisted") {
-      const nextPosition = (waitlistPositionByEvent.get(registration.event_id) ?? 0) + 1;
-      waitlistPositionByEvent.set(registration.event_id, nextPosition);
-      if (registration.attendee_id === attendeeId) {
-        waitlistPositionByEvent.set(`${registration.event_id}:own`, nextPosition);
-      }
-    }
-    if (registration.attendee_id === attendeeId && registration.status !== "withdrawn") {
+  for (const registration of ownRegistrations) {
+    if (registration.status !== "withdrawn") {
       ownStatusByEvent.set(registration.event_id, registration.status as OwnRegistrationStatus);
     }
   }
 
   return data.map((event): BrowseEventSummary => {
     const req = event.event_registration_requirements;
-    const registeredCount = registeredCounts.get(event.id) ?? 0;
+    const registeredCount = counts.get(event.id)?.registeredCount ?? 0;
     const availability = {
       required: req?.registration_required ?? false,
       opensAt: req?.registration_opens_at ?? null,
@@ -106,7 +97,7 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
       capacity: availability.capacity,
       registeredCount,
       waitlistEnabled: req?.waitlist_enabled ?? false,
-      waitlistPosition: waitlistPositionByEvent.get(`${event.id}:own`) ?? null,
+      waitlistPosition: counts.get(event.id)?.ownWaitlistPosition ?? null,
       state: computeRegistrationState(
         availability,
         registeredCount,

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const loadEventDetailMock = vi.fn();
+const loadAttendeeEventDetailMock = vi.fn();
 const getOwnRegistrationStatusMock = vi.fn();
 const getRegisteredCountMock = vi.fn();
 const getWaitlistPositionMock = vi.fn();
@@ -19,8 +19,8 @@ const authState = {
 
 vi.mock("@/context/auth-context", () => ({ useAuth: () => authState }));
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
-vi.mock("@/features/event-requests/services/event-details", () => ({
-  loadEventDetail: (...args: unknown[]) => loadEventDetailMock(...args),
+vi.mock("@/features/registrations/services/attendee-event", () => ({
+  loadAttendeeEventDetail: (...args: unknown[]) => loadAttendeeEventDetailMock(...args),
 }));
 vi.mock("@/features/registrations/services/registrations", () => ({
   getOwnRegistrationStatus: (...args: unknown[]) => getOwnRegistrationStatusMock(...args),
@@ -72,7 +72,7 @@ function renderPage() {
 }
 
 beforeEach(() => {
-  loadEventDetailMock.mockReset().mockResolvedValue(baseEvent);
+  loadAttendeeEventDetailMock.mockReset().mockResolvedValue(baseEvent);
   getRegisteredCountMock.mockReset().mockResolvedValue(32);
   getOwnRegistrationStatusMock.mockReset().mockResolvedValue(null);
   getWaitlistPositionMock.mockReset().mockResolvedValue(null);
@@ -123,7 +123,7 @@ describe("EventRegistrationPage", () => {
 
   it("offers to join the waiting list when the event is full and waitlisting is enabled", async () => {
     getRegisteredCountMock.mockResolvedValue(50);
-    loadEventDetailMock.mockResolvedValue({
+    loadAttendeeEventDetailMock.mockResolvedValue({
       ...baseEvent,
       registration: { ...baseEvent.registration, waitlistEnabled: true },
     });
@@ -146,6 +146,7 @@ describe("EventRegistrationPage", () => {
     expect(registerForEventMock).not.toHaveBeenCalled();
   });
 
+  // SPM-43 scenario 2: when the organiser does not permit withdrawal, the action is unavailable.
   it("hides the withdraw action when the event does not permit it", async () => {
     getOwnRegistrationStatusMock.mockResolvedValue("registered");
     renderPage();
@@ -154,10 +155,10 @@ describe("EventRegistrationPage", () => {
     expect(screen.queryByRole("button", { name: "Withdraw registration" })).not.toBeInTheDocument();
   });
 
-  // This story: the reason is optional, and a successful withdrawal is confirmed explicitly.
+  // SPM-43 AC01 + AC02: the reason is optional, and a successful withdrawal is confirmed explicitly.
   it("withdraws with an optional reason, confirms, and releases the place", async () => {
     getOwnRegistrationStatusMock.mockResolvedValue("registered");
-    loadEventDetailMock.mockResolvedValue({
+    loadAttendeeEventDetailMock.mockResolvedValue({
       ...baseEvent,
       registration: { ...baseEvent.registration, withdrawalPermitted: true },
     });
@@ -176,9 +177,10 @@ describe("EventRegistrationPage", () => {
     expect(await screen.findByRole("button", { name: "Register" })).toBeInTheDocument();
   });
 
+  // SPM-43 AC01: the withdrawal reason is optional.
   it("withdraws with no reason given", async () => {
     getOwnRegistrationStatusMock.mockResolvedValue("registered");
-    loadEventDetailMock.mockResolvedValue({
+    loadAttendeeEventDetailMock.mockResolvedValue({
       ...baseEvent,
       registration: { ...baseEvent.registration, withdrawalPermitted: true },
     });
@@ -210,7 +212,7 @@ describe("EventRegistrationPage", () => {
   // stop offering live actions and show its real status once that happens.
   it("shows the event's real status and no actions once it has ended", async () => {
     getOwnRegistrationStatusMock.mockResolvedValue(null);
-    loadEventDetailMock.mockResolvedValue({ ...baseEvent, status: "completed" });
+    loadAttendeeEventDetailMock.mockResolvedValue({ ...baseEvent, status: "completed" });
     renderPage();
 
     expect(await screen.findByText("Completed")).toBeInTheDocument();
@@ -225,7 +227,7 @@ describe("EventRegistrationPage", () => {
     // were registered" note — only someone who never acted and was still
     // registered/waitlisted when it ended should see that.
     getOwnRegistrationStatusMock.mockResolvedValue(null);
-    loadEventDetailMock.mockResolvedValue({ ...baseEvent, status: "cancelled" });
+    loadAttendeeEventDetailMock.mockResolvedValue({ ...baseEvent, status: "cancelled" });
     renderPage();
 
     expect(await screen.findByText("This event was cancelled.")).toBeInTheDocument();
@@ -234,7 +236,7 @@ describe("EventRegistrationPage", () => {
 
   it("tells a still-registered attendee they were registered once the event ends", async () => {
     getOwnRegistrationStatusMock.mockResolvedValue("registered");
-    loadEventDetailMock.mockResolvedValue({ ...baseEvent, status: "completed" });
+    loadAttendeeEventDetailMock.mockResolvedValue({ ...baseEvent, status: "completed" });
     renderPage();
 
     expect(await screen.findByText(/You were registered\./)).toBeInTheDocument();
@@ -248,7 +250,7 @@ describe("EventRegistrationPage registration window", () => {
   const period = { opensAt: "2026-10-01T01:00:00Z", closesAt: "2026-11-30T10:00:00Z" };
 
   function withRegistration(registration: { opensAt?: string; closesAt?: string; waitlistEnabled?: boolean }) {
-    loadEventDetailMock.mockResolvedValue({
+    loadAttendeeEventDetailMock.mockResolvedValue({
       ...baseEvent,
       registration: { ...baseEvent.registration, ...period, ...registration },
     });
@@ -346,5 +348,138 @@ describe("EventRegistrationPage registration window", () => {
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Join waiting list" })).not.toBeInTheDocument();
     expect(joinWaitlistMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("SPM-43: withdrawing a registration", () => {
+  const permitted = {
+    ...baseEvent,
+    registration: { ...baseEvent.registration, withdrawalPermitted: true },
+  };
+
+  beforeEach(() => {
+    getOwnRegistrationStatusMock.mockResolvedValue("registered");
+    loadAttendeeEventDetailMock.mockResolvedValue(permitted);
+  });
+
+  // SPM-43 scenario 1: the attendee count decreases, so one more place is left.
+  it("frees a place in the capacity count after withdrawing", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByText("18 of 50 spots left")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Withdraw registration" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Withdraw" }));
+
+    expect(await screen.findByText("19 of 50 spots left")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "You've withdrawn — your place has been released.",
+    );
+  });
+
+  // SPM-43 scenario 2: a withdrawal the server rejects changes nothing.
+  it("keeps the registration when the withdrawal is rejected", async () => {
+    withdrawRegistrationMock.mockRejectedValue(new Error("Withdrawal is not permitted for this event."));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Withdraw registration" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Withdraw" }));
+
+    expect(
+      await within(screen.getByRole("dialog")).findByText("Withdrawal is not permitted for this event."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("You're registered")).toBeInTheDocument();
+    expect(screen.getByText("18 of 50 spots left")).toBeInTheDocument();
+    expect(screen.queryByText(/your place has been released/)).not.toBeInTheDocument();
+  });
+
+  // SPM-43 scenario 3: with capacity left and registration open, a withdrawn
+  // attendee registering again is sent as a brand-new registration.
+  it("lets a withdrawn attendee register again as a new registration", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Withdraw registration" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Withdraw" }));
+    await user.click(await screen.findByRole("button", { name: "Register" }));
+
+    expect(registerForEventMock).toHaveBeenCalledWith("event-1");
+    expect(await screen.findByText("You're registered")).toBeInTheDocument();
+    expect(screen.getByText("18 of 50 spots left")).toBeInTheDocument();
+  });
+
+  // SPM-43 scenario 3: a returning attendee is evaluated like anyone else, so
+  // a full event offers the waiting list rather than a place.
+  it("treats a previously withdrawn attendee like a new one when the event is full", async () => {
+    getOwnRegistrationStatusMock.mockResolvedValue(null);
+    getRegisteredCountMock.mockResolvedValue(50);
+    loadAttendeeEventDetailMock.mockResolvedValue({
+      ...permitted,
+      registration: { ...permitted.registration, waitlistEnabled: true },
+    });
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "Join waiting list" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+  });
+});
+
+// SPM-44 AC05: the attendee-facing page loads the event through its own
+// attendee loader (see attendee-event.test.ts, which checks it never asks for
+// internal fields), and shows nothing internal even if a record carried it.
+describe("SPM-44: attendee-facing registration view", () => {
+  it("loads the event through the attendee loader and the counts function only", async () => {
+    renderPage();
+
+    expect(await screen.findByText("AI Innovation Summit")).toBeInTheDocument();
+    expect(loadAttendeeEventDetailMock).toHaveBeenCalledWith("event-1");
+    expect(getRegisteredCountMock).toHaveBeenCalledWith("event-1");
+    expect(getWaitlistPositionMock).toHaveBeenCalledWith("event-1");
+  });
+
+  it("shows no internal venue, equipment or coordinator details", async () => {
+    loadAttendeeEventDetailMock.mockResolvedValue({
+      ...baseEvent,
+      purpose: "Internal planning purpose",
+      expectedAttendance: 180,
+      assignedCoordinatorId: "coord-1",
+      assignedCoordinatorName: "Joyce Coordinator",
+      venue: {
+        preferredLocation: "Auditorium",
+        minimumCapacity: 150,
+        accessibilityNotes: "Ramp at the side entrance",
+        layoutNotes: "Theatre",
+        facilities: ["Projector screen"],
+      },
+      equipment: [
+        {
+          id: "req-1",
+          equipmentItemId: "item-1",
+          equipmentName: "Wireless microphone",
+          category: "Audio",
+          quantity: 4,
+          requiredFrom: "2026-11-12T01:00:00Z",
+          requiredUntil: "2026-11-12T08:00:00Z",
+          technicalRequirements: "Backup batteries",
+        },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByText("AI Innovation Summit")).toBeInTheDocument();
+    expect(screen.getByText("Auditorium")).toBeInTheDocument();
+    for (const internal of [
+      "Internal planning purpose",
+      "Joyce Coordinator",
+      "Ramp at the side entrance",
+      "Theatre",
+      "Projector screen",
+      /Wireless microphone/,
+      /Backup batteries/,
+      /180/,
+    ]) {
+      expect(screen.queryByText(internal)).not.toBeInTheDocument();
+    }
   });
 });

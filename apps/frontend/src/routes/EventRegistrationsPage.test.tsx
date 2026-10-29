@@ -85,6 +85,7 @@ beforeEach(() => {
 });
 
 describe("EventRegistrationsPage", () => {
+  // SPM-44 AC03: capacity and counts for Registered, Waitlisted and Withdrawn.
   it("shows capacity and counts by status", async () => {
     renderPage();
 
@@ -97,6 +98,7 @@ describe("EventRegistrationsPage", () => {
     expect(screen.getByText("Withdrawn (1)")).toBeInTheDocument();
   });
 
+  // SPM-44 AC04: attendee name, status and waiting-list position.
   it("lists each attendee's name, status, registered time and waiting-list position", async () => {
     renderPage();
 
@@ -120,6 +122,7 @@ describe("EventRegistrationsPage", () => {
     expect(screen.getByText("Blair Attendee")).toBeInTheDocument();
   });
 
+  // SPM-44 AC05: no equipment or internal venue details on this view.
   it("queries registrations on their own, never the equipment or venue-detail loaders", async () => {
     renderPage();
 
@@ -139,6 +142,7 @@ describe("EventRegistrationsPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't load this event.");
   });
 
+  // SPM-44 AC02: coordinators see only their assigned events.
   it("blocks a coordinator who isn't assigned to this event", async () => {
     authState.profile = { full_name: "Other Coordinator", role: "event_coordinator" };
     authState.user = { id: "coordinator-2" };
@@ -149,6 +153,7 @@ describe("EventRegistrationsPage", () => {
     );
   });
 
+  // SPM-44 AC02: the assigned coordinator can view it.
   it("allows the assigned coordinator through", async () => {
     authState.profile = { full_name: "Joyce Coordinator", role: "event_coordinator" };
     authState.user = { id: "coordinator-1" };
@@ -157,11 +162,98 @@ describe("EventRegistrationsPage", () => {
     expect(await screen.findByText("Avery Attendee")).toBeInTheDocument();
   });
 
+  // SPM-44 AC02: the Event Coordinator Lead sees all events.
   it("allows the Event Coordinator Lead through for any event", async () => {
     authState.profile = { full_name: "Lee Lead", role: "event_coordinator_lead" };
     authState.user = { id: "lead-1" };
     renderPage();
 
     expect(await screen.findByText("Avery Attendee")).toBeInTheDocument();
+  });
+});
+
+describe("SPM-44: viewing registration information", () => {
+  // SPM-44 AC01: the organiser can view registrations for their own event.
+  it("shows the organiser the registrations for their own event", async () => {
+    renderPage();
+
+    expect(await screen.findByText("Avery Attendee")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  // SPM-44 AC01: another organiser's event is hidden by the database, so the
+  // load fails and no attendee is shown.
+  it("denies an organiser the registrations for someone else's event", async () => {
+    loadEventDetailMock.mockRejectedValue(
+      new Error("This event is unavailable or you do not have access to it."),
+    );
+    renderPage();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This event is unavailable or you do not have access to it.",
+    );
+    expect(screen.queryByText("Avery Attendee")).not.toBeInTheDocument();
+    expect(screen.queryByText(/places filled/)).not.toBeInTheDocument();
+  });
+
+  // SPM-44 AC02: an unassigned coordinator sees no attendee details.
+  it("shows an unassigned coordinator no attendee details", async () => {
+    authState.profile = { full_name: "Other Coordinator", role: "event_coordinator" };
+    authState.user = { id: "coordinator-2" };
+    renderPage();
+
+    await screen.findByRole("alert");
+    expect(screen.queryByText("Avery Attendee")).not.toBeInTheDocument();
+    expect(screen.queryByText("Registered (1)")).not.toBeInTheDocument();
+  });
+
+  // SPM-44 AC04: each attendee's registration time is shown.
+  it("shows when each attendee registered", async () => {
+    renderPage();
+
+    const row = (await screen.findByText("Avery Attendee")).closest("tr")!;
+    expect(row).toHaveTextContent(/1 Jun 2099, 8:00\sam/);
+  });
+
+  // SPM-44 AC04: waiting-list positions run in registration order.
+  it("numbers several waitlisted attendees in the order they joined", async () => {
+    listEventRegistrationsMock.mockResolvedValue([
+      entry({ id: "reg-1", attendeeName: "First Waiter", status: "waitlisted", waitlistPosition: 1 }),
+      entry({ id: "reg-2", attendeeId: "attendee-2", attendeeName: "Second Waiter", status: "waitlisted", waitlistPosition: 2 }),
+    ]);
+    renderPage();
+
+    expect(within((await screen.findByText("First Waiter")).closest("tr")!).getByText("1")).toBeInTheDocument();
+    expect(within(screen.getByText("Second Waiter").closest("tr")!).getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("Waitlisted (2)")).toBeInTheDocument();
+  });
+
+  // SPM-44 AC03: with no attendees, every count is zero against the capacity.
+  it("shows zero counts when nobody has registered", async () => {
+    listEventRegistrationsMock.mockResolvedValue([]);
+    renderPage();
+
+    expect(
+      await screen.findByText((_, el) => el?.tagName === "P" && el.textContent === "0 of 4 places filled"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Registered (0)")).toBeInTheDocument();
+    expect(screen.getByText("Waitlisted (0)")).toBeInTheDocument();
+    expect(screen.getByText("Withdrawn (0)")).toBeInTheDocument();
+  });
+
+  // SPM-44 AC05: no internal venue or equipment details appear, even if the
+  // event record carries them.
+  it("shows no equipment or internal venue notes from the event record", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      ...event,
+      venue: { preferredLocation: "Auditorium", accessibilityNotes: "Ramp at the side entrance", layoutNotes: "Theatre", facilities: ["Projector screen"] },
+      equipment: [{ id: "req-1", equipmentName: "Wireless microphone", quantity: 4 }],
+    });
+    renderPage();
+
+    expect(await screen.findByText("Avery Attendee")).toBeInTheDocument();
+    for (const internal of ["Ramp at the side entrance", "Theatre", "Projector screen", /Wireless microphone/]) {
+      expect(screen.queryByText(internal)).not.toBeInTheDocument();
+    }
   });
 });

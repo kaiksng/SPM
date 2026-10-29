@@ -51,30 +51,49 @@ export async function getOwnRegistrationStatus(
   return data.status as OwnRegistrationStatus;
 }
 
-/** How many attendees currently hold a 'registered' row for this event — used for the capacity bar. */
-export async function getRegisteredCount(eventId: string) {
-  const { count, error } = await supabase
-    .from("event_registrations")
-    .select("id", { count: "exact", head: true })
-    .eq("event_id", eventId)
-    .eq("status", "registered");
+export type RegistrationCounts = {
+  registeredCount: number;
+  /** The signed-in attendee's 1-based waiting-list position, or null if they're not waitlisted. */
+  ownWaitlistPosition: number | null;
+};
 
-  if (error) throw new Error("We couldn't check this event's capacity.");
-  return count ?? 0;
+/**
+ * Places taken and the signed-in attendee's own waiting-list position, per
+ * event. SPM-44: attendees can no longer read other attendees' registration
+ * rows, so these numbers come from event_registration_counts, which returns
+ * the numbers only (202610300003).
+ */
+export async function loadRegistrationCounts(eventIds: string[]): Promise<Map<string, RegistrationCounts>> {
+  const counts = new Map<string, RegistrationCounts>();
+  if (eventIds.length === 0) return counts;
+
+  const { data, error } = await supabase.rpc("event_registration_counts", { p_event_ids: eventIds });
+  if (error) throw new Error("We couldn't check this event's registrations.");
+
+  for (const row of data ?? []) {
+    counts.set(row.event_id, {
+      registeredCount: row.registered_count,
+      // Null when the attendee isn't waitlisted; the generated type can't say so.
+      ownWaitlistPosition: row.own_waitlist_position ?? null,
+    });
+  }
+  return counts;
 }
 
-/** The attendee's 1-based position in the waiting list (oldest registered_at first), or null if they're not waitlisted. */
-export async function getWaitlistPosition(eventId: string, attendeeId: string) {
-  const { data, error } = await supabase
-    .from("event_registrations")
-    .select("attendee_id")
-    .eq("event_id", eventId)
-    .eq("status", "waitlisted")
-    .order("registered_at", { ascending: true });
+/** How many attendees currently hold a 'registered' row for this event — used for the capacity bar. */
+export async function getRegisteredCount(eventId: string) {
+  const counts = await loadRegistrationCounts([eventId]).catch(() => {
+    throw new Error("We couldn't check this event's capacity.");
+  });
+  return counts.get(eventId)?.registeredCount ?? 0;
+}
 
-  if (error) throw new Error("We couldn't check the waiting list.");
-  const index = data.findIndex((row) => row.attendee_id === attendeeId);
-  return index === -1 ? null : index + 1;
+/** The signed-in attendee's 1-based position in the waiting list (oldest first), or null if they're not waitlisted. */
+export async function getWaitlistPosition(eventId: string) {
+  const counts = await loadRegistrationCounts([eventId]).catch(() => {
+    throw new Error("We couldn't check the waiting list.");
+  });
+  return counts.get(eventId)?.ownWaitlistPosition ?? null;
 }
 
 export type MyRegistration = {
@@ -92,13 +111,9 @@ export type MyRegistration = {
 
 /**
  * Every event the signed-in attendee has registered for or waitlisted for.
- * Explicitly filtered to this attendee's own rows — event_registrations'
- * SELECT policy is `attendee_id = auth.uid() OR can_view_event(event_id)`,
- * and can_view_event grants any attendee read access to a confirmed event,
- * so without this filter the query would also return every other
- * attendee's rows on any confirmed event. (getOwnWaitlistPositions below
- * deliberately relies on that broader grant, scoped by its own explicit
- * event/status filters, to compute the attendee's position among peers.)
+ * RLS already limits an attendee to their own rows (202610300003); the
+ * explicit filter keeps this "my registrations" even for a signed-in
+ * organiser or coordinator, who can also read the rows of events they manage.
  */
 export async function listMyRegistrations(attendeeId: string): Promise<MyRegistration[]> {
   const { data, error } = await supabase
@@ -129,10 +144,9 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
     .filter((row) => row.status === "waitlisted")
     .map((row) => row.event!.id);
 
-  const waitlistPositions =
-    waitlistedEventIds.length === 0
-      ? new Map<string, number>()
-      : await getOwnWaitlistPositions(waitlistedEventIds, attendeeId);
+  const counts = await loadRegistrationCounts(waitlistedEventIds).catch(() => {
+    throw new Error("We couldn't check the waiting list.");
+  });
 
   return ownRows.map((row) => {
     const eventId = row.event!.id;
@@ -145,7 +159,7 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
       location: row.event!.event_venue_requirements?.preferred_location ?? null,
       status: row.status,
       registeredAt: row.registered_at,
-      waitlistPosition: waitlistPositions.get(eventId) ?? null,
+      waitlistPosition: counts.get(eventId)?.ownWaitlistPosition ?? null,
       withdrawalPermitted: row.event!.event_registration_requirements?.withdrawal_permitted ?? false,
     };
   });
@@ -165,7 +179,8 @@ export type EventRegistrationEntry = {
  * View Event Registration Information: every registration row for one
  * event, with the attendee's name — for the organiser, the assigned
  * coordinator, or the Event Coordinator Lead. RLS already scopes the rows
- * themselves (event_registrations delegates to can_view_event); the
+ * themselves to exactly those people (can_manage_event_registrations,
+ * 202610300003), so any other caller gets no rows; the
  * attendee's name comes from a new, narrow profiles grant
  * (202610270006). No venue or equipment data is fetched here at all —
  * this is its own query, not the event-detail loader.
@@ -196,26 +211,4 @@ export async function listEventRegistrations(eventId: string): Promise<EventRegi
     withdrawnAt: row.withdrawn_at,
     waitlistPosition: waitlistPositions.get(row.id) ?? null,
   }));
-}
-
-async function getOwnWaitlistPositions(eventIds: string[], attendeeId: string) {
-  const { data, error } = await supabase
-    .from("event_registrations")
-    .select("event_id, attendee_id")
-    .in("event_id", eventIds)
-    .eq("status", "waitlisted")
-    .order("registered_at", { ascending: true });
-
-  if (error) throw new Error("We couldn't check the waiting list.");
-
-  const positions = new Map<string, number>();
-  const counters = new Map<string, number>();
-  for (const row of data) {
-    const nextPosition = (counters.get(row.event_id) ?? 0) + 1;
-    counters.set(row.event_id, nextPosition);
-    if (row.attendee_id === attendeeId) {
-      positions.set(row.event_id, nextPosition);
-    }
-  }
-  return positions;
 }
