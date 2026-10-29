@@ -69,9 +69,16 @@ vi.mock("@/features/event-requests/services/all-events", () => ({
   assignEventCoordinator: (...args: unknown[]) => assignEventCoordinatorMock(...args),
 }));
 
+const loadMainVenueCapacityMock = vi.fn();
+vi.mock("@/features/registrations/services/registration-settings", () => ({
+  loadMainVenueCapacity: (...args: unknown[]) => loadMainVenueCapacityMock(...args),
+}));
+
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
 
 import { EventsPage } from "./EventsPage";
+
+const noRegistration = { required: false, opensAt: null, closesAt: null, capacity: null };
 
 const draft = {
   id: "draft-1",
@@ -84,6 +91,7 @@ const draft = {
   submittedAt: null,
   assignedCoordinatorId: null,
   assignedCoordinatorName: null,
+  registration: noRegistration,
 };
 
 const requested = {
@@ -97,6 +105,7 @@ const requested = {
   submittedAt: "2026-09-13T08:00:00.000Z",
   assignedCoordinatorId: "20000000-0000-0000-0000-000000000002",
   assignedCoordinatorName: "Joyce Coordinator",
+  registration: noRegistration,
 };
 
 let lastEventsSearch = "";
@@ -124,6 +133,83 @@ function renderEventsPageWithLocationSpy(initialEntries: string[] = ["/events"])
     </MemoryRouter>,
   );
 }
+
+// Configure Event Registration: a Planning event's card tells the organiser
+// when registration needs their action before the safety check.
+describe("EventsPage organiser registration action", () => {
+  const planning = {
+    ...requested,
+    id: "planning-1",
+    title: "Planning Event",
+    status: "planning",
+    registration: {
+      required: true,
+      opensAt: "2099-11-01T01:00:00.000Z",
+      closesAt: "2099-11-30T10:00:00.000Z",
+      capacity: 80,
+    },
+  };
+
+  beforeEach(() => {
+    authState.profile.role = "event_organiser";
+    getClarificationReviewStateMock.mockReset().mockResolvedValue(undefined);
+    hasPendingChangeRequestMock.mockReset().mockResolvedValue(false);
+    loadMainVenueCapacityMock.mockReset().mockResolvedValue(null);
+  });
+
+  function renderList() {
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+  }
+
+  it("flags required registration that hasn't been set up", async () => {
+    listEventRequestsMock.mockResolvedValue([
+      { ...planning, registration: { ...planning.registration, opensAt: null } },
+    ]);
+
+    renderList();
+
+    expect(await screen.findByText("Registration setup needed")).toBeInTheDocument();
+    // Incomplete settings can't be over capacity, so the venue isn't fetched.
+    expect(loadMainVenueCapacityMock).not.toHaveBeenCalled();
+  });
+
+  it("flags registration capacity above the approved main venue's", async () => {
+    listEventRequestsMock.mockResolvedValue([planning]);
+    loadMainVenueCapacityMock.mockResolvedValue(50);
+
+    renderList();
+
+    expect(await screen.findByText("Registration capacity too high")).toBeInTheDocument();
+    expect(loadMainVenueCapacityMock).toHaveBeenCalledWith("planning-1");
+  });
+
+  it("shows nothing once registration is complete and fits the venue", async () => {
+    listEventRequestsMock.mockResolvedValue([planning]);
+    loadMainVenueCapacityMock.mockResolvedValue(100);
+
+    renderList();
+
+    await screen.findByText("Planning Event");
+    await waitFor(() => expect(loadMainVenueCapacityMock).toHaveBeenCalled());
+    expect(screen.queryByText("Registration setup needed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Registration capacity too high")).not.toBeInTheDocument();
+  });
+
+  it("shows nothing outside Planning, where the organiser can't change registration", async () => {
+    listEventRequestsMock.mockResolvedValue([
+      { ...planning, status: "pending_safety_check", registration: { ...planning.registration, opensAt: null } },
+    ]);
+
+    renderList();
+
+    await screen.findByText("Planning Event");
+    expect(screen.queryByText("Registration setup needed")).not.toBeInTheDocument();
+  });
+});
 
 describe("EventsPage draft controls", () => {
   beforeEach(() => {

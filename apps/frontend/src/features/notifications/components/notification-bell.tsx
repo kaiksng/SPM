@@ -88,6 +88,10 @@ function notificationDestination(notification: NotificationSummary): string | un
   }
   if (!notification.eventId) return undefined;
   if (VENUE_DECISION_TYPES.has(notification.type)) return `/events/${notification.eventId}/history`;
+  // The organiser must set up or fix registration: open its section.
+  if (notification.type === "registration_update") {
+    return `/events/${notification.eventId}#registration`;
+  }
   if (
     COORDINATOR_VENUE_HOLD_TYPES.has(notification.type) ||
     COORDINATOR_VENUE_DISRUPTION_TYPES.has(notification.type)
