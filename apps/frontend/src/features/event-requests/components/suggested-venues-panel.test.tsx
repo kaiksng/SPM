@@ -44,7 +44,7 @@ const otherVenue = {
   location: "Building 2",
 };
 
-function renderPanel(replacing?: { bookingId: string; venueId: string }) {
+function renderPanel(replacing?: { bookingId: string; venueId: string }, hasActiveBooking = false) {
   const event: EventDetail = {
     id: "event-1", title: "Planning event", purpose: null, description: null,
     eventType: null, expectedAttendance: 20,
@@ -57,7 +57,7 @@ function renderPanel(replacing?: { bookingId: string; venueId: string }) {
   };
   return render(
     <MemoryRouter>
-      <SuggestedVenuesPanel event={event} hasActiveBooking={false} replacing={replacing} />
+      <SuggestedVenuesPanel event={event} hasActiveBooking={hasActiveBooking} replacing={replacing} />
     </MemoryRouter>,
   );
 }
@@ -273,6 +273,13 @@ describe("SuggestedVenuesPanel loading and results", () => {
     renderPanel();
 
     expect(await screen.findByRole("link", { name: "View details" })).toHaveAttribute("href", "/venues/venue-1?forEvent=event-1&status=available");
+  });
+
+  // SPM-21 AC: a coordinator can browse venues even when the event already has an active request, but only to review them.
+  it("opens a venue for review only when the event already has an active venue request", async () => {
+    renderPanel(undefined, true);
+
+    expect(await screen.findByRole("link", { name: "View details" })).toHaveAttribute("href", expect.stringContaining("&explore=1"));
   });
 
   it("opens a venue without a status when its availability is not known", async () => {
