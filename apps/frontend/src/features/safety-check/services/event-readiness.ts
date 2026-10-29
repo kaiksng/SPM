@@ -2,6 +2,7 @@ import {
   SafetyCheckSubmissionError,
   safetyCheckOutstandingItemsSchema,
   type EventReadiness,
+  type SafetyReviewDetails,
   type ReadinessStatus,
 } from "@spm/shared";
 
@@ -21,6 +22,21 @@ export async function loadEventReadiness(eventId: string): Promise<EventReadines
   }
 
   return data as unknown as EventReadiness;
+}
+
+/**
+ * SPM-90: the facts the Safety Officer reviews (capacity vs attendance,
+ * layouts, accessibility, equipment, venue notes). Read-only, same access
+ * rule as event_readiness.
+ */
+export async function loadSafetyReviewDetails(eventId: string): Promise<SafetyReviewDetails> {
+  const { data, error } = await supabase.rpc("safety_check_review_details", { p_event_id: eventId });
+
+  if (error || !data) {
+    throw new Error("This event's review details could not be loaded.");
+  }
+
+  return data as unknown as SafetyReviewDetails;
 }
 
 /**

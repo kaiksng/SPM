@@ -1,4 +1,4 @@
-import type { EventReadiness } from "@spm/shared";
+import type { EventReadiness, SafetyReviewDetails } from "@spm/shared";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
 import { loadEventDetail, type EventDetail } from "@/features/event-requests/services/event-details";
 import { SafetyCheckDecisionDialog } from "@/features/safety-check/components/safety-check-decision-dialog";
+import { SafetyReviewPanel } from "@/features/safety-check/components/safety-review-panel";
 import { SafetyCheckItemPicker } from "@/features/safety-check/components/safety-check-item-picker";
 import {
   loadEventReadiness,
   loadLatestSafetyCheckSubmission,
+  loadSafetyReviewDetails,
   type SafetyCheckSubmission,
 } from "@/features/safety-check/services/event-readiness";
 import {
@@ -37,6 +39,7 @@ export function SafetyCheckReviewPage() {
   const navigate = useNavigate();
   const [event, setEvent] = useState<EventDetail>();
   const [readiness, setReadiness] = useState<EventReadiness>();
+  const [reviewDetails, setReviewDetails] = useState<SafetyReviewDetails>();
   const [submission, setSubmission] = useState<SafetyCheckSubmission | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -55,12 +58,14 @@ export function SafetyCheckReviewPage() {
       loadEventDetail(eventId),
       loadEventReadiness(eventId),
       loadLatestSafetyCheckSubmission(eventId).catch(() => null),
+      loadSafetyReviewDetails(eventId),
     ])
-      .then(([detail, eventReadiness, latestSubmission]) => {
+      .then(([detail, eventReadiness, latestSubmission, details]) => {
         if (!active) return;
         setEvent(detail);
         setReadiness(eventReadiness);
         setSubmission(latestSubmission);
+        setReviewDetails(details);
       })
       .catch((loadError: unknown) => {
         if (active) {
@@ -127,7 +132,7 @@ export function SafetyCheckReviewPage() {
 
           {loading ? (
             <div className="mt-7 h-96 animate-pulse rounded-2xl bg-slate-200/70 motion-reduce:animate-none" />
-          ) : error || !event || !readiness || !eventId ? (
+          ) : error || !event || !readiness || !reviewDetails || !eventId ? (
             <section className="mt-7 rounded-2xl border border-red-200 bg-red-50 p-6">
               <h1 className="font-semibold text-red-900">Event unavailable</h1>
               <p role="alert" className="mt-2 text-sm text-red-800">
@@ -158,6 +163,8 @@ export function SafetyCheckReviewPage() {
                   </div>
                 </div>
               )}
+
+              <SafetyReviewPanel details={reviewDetails} />
 
               <SafetyCheckItemPicker
                 readiness={readiness}

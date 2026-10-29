@@ -14,6 +14,8 @@ export type PendingSafetyCheckEvent = {
   endsAt: string | null;
   expectedAttendance: number | null;
   round: number | null;
+  /** When the latest round was submitted; the queue is ordered by it. */
+  submittedAt: string | null;
 };
 
 /**
@@ -42,21 +44,23 @@ export async function listPendingSafetyCheckEvents(): Promise<PendingSafetyCheck
 
   const { data: submissions } = await supabase
     .from("event_safety_check_submissions")
-    .select("event_id, round")
+    .select("event_id, round, submitted_at")
     .in(
       "event_id",
       events.map((event) => event.id),
     )
     .order("round", { ascending: false });
 
-  const latestRoundByEvent = new Map<string, number>();
+  const latestByEvent = new Map<string, { round: number; submittedAt: string }>();
   for (const submission of submissions ?? []) {
-    if (!latestRoundByEvent.has(submission.event_id)) {
-      latestRoundByEvent.set(submission.event_id, submission.round);
+    if (!latestByEvent.has(submission.event_id)) {
+      latestByEvent.set(submission.event_id, { round: submission.round, submittedAt: submission.submitted_at });
     }
   }
 
-  return events.map((event) => ({
+  // SPM-90 AC01: oldest first, by when the latest round was submitted.
+  // An event with no submission record sorts last.
+  const queue = events.map((event) => ({
     eventId: event.id,
     title: event.title,
     organiserName: event.organiser?.full_name ?? null,
@@ -64,8 +68,16 @@ export async function listPendingSafetyCheckEvents(): Promise<PendingSafetyCheck
     startsAt: event.starts_at,
     endsAt: event.ends_at,
     expectedAttendance: event.expected_attendance,
-    round: latestRoundByEvent.get(event.id) ?? null,
+    round: latestByEvent.get(event.id)?.round ?? null,
+    submittedAt: latestByEvent.get(event.id)?.submittedAt ?? null,
   }));
+
+  return queue.sort((a, b) => {
+    if (a.submittedAt === b.submittedAt) return 0;
+    if (a.submittedAt === null) return 1;
+    if (b.submittedAt === null) return -1;
+    return a.submittedAt < b.submittedAt ? -1 : 1;
+  });
 }
 
 export type SafetyCheckDecisionOutcome = "approved" | "changes_requested" | "rejected";
