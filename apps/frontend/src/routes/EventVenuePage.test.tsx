@@ -245,6 +245,30 @@ describe("EventVenuePage", () => {
     expect(listSuggestedVenuesMock).not.toHaveBeenCalled();
   });
 
+  // A Cancelled or Rejected event will never need a venue: its bookings stay on
+  // record, but no venues are suggested and nothing can be requested.
+  it.each(["cancelled", "rejected"])(
+    "shows no suggested venues and no booking actions on a %s event",
+    async (status) => {
+      loadEventDetailMock.mockResolvedValue({ ...event, status });
+      listVenueBookingsForEventMock.mockResolvedValue([
+        booking({ status: "cancelled", cancellationReason: "Draft." }),
+      ]);
+
+      renderPage();
+
+      const list = await screen.findByRole("region", { name: "Venue bookings" });
+      expect(within(list).getByText("Main Programme")).toBeInTheDocument();
+      expect(within(list).queryByRole("button")).not.toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent(
+        `This event is ${status}, so its venue bookings can no longer be changed.`,
+      );
+      expect(screen.queryByText("Suggested venues")).not.toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Add another venue" })).not.toBeInTheDocument();
+      expect(listSuggestedVenuesMock).not.toHaveBeenCalled();
+    },
+  );
+
   // SPM-46 AC07: with no main venue left, a Completed event is not prompted to choose one.
   it("does not prompt a Completed event to choose a main venue", async () => {
     loadEventDetailMock.mockResolvedValue({ ...event, status: "completed" });

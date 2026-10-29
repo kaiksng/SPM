@@ -59,7 +59,7 @@ select set_config('request.jwt.claims', '{"sub":"fe000000-0000-0000-0000-0000000
 -- Technical Support Staff, while Pending Safety Check.
 select throws_ok(
   $$select public.update_equipment_arrangement('fe000000-0000-0000-0000-0000000000a1', 'arranged', null)$$,
-  '23514', 'Arrangements can only be updated for a Requested, Planning or Confirmed event',
+  '23514', 'Arrangements can only be updated for a Planning or Confirmed event',
   'AC06: equipment arrangements cannot be updated while Pending Safety Check'
 );
 
@@ -69,7 +69,7 @@ update public.events set status = 'planning' where id = 'fe000000-0000-0000-0000
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"fe000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select isnt(
-  public.update_equipment_arrangement('fe000000-0000-0000-0000-0000000000a1', 'arranged', null),
+  public.update_equipment_arrangement('fe000000-0000-0000-0000-0000000000a1', 'in_progress', null),
   null,
   'equipment arrangements can be updated again once the event returns to Planning'
 );

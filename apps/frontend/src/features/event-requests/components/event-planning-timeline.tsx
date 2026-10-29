@@ -64,6 +64,12 @@ export function EventPlanningTimeline({
 }) {
   const currentRank = STAGE_RANK[status] ?? 0;
   const { pathname } = useLocation();
+  // Venue and Equipment have nothing to work on until the event is in
+  // Planning (venue bookings and equipment are refused before then). A
+  // Cancelled event keeps them, since it may have reached Planning and its
+  // arrangements stay on record.
+  const planningRank = STAGES.find((stage) => stage.id === "planning")?.rank ?? 2;
+  const childrenOpen = currentRank >= planningRank || status === "cancelled";
 
   return (
     <nav aria-label="Event lifecycle" className="w-56 shrink-0">
@@ -134,16 +140,20 @@ export function EventPlanningTimeline({
                           aria-hidden="true"
                           className="size-3.5 shrink-0 text-slate-300"
                         />
-                        <Link
-                          to={childHref}
-                          aria-current={current ? "page" : undefined}
-                          className={cn(
-                            "hover:text-primary hover:underline",
-                            current && "font-semibold text-primary",
-                          )}
-                        >
-                          {child.label}
-                        </Link>
+                        {childrenOpen ? (
+                          <Link
+                            to={childHref}
+                            aria-current={current ? "page" : undefined}
+                            className={cn(
+                              "hover:text-primary hover:underline",
+                              current && "font-semibold text-primary",
+                            )}
+                          >
+                            {child.label}
+                          </Link>
+                        ) : (
+                          <span className="text-slate-400">{child.label}</span>
+                        )}
                       </li>
                     );
                   })}

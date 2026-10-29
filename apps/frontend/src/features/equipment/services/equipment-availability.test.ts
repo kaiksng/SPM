@@ -65,12 +65,14 @@ beforeEach(() => {
 });
 
 describe("listEventEquipmentAvailability (SPM-28)", () => {
-  it("lists Pending Safety Check events too", async () => {
+  // Pending Safety Check events are listed too. Requested ones are not: staff
+  // only see an event's equipment once it is in Planning.
+  it("lists Planning, Pending Safety Check and Confirmed events, not Requested ones", async () => {
     const { eventsQuery } = mockTables([]);
 
     await listEventEquipmentAvailability();
 
-    expect(eventsQuery.in).toHaveBeenCalledWith("status", ["requested", "planning", "pending_safety_check", "confirmed"]);
+    expect(eventsQuery.in).toHaveBeenCalledWith("status", ["planning", "pending_safety_check", "confirmed"]);
   });
 
   // AC02: until staff set a status, it follows the reservation and availability.

@@ -24,19 +24,23 @@ export function ReservationDialog({
   action,
   eventTitle,
   result,
+  startQuantity: requestedStart,
   onCancel,
   onConfirm,
 }: {
   action: ReservationAction;
   eventTitle: string;
   result: EquipmentAvailabilityResult;
+  /** Overrides the starting quantity, e.g. "Reserve the rest" starts at the full request. */
+  startQuantity?: number;
   onCancel: () => void;
   onConfirm: (input: { quantity: number; reason: string }) => Promise<void>;
 }) {
   const startQuantity =
-    action === "change" && result.reservation
+    requestedStart ??
+    (action === "change" && result.reservation
       ? result.reservation.quantity
-      : Math.max(Math.min(result.requestedQuantity, result.availableQuantity), 1);
+      : Math.max(Math.min(result.requestedQuantity, result.availableQuantity), 1));
   const [quantity, setQuantity] = useState(String(startQuantity));
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string>();

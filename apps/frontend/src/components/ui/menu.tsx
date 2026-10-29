@@ -50,6 +50,20 @@ function MenuContent({
   );
 }
 
+/** One action in a menu: closes the menu when chosen, and is reachable by keyboard. */
+function MenuItem({ className, ...props }: MenuPrimitive.Item.Props) {
+  return (
+    <MenuPrimitive.Item
+      data-slot="menu-item"
+      className={cn(
+        "flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none select-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
 function MenuSeparator({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
@@ -61,4 +75,4 @@ function MenuSeparator({ className, ...props }: ComponentProps<"div">) {
   );
 }
 
-export { Menu, MenuTrigger, MenuContent, MenuSeparator };
+export { Menu, MenuTrigger, MenuContent, MenuItem, MenuSeparator };
