@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryBuilder } from "@/test/supabase-mock";
 
-const { fromMock } = vi.hoisted(() => ({ fromMock: vi.fn() }));
+const { fromMock, apiFetchMock } = vi.hoisted(() => ({ fromMock: vi.fn(), apiFetchMock: vi.fn() }));
 
 vi.mock("@/lib/supabase-client", () => ({ supabase: { from: fromMock } }));
-vi.mock("@/lib/api-client", () => ({ apiFetch: vi.fn() }));
+vi.mock("@/lib/api-client", () => ({ apiFetch: apiFetchMock }));
 
-import { listPendingSafetyCheckEvents } from "./safety-check-decisions";
+import { decideEventSafetyCheck, listPendingSafetyCheckEvents } from "./safety-check-decisions";
 
 function eventRow(id: string, title: string) {
   return {
@@ -24,6 +24,7 @@ function eventRow(id: string, title: string) {
 describe("listPendingSafetyCheckEvents", () => {
   beforeEach(() => {
     fromMock.mockReset();
+    apiFetchMock.mockReset();
   });
 
   // SPM-90 AC01: oldest submission first, using each event's latest round.
@@ -61,4 +62,67 @@ describe("listPendingSafetyCheckEvents", () => {
 
     await expect(listPendingSafetyCheckEvents()).rejects.toThrow("The safety check queue is unavailable.");
   });
+
+  it("lists an event with no organiser, coordinator or submission record, after those that have one", async () => {
+    fromMock
+      .mockReturnValueOnce(
+        queryBuilder({
+          data: [
+            { ...eventRow("e-bare", "Bare"), organiser: null, coordinator: null },
+            { ...eventRow("e-sub", "Submitted"), organiser: null, coordinator: null },
+          ],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(queryBuilder({ data: [{ event_id: "e-sub", round: 1, submitted_at: "2026-10-20T09:00:00Z" }], error: null }));
+
+    const queue = await listPendingSafetyCheckEvents();
+
+    expect(queue.map((item) => item.eventId)).toEqual(["e-sub", "e-bare"]);
+    expect(queue[0]).toMatchObject({ organiserName: null, coordinatorName: null });
+  });
+
+  it("keeps events in their order when none has a submission record", async () => {
+    fromMock
+      .mockReturnValueOnce(queryBuilder({ data: [eventRow("e-1", "One"), eventRow("e-2", "Two")], error: null }))
+      .mockReturnValueOnce(queryBuilder({ data: null, error: null }));
+
+    const queue = await listPendingSafetyCheckEvents();
+
+    expect(queue.map((item) => item.eventId)).toEqual(["e-1", "e-2"]);
+    expect(queue.every((item) => item.round === null && item.submittedAt === null)).toBe(true);
+  });
 });
+
+describe("decideEventSafetyCheck", () => {
+  // SPM-90 AC04: the approval is sent to the backend, which records the reviewer and notifies.
+  it("sends an approval with its note and no flagged items", async () => {
+    apiFetchMock.mockResolvedValue({ data: { eventId: "event-1", status: "confirmed", outcome: "approved", flaggedBookingCount: 0, flaggedRequirementCount: 0 } });
+
+    const result = await decideEventSafetyCheck("event-1", "approved", "All clear");
+
+    expect(apiFetchMock).toHaveBeenCalledWith("/events/event-1/safety-check-decision", {
+      method: "POST",
+      body: JSON.stringify({ decision: "approved", reason: "All clear", flaggedBookingIds: [], flaggedRequirementIds: [] }),
+    });
+    expect(result).toMatchObject({ status: "confirmed", outcome: "approved" });
+  });
+
+  it("sends the flagged items when changes are requested", async () => {
+    apiFetchMock.mockResolvedValue({ data: { eventId: "event-1", status: "planning", outcome: "changes_requested", flaggedBookingCount: 1, flaggedRequirementCount: 1 } });
+
+    await decideEventSafetyCheck("event-1", "changes_requested", "Exit blocked", ["booking-1"], ["req-1"]);
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/events/event-1/safety-check-decision",
+      expect.objectContaining({ body: JSON.stringify({ decision: "changes_requested", reason: "Exit blocked", flaggedBookingIds: ["booking-1"], flaggedRequirementIds: ["req-1"] }) }),
+    );
+  });
+
+  it("lets the backend's refusal reach the page", async () => {
+    apiFetchMock.mockRejectedValue(new Error("Only a Safety Officer can decide an event's safety check"));
+
+    await expect(decideEventSafetyCheck("event-1", "approved", "")).rejects.toThrow("Only a Safety Officer can decide");
+  });
+});
+
