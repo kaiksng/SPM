@@ -1937,6 +1937,10 @@ export type Database = {
         Args: { target_event_id: string }
         Returns: boolean
       }
+      can_manage_event_registrations: {
+        Args: { target_event_id: string }
+        Returns: boolean
+      }
       can_view_event:
         | { Args: { target_event_id: string }; Returns: boolean }
         | {
@@ -2139,6 +2143,14 @@ export type Database = {
       event_readiness: {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json
+      }
+      event_registration_counts: {
+        Args: { p_event_ids: string[] }
+        Returns: {
+          event_id: string
+          own_waitlist_position: number
+          registered_count: number
+        }[]
       }
       event_status_transition_allowed: {
         Args: {

@@ -104,8 +104,8 @@ describe("MyRegistrationsPage", () => {
     expect(await screen.findByText("No registrations yet")).toBeInTheDocument();
   });
 
-  // This story: Withdraw is reachable from My Registrations, not just the
-  // single-event page, and only when the organiser permits it.
+  // SPM-43 scenario 2: Withdraw is reachable from My Registrations, not just
+  // the single-event page, and only when the organiser permits it.
   it("hides the withdraw action when the event does not permit it", async () => {
     listMyRegistrationsMock.mockResolvedValue([registration]);
     renderPage();
@@ -114,6 +114,7 @@ describe("MyRegistrationsPage", () => {
     expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument();
   });
 
+  // SPM-43 AC01 + AC02: the registration becomes Withdrawn, with confirmation.
   it("lets the attendee withdraw a registered registration, with an optional reason", async () => {
     listMyRegistrationsMock.mockResolvedValue([{ ...registration, withdrawalPermitted: true }]);
     const user = userEvent.setup();
@@ -130,5 +131,28 @@ describe("MyRegistrationsPage", () => {
     ).toBeInTheDocument();
     const card = (await screen.findByText("Robotics Showcase")).closest("article")!;
     expect(within(card).getByText("Withdrawn")).toBeInTheDocument();
+  });
+});
+
+describe("SPM-43: a withdrawal that is refused", () => {
+  beforeEach(() => {
+    listMyRegistrationsMock.mockReset().mockResolvedValue([{ ...registration, withdrawalPermitted: true }]);
+    withdrawRegistrationMock.mockReset();
+  });
+
+  // SPM-43 scenario 2: a rejected withdrawal leaves the registration as it was.
+  it("keeps the registration Registered and explains why", async () => {
+    withdrawRegistrationMock.mockRejectedValue(new Error("Withdrawal is not permitted for this event."));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Withdraw" }));
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Withdraw" }));
+
+    expect(await within(dialog).findByText("Withdrawal is not permitted for this event.")).toBeInTheDocument();
+    const card = screen.getByText("Robotics Showcase").closest("article")!;
+    expect(within(card).queryByText("Withdrawn")).not.toBeInTheDocument();
+    expect(screen.queryByText(/your place has been released/)).not.toBeInTheDocument();
   });
 });
