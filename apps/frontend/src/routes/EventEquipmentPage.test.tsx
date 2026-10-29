@@ -224,6 +224,37 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  // The assigned coordinator changes equipment on the edit page, reachable
+  // from here while the event is in Planning (the only time it is editable).
+  it("offers the assigned coordinator Edit equipment while the event is in Planning", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      ...(await loadEventDetailMock()),
+      assignedCoordinatorId: "coordinator-1",
+    });
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "Edit equipment" })).toHaveAttribute(
+      "href",
+      "/events/event-1/coordinator-edit",
+    );
+  });
+
+  it.each([
+    ["another coordinator", "coordinator-2", "planning"],
+    ["the assigned coordinator of a Confirmed event", "coordinator-1", "confirmed"],
+    ["the assigned coordinator of a Requested event", "coordinator-1", "requested"],
+  ])("does not offer Edit equipment to %s", async (_who, assignedCoordinatorId, status) => {
+    loadEventDetailMock.mockResolvedValue({
+      ...(await loadEventDetailMock()),
+      assignedCoordinatorId,
+      status,
+    });
+    renderPage();
+
+    expect(await screen.findByText("Projector × 3")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Edit equipment" })).not.toBeInTheDocument();
+  });
+
   it("hides the status from anyone other than the assigned coordinator", async () => {
     loadEventDetailMock.mockResolvedValue({
       ...(await loadEventDetailMock()),

@@ -7,8 +7,9 @@ import {
   type EquipmentArrangementState,
 } from "@spm/shared";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 
+import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { ArrangementBadge, ArrangementDetails } from "@/features/equipment/components/equipment-arrangement";
 import { loadEquipmentArrangementStatuses } from "@/features/equipment/services/equipment-arrangement-status";
@@ -104,6 +105,11 @@ export function EventEquipmentPage() {
   // SPM-28 visibility: the assigned coordinator. Anyone else who can open
   // this page would see every item as Not started, so the status is hidden.
   const showArrangementStatus = Boolean(arrangementStatuses && user && event?.assignedCoordinatorId === user.id);
+  // Equipment is changed on the coordinator's edit page, which only allows
+  // it for the assigned coordinator while the event is in Planning.
+  const canEditEquipment = Boolean(
+    user && event?.assignedCoordinatorId === user.id && event.status === "planning",
+  );
 
   return (
     <RoleGate>
@@ -126,7 +132,21 @@ export function EventEquipmentPage() {
                 <EventPlanningTimeline status={event.status} eventId={event.id} />
               </div>
               <div className="min-w-0 flex-1">
-                <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950">Equipment</h1>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950">Equipment</h1>
+                  {canEditEquipment && (
+                    <Link
+                      to={`/events/${event.id}/coordinator-edit`}
+                      className={buttonVariants({
+                        variant: "outline",
+                        size: "sm",
+                        className: "border-primary/30 bg-accent text-primary hover:bg-accent/80",
+                      })}
+                    >
+                      Edit equipment
+                    </Link>
+                  )}
+                </div>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
                   What the event requested and what Technical Support Staff have reserved for it.
                 </p>
