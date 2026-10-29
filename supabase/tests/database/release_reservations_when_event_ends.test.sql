@@ -99,18 +99,22 @@ select is(
   'completing an event releases its reservation, recording why'
 );
 
--- Rejecting a Requested event releases too.
+-- Rejecting a Requested event releases too. Staff can no longer reserve for
+-- a Requested event (202610290001), so the reservation is written directly,
+-- as one made before that rule would be; the release still applies to it.
 insert into public.events (id, organiser_id, assigned_coordinator_id, title, status, starts_at, ends_at)
 values ('e9000000-0000-0000-0000-0000000000e4', 'e9000000-0000-0000-0000-000000000002', 'e9000000-0000-0000-0000-000000000003', 'To Be Rejected', 'requested',
         '2099-09-02T10:00:00+08:00', '2099-09-02T14:00:00+08:00');
 insert into public.event_equipment_requirements (event_id, equipment_item_id, equipment_name, quantity, required_from, required_until)
 values ('e9000000-0000-0000-0000-0000000000e4', (select id from v_ids where name = 'proj'), 'x', 5,
         '2099-09-02T10:00:00+08:00', '2099-09-02T14:00:00+08:00');
-set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"e9000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-insert into v_ids select 'res-reject', public.reserve_equipment(
-  (select id from public.event_equipment_requirements where event_id = 'e9000000-0000-0000-0000-0000000000e4'), 5);
-reset role;
+insert into public.equipment_reservations (event_id, requirement_id, equipment_item_id, quantity, starts_at, ends_at, status, requested_by, decided_by, decided_at)
+values ('e9000000-0000-0000-0000-0000000000e4',
+        (select id from public.event_equipment_requirements where event_id = 'e9000000-0000-0000-0000-0000000000e4'),
+        (select id from v_ids where name = 'proj'), 5,
+        '2099-09-02T10:00:00+08:00', '2099-09-02T14:00:00+08:00', 'approved',
+        'e9000000-0000-0000-0000-000000000001', 'e9000000-0000-0000-0000-000000000001', now());
+insert into v_ids select 'res-reject', id from public.equipment_reservations where event_id = 'e9000000-0000-0000-0000-0000000000e4';
 update public.events set status = 'rejected' where id = 'e9000000-0000-0000-0000-0000000000e4';
 select is(
   (select status::text from public.equipment_reservations where id = (select id from v_ids where name = 'res-reject')),

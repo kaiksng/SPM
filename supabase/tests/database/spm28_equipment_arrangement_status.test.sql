@@ -1,6 +1,6 @@
 begin;
 
-select plan(28);
+select plan(29);
 
 -- SPM: update_equipment_arrangement no longer permits edits while an event
 -- is Pending Safety Check (202610190005) — the coordinator's technical
@@ -31,15 +31,19 @@ values
   ('e8000000-0000-0000-0000-0000000000e3', 'e8000000-0000-0000-0000-000000000002', null,
    'Arrangement Draft', 'draft', '2099-08-03T10:00:00+08:00', '2099-08-03T14:00:00+08:00'),
   ('e8000000-0000-0000-0000-0000000000e4', 'e8000000-0000-0000-0000-000000000002', 'e8000000-0000-0000-0000-000000000003',
-   'Arrangement Completed', 'confirmed', '2099-08-04T10:00:00+08:00', '2099-08-04T14:00:00+08:00');
+   'Arrangement Completed', 'confirmed', '2099-08-04T10:00:00+08:00', '2099-08-04T14:00:00+08:00'),
+  ('e8000000-0000-0000-0000-0000000000e5', 'e8000000-0000-0000-0000-000000000002', 'e8000000-0000-0000-0000-000000000003',
+   'Arrangement Requested', 'requested', '2099-08-05T10:00:00+08:00', '2099-08-05T14:00:00+08:00');
 
 insert into public.event_equipment_requirements (event_id, equipment_item_id, equipment_name, quantity, required_from, required_until)
 select e.id, (select id from v_ids where name = 'mic'), 'x', 2, e.starts_at, e.ends_at
 from public.events e
 where e.id in (
   'e8000000-0000-0000-0000-0000000000e1', 'e8000000-0000-0000-0000-0000000000e2',
-  'e8000000-0000-0000-0000-0000000000e3', 'e8000000-0000-0000-0000-0000000000e4'
+  'e8000000-0000-0000-0000-0000000000e3', 'e8000000-0000-0000-0000-0000000000e4',
+  'e8000000-0000-0000-0000-0000000000e5'
 );
+insert into v_ids select 'req-requested', id from public.event_equipment_requirements where event_id = 'e8000000-0000-0000-0000-0000000000e5';
 insert into v_ids select 'req-planning', id from public.event_equipment_requirements where event_id = 'e8000000-0000-0000-0000-0000000000e1';
 insert into v_ids select 'req-safety', id from public.event_equipment_requirements where event_id = 'e8000000-0000-0000-0000-0000000000e2';
 insert into v_ids select 'req-draft', id from public.event_equipment_requirements where event_id = 'e8000000-0000-0000-0000-0000000000e3';
@@ -164,17 +168,22 @@ select isnt(
 -- Which events.
 select throws_ok(
   $$select public.update_equipment_arrangement((select id from v_ids where name = 'req-safety'), 'arranged', null)$$,
-  '23514', 'Arrangements can only be updated for a Requested, Planning or Confirmed event',
+  '23514', 'Arrangements can only be updated for a Planning or Confirmed event',
   'a Pending Safety Check event cannot be updated (safety check submitted)'
 );
 select throws_ok(
   $$select public.update_equipment_arrangement((select id from v_ids where name = 'req-draft'), 'arranged', null)$$,
-  '23514', 'Arrangements can only be updated for a Requested, Planning or Confirmed event',
+  '23514', 'Arrangements can only be updated for a Planning or Confirmed event',
   'a draft event cannot be updated'
 );
 select throws_ok(
+  $$select public.update_equipment_arrangement((select id from v_ids where name = 'req-requested'), 'arranged', null)$$,
+  '23514', 'Arrangements can only be updated for a Planning or Confirmed event',
+  'a Requested event cannot be updated until it is in Planning'
+);
+select throws_ok(
   $$select public.update_equipment_arrangement((select id from v_ids where name = 'req-completed'), 'arranged', null)$$,
-  '23514', 'Arrangements can only be updated for a Requested, Planning or Confirmed event',
+  '23514', 'Arrangements can only be updated for a Planning or Confirmed event',
   'a completed event cannot be updated'
 );
 select throws_ok(

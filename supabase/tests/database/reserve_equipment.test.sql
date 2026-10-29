@@ -1,6 +1,6 @@
 begin;
 
-select plan(36);
+select plan(37);
 
 -- Reserve equipment for an event (202610061002_reserve_equipment.sql).
 
@@ -36,6 +36,14 @@ values ((select id from v_ids where name = 'event'), 'Old projector', 1);
 alter table public.event_equipment_requirements enable trigger event_equipment_requirements_guard;
 insert into v_ids select 'req-legacy', id from public.event_equipment_requirements where equipment_name = 'Old projector';
 
+-- A Requested event: still a request, so nothing can be reserved for it yet.
+insert into public.events (id, organiser_id, assigned_coordinator_id, title, status, starts_at, ends_at)
+values ('e6000000-0000-0000-0000-0000000000e2', 'e6000000-0000-0000-0000-000000000002', 'e6000000-0000-0000-0000-000000000003',
+        'Requested Expo', 'requested', '2099-07-02T10:00:00+08:00', '2099-07-02T14:00:00+08:00');
+insert into public.event_equipment_requirements (event_id, equipment_item_id, equipment_name, quantity, required_from, required_until)
+values ('e6000000-0000-0000-0000-0000000000e2', (select id from v_ids where name = 'proj'), 'x', 1, '2099-07-02T10:00:00+08:00', '2099-07-02T14:00:00+08:00');
+insert into v_ids select 'req-requested', id from public.event_equipment_requirements where event_id = 'e6000000-0000-0000-0000-0000000000e2';
+
 set local role authenticated;
 
 -- Only Technical Support Staff reserve.
@@ -47,6 +55,12 @@ select throws_ok(
 );
 
 select set_config('request.jwt.claims', '{"sub":"e6000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+
+select throws_ok(
+  $$select public.reserve_equipment((select id from v_ids where name = 'req-requested'), 1)$$,
+  '23514', 'Equipment can only be reserved for a Planning or Confirmed event',
+  'nothing can be reserved for a Requested event until it is in Planning'
+);
 
 -- AC1.
 select lives_ok(
@@ -292,7 +306,7 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"e6000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 select throws_ok(
   $$select public.change_equipment_reservation((select id from v_ids where name = 'res-safety'), 1)$$,
-  '23514', 'Equipment can only be reserved for a Requested, Planning or Confirmed event',
+  '23514', 'Equipment can only be reserved for a Planning or Confirmed event',
   'a reservation cannot be changed while the event awaits its safety check'
 );
 select lives_ok(

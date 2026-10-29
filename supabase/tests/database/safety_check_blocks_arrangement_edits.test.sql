@@ -59,7 +59,7 @@ select set_config('request.jwt.claims', '{"sub":"fe000000-0000-0000-0000-0000000
 -- Technical Support Staff, while Pending Safety Check.
 select throws_ok(
   $$select public.update_equipment_arrangement('fe000000-0000-0000-0000-0000000000a1', 'arranged', null)$$,
-  '23514', 'Arrangements can only be updated for a Requested, Planning or Confirmed event',
+  '23514', 'Arrangements can only be updated for a Planning or Confirmed event',
   'AC06: equipment arrangements cannot be updated while Pending Safety Check'
 );
 

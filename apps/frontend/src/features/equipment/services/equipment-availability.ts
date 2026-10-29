@@ -12,10 +12,12 @@ import { supabase } from "@/lib/supabase-client";
 
 /**
  * Events whose equipment Technical Support Staff still need to arrange.
+ * Not Requested ones: until the event is in Planning it is still a request,
+ * and the database refuses arranging or reserving for it.
  * Pending Safety Check events are listed for their arrangement status
  * (SPM-28), but the database refuses reservation changes for them.
  */
-const OPEN_STATUSES = ["requested", "planning", "pending_safety_check", "confirmed"] as const;
+const OPEN_STATUSES = ["planning", "pending_safety_check", "confirmed"] as const;
 
 export type EquipmentAvailabilityResult = {
   requirementId: string;
