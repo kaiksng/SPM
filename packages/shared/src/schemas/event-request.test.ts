@@ -94,7 +94,8 @@ describe("event draft validation", () => {
     expect(toEventDraftPayload(parsed).requirementsAcknowledged).toBe(true);
   });
 
-  it("derives registration capacity from expected attendance", () => {
+  // SPM-40 AC01: the request only says whether registration is required; capacity is set in Planning.
+  it("does not derive registration capacity from expected attendance", () => {
     const parsed = eventDraftSchema.parse(
       draft({
         expectedAttendance: "80",
@@ -106,7 +107,7 @@ describe("event draft validation", () => {
     );
 
     expect(toEventDraftPayload(parsed)).toMatchObject({
-      registration: { required: true, capacity: "80" },
+      registration: { required: true, capacity: null },
       requirementsAcknowledged: true,
     });
   });
@@ -122,7 +123,7 @@ describe("event draft details", () => {
     expect(toEventDraftPayload(parsed).venue.facilities).toEqual(["Projector", "Microphone"]);
   });
 
-  it("keeps an entered registration capacity instead of deriving one from the attendance", () => {
+  it("keeps an entered registration capacity", () => {
     const parsed = eventDraftSchema.parse(
       draft({
         expectedAttendance: "80",
