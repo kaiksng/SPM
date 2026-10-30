@@ -7,7 +7,7 @@ import {
   type EquipmentArrangementState,
   type EquipmentRequirementFormValues,
 } from "@spm/shared";
-import { CirclePlus } from "lucide-react";
+import { CirclePlus, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
@@ -31,6 +31,7 @@ import {
 import { loadEventDetail, type EventDetail } from "@/features/event-requests/services/event-details";
 import { wantsEquipmentRequest } from "@/features/event-requests/utils/equipment-request-navigation";
 import {
+  requestEventEquipment,
   toEquipmentFormValues,
   type EquipmentRequirement,
 } from "@/features/event-requests/services/equipment";
@@ -54,8 +55,10 @@ function formatPeriod(from: string | null, until: string | null) {
  * with the reservation Technical Support Staff made for it (who, when, how
  * many, for which period), any re-check flag, and the reservation history.
  * The assigned coordinator also sees each item's arrangement status, note
- * and history (SPM-28). Read-only — reserving and arranging happen on the
- * Technical Support Staff Equipment page.
+ * and history (SPM-28). Reserving and arranging happen on the Technical
+ * Support Staff Equipment page, and only for items the coordinator has
+ * requested here: the organiser's list and anything added stay "Not
+ * requested" until the coordinator chooses them under Request equipment.
  */
 export function EventEquipmentPage() {
   const { eventId } = useParams();
@@ -69,6 +72,7 @@ export function EventEquipmentPage() {
   const [error, setError] = useState<string>();
   const [dialog, setDialog] = useState<
     | { kind: "request" }
+    | { kind: "send" }
     | { kind: "edit" | "remove"; requirement: EquipmentRequirement }
   >();
   // Bumped after a save so the page reloads with the new equipment.
@@ -119,6 +123,13 @@ export function EventEquipmentPage() {
     setReloadKey((key) => key + 1);
   }
 
+  async function sendEquipmentRequest(requirementIds: string[]) {
+    if (!eventId) return;
+    await requestEventEquipment(eventId, requirementIds);
+    setDialog(undefined);
+    setReloadKey((key) => key + 1);
+  }
+
   const liveByRequirement = new Map(
     arrangements
       .filter((arrangement) => arrangement.status === "reserved" && arrangement.requirementId)
@@ -138,8 +149,29 @@ export function EventEquipmentPage() {
   const canEditEquipment = Boolean(
     user && event?.assignedCoordinatorId === user.id && event.status === "planning",
   );
+  // Still with the coordinator: Technical Support Staff can't see these yet.
+  const unrequested = event?.equipment.filter((requirement) => !requirement.requestedAt) ?? [];
 
-  // Arriving from the catalogue's "Equipment request": open Request equipment
+  /** SPM-28 status of a requested item; none until it is requested. */
+  function arrangementFor(requirement: EquipmentRequirement): EquipmentArrangementState | undefined {
+    if (!event || !requirement.requestedAt) return undefined;
+    return (
+      arrangementStatuses?.get(requirement.id) ??
+      currentEquipmentArrangement(
+        [],
+        // Stock levels aren't available to coordinators, so an
+        // unreserved catalogue item shows Not started here.
+        automaticEquipmentArrangementStatus({
+          requestedQuantity: requirement.quantity,
+          reservation: liveByRequirement.get(requirement.id) ?? null,
+          canReserveInFull:
+            requirement.equipmentItemId !== null && isEquipmentReservationAllowed(event.status),
+        }),
+      )
+    );
+  }
+
+  // Arriving from the catalogue's "Add equipment": open Add equipment
   // once, then drop the request so a refresh or Back does not reopen it.
   const location = useLocation();
   const navigate = useNavigate();
@@ -180,19 +212,32 @@ export function EventEquipmentPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950">Equipment</h1>
                   {canEditEquipment && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setDialog({ kind: "request" })}
-                    >
-                      <CirclePlus /> Request equipment
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDialog({ kind: "request" })}
+                      >
+                        <CirclePlus /> Add equipment
+                      </Button>
+                      <Button type="button" size="sm" onClick={() => setDialog({ kind: "send" })}>
+                        <Send /> Request equipment
+                      </Button>
+                    </div>
                   )}
                 </div>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                  What the event requested and what Technical Support Staff have reserved for it.
+                  What the event needs and what Technical Support Staff have reserved for it. Technical
+                  Support Staff see an item once it is requested.
                 </p>
+                {unrequested.length > 0 && (
+                  <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    {unrequested.length === 1 ? "1 item has" : `${unrequested.length} items have`} not been
+                    requested from Technical Support Staff yet.
+                    {canEditEquipment && " Select Request equipment to choose what to send."}
+                  </p>
+                )}
 
                 <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
                   <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">Arrangements</h2>
@@ -205,23 +250,7 @@ export function EventEquipmentPage() {
                           key={requirement.id}
                           requirement={requirement}
                           reservation={liveByRequirement.get(requirement.id)}
-                          arrangement={
-                            showArrangementStatus
-                              ? (arrangementStatuses?.get(requirement.id) ??
-                                currentEquipmentArrangement(
-                                  [],
-                                  // Stock levels aren't available to coordinators, so an
-                                  // unreserved catalogue item shows Not started here.
-                                  automaticEquipmentArrangementStatus({
-                                    requestedQuantity: requirement.quantity,
-                                    reservation: liveByRequirement.get(requirement.id) ?? null,
-                                    canReserveInFull:
-                                      requirement.equipmentItemId !== null &&
-                                      isEquipmentReservationAllowed(event.status),
-                                  }),
-                                ))
-                              : undefined
-                          }
+                          arrangement={showArrangementStatus ? arrangementFor(requirement) : undefined}
                           onEdit={canEditEquipment ? () => setDialog({ kind: "edit", requirement }) : undefined}
                           onRemove={canEditEquipment ? () => setDialog({ kind: "remove", requirement }) : undefined}
                         />
@@ -279,8 +308,8 @@ export function EventEquipmentPage() {
       </div>
       {event && dialog?.kind === "request" && (
         <EquipmentRequestDialog
-          title="Request equipment"
-          submitLabel="Request equipment"
+          title="Add equipment"
+          submitLabel="Add equipment"
           // A new item is needed for the event's own period.
           initialValues={{
             id: "",
@@ -295,6 +324,17 @@ export function EventEquipmentPage() {
           reserved={false}
           onCancel={() => setDialog(undefined)}
           onSubmit={(values) => saveEquipment((equipment) => [...equipment, values])}
+        />
+      )}
+      {event && dialog?.kind === "send" && (
+        <RequestEquipmentDialog
+          requirements={event.equipment}
+          // Flagged by Technical Support Staff: the coordinator may send it again.
+          issueIds={event.equipment
+            .filter((requirement) => arrangementFor(requirement)?.status === "issue")
+            .map((requirement) => requirement.id)}
+          onCancel={() => setDialog(undefined)}
+          onConfirm={sendEquipmentRequest}
         />
       )}
       {dialog?.kind === "edit" && (
@@ -321,6 +361,106 @@ export function EventEquipmentPage() {
         />
       )}
     </RoleGate>
+  );
+}
+
+/**
+ * Every item of the event: the coordinator ticks which to send. Items
+ * already requested are shown ticked and can't be changed, unless Technical
+ * Support Staff flagged them as an Issue: those can be requested again,
+ * which puts them back on the staff to-do list.
+ */
+function RequestEquipmentDialog({
+  requirements,
+  issueIds,
+  onCancel,
+  onConfirm,
+}: {
+  requirements: EquipmentRequirement[];
+  issueIds: string[];
+  onCancel: () => void;
+  onConfirm: (requirementIds: string[]) => Promise<unknown>;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string>();
+
+  function toggle(requirementId: string) {
+    setSelected((current) =>
+      current.includes(requirementId)
+        ? current.filter((id) => id !== requirementId)
+        : [...current, requirementId],
+    );
+  }
+
+  async function handleConfirm() {
+    setSending(true);
+    setError(undefined);
+    try {
+      await onConfirm(selected);
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : "The equipment could not be requested.");
+      setSending(false);
+    }
+  }
+
+  return (
+    <Modal titleId="request-equipment-dialog-title" title="Request equipment" onCancel={onCancel}>
+      <div className="mt-4 space-y-4 text-sm">
+        {requirements.length === 0 ? (
+          <p className="leading-6 text-slate-600">This event has no equipment yet. Add equipment first.</p>
+        ) : (
+          <>
+            <p className="leading-6 text-slate-600">
+              Choose the equipment to send. Technical Support Staff will be notified and can start arranging it.
+            </p>
+            <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 px-4">
+              {requirements.map((requirement) => {
+                const issue = issueIds.includes(requirement.id);
+                const locked = Boolean(requirement.requestedAt) && !issue;
+                return (
+                  <li key={requirement.id} className="py-3">
+                    <label className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-primary"
+                        checked={locked || selected.includes(requirement.id)}
+                        onChange={() => toggle(requirement.id)}
+                        disabled={locked || sending}
+                        aria-label={`Request ${requirement.equipmentName}`}
+                      />
+                      <span className={cn("flex-1 font-medium", locked ? "text-slate-400" : "text-slate-800")}>
+                        {requirement.equipmentName} × {requirement.quantity}
+                      </span>
+                      {locked && <span className="text-xs text-slate-500">Requested</span>}
+                      {issue && <span className="text-xs font-medium text-red-700">Issue · request again</span>}
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="leading-6 text-slate-600">
+              You can still change an item later; a change sends it back to Technical Support Staff to re-check.
+            </p>
+          </>
+        )}
+        {error && (
+          <p role="alert" className="text-red-700">{error}</p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="button" disabled={sending || selected.length === 0} onClick={handleConfirm}>
+            {sending
+              ? "Requesting…"
+              : selected.length > 0
+                ? `Request ${selected.length} ${selected.length === 1 ? "item" : "items"}`
+                : "Request"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -387,14 +527,20 @@ function RequirementArrangement({
   onEdit?: () => void;
   onRemove?: () => void;
 }) {
-  const state = !reservation ? "pending" : reservation.needsRecheck ? "recheck" : "reserved";
+  const state = !requirement.requestedAt
+    ? "unrequested"
+    : !reservation
+      ? "pending"
+      : reservation.needsRecheck
+        ? "recheck"
+        : "reserved";
   return (
     <li
       className={cn(
         "rounded-xl border p-4 text-sm",
         state === "reserved" && "border-emerald-200 bg-emerald-50/60",
         state === "recheck" && "border-amber-300 bg-amber-50",
-        state === "pending" && "border-slate-200 bg-slate-50/70",
+        (state === "pending" || state === "unrequested") && "border-slate-200 bg-slate-50/70",
       )}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -407,12 +553,24 @@ function RequirementArrangement({
             state === "reserved" && "bg-emerald-100 text-emerald-800",
             state === "recheck" && "bg-amber-100 text-amber-800",
             state === "pending" && "bg-slate-200 text-slate-600",
+            state === "unrequested" && "bg-amber-100 text-amber-800",
           )}
         >
-          {state === "reserved" ? "Reserved" : state === "recheck" ? "Needs re-check" : "Not reserved yet"}
+          {state === "reserved"
+            ? "Reserved"
+            : state === "recheck"
+              ? "Needs re-check"
+              : state === "unrequested"
+                ? "Not requested"
+                : "Not reserved yet"}
         </span>
       </div>
       <p className="mt-1 text-slate-600">{formatPeriod(requirement.requiredFrom, requirement.requiredUntil)}</p>
+      {requirement.requestedAt && (
+        <p className="mt-1 text-xs text-slate-500">
+          Requested · {dateTimeFormatter.format(new Date(requirement.requestedAt))}
+        </p>
+      )}
       {arrangement && (
         <div className="mt-2">
           <ArrangementBadge arrangement={arrangement} />

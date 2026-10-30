@@ -44,6 +44,13 @@ insert into public.event_equipment_requirements (event_id, equipment_item_id, eq
 values ('e6000000-0000-0000-0000-0000000000e2', (select id from v_ids where name = 'proj'), 'x', 1, '2099-07-02T10:00:00+08:00', '2099-07-02T14:00:00+08:00');
 insert into v_ids select 'req-requested', id from public.event_equipment_requirements where event_id = 'e6000000-0000-0000-0000-0000000000e2';
 
+-- The coordinator has requested this equipment (202610300007).
+select set_config('app.requesting_equipment', 'on', true);
+update public.event_equipment_requirements r set requested_at = now()
+where r.requested_at is null
+  and exists (select 1 from public.events e where e.id = r.event_id and e.status <> 'completed');
+select set_config('app.requesting_equipment', 'off', true);
+
 set local role authenticated;
 
 -- Only Technical Support Staff reserve.

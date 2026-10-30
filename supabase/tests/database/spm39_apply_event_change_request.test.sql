@@ -100,6 +100,13 @@ insert into spm39_payload values
     ]}'),
   ('e6', '{"title":"SPM39 Renamed Event","startsAt":"2099-12-06T10:00:00+08:00","endsAt":"2099-12-06T12:00:00+08:00","expectedAttendance":"50","equipment":[]}');
 
+-- The coordinator has requested this equipment (202610300007).
+select set_config('app.requesting_equipment', 'on', true);
+update public.event_equipment_requirements r set requested_at = now()
+where r.requested_at is null
+  and exists (select 1 from public.events e where e.id = r.event_id and e.status <> 'completed');
+select set_config('app.requesting_equipment', 'off', true);
+
 set local role authenticated;
 
 -- AC04: a Lead cannot decide an assigned event's request.

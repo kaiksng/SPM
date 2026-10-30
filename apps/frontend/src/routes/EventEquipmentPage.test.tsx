@@ -33,10 +33,13 @@ vi.mock("@/features/event-requests/services/coordinator-event-edit", async () =>
   )),
   saveEventEquipment: (...args: unknown[]) => saveEventEquipmentMock(...args),
 }));
-// The real toEquipmentFormValues is kept; only the catalogue load is faked.
+// The real toEquipmentFormValues is kept; the catalogue load and the
+// request are faked.
+const requestEventEquipmentMock = vi.fn();
 vi.mock("@/lib/supabase-client", () => ({ supabase: {} }));
 vi.mock("@/features/event-requests/services/equipment", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/features/event-requests/services/equipment")>()),
+  requestEventEquipment: (...args: unknown[]) => requestEventEquipmentMock(...args),
   loadEquipmentCatalogue: vi.fn().mockResolvedValue([
     { id: "item-req-proj", name: "Projector", category: "Visual", retired: false },
     { id: "item-mic", name: "Wired microphone", category: "Audio", retired: false },
@@ -57,6 +60,7 @@ const requirement = (id: string, name: string, quantity: number) => ({
   requiredFrom: "2099-07-01T01:00:00.000Z",
   requiredUntil: "2099-07-01T06:00:00.000Z",
   technicalRequirements: null,
+  requestedAt: "2099-06-01T02:00:00.000Z" as string | null,
 });
 
 const arrangement = (overrides: Record<string, unknown>) => ({
@@ -272,15 +276,15 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(await screen.findByRole("button", { name: "Request equipment" }));
-      const dialog = await screen.findByRole("dialog", { name: "Request equipment" });
+      await user.click(await screen.findByRole("button", { name: "Add equipment" }));
+      const dialog = await screen.findByRole("dialog", { name: "Add equipment" });
       expect(dialog).toHaveTextContent("Required period");
       expect(within(dialog).queryByDisplayValue(/2099-07-01T/)).not.toBeInTheDocument();
 
       await user.selectOptions(await within(dialog).findByRole("combobox"), "item-mic");
       await user.type(within(dialog).getByRole("spinbutton"), "2");
       await user.type(within(dialog).getByLabelText("Technical requirements"), "XLR");
-      await user.click(within(dialog).getByRole("button", { name: "Request equipment" }));
+      await user.click(within(dialog).getByRole("button", { name: "Add equipment" }));
 
       expect(saveEventEquipmentMock).toHaveBeenCalledWith("event-1", expect.any(Function));
       expect(applySavedChange([])).toEqual([
@@ -294,11 +298,11 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
         }),
       ]);
       // The page reloads with the new equipment.
-      expect(await screen.findByRole("button", { name: "Request equipment" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Add equipment" })).toBeInTheDocument();
       expect(loadEventDetailMock).toHaveBeenCalledTimes(3);
     });
 
-    // Arriving from the catalogue's "Equipment request" opens the dialog straight away.
+    // Arriving from the catalogue's "Add equipment" opens the dialog straight away.
     function renderFromCatalogue() {
       return render(
         <MemoryRouter
@@ -311,14 +315,14 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
       );
     }
 
-    it("opens Request equipment on arrival from the catalogue", async () => {
+    it("opens Add equipment on arrival from the catalogue", async () => {
       await asAssignedCoordinator();
       renderFromCatalogue();
 
-      expect(await screen.findByRole("dialog", { name: "Request equipment" })).toBeInTheDocument();
+      expect(await screen.findByRole("dialog", { name: "Add equipment" })).toBeInTheDocument();
     });
 
-    it("does not open it for someone who cannot request equipment for this event", async () => {
+    it("does not open it for someone who cannot add equipment for this event", async () => {
       await asAssignedCoordinator({ status: "confirmed" });
       renderFromCatalogue();
 
@@ -326,12 +330,12 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
-    // Request equipment takes the top-right spot; the history is on the event page.
-    it("shows Request equipment instead of View change history", async () => {
+    // Add equipment takes the top-right spot; the history is on the event page.
+    it("shows Add equipment instead of View change history", async () => {
       await asAssignedCoordinator();
       renderPage();
 
-      expect(await screen.findByRole("button", { name: "Request equipment" })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "Add equipment" })).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "View change history" })).not.toBeInTheDocument();
     });
 
@@ -340,9 +344,9 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
       const user = userEvent.setup();
       renderPage();
 
-      await user.click(await screen.findByRole("button", { name: "Request equipment" }));
-      const dialog = await screen.findByRole("dialog", { name: "Request equipment" });
-      await user.click(within(dialog).getByRole("button", { name: "Request equipment" }));
+      await user.click(await screen.findByRole("button", { name: "Add equipment" }));
+      const dialog = await screen.findByRole("dialog", { name: "Add equipment" });
+      await user.click(within(dialog).getByRole("button", { name: "Add equipment" }));
 
       expect(await within(dialog).findByText("Choose equipment from the catalogue")).toBeInTheDocument();
       expect(within(dialog).getByText("Enter a quantity")).toBeInTheDocument();
@@ -415,7 +419,7 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
       renderPage();
 
       expect(await screen.findByText("Projector × 3")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Request equipment" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Add equipment" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /^Edit / })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /^Remove / })).not.toBeInTheDocument();
     });
@@ -431,5 +435,158 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
 
     expect(await screen.findByText("Projector × 3")).toBeInTheDocument();
     expect(screen.queryByText(/^Arrangement:/)).not.toBeInTheDocument();
+  });
+});
+
+// Requesting equipment: the organiser's list and anything the coordinator
+// adds stay with the coordinator until they send it all to Technical Support
+// Staff with one button.
+describe("EventEquipmentPage (requesting equipment from Technical Support Staff)", () => {
+  async function withUnrequested(overrides: Record<string, unknown> = {}) {
+    loadEventDetailMock.mockResolvedValue({
+      id: "event-1",
+      title: "Spring Expo",
+      status: "planning",
+      assignedCoordinatorId: "coordinator-1",
+      startsAt: "2099-07-01T02:00:00.000Z",
+      endsAt: "2099-07-01T04:00:00.000Z",
+      equipment: [
+        requirement("req-proj", "Projector", 3),
+        { ...requirement("req-cord", "Extension cord", 1), requestedAt: null },
+        { ...requirement("req-clicker", "Presentation clicker", 2), requestedAt: null },
+      ],
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    requestEventEquipmentMock.mockReset().mockResolvedValue(2);
+  });
+
+  it("marks items not yet requested, without an arrangement status", async () => {
+    await withUnrequested();
+    loadEquipmentArrangementStatusesMock.mockResolvedValue(new Map());
+    renderPage();
+
+    const cord = (await screen.findByText("Extension cord × 1")).closest("li")!;
+    expect(cord).toHaveTextContent("Not requested");
+    expect(cord).not.toHaveTextContent(/Arrangement:/);
+    const projector = screen.getByText("Projector × 3").closest("li")!;
+    expect(projector).not.toHaveTextContent("Not requested");
+    expect(screen.getByText(/2 items have not been requested from Technical Support Staff yet/)).toBeInTheDocument();
+  });
+
+  it("sends only the items the coordinator chooses, then reloads", async () => {
+    await withUnrequested();
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Request equipment" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request equipment" });
+    expect(within(dialog).getByRole("button", { name: "Request" })).toBeDisabled();
+
+    await user.click(within(dialog).getByRole("checkbox", { name: "Request Extension cord" }));
+    await user.click(within(dialog).getByRole("button", { name: "Request 1 item" }));
+
+    expect(requestEventEquipmentMock).toHaveBeenCalledWith("event-1", ["req-cord"]);
+    expect(await screen.findByText("Projector × 3")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Request equipment" })).not.toBeInTheDocument();
+    expect(loadEventDetailMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows items already requested ticked and locked", async () => {
+    await withUnrequested();
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Request equipment" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request equipment" });
+
+    const projector = within(dialog).getByRole("checkbox", { name: "Request Projector" });
+    expect(projector).toBeChecked();
+    expect(projector).toBeDisabled();
+    const clicker = within(dialog).getByRole("checkbox", { name: "Request Presentation clicker" });
+    expect(clicker).not.toBeChecked();
+    expect(clicker).toBeEnabled();
+  });
+
+  it("lets an item flagged as an Issue be requested again", async () => {
+    await withUnrequested();
+    loadEquipmentArrangementStatusesMock.mockResolvedValue(
+      new Map([
+        [
+          "req-proj",
+          {
+            status: "issue",
+            automatic: false,
+            note: "faulty",
+            updatedByName: "Tess Support",
+            updatedAt: "2099-06-21T02:00:00.000Z",
+            history: [],
+          },
+        ],
+      ]),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Request equipment" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request equipment" });
+    const projector = within(dialog).getByRole("checkbox", { name: "Request Projector" });
+    expect(projector).toBeEnabled();
+    expect(projector).not.toBeChecked();
+    expect(dialog).toHaveTextContent("Issue · request again");
+
+    await user.click(projector);
+    await user.click(within(dialog).getByRole("button", { name: "Request 1 item" }));
+
+    expect(requestEventEquipmentMock).toHaveBeenCalledWith("event-1", ["req-proj"]);
+  });
+
+  it("keeps the dialog open with the reason when the request is refused", async () => {
+    await withUnrequested();
+    requestEventEquipmentMock.mockRejectedValue(new Error("Equipment can only be requested while the event is in Planning"));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Request equipment" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request equipment" });
+    await user.click(within(dialog).getByRole("checkbox", { name: "Request Extension cord" }));
+    await user.click(within(dialog).getByRole("button", { name: "Request 1 item" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Equipment can only be requested while the event is in Planning",
+    );
+  });
+
+  it("keeps Request equipment available once everything has been requested", async () => {
+    await withUnrequested({ equipment: [requirement("req-proj", "Projector", 3)] });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Request equipment" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request equipment" });
+    expect(within(dialog).getByRole("checkbox", { name: "Request Projector" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Request" })).toBeDisabled();
+    expect(screen.queryByText(/not been requested/)).not.toBeInTheDocument();
+  });
+
+  it("asks for equipment to be added first when the event has none", async () => {
+    await withUnrequested({ equipment: [] });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Request equipment" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request equipment" });
+    expect(dialog).toHaveTextContent("This event has no equipment yet. Add equipment first.");
+  });
+
+  it("shows unrequested items to others without letting them send them", async () => {
+    await withUnrequested({ assignedCoordinatorId: "coordinator-2" });
+    renderPage();
+
+    expect(await screen.findByText(/2 items have not been requested/)).toBeInTheDocument();
+    expect(screen.queryByText(/Select Request equipment/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Request equipment/ })).not.toBeInTheDocument();
   });
 });

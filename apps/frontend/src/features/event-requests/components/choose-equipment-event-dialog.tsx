@@ -17,9 +17,9 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
 
 /**
  * Equipment is always requested for one event, so the catalogue's
- * "Equipment request" asks which: the coordinator's own events in Planning,
+ * "Add equipment" asks which: the coordinator's own events in Planning,
  * the only ones whose equipment can be changed. Choosing one opens its
- * Equipment page with the Request equipment dialog ready.
+ * Equipment page with the Add equipment dialog ready.
  */
 export function ChooseEquipmentEventDialog({
   coordinatorId,
@@ -49,7 +49,7 @@ export function ChooseEquipmentEventDialog({
   }, [coordinatorId]);
 
   return (
-    <Modal titleId="choose-equipment-event-title" title="Request equipment for which event?" onCancel={onCancel}>
+    <Modal titleId="choose-equipment-event-title" title="Add equipment to which event?" onCancel={onCancel}>
       <div className="mt-4 space-y-4 text-sm">
         {error ? (
           <p role="alert" className="text-red-700">{error}</p>

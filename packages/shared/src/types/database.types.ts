@@ -845,6 +845,8 @@ export type Database = {
           needs_review_reason: string | null
           notes: string | null
           quantity: number
+          requested_at: string | null
+          requested_by: string | null
           required_from: string | null
           required_until: string | null
         }
@@ -857,6 +859,8 @@ export type Database = {
           needs_review_reason?: string | null
           notes?: string | null
           quantity?: number
+          requested_at?: string | null
+          requested_by?: string | null
           required_from?: string | null
           required_until?: string | null
         }
@@ -869,6 +873,8 @@ export type Database = {
           needs_review_reason?: string | null
           notes?: string | null
           quantity?: number
+          requested_at?: string | null
+          requested_by?: string | null
           required_from?: string | null
           required_until?: string | null
         }
@@ -885,6 +891,13 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_equipment_requirements_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2336,6 +2349,10 @@ export type Database = {
         }
         Returns: Json
       }
+      request_event_equipment: {
+        Args: { p_event_id: string; p_requirement_ids?: string[] }
+        Returns: number
+      }
       request_replacement_venue: {
         Args: { p_actor_id?: string; p_booking_id: string; p_venue_id: string }
         Returns: string
@@ -2568,6 +2585,7 @@ export type Database = {
         | "equipment_change_review"
         | "safety_review_reset"
         | "waitlist_promoted"
+        | "equipment_requested"
       request_status:
         | "pending"
         | "approved"
@@ -2776,6 +2794,7 @@ export const Constants = {
         "equipment_change_review",
         "safety_review_reset",
         "waitlist_promoted",
+        "equipment_requested",
       ],
       request_status: [
         "pending",

@@ -1,7 +1,7 @@
 /**
  * Router state for opening an event's Equipment page with its Request
  * equipment dialog already open — used by the Equipment catalogue's
- * "Equipment request" button once the coordinator has chosen the event.
+ * "Add equipment" button once the coordinator has chosen the event.
  */
 export const OPEN_EQUIPMENT_REQUEST_STATE = { openEquipmentRequest: true } as const;
 

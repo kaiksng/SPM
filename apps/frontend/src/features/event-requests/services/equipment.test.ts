@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryBuilder } from "@/test/supabase-mock";
 
-const { fromMock } = vi.hoisted(() => ({ fromMock: vi.fn() }));
+const { fromMock, rpcMock } = vi.hoisted(() => ({ fromMock: vi.fn(), rpcMock: vi.fn() }));
 
-vi.mock("@/lib/supabase-client", () => ({ supabase: { from: fromMock } }));
+vi.mock("@/lib/supabase-client", () => ({ supabase: { from: fromMock, rpc: rpcMock } }));
 
 import {
   loadEquipmentCatalogue,
   loadEquipmentHistory,
+  requestEventEquipment,
   toEquipmentFormValues,
   toEquipmentRequirements,
   type EquipmentRequirementRow,
@@ -16,6 +17,7 @@ import {
 
 beforeEach(() => {
   fromMock.mockReset();
+  rpcMock.mockReset();
 });
 
 describe("loadEquipmentCatalogue", () => {
@@ -59,6 +61,7 @@ function requirementRow(overrides: Partial<EquipmentRequirementRow> = {}): Equip
     required_from: "2099-04-01T00:00:00Z",
     required_until: "2099-04-01T06:00:00Z",
     notes: "XLR to the mixer",
+    requested_at: null,
     equipment_item: { category: "Audio" },
     ...overrides,
   };
@@ -78,8 +81,17 @@ describe("toEquipmentRequirements", () => {
         requiredFrom: "2099-04-01T00:00:00Z",
         requiredUntil: "2099-04-01T06:00:00Z",
         technicalRequirements: "XLR to the mixer",
+        requestedAt: null,
       },
     ]);
+  });
+
+  // Requesting equipment: whether the coordinator has sent it to Technical
+  // Support Staff yet.
+  it("keeps when the requirement was requested", () => {
+    const [requirement] = toEquipmentRequirements([requirementRow({ requested_at: "2099-03-01T02:00:00Z" })]);
+
+    expect(requirement?.requestedAt).toBe("2099-03-01T02:00:00Z");
   });
 
   it("orders requirements by when they are needed, legacy rows with no period last", () => {
@@ -174,6 +186,38 @@ describe("loadEquipmentHistory", () => {
 
     await expect(loadEquipmentHistory("event-1")).rejects.toThrow(
       "The equipment history for this event is unavailable.",
+    );
+  });
+});
+
+describe("requestEventEquipment", () => {
+  // Requesting equipment: the coordinator chooses which items to send.
+  it("requests the chosen equipment and returns how many items were sent", async () => {
+    rpcMock.mockResolvedValue({ data: 2, error: null });
+
+    await expect(requestEventEquipment("event-1", ["req-1", "req-2"])).resolves.toBe(2);
+    expect(rpcMock).toHaveBeenCalledWith("request_event_equipment", {
+      p_event_id: "event-1",
+      p_requirement_ids: ["req-1", "req-2"],
+    });
+  });
+
+  it("shows the database's reason when the request is refused", async () => {
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { code: "23514", message: "Equipment can only be requested while the event is in Planning" },
+    });
+
+    await expect(requestEventEquipment("event-1", ["req-1"])).rejects.toThrow(
+      "Equipment can only be requested while the event is in Planning",
+    );
+  });
+
+  it("shows a general message for any other failure", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { code: "XX000", message: "boom" } });
+
+    await expect(requestEventEquipment("event-1", ["req-1"])).rejects.toThrow(
+      "The equipment could not be requested. Try again.",
     );
   });
 });

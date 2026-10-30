@@ -175,6 +175,7 @@ describe("ConfirmedArrangementsSection", () => {
             {
               id: "req-1", equipmentItemId: "item-1", equipmentName: "Projector", category: "Visual",
               quantity: 2, requiredFrom: null, requiredUntil: null, technicalRequirements: null,
+              requestedAt: "2099-01-01T00:00:00Z",
             },
           ],
         })}

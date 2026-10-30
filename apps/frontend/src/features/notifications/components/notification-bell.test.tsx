@@ -257,6 +257,7 @@ describe("NotificationBell", () => {
   it.each([
     ["venue_change_review" as const, "venue-7", "/venues/venue-7"],
     ["equipment_change_review" as const, null, "/equipment"],
+    ["equipment_requested" as const, null, "/equipment"],
     ["safety_review_reset" as const, null, "/safety-checks"],
   ])("routes a %s notification to %s's review page", async (type, venueId, destination) => {
     listNotificationsMock.mockResolvedValue([
