@@ -53,6 +53,7 @@ const auditorium = venue({
   capacity: 300,
   facilities: ["Air conditioning", "Parking"],
   layouts: ["Theatre"],
+  accessibilityNotes: "Wheelchair accessible, hearing loop",
 });
 const boardroom = venue({
   id: "venue-boardroom",
@@ -206,6 +207,18 @@ describe("VenuesPage filters", () => {
     expect(screen.queryByText("Harbour Boardroom")).not.toBeInTheDocument();
   });
 
+  it("narrows by an accessibility keyword", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Grand Auditorium");
+
+    await openFilters(user);
+    await user.type(screen.getByLabelText("Accessibility"), "wheelchair");
+
+    expect(screen.getByText("Grand Auditorium")).toBeInTheDocument();
+    expect(screen.queryByText("Harbour Boardroom")).not.toBeInTheDocument();
+  });
+
   it("narrows by layout type", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -244,9 +257,11 @@ describe("VenuesPage filters", () => {
     await openFilters(user);
     await user.selectOptions(screen.getByLabelText("Area"), "Orchard");
     await user.type(screen.getByLabelText("Search venues"), "Hall");
+    await user.type(screen.getByLabelText("Accessibility"), "wheelchair");
 
     expect(lastSearch).toContain("area=Orchard");
     expect(lastSearch).toContain("q=Hall");
+    expect(lastSearch).toContain("accessibility=wheelchair");
   });
 
   it("restores filters and search from the URL on mount (as when navigating back)", async () => {
@@ -259,5 +274,23 @@ describe("VenuesPage filters", () => {
     expect(screen.getByLabelText("Area")).toHaveValue("Orchard");
     expect(screen.getByLabelText("Minimum capacity")).toHaveValue(100);
     expect(screen.getByLabelText("Search venues")).toHaveValue("Grand");
+  });
+
+  it("shows a removable chip for an accessibility filter", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Grand Auditorium");
+
+    await openFilters(user);
+    await user.type(screen.getByLabelText("Accessibility"), "wheelchair");
+
+    const chip = await screen.findByRole("button", { name: "Remove wheelchair filter" });
+    expect(chip).toBeInTheDocument();
+    await user.click(chip);
+
+    expect(await screen.findByText("Harbour Boardroom")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Remove wheelchair filter" }),
+    ).not.toBeInTheDocument();
   });
 });

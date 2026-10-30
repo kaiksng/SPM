@@ -12,6 +12,7 @@ export type VenueFilterValues = {
   minCapacity: string;
   facilities: string[];
   layout: string;
+  accessibility: string;
 };
 
 export const emptyVenueFilters: VenueFilterValues = {
@@ -19,6 +20,7 @@ export const emptyVenueFilters: VenueFilterValues = {
   minCapacity: "",
   facilities: [],
   layout: "",
+  accessibility: "",
 };
 
 export function countActiveVenueFilters(filters: VenueFilterValues): number {
@@ -26,7 +28,8 @@ export function countActiveVenueFilters(filters: VenueFilterValues): number {
     (filters.area ? 1 : 0) +
     (filters.minCapacity ? 1 : 0) +
     (filters.facilities.length > 0 ? 1 : 0) +
-    (filters.layout ? 1 : 0)
+    (filters.layout ? 1 : 0) +
+    (filters.accessibility ? 1 : 0)
   );
 }
 
@@ -55,6 +58,13 @@ export function venueFilterChips(
   }
   if (filters.layout) {
     chips.push({ key: "layout", label: filters.layout, onRemove: () => onChange({ ...filters, layout: "" }) });
+  }
+  if (filters.accessibility) {
+    chips.push({
+      key: "accessibility",
+      label: filters.accessibility,
+      onRemove: () => onChange({ ...filters, accessibility: "" }),
+    });
   }
   return chips;
 }
@@ -121,6 +131,19 @@ export function VenueFiltersPanel({
         options={roomLayouts.map((layout) => ({ value: layout, label: layout }))}
         anyLabel="All layout"
       />
+
+      <div className="w-52">
+        <label htmlFor="venue-filter-accessibility" className="mb-1.5 block text-sm font-medium text-slate-700">
+          Accessibility
+        </label>
+        <Input
+          id="venue-filter-accessibility"
+          type="text"
+          placeholder="e.g. wheelchair"
+          value={value.accessibility}
+          onChange={(event) => update("accessibility", event.target.value)}
+        />
+      </div>
     </FilterSection>
   );
 }
