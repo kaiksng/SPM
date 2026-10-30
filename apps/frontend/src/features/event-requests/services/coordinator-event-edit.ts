@@ -25,10 +25,23 @@ export { localDateTime };
  * the narrower "must be the assigned coordinator" rule is enforced on write,
  * by update_event_as_coordinator itself.
  *
- * SPM-39 reuses this for applying an approved change request, which is also
- * allowed on Requested, Confirmed and Pending Safety Check events.
+ * SPM-39 applies approved change requests with loadEventForChangeApply,
+ * which also returns the event's status.
  */
 export async function loadEventForCoordinatorEdit(
+  eventId: string,
+  statuses: readonly EventStatus[] = ["planning"],
+) {
+  return (await loadEventForChangeApply(eventId, statuses)).values;
+}
+
+/**
+ * The same as loadEventForCoordinatorEdit, plus the event's status: applying
+ * an approved change request is also allowed on Requested, Confirmed and
+ * Pending Safety Check events, and the status decides which sections stay
+ * locked (registration from Pending Safety Check onward, SPM-40 AC07).
+ */
+export async function loadEventForChangeApply(
   eventId: string,
   statuses: readonly EventStatus[] = ["planning"],
 ) {
@@ -86,7 +99,7 @@ export async function loadEventForCoordinatorEdit(
   const venue = data.event_venue_requirements;
   const registration = data.event_registration_requirements;
 
-  return {
+  const values = {
     ...structuredClone(emptyEventRequestFormValues),
     title: data.title,
     purpose: data.purpose ?? "",
@@ -116,6 +129,8 @@ export async function loadEventForCoordinatorEdit(
     // submission (PB-03), which this event has already passed.
     requirementsAcknowledged: true,
   } satisfies EventRequestFormValues;
+
+  return { values, status: data.status as EventStatus };
 }
 
 /**
