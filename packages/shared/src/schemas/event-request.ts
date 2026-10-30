@@ -374,12 +374,10 @@ export function toEventDraftPayload(
       closesAt: values.registration.required
         ? optionalDateValue(values.registration.closesAt)
         : null,
-      capacity:
-        values.registration.required && !values.registration.capacity
-          ? optionalValue(values.expectedAttendance)
-          : values.registration.required
-            ? optionalValue(values.registration.capacity)
-            : null,
+      // SPM-40: capacity is set in Planning, not copied from the attendance.
+      capacity: values.registration.required
+        ? optionalValue(values.registration.capacity)
+        : null,
       waitlistEnabled:
         values.registration.required && values.registration.waitlistEnabled,
     },
