@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const loadEventForCoordinatorEditMock = vi.fn();
+const loadEventForChangeApplyMock = vi.fn();
 const listEventChangeRequestsMock = vi.fn();
 const applyEventChangeRequestMock = vi.fn();
 const authState = {
@@ -18,7 +18,7 @@ vi.mock("@/context/auth-context", () => ({
 }));
 
 vi.mock("@/features/event-requests/services/coordinator-event-edit", () => ({
-  loadEventForCoordinatorEdit: (...args: unknown[]) => loadEventForCoordinatorEditMock(...args),
+  loadEventForChangeApply: (...args: unknown[]) => loadEventForChangeApplyMock(...args),
 }));
 
 vi.mock("@/features/event-requests/services/change-requests", () => ({
@@ -83,7 +83,9 @@ function renderPage() {
 
 beforeEach(() => {
   authState.profile.role = "event_coordinator";
-  loadEventForCoordinatorEditMock.mockReset().mockResolvedValue(structuredClone(values));
+  loadEventForChangeApplyMock
+    .mockReset()
+    .mockResolvedValue({ values: structuredClone(values), status: "planning" });
   listEventChangeRequestsMock.mockReset().mockResolvedValue([approvedRequest]);
   applyEventChangeRequestMock
     .mockReset()
@@ -98,7 +100,7 @@ describe("ChangeRequestApplyPage", () => {
     renderPage();
 
     expect(screen.getByText("Access denied")).toBeInTheDocument();
-    expect(loadEventForCoordinatorEditMock).not.toHaveBeenCalled();
+    expect(loadEventForChangeApplyMock).not.toHaveBeenCalled();
   });
 
   it("shows the approved change and loads the event in any applyable status", async () => {
@@ -107,7 +109,7 @@ describe("ChangeRequestApplyPage", () => {
     expect(await screen.findByText("Move the start time to 2pm")).toBeInTheDocument();
     expect(screen.getByText("Speaker rescheduled")).toBeInTheDocument();
     expect(screen.getByText("Moving to the afternoon slot")).toBeInTheDocument();
-    expect(loadEventForCoordinatorEditMock).toHaveBeenCalledWith("event-1", [
+    expect(loadEventForChangeApplyMock).toHaveBeenCalledWith("event-1", [
       "requested",
       "planning",
       "confirmed",
@@ -124,6 +126,33 @@ describe("ChangeRequestApplyPage", () => {
     expect(screen.getByLabelText(/Expected attendance/)).toBeEnabled();
     expect(screen.getByLabelText(/Starts/)).toBeEnabled();
     expect(screen.getByLabelText(/Ends/)).toBeEnabled();
+  });
+
+  // SPM-39 AC01 / SPM-40 AC07: registration is fixed from Pending Safety Check onward.
+  it.each(["confirmed", "pending_safety_check"] as const)(
+    "locks only the registration setting on a %s event",
+    async (status) => {
+      loadEventForChangeApplyMock.mockResolvedValue({ values: structuredClone(values), status });
+      renderPage();
+
+      await screen.findByDisplayValue("Student Leadership Summit");
+      expect(screen.getByLabelText(/Attendee registration is required/)).toBeDisabled();
+      expect(
+        screen.getByText(/Registration settings can't be changed once the event has been submitted/),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText(/Event name/)).toBeEnabled();
+      expect(screen.getByLabelText(/Expected attendance/)).toBeEnabled();
+      expect(screen.getByLabelText(/Starts/)).toBeEnabled();
+    },
+  );
+
+  // SPM-39 AC01: before the safety check a change may still alter registration.
+  it("leaves the registration setting editable on a Planning event", async () => {
+    renderPage();
+
+    await screen.findByDisplayValue("Student Leadership Summit");
+    expect(screen.getByLabelText(/Attendee registration is required/)).toBeEnabled();
+    expect(screen.queryByText(/Registration settings can't be changed/)).not.toBeInTheDocument();
   });
 
   it("refuses a request that is not waiting to be applied", async () => {

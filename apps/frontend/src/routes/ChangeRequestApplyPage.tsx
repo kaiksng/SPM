@@ -11,7 +11,7 @@ import {
   listEventChangeRequests,
   type EventChangeRequestSummary,
 } from "@/features/event-requests/services/change-requests";
-import { loadEventForCoordinatorEdit } from "@/features/event-requests/services/coordinator-event-edit";
+import { loadEventForChangeApply } from "@/features/event-requests/services/coordinator-event-edit";
 import { describeRequestedChanges } from "@/features/event-requests/utils/format-change-request";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
@@ -22,6 +22,23 @@ const APPLYABLE_EVENT_STATUSES: readonly EventStatus[] = [
   "planning",
   "confirmed",
   "pending_safety_check",
+];
+
+/**
+ * SPM-40 AC07 / SPM-39 AC01: registration settings can't be changed from
+ * Pending Safety Check onward, so on those events every other section stays
+ * editable. The database refuses the change too (202610300005).
+ */
+const REGISTRATION_LOCKED_STATUSES: readonly EventStatus[] = ["pending_safety_check", "confirmed"];
+const ALL_BUT_REGISTRATION = [
+  "title",
+  "expectedAttendance",
+  "purpose",
+  "description",
+  "startsAt",
+  "endsAt",
+  "venue",
+  "equipment",
 ];
 
 /**
@@ -37,6 +54,7 @@ export function ChangeRequestApplyPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [initialValues, setInitialValues] = useState<EventRequestFormValues>();
+  const [eventStatus, setEventStatus] = useState<EventStatus>();
   const [changeRequest, setChangeRequest] = useState<EventChangeRequestSummary>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -50,10 +68,10 @@ export function ChangeRequestApplyPage() {
     let active = true;
     setLoading(true);
     Promise.all([
-      loadEventForCoordinatorEdit(eventId, APPLYABLE_EVENT_STATUSES),
+      loadEventForChangeApply(eventId, APPLYABLE_EVENT_STATUSES),
       listEventChangeRequests(eventId),
     ])
-      .then(([values, requests]) => {
+      .then(([{ values, status }, requests]) => {
         if (!active) return;
         const request = requests.find((r) => r.id === changeRequestId);
         if (!request || request.status !== "approved") {
@@ -61,6 +79,7 @@ export function ChangeRequestApplyPage() {
           return;
         }
         setInitialValues(values);
+        setEventStatus(status);
         setChangeRequest(request);
       })
       .catch((loadError: unknown) => {
@@ -101,6 +120,8 @@ export function ChangeRequestApplyPage() {
       </RoleGate>
     );
   }
+
+  const registrationLocked = eventStatus !== undefined && REGISTRATION_LOCKED_STATUSES.includes(eventStatus);
 
   async function handleSave(values: EventRequestFormValues) {
     if (!eventId || !changeRequestId) return;
@@ -176,12 +197,19 @@ export function ChangeRequestApplyPage() {
                   </div>
                 </dl>
               </section>
+              {registrationLocked && (
+                <p role="note" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                  Registration settings can't be changed once the event has been submitted for its
+                  safety check.
+                </p>
+              )}
               <div className="mt-7">
                 <EventRequestForm
                   initialValues={initialValues}
                   onSave={handleSave}
                   onCancel={() => navigate(`/events/${eventId}`)}
                   submitLabel="Apply change"
+                  permittedFields={registrationLocked ? ALL_BUT_REGISTRATION : undefined}
                 />
               </div>
             </>

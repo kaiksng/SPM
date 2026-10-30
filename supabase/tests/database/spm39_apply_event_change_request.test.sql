@@ -1,6 +1,6 @@
 begin;
 
-select plan(41);
+select plan(45);
 
 -- SPM-39: Review and implement an event change request
 -- (202610230001_spm39_change_request_implemented.sql,
@@ -28,19 +28,22 @@ values ('39000000-0000-0000-0000-0000000000a1', 'SPM39 Projector', 'Visual', 'sp
 -- e1: Planning, time change.  ex: another event at the same venue.
 -- e3: Confirmed, registration-only change.  e4: Confirmed, attendance change.
 -- e5: Pending Safety Check, equipment change.  e6: Requested, unassigned.
+-- e7: Planning, registration-only change.
 insert into public.events (id, organiser_id, assigned_coordinator_id, title, status, starts_at, ends_at, expected_attendance) values
   ('39000000-0000-0000-0000-0000000000e1', '39000000-0000-0000-0000-000000000001', '39000000-0000-0000-0000-000000000002', 'SPM39 Planning Event', 'planning', '2099-12-01T10:00:00+08:00', '2099-12-01T12:00:00+08:00', 50),
   ('39000000-0000-0000-0000-0000000000ee', '39000000-0000-0000-0000-000000000008', '39000000-0000-0000-0000-000000000003', 'SPM39 Neighbour Event', 'planning', '2099-12-01T16:15:00+08:00', '2099-12-01T17:00:00+08:00', 20),
   ('39000000-0000-0000-0000-0000000000e3', '39000000-0000-0000-0000-000000000001', '39000000-0000-0000-0000-000000000002', 'SPM39 Registration Event', 'confirmed', '2099-12-03T10:00:00+08:00', '2099-12-03T12:00:00+08:00', 50),
   ('39000000-0000-0000-0000-0000000000e4', '39000000-0000-0000-0000-000000000001', '39000000-0000-0000-0000-000000000002', 'SPM39 Attendance Event', 'confirmed', '2099-12-04T10:00:00+08:00', '2099-12-04T12:00:00+08:00', 50),
   ('39000000-0000-0000-0000-0000000000e5', '39000000-0000-0000-0000-000000000001', '39000000-0000-0000-0000-000000000002', 'SPM39 Equipment Event', 'pending_safety_check', '2099-12-05T10:00:00+08:00', '2099-12-05T12:00:00+08:00', 50),
-  ('39000000-0000-0000-0000-0000000000e6', '39000000-0000-0000-0000-000000000001', null, 'SPM39 Unassigned Event', 'requested', '2099-12-06T10:00:00+08:00', '2099-12-06T12:00:00+08:00', 50);
+  ('39000000-0000-0000-0000-0000000000e6', '39000000-0000-0000-0000-000000000001', null, 'SPM39 Unassigned Event', 'requested', '2099-12-06T10:00:00+08:00', '2099-12-06T12:00:00+08:00', 50),
+  ('39000000-0000-0000-0000-0000000000e7', '39000000-0000-0000-0000-000000000001', '39000000-0000-0000-0000-000000000002', 'SPM39 Planning Registration Event', 'planning', '2099-12-07T10:00:00+08:00', '2099-12-07T12:00:00+08:00', 50);
 
 insert into public.venue_bookings (id, event_id, venue_id, requested_by, starts_at, ends_at, status, is_main_venue) values
   ('39000000-0000-0000-0000-0000000000b1', '39000000-0000-0000-0000-0000000000e1', '39000000-0000-0000-0000-000000000010', '39000000-0000-0000-0000-000000000002', '2099-12-01T10:00:00+08:00', '2099-12-01T12:00:00+08:00', 'approved', true),
   ('39000000-0000-0000-0000-0000000000bb', '39000000-0000-0000-0000-0000000000ee', '39000000-0000-0000-0000-000000000010', '39000000-0000-0000-0000-000000000003', '2099-12-01T16:15:00+08:00', '2099-12-01T17:00:00+08:00', 'approved', true),
   ('39000000-0000-0000-0000-0000000000b3', '39000000-0000-0000-0000-0000000000e3', '39000000-0000-0000-0000-000000000010', '39000000-0000-0000-0000-000000000002', '2099-12-03T10:00:00+08:00', '2099-12-03T12:00:00+08:00', 'approved', true),
-  ('39000000-0000-0000-0000-0000000000b4', '39000000-0000-0000-0000-0000000000e4', '39000000-0000-0000-0000-000000000010', '39000000-0000-0000-0000-000000000002', '2099-12-04T10:00:00+08:00', '2099-12-04T12:00:00+08:00', 'approved', true);
+  ('39000000-0000-0000-0000-0000000000b4', '39000000-0000-0000-0000-0000000000e4', '39000000-0000-0000-0000-000000000010', '39000000-0000-0000-0000-000000000002', '2099-12-04T10:00:00+08:00', '2099-12-04T12:00:00+08:00', 'approved', true),
+  ('39000000-0000-0000-0000-0000000000b7', '39000000-0000-0000-0000-0000000000e7', '39000000-0000-0000-0000-000000000010', '39000000-0000-0000-0000-000000000002', '2099-12-07T10:00:00+08:00', '2099-12-07T12:00:00+08:00', 'approved', true);
 
 insert into public.event_equipment_requirements (id, event_id, equipment_item_id, equipment_name, quantity, required_from, required_until) values
   ('39000000-0000-0000-0000-0000000000c1', '39000000-0000-0000-0000-0000000000e1', '39000000-0000-0000-0000-0000000000a1', 'x', 1, '2099-12-01T09:00:00+08:00', '2099-12-01T13:00:00+08:00'),
@@ -57,7 +60,8 @@ insert into public.event_change_requests (id, event_id, requested_by, requested_
   ('39000000-0000-0000-0000-0000000000f3', '39000000-0000-0000-0000-0000000000e3', '39000000-0000-0000-0000-000000000001', '{"description":"Open registration"}', 'More interest', 'approved'),
   ('39000000-0000-0000-0000-0000000000f4', '39000000-0000-0000-0000-0000000000e4', '39000000-0000-0000-0000-000000000001', '{"description":"80 people"}', 'More interest', 'approved'),
   ('39000000-0000-0000-0000-0000000000f5', '39000000-0000-0000-0000-0000000000e5', '39000000-0000-0000-0000-000000000001', '{"description":"Two projectors"}', 'Second screen', 'approved'),
-  ('39000000-0000-0000-0000-0000000000f6', '39000000-0000-0000-0000-0000000000e6', '39000000-0000-0000-0000-000000000001', '{"description":"Change the title"}', 'Rebrand', 'pending');
+  ('39000000-0000-0000-0000-0000000000f6', '39000000-0000-0000-0000-0000000000e6', '39000000-0000-0000-0000-000000000001', '{"description":"Change the title"}', 'Rebrand', 'pending'),
+  ('39000000-0000-0000-0000-0000000000f7', '39000000-0000-0000-0000-0000000000e7', '39000000-0000-0000-0000-000000000001', '{"description":"Open registration"}', 'More interest', 'approved');
 
 -- The full form payload for e1 after the change: afternoon slot, everything else as before.
 create temporary table spm39_payload (label text primary key, body jsonb);
@@ -74,6 +78,13 @@ insert into spm39_payload values
     "title":"SPM39 Registration Event","startsAt":"2099-12-03T10:00:00+08:00","endsAt":"2099-12-03T12:00:00+08:00",
     "expectedAttendance":"50","equipment":[],
     "registration":{"required":true,"opensAt":"2099-11-01T10:00:00+08:00","closesAt":"2099-12-02T10:00:00+08:00","capacity":"50"}}'),
+  ('e3-no-registration', '{
+    "title":"SPM39 Registration Event (renamed)","startsAt":"2099-12-03T10:00:00+08:00","endsAt":"2099-12-03T12:00:00+08:00",
+    "expectedAttendance":"50","equipment":[]}'),
+  ('e7', '{
+    "title":"SPM39 Planning Registration Event","startsAt":"2099-12-07T10:00:00+08:00","endsAt":"2099-12-07T12:00:00+08:00",
+    "expectedAttendance":"50","equipment":[],
+    "registration":{"required":true,"opensAt":"2099-11-01T10:00:00+08:00","closesAt":"2099-12-06T10:00:00+08:00","capacity":"50"}}'),
   ('e4', '{
     "title":"SPM39 Attendance Event","startsAt":"2099-12-04T10:00:00+08:00","endsAt":"2099-12-04T12:00:00+08:00",
     "expectedAttendance":"80",
@@ -243,23 +254,54 @@ select throws_ok(
   'AC07: an Implemented request cannot be applied again'
 );
 
--- AC10/AC01: registration-only change on a Confirmed event.
-select lives_ok(
+-- AC01 / SPM-40 AC07: registration settings can't be changed on a Confirmed
+-- event, even through an approved change request (202610300005).
+select throws_ok(
   $$select public.apply_event_change_request('39000000-0000-0000-0000-0000000000f3', (select body from spm39_payload where label = 'e3'))$$,
-  'a registration-only change can be applied to a Confirmed event'
+  '23514', 'Registration settings can''t be changed once the event has been submitted for its safety check',
+  'AC01: a registration change on a Confirmed event is refused'
 );
 reset role;
-select is(
-  (select status::text from public.events where id = '39000000-0000-0000-0000-0000000000e3'),
-  'confirmed',
-  'AC10: a registration-only change leaves a Confirmed event Confirmed'
+select results_eq(
+  $$select e.status::text, r.status
+    from public.events e join public.event_change_requests r on r.event_id = e.id
+    where r.id = '39000000-0000-0000-0000-0000000000f3'$$,
+  $$values ('confirmed'::text, 'approved'::text)$$,
+  'AC01: the refused change leaves the event Confirmed and the request still Approved'
 );
+select is(
+  (select count(*)::int from public.event_registration_requirements where event_id = '39000000-0000-0000-0000-0000000000e3'),
+  0,
+  'AC01: no registration settings are saved'
+);
+
+-- The same request without the registration change still applies, and the
+-- event stays Confirmed (AC10: the title is not safety-relevant).
+set local role authenticated;
+select lives_ok(
+  $$select public.apply_event_change_request('39000000-0000-0000-0000-0000000000f3', (select body from spm39_payload where label = 'e3-no-registration'))$$,
+  'AC07: a Confirmed event can still apply a change that leaves registration alone'
+);
+reset role;
 select ok(
-  not (select needs_review from public.venue_bookings where id = '39000000-0000-0000-0000-0000000000b3'),
+  (select status::text from public.events where id = '39000000-0000-0000-0000-0000000000e3') = 'confirmed'
+    and not (select needs_review from public.venue_bookings where id = '39000000-0000-0000-0000-0000000000b3'),
+  'AC10/AC01: the event stays Confirmed and no booking is flagged'
+);
+
+-- AC01: on a Planning event a registration-only change is saved and flags nothing.
+set local role authenticated;
+select lives_ok(
+  $$select public.apply_event_change_request('39000000-0000-0000-0000-0000000000f7', (select body from spm39_payload where label = 'e7'))$$,
+  'AC01: a registration change can be applied to a Planning event'
+);
+reset role;
+select ok(
+  not (select needs_review from public.venue_bookings where id = '39000000-0000-0000-0000-0000000000b7'),
   'AC01: a registration change flags no venue booking'
 );
 select is(
-  (select attendee_capacity from public.event_registration_requirements where event_id = '39000000-0000-0000-0000-0000000000e3'),
+  (select attendee_capacity from public.event_registration_requirements where event_id = '39000000-0000-0000-0000-0000000000e7'),
   50,
   'AC07: the registration change is saved'
 );

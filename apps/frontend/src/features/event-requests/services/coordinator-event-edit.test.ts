@@ -8,6 +8,7 @@ const { fromMock, rpcMock } = vi.hoisted(() => ({ fromMock: vi.fn(), rpcMock: vi
 vi.mock("@/lib/supabase-client", () => ({ supabase: { from: fromMock, rpc: rpcMock } }));
 
 import {
+  loadEventForChangeApply,
   loadEventForCoordinatorEdit,
   saveEventEquipment,
   updateEventAsCoordinator,
@@ -140,6 +141,37 @@ describe("loadEventForCoordinatorEdit", () => {
         waitlistEnabled: false,
       },
     });
+  });
+});
+
+describe("loadEventForChangeApply", () => {
+  // SPM-39 AC01 / SPM-40 AC07: the apply page needs the status to lock registration.
+  it("returns the form values together with the event's status", async () => {
+    const query = queryBuilder({
+      data: {
+        id: "event-1",
+        title: "Career Fair",
+        purpose: null,
+        description: null,
+        event_type: null,
+        expected_attendance: 300,
+        starts_at: "2099-01-01T02:00:00.000Z",
+        ends_at: "2099-01-01T08:00:00.000Z",
+        status: "confirmed",
+        event_venue_requirements: null,
+        event_required_facilities: [],
+        event_equipment_requirements: [],
+        event_registration_requirements: null,
+      },
+      error: null,
+    });
+    fromMock.mockReturnValue(query);
+
+    const result = await loadEventForChangeApply("event-1", ["planning", "confirmed"]);
+
+    expect(result.status).toBe("confirmed");
+    expect(result.values).toMatchObject({ title: "Career Fair", expectedAttendance: "300" });
+    expect(query.in).toHaveBeenCalledWith("status", ["planning", "confirmed"]);
   });
 });
 
