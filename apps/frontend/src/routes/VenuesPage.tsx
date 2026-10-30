@@ -132,6 +132,7 @@ function filtersFromParams(params: URLSearchParams): VenueFilterValues {
     minCapacity: params.get("minCapacity") ?? "",
     facilities: params.getAll("facility"),
     layout: params.get("layout") ?? "",
+    accessibility: params.get("accessibility") ?? "",
   };
 }
 
@@ -141,6 +142,7 @@ function paramsFromFilters(query: string, filters: VenueFilterValues): URLSearch
   if (filters.area) params.set("area", filters.area);
   if (filters.minCapacity) params.set("minCapacity", filters.minCapacity);
   if (filters.layout) params.set("layout", filters.layout);
+  if (filters.accessibility) params.set("accessibility", filters.accessibility);
   for (const facility of filters.facilities) params.append("facility", facility);
   return params;
 }
@@ -162,9 +164,19 @@ function filterVenues(venues: VenueSummary[], query: string, filters: VenueFilte
       venue.facilities.includes(facility),
     );
     const matchesLayout = !filters.layout || venue.layouts.includes(filters.layout);
+    const matchesAccessibility =
+      !filters.accessibility ||
+      (venue.accessibilityNotes ?? "")
+        .toLowerCase()
+        .includes(filters.accessibility.trim().toLowerCase());
 
     return (
-      matchesSearch && matchesArea && matchesCapacity && matchesFacilities && matchesLayout
+      matchesSearch &&
+      matchesArea &&
+      matchesCapacity &&
+      matchesFacilities &&
+      matchesLayout &&
+      matchesAccessibility
     );
   });
 }
