@@ -152,7 +152,7 @@ function CoordinatorEquipmentCatalogue({ canRequest }: { canRequest: boolean }) 
         action={
           canRequest ? (
             <Button type="button" size="sm" onClick={() => setChoosingEvent(true)}>
-              <FilePlus2 /> Equipment request
+              <FilePlus2 /> Add equipment
             </Button>
           ) : undefined
         }

@@ -73,6 +73,7 @@ export async function loadEventForChangeApply(
           required_from,
           required_until,
           notes,
+          requested_at,
           equipment_item:equipment_items (category)
         ),
         event_registration_requirements (
@@ -164,7 +165,7 @@ export async function updateEventAsCoordinator(
 
 /**
  * Saves a change to a Planning event's equipment alone, as the Equipment
- * page's Request equipment / Edit / Remove do: the event is reloaded the
+ * page's Add equipment / Edit / Remove do: the event is reloaded the
  * same way CoordinatorEventEditPage loads it and resent unchanged except for
  * its equipment, so every other field stays exactly as SPM-10 locks it.
  * Rows keep their ids, so only the changed item counts as changed.

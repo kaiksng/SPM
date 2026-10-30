@@ -31,6 +31,13 @@ from public.events e where e.id::text like 'e9000000-%';
 insert into v_ids select 'req-cancel', id from public.event_equipment_requirements where event_id = 'e9000000-0000-0000-0000-0000000000e1';
 insert into v_ids select 'req-running', id from public.event_equipment_requirements where event_id = 'e9000000-0000-0000-0000-0000000000e2';
 
+-- The coordinator has requested this equipment (202610300007).
+select set_config('app.requesting_equipment', 'on', true);
+update public.event_equipment_requirements r set requested_at = now()
+where r.requested_at is null
+  and exists (select 1 from public.events e where e.id = r.event_id and e.status <> 'completed');
+select set_config('app.requesting_equipment', 'off', true);
+
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"e9000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 insert into v_ids select 'res-cancel', public.reserve_equipment((select id from v_ids where name = 'req-cancel'), 30);

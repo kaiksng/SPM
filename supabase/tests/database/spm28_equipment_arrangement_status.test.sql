@@ -52,6 +52,13 @@ insert into v_ids select 'req-completed', id from public.event_equipment_require
 -- Completed event's arrangements (SPM-46 AC07).
 update public.events set status = 'completed' where id = 'e8000000-0000-0000-0000-0000000000e4';
 
+-- The coordinator has requested this equipment (202610300007).
+select set_config('app.requesting_equipment', 'on', true);
+update public.event_equipment_requirements r set requested_at = now()
+where r.requested_at is null
+  and exists (select 1 from public.events e where e.id = r.event_id and e.status <> 'completed');
+select set_config('app.requesting_equipment', 'off', true);
+
 set local role authenticated;
 
 -- AC06: only Technical Support Staff update.

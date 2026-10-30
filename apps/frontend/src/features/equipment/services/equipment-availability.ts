@@ -90,6 +90,8 @@ export async function listEventEquipmentAvailability(): Promise<EventEquipmentAv
       .from("events")
       .select("id, title, status, starts_at, ends_at, event_equipment_requirements!inner (id)")
       .in("status", [...OPEN_STATUSES])
+      // Only equipment the coordinator has requested is staff's to arrange.
+      .not("event_equipment_requirements.requested_at", "is", null)
       .order("starts_at", { ascending: true, nullsFirst: false }),
     listOrphanedReservations(),
   ]);

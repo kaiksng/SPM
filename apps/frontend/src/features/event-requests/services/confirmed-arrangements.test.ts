@@ -69,6 +69,7 @@ function equipmentRequirement(overrides: Partial<EquipmentRequirement> = {}): Eq
     requiredFrom: null,
     requiredUntil: null,
     technicalRequirements: null,
+    requestedAt: "2099-01-01T00:00:00Z",
     ...overrides,
   };
 }

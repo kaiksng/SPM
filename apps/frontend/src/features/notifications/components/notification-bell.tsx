@@ -79,6 +79,8 @@ function notificationDestination(notification: NotificationSummary): string | un
     return notification.venueId ? `/venues/${notification.venueId}` : "/venues";
   }
   if (notification.type === "equipment_change_review") return "/equipment";
+  // A coordinator requested an event's equipment: staff arrange it there.
+  if (notification.type === "equipment_requested") return "/equipment";
   if (notification.type === "safety_review_reset") return "/safety-checks";
   // Attendee-facing: an attendee has no "events" nav section (see
   // navigation.ts) and can't reach /events/:id at all — their own copy of

@@ -40,7 +40,7 @@ export async function loadEquipmentCatalogue(): Promise<EquipmentCatalogueItem[]
 /**
  * One embedded row as every event loader selects it:
  * `event_equipment_requirements (id, equipment_item_id, equipment_name,
- * quantity, required_from, required_until, notes,
+ * quantity, required_from, required_until, notes, requested_at,
  * equipment_item:equipment_items (category))`.
  */
 export type EquipmentRequirementRow = {
@@ -51,6 +51,7 @@ export type EquipmentRequirementRow = {
   required_from: string | null;
   required_until: string | null;
   notes: string | null;
+  requested_at: string | null;
   equipment_item: { category: string | null } | null;
 };
 
@@ -64,6 +65,8 @@ export type EquipmentRequirement = {
   requiredFrom: string | null;
   requiredUntil: string | null;
   technicalRequirements: string | null;
+  /** When the coordinator sent it to Technical Support Staff; null until then. */
+  requestedAt: string | null;
 };
 
 export function toEquipmentRequirements(rows: EquipmentRequirementRow[]): EquipmentRequirement[] {
@@ -76,6 +79,7 @@ export function toEquipmentRequirements(rows: EquipmentRequirementRow[]): Equipm
     requiredFrom: row.required_from,
     requiredUntil: row.required_until,
     technicalRequirements: row.notes,
+    requestedAt: row.requested_at,
   }));
 }
 
@@ -105,6 +109,28 @@ function sortRequirements(rows: EquipmentRequirementRow[]) {
     if (!right.required_from) return -1;
     return left.required_from.localeCompare(right.required_from);
   });
+}
+
+/**
+ * Sends the chosen equipment items of a Planning event to Technical Support
+ * Staff, who are notified. Items already requested are left as they are.
+ * Only the assigned coordinator may. Returns how many were sent.
+ */
+export async function requestEventEquipment(eventId: string, requirementIds: string[]): Promise<number> {
+  const { data, error } = await supabase.rpc("request_event_equipment", {
+    p_event_id: eventId,
+    p_requirement_ids: requirementIds,
+  });
+
+  if (error) {
+    throw new Error(
+      error.code === "23514" || error.code === "42501"
+        ? error.message
+        : "The equipment could not be requested. Try again.",
+    );
+  }
+
+  return data ?? 0;
 }
 
 export type EquipmentChange = {

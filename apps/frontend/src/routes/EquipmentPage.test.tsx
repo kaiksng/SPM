@@ -1346,7 +1346,7 @@ describe("EquipmentPage for other roles", () => {
     expect(await screen.findByText("No matching equipment")).toBeInTheDocument();
   });
 
-  describe("Equipment request", () => {
+  describe("Add equipment", () => {
     function EventEquipmentStub() {
       const state = useLocation().state as { openEquipmentRequest?: boolean } | null;
       return <p>EVENT EQUIPMENT PAGE, request open: {String(state?.openEquipmentRequest === true)}</p>;
@@ -1373,13 +1373,13 @@ describe("EquipmentPage for other roles", () => {
     });
 
     // Equipment is requested for one event: only the coordinator's own Planning
-    // events are offered, and choosing one opens its Request equipment dialog.
-    it("asks which of the coordinator's Planning events, then opens its Request equipment", async () => {
+    // events are offered, and choosing one opens its Add equipment dialog.
+    it("asks which of the coordinator's Planning events, then opens its Add equipment", async () => {
       const user = userEvent.setup();
       renderCatalogue();
 
-      await user.click(await screen.findByRole("button", { name: "Equipment request" }));
-      const dialog = await screen.findByRole("dialog", { name: "Request equipment for which event?" });
+      await user.click(await screen.findByRole("button", { name: "Add equipment" }));
+      const dialog = await screen.findByRole("dialog", { name: "Add equipment to which event?" });
       expect(listAssignedEventsMock).toHaveBeenCalledWith("support-1");
       expect(await within(dialog).findByText("Planning Gala")).toBeInTheDocument();
       expect(within(dialog).queryByText("Confirmed Gala")).not.toBeInTheDocument();
@@ -1397,7 +1397,7 @@ describe("EquipmentPage for other roles", () => {
       const user = userEvent.setup();
       renderCatalogue();
 
-      await user.click(await screen.findByRole("button", { name: "Equipment request" }));
+      await user.click(await screen.findByRole("button", { name: "Add equipment" }));
 
       expect(await screen.findByText(/None of your events are in Planning/)).toBeInTheDocument();
       expect(screen.queryByText("Confirmed Gala")).not.toBeInTheDocument();
@@ -1407,11 +1407,11 @@ describe("EquipmentPage for other roles", () => {
       const user = userEvent.setup();
       renderCatalogue();
 
-      await user.click(await screen.findByRole("button", { name: "Equipment request" }));
+      await user.click(await screen.findByRole("button", { name: "Add equipment" }));
       await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Equipment request" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Add equipment" })).toBeInTheDocument();
     });
   });
 

@@ -78,6 +78,7 @@ export async function loadEventDetail(eventId: string) {
           required_from,
           required_until,
           notes,
+          requested_at,
           equipment_item:equipment_items (category)
         ),
         event_registration_requirements (

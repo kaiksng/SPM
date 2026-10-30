@@ -231,7 +231,7 @@ describe("updateEventAsCoordinator", () => {
 });
 
 describe("saveEventEquipment", () => {
-  // The Equipment page's Request equipment / Edit / Remove: only the equipment
+  // The Equipment page's Add equipment / Edit / Remove: only the equipment
   // changes; everything else is resent exactly as it was loaded.
   it("reloads the Planning event and resends it with only its equipment changed", async () => {
     fromMock.mockReturnValue(

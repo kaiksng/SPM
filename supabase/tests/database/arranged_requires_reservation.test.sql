@@ -31,6 +31,13 @@ values ('eb000000-0000-0000-0000-0000000000e1', 'Borrowed smoke machine', 1);
 alter table public.event_equipment_requirements enable trigger event_equipment_requirements_guard;
 insert into v_ids select 'legacy', id from public.event_equipment_requirements where equipment_name = 'Borrowed smoke machine';
 
+-- The coordinator has requested this equipment (202610300007).
+select set_config('app.requesting_equipment', 'on', true);
+update public.event_equipment_requirements r set requested_at = now()
+where r.requested_at is null
+  and exists (select 1 from public.events e where e.id = r.event_id and e.status <> 'completed');
+select set_config('app.requesting_equipment', 'off', true);
+
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"eb000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 

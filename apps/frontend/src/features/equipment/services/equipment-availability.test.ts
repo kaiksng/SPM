@@ -75,6 +75,15 @@ describe("listEventEquipmentAvailability (SPM-28)", () => {
     expect(eventsQuery.in).toHaveBeenCalledWith("status", ["planning", "pending_safety_check", "confirmed"]);
   });
 
+  // Equipment the coordinator has not requested yet stays off staff's list.
+  it("lists only events with equipment the coordinator has requested", async () => {
+    const { eventsQuery } = mockTables([]);
+
+    await listEventEquipmentAvailability();
+
+    expect(eventsQuery.not).toHaveBeenCalledWith("event_equipment_requirements.requested_at", "is", null);
+  });
+
   // AC02: until staff set a status, it follows the reservation and availability.
   // SPM-28 AC02: until staff set one, the status is worked out — Arranged when
   // reserved in full, In progress when partly, Issue when it needs re-checking or

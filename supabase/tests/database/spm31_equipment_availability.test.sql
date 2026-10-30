@@ -80,6 +80,13 @@ values ((select id from a_ids where name = 'mic'), 1, 'Battery', '2099-06-01T13:
 create temporary table a_result as select * from public.check_event_equipment_availability(array[]::uuid[]) limit 0;
 grant all on a_result to authenticated;
 
+-- The coordinator has requested this equipment (202610300007).
+select set_config('app.requesting_equipment', 'on', true);
+update public.event_equipment_requirements r set requested_at = now()
+where r.requested_at is null
+  and exists (select 1 from public.events e where e.id = r.event_id and e.status <> 'completed');
+select set_config('app.requesting_equipment', 'off', true);
+
 set local role authenticated;
 
 select set_config('request.jwt.claims', '{"sub":"e5000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
