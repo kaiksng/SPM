@@ -31,6 +31,7 @@ export function EventRequestForm({
   validationSchema = eventDraftSchema,
   submissionSchema,
   submitLabel = "Save draft",
+  footerNote,
   permittedFields,
 }: {
   initialValues: EventRequestFormValues;
@@ -40,6 +41,8 @@ export function EventRequestForm({
   validationSchema?: ZodType<EventRequestFormValues>;
   submissionSchema?: ZodType<EventRequestFormValues>;
   submitLabel?: string;
+  /** Replaces the default hint beside the save button. */
+  footerNote?: string;
   /**
    * The bucket keys a coordinator's open clarification permits editing
    * (mirrors public.save_event_draft's lock check, which is the actual
@@ -551,6 +554,7 @@ export function EventRequestForm({
         <div className="mx-auto flex max-w-5xl flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
           <p aria-live="polite" className={cn("text-sm", message ? "text-red-700" : "text-slate-500")}>
             {message ??
+              footerNote ??
               (onSubmitRequest
                 ? "Save with only an event name, or complete every required field to submit."
                 : "Only the event name is required to save this draft.")}
