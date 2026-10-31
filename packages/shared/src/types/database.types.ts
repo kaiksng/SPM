@@ -2254,6 +2254,20 @@ export type Database = {
           reason: string
         }[]
       }
+      list_public_events: {
+        Args: { p_limit?: number }
+        Returns: {
+          banner_path: string
+          ends_at: string
+          id: string
+          is_full: boolean
+          location: string
+          registration_closes_at: string
+          registration_opens_at: string
+          starts_at: string
+          title: string
+        }[]
+      }
       lock_requirement_for_reservation: {
         Args: { p_requirement_id: string }
         Returns: Record<string, unknown>

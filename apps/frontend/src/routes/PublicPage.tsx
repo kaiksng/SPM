@@ -9,7 +9,6 @@ import {
   Music,
   Search,
   Sparkles,
-  Ticket,
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -19,6 +18,7 @@ import findEventsImage from "@/assets/hero/find-events.jpg";
 import rsvpFastImage from "@/assets/hero/rsvp-fast.jpg";
 import stayInTheLoopImage from "@/assets/hero/stay-in-the-loop.avif";
 import { useAuth } from "@/context/auth-context";
+import { PublicEventGrid } from "@/features/public-events/components/public-event-grid";
 import { usePageTitle } from "@/hooks/use-page-title";
 
 const SLIDE_DURATION_MS = 4000;
@@ -62,6 +62,17 @@ export function PublicPage() {
   usePageTitle("ConnectSphere");
   const { user, profile } = useAuth();
   const destination = profile ? getRoleDestination(profile.role) : "/login";
+
+  /**
+   * An event card (or, with no id, "See all"): an attendee goes to the event;
+   * a signed-out visitor signs in first and is then taken there; anyone else
+   * goes to their own workspace.
+   */
+  function eventLink(eventId?: string) {
+    const path = eventId ? `/browse-events/${eventId}` : "/browse-events";
+    if (!user) return `/login?next=${encodeURIComponent(path)}`;
+    return profile?.role === "attendee" ? path : destination;
+  }
 
   const [activeSlide, setActiveSlide] = useState(0);
 
@@ -212,10 +223,10 @@ export function PublicPage() {
       <section className="mx-auto max-w-6xl px-6 pb-20 sm:px-10">
         <div className="flex items-end justify-between gap-4">
           <h2 className="text-2xl font-semibold tracking-[-0.02em] sm:text-3xl">
-            For you
+            Upcoming events
           </h2>
           <Link
-            to="/login"
+            to={eventLink()}
             className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-primary hover:underline"
           >
             See all
@@ -223,25 +234,7 @@ export function PublicPage() {
           </Link>
         </div>
 
-        <div className="mt-6 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card px-6 py-14 text-center">
-          <span className="grid size-12 place-items-center rounded-2xl bg-accent text-accent-foreground">
-            <Ticket className="size-5" aria-hidden="true" />
-          </span>
-          <h3 className="text-lg font-semibold">
-            Your picks will show up here
-          </h3>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            Sign in and we&apos;ll start tailoring events to what you care
-            about.
-          </p>
-          <Link
-            to="/login"
-            className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition hover:bg-primary/90"
-          >
-            Sign in
-            <ArrowRight className="size-3.5" aria-hidden="true" />
-          </Link>
-        </div>
+        <PublicEventGrid linkTo={eventLink} />
       </section>
 
       <footer className="border-t border-border">
