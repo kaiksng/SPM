@@ -61,6 +61,22 @@ describe("listBrowseEvents", () => {
     ]);
   });
 
+  // Events that don't take registrations are listed too, without a filter on
+  // registration_required, and carry no registration details.
+  it("lists an event that doesn't take registrations as not needing it", async () => {
+    const { eventsQuery } = given(
+      [eventRow("event-2", { registration_required: false, attendee_capacity: 80 })],
+      [],
+      [{ event_id: "event-2", registered_count: 0, own_waitlist_position: null }],
+    );
+
+    const events = await listBrowseEvents(ATTENDEE_ID);
+
+    expect(events).toEqual([expect.objectContaining({ id: "event-2", state: "not_required", capacity: null })]);
+    expect(eventsQuery.eq).toHaveBeenCalledWith("status", "confirmed");
+    expect(eventsQuery.eq).not.toHaveBeenCalledWith("event_registration_requirements.registration_required", true);
+  });
+
   it("marks an event as full once registered count reaches capacity", async () => {
     given(
       [eventRow("event-2", { attendee_capacity: 1 })],

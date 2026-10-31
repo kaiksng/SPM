@@ -67,6 +67,15 @@ describe("BrowseEventsPage", () => {
     listBrowseEventsMock.mockReset().mockResolvedValue([]);
   });
 
+  it("shows an event that doesn't take registrations as not needing it", async () => {
+    listBrowseEventsMock.mockResolvedValue([{ ...openEvent, id: "event-9", title: "Movie Night", capacity: null, state: "not_required" }]);
+    renderPage();
+
+    const card = (await screen.findByText("Movie Night")).closest("a")!;
+    expect(card).toHaveTextContent("No registration needed");
+    expect(card).not.toHaveTextContent(/spots left/);
+  });
+
   // Event banner: each card shows the organiser's banner, or a placeholder.
   it("shows each event's banner, or a placeholder when it has none", async () => {
     listBrowseEventsMock.mockResolvedValue([

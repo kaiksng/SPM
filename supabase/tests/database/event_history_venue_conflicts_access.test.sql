@@ -2,7 +2,7 @@ begin;
 select plan(7);
 
 -- SPM-9: who can read the venue conflicts on an event's bookings, for its
--- change history (202611010001_event_history_venue_conflicts_access.sql).
+-- change history (202611010005_event_history_venue_conflicts_access.sql).
 insert into auth.users (id, email, raw_user_meta_data) values
   ('f9100000-0000-0000-0000-000000000001', 'hist-staff@example.test', '{"full_name":"Hist Staff","role":"venue_staff"}'::jsonb),
   ('f9100000-0000-0000-0000-000000000002', 'hist-assigned@example.test', '{"full_name":"Hist Assigned","role":"event_coordinator"}'::jsonb),

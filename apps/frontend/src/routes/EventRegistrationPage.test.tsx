@@ -507,3 +507,18 @@ describe("EventRegistrationPage banner", () => {
     expect(heading.parentElement!.style.backgroundImage).toBe("");
   });
 });
+
+// An event that doesn't take registrations says so, with nothing to register.
+describe("EventRegistrationPage without registration", () => {
+  it("says no registration is needed and offers no Register button", async () => {
+    loadAttendeeEventDetailMock.mockResolvedValue({
+      ...baseEvent,
+      registration: { ...baseEvent.registration, required: false },
+    });
+    renderPage();
+
+    expect(await screen.findByText("No registration needed for this event. Just come along.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/spots left|of 50/)).not.toBeInTheDocument();
+  });
+});

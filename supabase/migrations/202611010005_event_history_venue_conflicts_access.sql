@@ -1,3 +1,7 @@
+-- Renumbered from 202611010001: that number was already taken on the hosted
+-- project by 202611010001_public_events_without_registration, so this
+-- migration was skipped there. Unchanged otherwise.
+--
 -- SPM-9: an event's change history lists the venue conflicts its bookings
 -- were flagged with (and when they were cleared), next to the disruptions.
 --

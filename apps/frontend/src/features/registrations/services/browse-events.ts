@@ -25,11 +25,10 @@ export type BrowseEventSummary = {
 };
 
 /**
- * Confirmed events that require registration — RLS (can_view_event) scopes
- * visibility for the attendee role to events with status = 'confirmed';
- * the registration_required filter on top of that is this query's own,
- * since an attendee has no reason to browse a confirmed event nobody needs
- * to register for.
+ * Every confirmed event — RLS (can_view_event) scopes visibility for the
+ * attendee role to events with status = 'confirmed'. Events that don't take
+ * registrations are included too (state "not_required"), so attendees see
+ * everything that's on, the same list as the public main page.
  */
 export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventSummary[]> {
   const { data, error } = await supabase
@@ -42,7 +41,7 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
         starts_at,
         ends_at,
         event_venue_requirements ( preferred_location ),
-        event_registration_requirements!inner (
+        event_registration_requirements (
           registration_required,
           registration_opens_at,
           registration_closes_at,
@@ -52,7 +51,6 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
       `,
     )
     .eq("status", "confirmed")
-    .eq("event_registration_requirements.registration_required", true)
     .order("starts_at", { ascending: true });
 
   if (error) throw new Error("We couldn't load events.");
@@ -83,11 +81,13 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
   return data.map((event): BrowseEventSummary => {
     const req = event.event_registration_requirements;
     const registeredCount = counts.get(event.id)?.registeredCount ?? 0;
+    const required = req?.registration_required ?? false;
+    // Registration details only mean something when the event takes them.
     const availability = {
-      required: req?.registration_required ?? false,
-      opensAt: req?.registration_opens_at ?? null,
-      closesAt: req?.registration_closes_at ?? null,
-      capacity: req?.attendee_capacity ?? null,
+      required,
+      opensAt: required ? (req?.registration_opens_at ?? null) : null,
+      closesAt: required ? (req?.registration_closes_at ?? null) : null,
+      capacity: required ? (req?.attendee_capacity ?? null) : null,
     };
     return {
       id: event.id,
