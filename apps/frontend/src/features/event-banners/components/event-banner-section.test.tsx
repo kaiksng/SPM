@@ -4,10 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const uploadEventBannerMock = vi.fn();
 const removeEventBannerMock = vi.fn();
+const uploadBannerFileMock = vi.fn();
+const discardBannerFileMock = vi.fn();
 vi.mock("@/features/event-banners/services/event-banners", () => ({
   eventBannerUrl: (path: string | null) => (path ? `https://storage.test/${path}` : null),
   uploadEventBanner: (...args: unknown[]) => uploadEventBannerMock(...args),
   removeEventBanner: (...args: unknown[]) => removeEventBannerMock(...args),
+  uploadBannerFile: (...args: unknown[]) => uploadBannerFileMock(...args),
+  discardBannerFile: (...args: unknown[]) => discardBannerFileMock(...args),
 }));
 
 import { EventBannerSection } from "./event-banner-section";
@@ -24,6 +28,8 @@ beforeEach(() => {
   onChanged.mockReset();
   uploadEventBannerMock.mockReset().mockResolvedValue("org-1/new.png");
   removeEventBannerMock.mockReset().mockResolvedValue(undefined);
+  uploadBannerFileMock.mockReset().mockResolvedValue("org-1/picked.png");
+  discardBannerFileMock.mockReset().mockResolvedValue(undefined);
 });
 
 describe("EventBannerSection", () => {
@@ -68,5 +74,38 @@ describe("EventBannerSection", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Upload a JPG, PNG or WebP image.");
     expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  // On a new event, which has no id yet, the image is only uploaded; the
+  // page attaches it when the event is first saved.
+  describe("on a new event", () => {
+    function renderNew(bannerPath: string | null) {
+      return render(<EventBannerSection organiserId="org-1" bannerPath={bannerPath} onChanged={onChanged} />);
+    }
+
+    it("uploads the image without attaching it, and says when it will be", async () => {
+      const user = userEvent.setup();
+      renderNew(null);
+      const file = new File(["x"], "banner.png", { type: "image/png" });
+
+      expect(screen.getByText(/added to the event when you save it/)).toBeInTheDocument();
+      await user.upload(screen.getByLabelText("Choose a banner image"), file);
+
+      expect(uploadBannerFileMock).toHaveBeenCalledWith("org-1", file);
+      expect(uploadEventBannerMock).not.toHaveBeenCalled();
+      expect(onChanged).toHaveBeenCalledWith("org-1/picked.png");
+    });
+
+    it("discards the image it replaces or removes", async () => {
+      const user = userEvent.setup();
+      renderNew("org-1/earlier.png");
+
+      await user.upload(screen.getByLabelText("Choose a banner image"), new File(["x"], "b.png", { type: "image/png" }));
+      expect(discardBannerFileMock).toHaveBeenCalledWith("org-1/earlier.png");
+
+      await user.click(screen.getByRole("button", { name: "Remove" }));
+      expect(removeEventBannerMock).not.toHaveBeenCalled();
+      expect(onChanged).toHaveBeenLastCalledWith(null);
+    });
   });
 });

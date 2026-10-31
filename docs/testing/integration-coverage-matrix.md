@@ -6,7 +6,7 @@ Source: `SPM List - Jira (6).csv`, read 2026-10-31. SHA-256: `384255afb34a03ec2d
 
 ## Evidence and status
 
-Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86, SPM-87 and SPM-20; execution results are recorded in integration-testing.md. The remaining 51 stories are planned.
+Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86, SPM-87, SPM-20 and SPM-81; execution results are recorded in integration-testing.md. The remaining 50 stories are planned.
 
 Before each later story, audit the named tests against the exact ACs, settle contradictions and obtain the next-story instruction. For each APP criterion, assert observable output and independent stored state, actor permissions, relevant history/notifications, failure invariants and cleanup. Keep presentation, navigation, highlighting and confirmation assertions in UI/E2E tests.
 
@@ -183,20 +183,22 @@ Concurrency increments: SPM-81 simultaneous assignment; SPM-26 overlapping booki
 
 ### SPM-81 — Assign an Event Coordinator (Done)
 
-**Real boundary to exercise:** Assignment service → assignment RPC, lists, history and notifications.
+**Real boundary exercised:** Lead's assignment service → `reassign_event_coordinator` RPC → events, assignment history and notifications; real Lead/coordinator/organiser list, history and notification services. Requests are created through the real submission route. [Integration tests](../../tests/integration/spm81-assign-coordinator.integration.test.ts).
 
-**Existing evidence locations:** [pb04_coordinator_assignment.test.sql](../../supabase/tests/database/pb04_coordinator_assignment.test.sql); [spm81_assign_event_coordinator.test.sql](../../supabase/tests/database/spm81_assign_event_coordinator.test.sql).
+**Existing evidence locations:** [pb04_coordinator_assignment.test.sql](../../supabase/tests/database/pb04_coordinator_assignment.test.sql); [spm81_assign_event_coordinator.test.sql](../../supabase/tests/database/spm81_assign_event_coordinator.test.sql); [assign-coordinator-dialog.test.tsx](../../apps/frontend/src/features/event-requests/components/assign-coordinator-dialog.test.tsx); [EventsPage.test.tsx](../../apps/frontend/src/routes/EventsPage.test.tsx).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | The Lead can assign exactly one Event Coordinator to an unassigned Requested event from the event page. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | Only users with the Event Coordinator role can be selected. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | Assignment records the coordinator, the Lead, and the timestamp in the assignment history. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | After assignment, the event appears in that coordinator's assigned list and no longer in the unassigned queue. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC05 | Notification records are created for the assigned coordinator and the organiser. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC06 | Assigning an event that already has a coordinator is refused and the user is directed to reassignment. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC07 | Draft, Rejected, Cancelled, and Completed events cannot be assigned. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC08 | Each coordinator option shows that coordinator's current number of active events. If two Leads assign the same request at once, only the first assignment succeeds. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | The Lead can assign exactly one Event Coordinator to an unassigned Requested event from the event page. | APP: Lead assigns a genuinely submitted request; one stored coordinator, status unchanged; organiser and coordinator refused with unchanged snapshot. UI tests own the page control. |
+| AC02 | Only users with the Event Coordinator role can be selected. | APP: the Lead's roster includes coordinators and excludes organiser, Lead, Safety Officer and Venue Staff; assigning to each is refused with unchanged snapshot. |
+| AC03 | Assignment records the coordinator, the Lead, and the timestamp in the assignment history. | APP: history service returns one open entry (no previous coordinator, new coordinator, Lead as changer, current timestamp). |
+| AC04 | After assignment, the event appears in that coordinator's assigned list and no longer in the unassigned queue. | APP: coordinator's list returns the event; Lead's event data changes from unassigned to assigned. The queue predicate itself is in EventsPage and covered by UI tests. |
+| AC05 | Notification records are created for the assigned coordinator and the organiser. | APP: each recipient reads one unread assignment notification through their own session; no other recipient. Notification wording is not asserted (see gap below). |
+| AC06 | Assigning an event that already has a coordinator is refused and the user is directed to reassignment. | APP: a reason-less assign to another or the same coordinator is refused ("Explain why this event is being reassigned" / "already assigned"); snapshot unchanged. Navigation to reassignment is UI. Agreed scope: an assignment that supplies a reason is a valid SPM-84 reassignment, not an AC06 violation. |
+| AC07 | Draft, Rejected, Cancelled, and Completed events cannot be assigned. | APP: each status refused with unchanged snapshot. Non-draft states are administrative fixtures along legal edges, not proof of those workflows. |
+| AC08 | Each coordinator option shows that coordinator's current number of active events. If two Leads assign the same request at once, only the first assignment succeeds. | APP: roster counts exclude Cancelled/Completed and increment after assignment (display is UI). Two independent Lead clients assign concurrently without reasons: exactly one succeeds, one history row and notifications only for the winner; winner not predetermined. |
+
+Gap recorded, not asserted: on a first assignment the organiser's notification says the event "is now coordinated by a different Event Coordinator", which reads as a reassignment.
 
 ### SPM-84 — Reassign an Event Coordinator (Done)
 
