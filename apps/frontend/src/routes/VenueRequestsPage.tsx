@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/auth-context";
 import { DisruptedPill } from "@/features/venues/components/disrupted-pill";
 import { VenueBookingDecisionDialog } from "@/features/venues/components/venue-booking-decision-dialog";
 import { VenueBookingHoldDialog } from "@/features/venues/components/venue-booking-hold-dialog";
@@ -39,6 +40,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
 
 export function VenueRequestsPage() {
   usePageTitle("Requests");
+  const { profile } = useAuth();
   const [requests, setRequests] = useState<VenueBookingRequestSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -111,6 +113,8 @@ export function VenueRequestsPage() {
               status: decision,
               decisionNotes: reason || null,
               decidedAt: new Date().toISOString(),
+              // The signed-in staff member just decided it; show their name without waiting for a reload.
+              decidedByName: profile?.full_name ?? item.decidedByName,
             }
           : item,
       ),
