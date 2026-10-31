@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "esnext"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowJs": true,
+    "types": ["node", "vite/client"],
+    "paths": { "@/*": ["./apps/frontend/src/*"] }
+  },
+  "include": ["tests/integration/**/*.ts", "vitest.integration.config.ts", "scripts/integration-environment.mjs"]
+}

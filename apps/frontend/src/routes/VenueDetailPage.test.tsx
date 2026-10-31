@@ -676,7 +676,9 @@ describe("VenueDetailPage loading and requesting", () => {
 
     await screen.findByText("No bookings have been requested at this venue yet.");
 
-    expect(scrollIntoView).toHaveBeenCalled();
+    // The page scrolls in an effect that runs just after it first draws, so wait for it
+    // rather than checking once (a slow machine can check first).
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
   });
 
   it("still shows the venue when its activity cannot be loaded", async () => {

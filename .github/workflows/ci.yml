@@ -39,6 +39,24 @@ jobs:
       # secrets: the Supabase values only matter when the built app runs.
       - run: pnpm build:frontend
 
+  # Real application/Auth/Postgres integration in a disposable local Supabase
+  # stack on this runner. Uses no hosted Supabase secrets or shared data.
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck integration tests
+        run: pnpm typecheck:integration
+      - name: Run integration tests against disposable Supabase
+        run: pnpm test:integration
+
   # Browser journeys against the production frontend build (vite preview).
   # Secrets are scoped to the steps that need them, never the whole job.
   e2e:

@@ -17,14 +17,25 @@
     "db:push:preview": "supabase db push --linked --dry-run",
     "db:push": "supabase db push --linked",
     "uat:setup": "node scripts/uat-setup.mjs",
-    "check": "pnpm typecheck:shared && pnpm typecheck:frontend && pnpm typecheck:backend && pnpm --filter @spm/shared test && pnpm --filter @spm/backend test && pnpm --filter @spm/frontend test && pnpm build:frontend && pnpm build:backend"
+    "check": "pnpm typecheck:shared && pnpm typecheck:frontend && pnpm typecheck:backend && pnpm --filter @spm/shared test && pnpm --filter @spm/backend test && pnpm --filter @spm/frontend test && pnpm build:frontend && pnpm build:backend",
+    "test:integration": "node scripts/run-integration.mjs",
+    "test:integration:db": "node scripts/run-integration.mjs --database",
+    "test:integration:safety": "node --test scripts/integration-environment.test.mjs",
+    "test:integration:cleanup-probe": "node scripts/run-integration.mjs --failure-probe",
+    "typecheck:integration": "tsc -p tsconfig.integration.json"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "@spm/shared": "workspace:*",
+    "@supabase/supabase-js": "^2.115.0",
+    "@types/node": "^24.13.3",
+    "@types/pg": "^8.23.1",
     "dotenv": "^18.0.8",
     "pg": "^8.23.1",
     "supabase": "^2.116.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite": "8.2.2",
+    "vitest": "^5.0.0"
   },
   "packageManager": "pnpm@11.19.0"
 }
