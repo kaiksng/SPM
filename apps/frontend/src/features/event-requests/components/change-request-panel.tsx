@@ -32,12 +32,15 @@ export function ChangeRequestPanel({
   role,
   isEventAssigned,
   className = "mt-3 border-t border-slate-100 pt-3 text-sm",
+  compact = false,
 }: {
   eventId: string;
   eventStatus: string;
   role: "organiser" | "coordinator" | "lead";
   isEventAssigned: boolean;
   className?: string;
+  /** Just the action (and its status line), for the page header's action group. */
+  compact?: boolean;
 }) {
   const [requests, setRequests] = useState<EventChangeRequestSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -123,9 +126,11 @@ export function ChangeRequestPanel({
 
   return (
     <div className={className}>
-      <h3 className="text-xs font-semibold tracking-wide text-slate-400 uppercase">
-        Change requests
-      </h3>
+      {!compact && (
+        <h3 className="text-xs font-semibold tracking-wide text-slate-400 uppercase">
+          Change requests
+        </h3>
+      )}
       {error && (
         <p role="alert" className="mt-2 text-xs text-red-700">
           {error}
@@ -181,7 +186,12 @@ export function ChangeRequestPanel({
         </div>
       ) : (
         role === "organiser" && (
-          <Button size="sm" variant="outline" className="mt-2" onClick={() => setShowSubmitDialog(true)}>
+          <Button
+            size="sm"
+            variant="outline"
+            className={compact ? undefined : "mt-2"}
+            onClick={() => setShowSubmitDialog(true)}
+          >
             Request a change
           </Button>
         )

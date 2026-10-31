@@ -52,6 +52,7 @@ function renderPanel(replacing?: { bookingId: string; venueId: string }, hasActi
     status: "planning", submittedAt: null, organiserId: "organiser-1",
     organiserName: null, assignedCoordinatorId: "coordinator-1",
     assignedCoordinatorName: null,
+    bannerPath: null,
     venue: { preferredLocation: "", minimumCapacity: 30, accessibilityNotes: "", layoutNotes: "", facilities: [] },
     equipment: [], registration: { required: false, opensAt: null, closesAt: null, capacity: null, waitlistEnabled: false, withdrawalPermitted: false },
   };

@@ -1,5 +1,5 @@
 import { useActionState, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { login } from "@/features/auth/actions/login";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,9 @@ import { PasswordInput } from "@/components/ui/password-input";
 export function LoginForm() {
   const [state, formAction, pending] = useActionState(login, undefined);
   const navigate = useNavigate();
+  // Set by the public main page's event links; the login action checks it.
+  const [searchParams] = useSearchParams();
+  const next = searchParams.get("next");
 
   useEffect(() => {
     if (state?.redirectTo) navigate(state.redirectTo, { replace: true });
@@ -17,6 +20,7 @@ export function LoginForm() {
 
   return (
     <form action={formAction} noValidate className="flex flex-col gap-5">
+      {next && <input type="hidden" name="next" value={next} />}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">Email</Label>
         <Input

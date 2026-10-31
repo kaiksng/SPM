@@ -103,4 +103,35 @@ describe("login action", () => {
 
     expect(state?.redirectTo).toBe(destination);
   });
+
+  // Public main page: an attendee who picked an event before signing in is
+  // taken to it afterwards; anything else is ignored.
+  describe("returning to where the visitor was heading", () => {
+    const credentials = { email: "person@example.com", password: "correct-password" };
+
+    beforeEach(() => {
+      signInWithPassword.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+    });
+
+    it("takes an attendee to the event they picked", async () => {
+      const state = await login(undefined, formDataWith({ ...credentials, next: "/browse-events/event-1" }));
+
+      expect(state?.redirectTo).toBe("/browse-events/event-1");
+    });
+
+    it("ignores a path outside the attendee's pages", async () => {
+      for (const next of ["https://evil.example", "//evil.example", "/events/event-1", "/browse-events/../venues"]) {
+        const state = await login(undefined, formDataWith({ ...credentials, next }));
+        expect(state?.redirectTo).toBe("/browse-events");
+      }
+    });
+
+    it("sends other roles to their own home page", async () => {
+      singleMock.mockResolvedValue({ data: { role: "event_coordinator" }, error: null });
+
+      const state = await login(undefined, formDataWith({ ...credentials, next: "/browse-events/event-1" }));
+
+      expect(state?.redirectTo).not.toBe("/browse-events/event-1");
+    });
+  });
 });

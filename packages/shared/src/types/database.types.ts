@@ -1251,6 +1251,7 @@ export type Database = {
       events: {
         Row: {
           assigned_coordinator_id: string | null
+          banner_path: string | null
           created_at: string
           description: string | null
           ends_at: string | null
@@ -1270,6 +1271,7 @@ export type Database = {
         }
         Insert: {
           assigned_coordinator_id?: string | null
+          banner_path?: string | null
           created_at?: string
           description?: string | null
           ends_at?: string | null
@@ -1289,6 +1291,7 @@ export type Database = {
         }
         Update: {
           assigned_coordinator_id?: string | null
+          banner_path?: string | null
           created_at?: string
           description?: string | null
           ends_at?: string | null
@@ -2251,6 +2254,20 @@ export type Database = {
           reason: string
         }[]
       }
+      list_public_events: {
+        Args: { p_limit?: number }
+        Returns: {
+          banner_path: string
+          ends_at: string
+          id: string
+          is_full: boolean
+          location: string
+          registration_closes_at: string
+          registration_opens_at: string
+          starts_at: string
+          title: string
+        }[]
+      }
       lock_requirement_for_reservation: {
         Args: { p_requirement_id: string }
         Returns: Record<string, unknown>
@@ -2432,6 +2449,10 @@ export type Database = {
       }
       set_equipment_unit_retired: {
         Args: { p_retired: boolean; p_unit_id: string }
+        Returns: string
+      }
+      set_event_banner: {
+        Args: { p_banner_path?: string; p_event_id: string }
         Returns: string
       }
       set_main_venue_booking: {
