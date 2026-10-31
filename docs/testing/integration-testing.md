@@ -1,8 +1,8 @@
 # Integration testing
 
 Application integration coverage currently includes **SPM-2 (drafts)**,
-**SPM-13 (sign-in)**, **SPM-14 (organiser ownership)** and **SPM-86 (venue buffers)**. The [coverage matrix](integration-coverage-matrix.md)
-tracks all 57 non-retired stories against Jira export (6). The remaining 53
+**SPM-13 (sign-in)**, **SPM-14 (organiser ownership)** **SPM-86 (venue buffers)** and **SPM-87 (buffered availability)**. The [coverage matrix](integration-coverage-matrix.md)
+tracks all 57 non-retired stories against Jira export (6). The remaining 52
 stories need their own coverage review, walkthrough and implementation instruction.
 
 ## What these tests prove
@@ -64,8 +64,8 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **4 files / 34 tests passed**
-for the current SPM-2/SPM-13/SPM-14/SPM-86 coverage. A green job verifies this suite on GitHub;
+and open its details. The test step should report **5 files / 36 tests passed**
+for the current SPM-2/SPM-13/SPM-14/SPM-86/SPM-87 coverage. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
 
@@ -77,8 +77,8 @@ The runtime directory `.integration-runtime/` is ignored and generated from
 current migrations/tests and an isolated config. It contains no copied
 application dotenv files, hosted linkage or development seed files.
 
-API port **55321**, Postgres **55322**, shadow port **55320**, mail capture
-**55324** and backend **55398** are reserved for the test stack. Startup refuses occupied ports,
+API port **15321**, Postgres **15322**, shadow port **15320**, mail capture
+**15324** and backend **15398** are reserved for the test stack. Startup refuses occupied ports,
 and an exclusive lock prevents overlapping runs in the same worktree. Separate
 worktrees still share these ports and must run serially. The existing
 `connectsphere` development project uses different container names and ports.
@@ -92,7 +92,7 @@ and only then resets or runs tests. The Vitest config repeats the destination
 check before loading application modules. Do not run the integration config
 directly or point it at another database.
 
-The backend URL is pinned to the reserved test port **55398**. SPM-13 starts
+The backend URL is pinned to the reserved test port **15398**. SPM-13 starts
 the real Express app there, verifies it uses the same dedicated Supabase URL
 and service credentials, and closes the listener afterwards. It imports the
 app factory directly, so no backend dotenv file or normal development server
@@ -296,3 +296,9 @@ commit/merge status; the existing CI job discovers the new suite when pushed.
 ## SPM-86 execution record — 2026-10-31
 
 Four integration cases cover default and changed values, reads, audit history, invalid values, and all non-venue-staff roles plus anonymous access. UI rendering remains covered separately. The full disposable suite passed 34/34 after the final access-control assertions; eight target-safety checks passed. An earlier version also passed twice (34/34). Integration typecheck and `pnpm check` passed. The initial integration command failed before setup because the shell used Node 22; rerunning with Node 24 passed. `pnpm check` produced the existing bundle-size warning. No hosted database was used.
+
+## SPM-87 execution record — 2026-10-31
+
+Two integration cases exercise the real availability service, local Auth and database with overlapping and exactly touching effective windows, updated buffer settings, opening/closing boundaries and closed days. Calendar appearance remains covered by VenueAvailabilityPage component tests. The integration stack ports moved to 15320–15324 and 15398 after unrelated outbound connections occupied the prior range; destination guards continue to require the exact dedicated project and loopback URLs. Two earlier startup attempts stopped before reset because ports were occupied. The prior pnpm check failed once in the existing event-completion UI test; a wait for the asynchronous call fixes that race. The full project check passed after the fix.
+
+Final verification: integration typecheck passed; the full integration suite passed 36/36 twice on clean disposable databases, with 8/8 safety checks each time. `pnpm check` passed after the asynchronous UI assertion was corrected. No tests were skipped.

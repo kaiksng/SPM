@@ -406,7 +406,7 @@ describe("EventDetailPage", () => {
     expect(
       await screen.findByRole("button", { name: "Mark as completed" }),
     ).toBeInTheDocument();
-    expect(loadEventCompletionAvailableAtMock).toHaveBeenCalledWith("event-1");
+    await waitFor(() => expect(loadEventCompletionAvailableAtMock).toHaveBeenCalledWith("event-1"));
   });
 
   // SPM-46 AC02: not before the end time plus turnaround, and the coordinator
