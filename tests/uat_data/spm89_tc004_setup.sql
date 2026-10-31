@@ -248,9 +248,9 @@ BEGIN
   DELETE FROM public.venue_booking_disruptions WHERE booking_id = '00000000-0000-4000-8089-000000000405';
 
   -- Equipment: exactly the listed requirements, each sent to Technical Support and reserved in full by Andy.
-  DELETE FROM public.equipment_arrangement_updates WHERE event_id = '00000000-0000-4000-8089-000000000201' AND requirement_id NOT IN ('00000000-0000-4000-8089-000000000651', '00000000-0000-4000-8089-000000000652');
-  DELETE FROM public.equipment_reservations WHERE event_id = '00000000-0000-4000-8089-000000000201' AND (requirement_id IS NULL OR requirement_id NOT IN ('00000000-0000-4000-8089-000000000651', '00000000-0000-4000-8089-000000000652'));
-  DELETE FROM public.event_equipment_requirements WHERE event_id = '00000000-0000-4000-8089-000000000201' AND id NOT IN ('00000000-0000-4000-8089-000000000651', '00000000-0000-4000-8089-000000000652');
+  DELETE FROM public.equipment_arrangement_updates WHERE event_id = '00000000-0000-4000-8089-000000000201' AND NOT (requirement_id = ANY (ARRAY['00000000-0000-4000-8089-000000000651', '00000000-0000-4000-8089-000000000652']::uuid[]));
+  DELETE FROM public.equipment_reservations WHERE event_id = '00000000-0000-4000-8089-000000000201' AND (requirement_id IS NULL OR NOT (requirement_id = ANY (ARRAY['00000000-0000-4000-8089-000000000651', '00000000-0000-4000-8089-000000000652']::uuid[])));
+  DELETE FROM public.event_equipment_requirements WHERE event_id = '00000000-0000-4000-8089-000000000201' AND NOT (id = ANY (ARRAY['00000000-0000-4000-8089-000000000651', '00000000-0000-4000-8089-000000000652']::uuid[]));
 
   INSERT INTO public.event_equipment_requirements AS q (id, event_id, equipment_item_id, equipment_name, quantity, required_from,
                                                        required_until, notes, needs_review, needs_review_reason, requested_at, requested_by)

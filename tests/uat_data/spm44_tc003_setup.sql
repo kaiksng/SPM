@@ -221,9 +221,9 @@ BEGIN
   DELETE FROM public.venue_booking_disruptions WHERE booking_id = '00000000-0000-4000-8044-000000000403';
 
   -- Equipment: exactly the listed requirements, each sent to Technical Support and reserved in full by Andy.
-  DELETE FROM public.equipment_arrangement_updates WHERE event_id = '00000000-0000-4000-8044-000000000203' AND requirement_id NOT IN (NULL);
-  DELETE FROM public.equipment_reservations WHERE event_id = '00000000-0000-4000-8044-000000000203' AND (requirement_id IS NULL OR requirement_id NOT IN (NULL));
-  DELETE FROM public.event_equipment_requirements WHERE event_id = '00000000-0000-4000-8044-000000000203' AND id NOT IN (NULL);
+  DELETE FROM public.equipment_arrangement_updates WHERE event_id = '00000000-0000-4000-8044-000000000203' AND NOT (requirement_id = ANY (ARRAY[]::uuid[]));
+  DELETE FROM public.equipment_reservations WHERE event_id = '00000000-0000-4000-8044-000000000203' AND (requirement_id IS NULL OR NOT (requirement_id = ANY (ARRAY[]::uuid[])));
+  DELETE FROM public.event_equipment_requirements WHERE event_id = '00000000-0000-4000-8044-000000000203' AND NOT (id = ANY (ARRAY[]::uuid[]));
 
   -- Safety check: 1 round(s) submitted by the coordinator, decided by Sally.
   IF (SELECT count(*) FROM public.event_safety_check_submissions WHERE event_id = '00000000-0000-4000-8044-000000000203') <> 1
@@ -278,7 +278,7 @@ BEGIN
     RAISE EXCEPTION 'UAT setup stopped: a real attendee (%) has a registration on a test event. Nothing was changed.', v_real;
   END IF;
   -- Must not exist: any other registration by a test account on this test event.
-  DELETE FROM public.event_registrations WHERE event_id = '00000000-0000-4000-8044-000000000203' AND attendee_id IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'bernard@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')) AND attendee_id NOT IN (NULL);
+  DELETE FROM public.event_registrations WHERE event_id = '00000000-0000-4000-8044-000000000203' AND attendee_id IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'bernard@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')) AND NOT (attendee_id = ANY (ARRAY[]::uuid[]));
 
 END $$;
 

@@ -239,9 +239,9 @@ BEGIN
   DELETE FROM public.venue_booking_disruptions WHERE booking_id = '00000000-0000-4000-8044-000000000401';
 
   -- Equipment: exactly the listed requirements, each sent to Technical Support and reserved in full by Andy.
-  DELETE FROM public.equipment_arrangement_updates WHERE event_id = '00000000-0000-4000-8044-000000000201' AND requirement_id NOT IN ('00000000-0000-4000-8044-000000000611');
-  DELETE FROM public.equipment_reservations WHERE event_id = '00000000-0000-4000-8044-000000000201' AND (requirement_id IS NULL OR requirement_id NOT IN ('00000000-0000-4000-8044-000000000611'));
-  DELETE FROM public.event_equipment_requirements WHERE event_id = '00000000-0000-4000-8044-000000000201' AND id NOT IN ('00000000-0000-4000-8044-000000000611');
+  DELETE FROM public.equipment_arrangement_updates WHERE event_id = '00000000-0000-4000-8044-000000000201' AND NOT (requirement_id = ANY (ARRAY['00000000-0000-4000-8044-000000000611']::uuid[]));
+  DELETE FROM public.equipment_reservations WHERE event_id = '00000000-0000-4000-8044-000000000201' AND (requirement_id IS NULL OR NOT (requirement_id = ANY (ARRAY['00000000-0000-4000-8044-000000000611']::uuid[])));
+  DELETE FROM public.event_equipment_requirements WHERE event_id = '00000000-0000-4000-8044-000000000201' AND NOT (id = ANY (ARRAY['00000000-0000-4000-8044-000000000611']::uuid[]));
 
   INSERT INTO public.event_equipment_requirements AS q (id, event_id, equipment_item_id, equipment_name, quantity, required_from,
                                                        required_until, notes, needs_review, needs_review_reason, requested_at, requested_by)
@@ -321,7 +321,7 @@ BEGIN
     RAISE EXCEPTION 'UAT setup stopped: a real attendee (%) has a registration on a test event. Nothing was changed.', v_real;
   END IF;
   -- Must not exist: any other registration by a test account on this test event.
-  DELETE FROM public.event_registrations WHERE event_id = '00000000-0000-4000-8044-000000000201' AND attendee_id IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'bernard@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')) AND attendee_id NOT IN ((SELECT id FROM auth.users WHERE lower(email) = 'joseph@gmail.com'));
+  DELETE FROM public.event_registrations WHERE event_id = '00000000-0000-4000-8044-000000000201' AND attendee_id IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'bernard@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')) AND NOT (attendee_id = ANY (ARRAY[(SELECT id FROM auth.users WHERE lower(email) = 'joseph@gmail.com')]::uuid[]));
   INSERT INTO public.event_registrations AS g (id, event_id, attendee_id, status, registered_at, withdrawn_at, withdrawal_reason)
   VALUES ('00000000-0000-4000-8044-000000000301', '00000000-0000-4000-8044-000000000201', (SELECT id FROM auth.users WHERE lower(email) = 'joseph@gmail.com'), 'withdrawn', '2026-10-10 10:00:00+08', '2026-10-20 10:00:00+08', NULL)
   ON CONFLICT (event_id, attendee_id) DO UPDATE
