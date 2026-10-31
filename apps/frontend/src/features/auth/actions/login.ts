@@ -18,6 +18,16 @@ export type LoginFormState =
     }
   | undefined;
 
+/**
+ * Where an attendee was heading before signing in, e.g. an event picked on
+ * the public main page. Only attendee pages are accepted, so the value can't
+ * send anyone off-site or into a page their role can't use.
+ */
+function attendeeReturnPath(next: FormDataEntryValue | null): string | undefined {
+  if (typeof next !== "string") return undefined;
+  return /^\/browse-events(\/[\w-]+)?$/.test(next) ? next : undefined;
+}
+
 export async function login(
   _state: LoginFormState,
   formData: FormData,
@@ -49,5 +59,6 @@ export async function login(
     .single();
 
   const role = (profile?.role ?? "attendee") as UserRole;
-  return { redirectTo: getRoleDestination(role) };
+  const returnPath = role === "attendee" ? attendeeReturnPath(formData.get("next")) : undefined;
+  return { redirectTo: returnPath ?? getRoleDestination(role) };
 }

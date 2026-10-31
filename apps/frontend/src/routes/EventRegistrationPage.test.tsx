@@ -19,6 +19,11 @@ const authState = {
 
 vi.mock("@/context/auth-context", () => ({ useAuth: () => authState }));
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
+vi.mock("@/features/event-banners/services/event-banners", () => ({
+  eventBannerUrl: (path: string | null) => (path ? `https://storage.test/${path}` : null),
+  uploadEventBanner: vi.fn(),
+  removeEventBanner: vi.fn(),
+}));
 vi.mock("@/features/registrations/services/attendee-event", () => ({
   loadAttendeeEventDetail: (...args: unknown[]) => loadAttendeeEventDetailMock(...args),
 }));
@@ -47,6 +52,7 @@ const baseEvent = {
   submittedAt: null,
   organiserId: "org-1",
   organiserName: "Student Life Office",
+  bannerPath: null as string | null,
   assignedCoordinatorId: null,
   assignedCoordinatorName: null,
   venue: { preferredLocation: "Auditorium", minimumCapacity: null, accessibilityNotes: null, layoutNotes: null, facilities: [] },
@@ -481,5 +487,23 @@ describe("SPM-44: attendee-facing registration view", () => {
     ]) {
       expect(screen.queryByText(internal)).not.toBeInTheDocument();
     }
+  });
+});
+
+// Event banner: the organiser's banner sits behind the event's title.
+describe("EventRegistrationPage banner", () => {
+  it("shows the organiser's banner behind the title", async () => {
+    loadAttendeeEventDetailMock.mockResolvedValue({ ...baseEvent, bannerPath: "org-1/summit.png" });
+    renderPage();
+
+    const heading = await screen.findByRole("heading", { name: "AI Innovation Summit" });
+    expect(heading.parentElement!.style.backgroundImage).toContain("https://storage.test/org-1/summit.png");
+  });
+
+  it("keeps the plain header when the event has no banner", async () => {
+    renderPage();
+
+    const heading = await screen.findByRole("heading", { name: "AI Innovation Summit" });
+    expect(heading.parentElement!.style.backgroundImage).toBe("");
   });
 });
