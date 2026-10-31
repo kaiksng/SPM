@@ -126,8 +126,8 @@ select is(
       and event_id = (select id from spm25_ids where label = 'event-a')
       and type = 'venue_decision'::public.notification_type
       and title = 'Venue booking rejected'),
-  'Your venue booking request was rejected. Venue is unavailable that day.',
-  'AC04: the rejection notification includes the reason'
+  'The venue booking request at SPM25 Test Venue for "[SPM25] Event A" was rejected.',
+  'AC04: the rejection notification names the event and venue (the reason is kept on the booking, not in the message)'
 );
 
 select * from finish();

@@ -112,8 +112,8 @@ select is(
     where recipient_id = '87000000-0000-0000-0000-000000000001'::uuid
       and event_id = (select id from spm7_ids where label = 'event-a')
       and type = 'decision'::public.notification_type),
-  row('Event rejected'::text, 'Your event "[SPM7] Event A" was rejected. The venue is already double-booked.'::text),
-  'AC06: the organiser is notified of the rejection, including the reason'
+  row('Event rejected'::text, 'Your event "[SPM7] Event A" was rejected.'::text),
+  'AC06: the organiser is notified of the rejection (the reason is kept on the decision, not in the message)'
 );
 set local role authenticated;
 select set_config(

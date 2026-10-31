@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 
 import { buttonVariants } from "@/components/ui/button";
 import { Menu, MenuContent, MenuTrigger } from "@/components/ui/menu";
+import { useAuth } from "@/context/auth-context";
 import { cn } from "@/lib/utils";
 import {
   getUnreadNotificationCount,
@@ -49,9 +50,9 @@ const VENUE_STAFF_REQUEST_TYPES = new Set<NotificationType>([
   "venue_request_withdrawn",
 ]);
 
-// Also venue-staff-facing: a conflict notification now goes to Venue Staff
-// (not the coordinator — see recheck_venue_conflicts), so it links to the
-// Flagged page they can actually open, not an event page.
+// A venue conflict flagged or cleared (recheck_venue_conflicts): Venue Staff
+// open the Flagged page; the events' coordinators, who are told too
+// (202611010002) but can't open that page, go to the event's venue page.
 const VENUE_STAFF_CONFLICT_TYPES = new Set<NotificationType>([
   "venue_conflict_flagged",
   "venue_conflict_resolved",
@@ -66,13 +67,19 @@ const VENUE_STAFF_CONFLICT_TYPES = new Set<NotificationType>([
  * they actually act on a request is the flat /venue-requests list, not a
  * per-request route, so that's the target regardless of eventId.
  */
-function notificationDestination(notification: NotificationSummary): string | undefined {
+function notificationDestination(
+  notification: NotificationSummary,
+  role: string | undefined,
+): string | undefined {
   // A withdrawn or cancelled booking is logged on the venue's Activity section.
   if (notification.type === "venue_request_withdrawn" && notification.venueId) {
     return `/venues/${notification.venueId}#activity`;
   }
   if (VENUE_STAFF_REQUEST_TYPES.has(notification.type)) return "/venue-requests";
-  if (VENUE_STAFF_CONFLICT_TYPES.has(notification.type)) return "/flagged-bookings";
+  if (VENUE_STAFF_CONFLICT_TYPES.has(notification.type)) {
+    if (role === "venue_staff") return "/flagged-bookings";
+    return notification.eventId ? `/events/${notification.eventId}/venue` : undefined;
+  }
   // SPM-39: an applied change request flagged arrangements for staff who
   // can't open the event page — send each to where they review them.
   if (notification.type === "venue_change_review") {
@@ -116,6 +123,7 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<NotificationSummary[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
+  const { profile } = useAuth();
 
   useEffect(() => {
     let active = true;
@@ -156,7 +164,7 @@ export function NotificationBell() {
     }
 
     setOpen(false);
-    const destination = notificationDestination(notification);
+    const destination = notificationDestination(notification, profile?.role);
     if (destination) navigate(destination);
   }
 
@@ -220,7 +228,7 @@ export function NotificationBell() {
                 key={notification.id}
                 type="button"
                 onClick={() => handleSelect(notification)}
-                disabled={!notificationDestination(notification)}
+                disabled={!notificationDestination(notification, profile?.role)}
                 className={cn(
                   "block w-full border-b px-3 py-2.5 text-left last:border-b-0",
                   unread ? "bg-muted/60" : "hover:bg-muted/40",
