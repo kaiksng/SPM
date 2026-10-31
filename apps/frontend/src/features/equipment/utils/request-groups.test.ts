@@ -13,10 +13,8 @@ import {
   eventsInEquipmentRequestTab,
 } from "./request-groups";
 
-const arrangement = (status: EquipmentArrangementStatus) =>
-  status === "not_started"
-    ? currentEquipmentArrangement([])
-    : currentEquipmentArrangement([{ id: 1, status, note: null, updatedByName: "Sam", updatedAt: "2099-01-01T00:00:00Z" }]);
+/** The status is worked out from the reservation by the caller (SPM-28 AC02). */
+const arrangement = (status: EquipmentArrangementStatus) => currentEquipmentArrangement([], status);
 
 const result = (requirementId: string, status: EquipmentArrangementStatus | null): EquipmentAvailabilityResult => ({
   requirementId,
@@ -30,7 +28,6 @@ const result = (requirementId: string, status: EquipmentArrangementStatus | null
   technicalRequirements: null,
   totalUnits: 100,
   reservedQuantity: 0,
-  unavailableQuantity: 0,
   availableQuantity: 100,
   status: "available",
   reservation: null,
@@ -93,16 +90,6 @@ describe("Event requests tabs: All / Need attention / Arranged / Issue", () => {
     ],
   ])("puts %s under Issue", (_what, item) => {
     expect(equipmentRequestTab(item)).toBe("issue");
-  });
-
-  // Arranged means the stock is held: marked Arranged with too little reserved is still to do.
-  it("lists an item marked Arranged without its stock held under Need attention", () => {
-    expect(equipmentRequestTab(result("x", "arranged"))).toBe("attention");
-    expect(
-      equipmentRequestTab({ ...result("x", "arranged"), reservation: { ...heldInFull, quantity: 2 } }),
-    ).toBe("attention");
-    // Equipment outside the catalogue can't be reserved, so marking it is enough.
-    expect(equipmentRequestTab({ ...result("x", "arranged"), equipmentItemId: null })).toBe("arranged");
   });
 
   it("knows when the statuses couldn't be loaded", () => {

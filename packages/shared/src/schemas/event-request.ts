@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { isPositiveWholeNumber } from "./equipment-unavailability";
+import { isPositiveWholeNumber } from "./equipment-catalogue";
 
 
 const optionalText = (maximum: number) => z.string().trim().max(maximum);

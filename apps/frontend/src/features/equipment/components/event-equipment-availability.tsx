@@ -3,7 +3,6 @@ import {
   equipmentShortage,
   isEquipmentReservationAllowed,
   overallEquipmentAvailability,
-  type EquipmentArrangementFormValues,
   type EquipmentAvailabilityStatus,
 } from "@spm/shared";
 import { CalendarDays, Ellipsis, Search } from "lucide-react";
@@ -12,10 +11,6 @@ import { useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
-import {
-  ArrangementDialog,
-  type ArrangementDialogMode,
-} from "@/features/equipment/components/arrangement-dialog";
 import { ArrangementBadge, ArrangementDetails } from "@/features/equipment/components/equipment-arrangement";
 import {
   ReleaseReservationDialog,
@@ -29,8 +24,6 @@ import type {
 } from "@/features/equipment/services/equipment-availability";
 import {
   arrangementStatusesLoaded,
-  canBeArranged,
-  reservationArrangementStatus,
   equipmentRequestTab,
   equipmentRequestTabCounts,
   equipmentRequestTabLabels,
@@ -63,17 +56,11 @@ type Handlers = {
   onReserve: (requirementId: string, quantity: number) => Promise<void>;
   onChange: (reservationId: string, quantity: number) => Promise<void>;
   onRelease: (reservationId: string, reason: string) => Promise<void>;
-  /** SPM-28: record a new arrangement status and note. */
-  onUpdateArrangement: (requirementId: string, values: EquipmentArrangementFormValues) => Promise<void>;
 };
-
-function isArrangementMode(action: PendingAction["action"]): action is ArrangementDialogMode {
-  return action === "report" || action === "note" || action === "resolve";
-}
 
 type PendingAction = {
   /** "top_up" adds to the current reservation using an additional quantity. */
-  action: ReservationAction | ArrangementDialogMode;
+  action: ReservationAction;
   event: EventEquipmentAvailability;
   result: EquipmentAvailabilityResult;
 };
@@ -81,8 +68,8 @@ type PendingAction = {
 /**
  * SPM-31: each open event's requested equipment against what can be
  * provided — and, from here, reserving it, changing or releasing the
- * reservation, re-checking one flagged after a change, and (SPM-28)
- * updating its arrangement status and note. Items are sorted into tabs —
+ * reservation, and re-checking one flagged after a change. Each item's
+ * arrangement status (SPM-28) follows its reservation. Items are sorted into tabs —
  * All / Need attention / Arranged / Issue (see request-groups) — each shown
  * under its event.
  */
@@ -91,7 +78,6 @@ export function EventEquipmentAvailabilityList({
   onReserve,
   onChange,
   onRelease,
-  onUpdateArrangement,
 }: { events: EventEquipmentAvailability[] } & Handlers) {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<EquipmentRequestTab>("all");
@@ -203,29 +189,6 @@ export function EventEquipmentAvailabilityList({
         </ul>
       )}
 
-      {pending && isArrangementMode(pending.action) && pending.result.arrangement && (
-        <ArrangementDialog
-          mode={pending.action}
-          eventTitle={pending.event.title}
-          equipmentName={pending.result.equipmentName}
-          arrangement={pending.result.arrangement}
-          status={
-            pending.action === "report"
-              ? "issue"
-              : pending.action === "resolve" ||
-                  // A note keeps the status, unless that is an Arranged whose stock is not held.
-                  (pending.result.arrangement.status === "arranged" && !canBeArranged(pending.result))
-                ? reservationArrangementStatus(pending.result)
-                : pending.result.arrangement.status
-          }
-          onCancel={() => setPending(undefined)}
-          onSave={async (values) => {
-            await onUpdateArrangement(pending.result.requirementId, values);
-            setPending(undefined);
-          }}
-        />
-      )}
-
       {releasing && (
         <ReleaseReservationDialog
           eventTitle={releasing.event.title}
@@ -241,7 +204,7 @@ export function EventEquipmentAvailabilityList({
         />
       )}
 
-      {pending && !isArrangementMode(pending.action) && (
+      {pending && (
         <ReservationDialog
           action={pending.action}
           eventTitle={pending.event.title}
@@ -349,7 +312,6 @@ function EventCard({
             key={result.requirementId}
             result={result}
             reservationsAllowed={reservationsAllowed}
-            arrangementsAllowed={event.status === "planning" || confirmed}
             lockNote={lockNote}
             error={rowError?.requirementId === result.requirementId ? rowError.message : undefined}
             onAction={(action) => onAction(action, result)}
@@ -391,7 +353,6 @@ function EventCard({
 function ResultRow({
   result,
   reservationsAllowed,
-  arrangementsAllowed,
   lockNote,
   error,
   onAction,
@@ -403,8 +364,6 @@ function ResultRow({
    * reserving, changing and re-checking) or once it is Confirmed.
    */
   reservationsAllowed: boolean;
-  /** Reporting an issue and notes: Planning and Confirmed only (frozen during the safety check). */
-  arrangementsAllowed: boolean;
   /** Why reserving is off, shown when it is. */
   lockNote: string;
   error?: string;
@@ -443,22 +402,10 @@ function ResultRow({
   } else if (reservationsAllowed && canTopUp) {
     mainAction = { label: "Reserve the rest", run: () => onAction("top_up") };
   }
-  // An issue staff reported themselves comes before anything else: it is
-  // resolved first, then the item carries on from its reservation.
-  const reportedIssue = Boolean(result.arrangement?.status === "issue" && !result.arrangement.automatic);
-  const reserveStep = mainAction;
-  if (arrangementsAllowed && reportedIssue && !reservation?.needsRecheck) {
-    mainAction = { label: "Resolve issue", run: () => onAction("resolve") };
-  }
   const moreActions: Array<{ label: string; run: () => void }> = [];
-  if (reserveStep && mainAction !== reserveStep) moreActions.push(reserveStep);
   if (reservationsAllowed && reservation) moreActions.push({ label: "Change quantity", run: () => onAction("change") });
   // Releasing gives units back, so it stays open whatever the event's status.
   if (reservation) moreActions.push({ label: "Release", run: () => onAction("release") });
-  if (arrangementsAllowed && result.arrangement) {
-    if (!reportedIssue) moreActions.push({ label: "Report issue", run: () => onAction("report") });
-    moreActions.push({ label: "Add note", run: () => onAction("note") });
-  }
 
   return (
     <li className="grid gap-3 px-5 py-4 text-sm sm:grid-cols-[1fr_auto] sm:items-start">
@@ -494,8 +441,7 @@ function ResultRow({
         )}
         {result.status !== "unknown" && (
           <p className="mt-1 text-xs text-slate-500">
-            {result.totalUnits} in service · {poolReserved} reserved ·{" "}
-            {result.unavailableQuantity} out of service during this period
+            {result.totalUnits} in service · {poolReserved} reserved
           </p>
         )}
         {reservation && (
@@ -519,9 +465,6 @@ function ResultRow({
           </div>
         )}
         {result.arrangement && <ArrangementDetails arrangement={result.arrangement} />}
-        {result.arrangement?.status === "arranged" && !canBeArranged(result) && (
-          <p className="mt-1 text-amber-900">Marked Arranged, but the full quantity isn't reserved yet.</p>
-        )}
         {error && (
           <p role="alert" className="mt-2 text-red-700">
             {error}

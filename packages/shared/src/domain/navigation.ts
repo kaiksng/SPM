@@ -8,7 +8,6 @@ export type NavItemId =
   | "equipment"
   | "equipment-requests"
   | "equipment-inventory"
-  | "equipment-unavailability"
   | "browse-events"
   | "my-registrations"
   | "safety-checks";
@@ -29,14 +28,9 @@ const NAV_ITEMS: Record<NavItemId, NavItem> = {
     href: "/flagged-bookings",
   },
   equipment: { id: "equipment", label: "Equipment", href: "/equipment" },
-  // Technical Support Staff split the equipment area into three sections.
+  // Technical Support Staff split the equipment area into two sections.
   "equipment-requests": { id: "equipment-requests", label: "Event requests", href: "/equipment" },
   "equipment-inventory": { id: "equipment-inventory", label: "Inventory", href: "/equipment/inventory" },
-  "equipment-unavailability": {
-    id: "equipment-unavailability",
-    label: "Unavailability",
-    href: "/equipment/unavailability",
-  },
   "browse-events": {
     id: "browse-events",
     label: "Browse Event",
@@ -60,7 +54,7 @@ const ROLE_NAV_ITEM_IDS = {
   // Requests first: deciding pending booking requests is venue staff's main
   // job, so it is also their landing page (getRoleDestination).
   venue_staff: ["requests", "venues", "flagged-bookings"],
-  technical_support_staff: ["equipment-requests", "equipment-inventory", "equipment-unavailability"],
+  technical_support_staff: ["equipment-requests", "equipment-inventory"],
   attendee: ["browse-events", "my-registrations"],
   // View-only for now: the Lead's dashboard is the shared "events" section,
   // just showing every event instead of one organiser's or coordinator's

@@ -1,15 +1,9 @@
-import { equipmentUnitLabel, type EquipmentUnavailabilityFormValues } from "@spm/shared";
-import { CalendarX2 } from "lucide-react";
+import { equipmentUnitLabel } from "@spm/shared";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { EquipmentUnavailabilityForm } from "@/features/equipment/components/equipment-unavailability-form";
 import { useStableCallback } from "@/features/equipment/hooks/use-stable-callback";
-import type {
-  EquipmentUnavailabilityRecord,
-  EquipmentUnit,
-  InventoryItem,
-} from "@/features/equipment/services/equipment-unavailability";
+import type { EquipmentUnit, InventoryItem } from "@/features/equipment/services/equipment-inventory";
 import { Modal } from "@/features/event-requests/components/modal";
 import { cn } from "@/lib/utils";
 
@@ -20,30 +14,20 @@ const dateFormat = new Intl.DateTimeFormat("en-SG", {
 });
 
 /**
- * One physical unit: its status, and the two things staff do with it —
- * record it as unavailable for a period, or retire (restore) it.
+ * One physical unit: its status, and retiring (or restoring) it.
  */
 export function EquipmentUnitDialog({
   item,
   unit,
-  items,
-  records,
-  outage,
   onClose,
-  onRecordUnavailable,
   onSetRetired,
 }: {
   item: InventoryItem;
   unit: EquipmentUnit;
-  items: InventoryItem[];
-  records: EquipmentUnavailabilityRecord[];
-  /** The in-progress record this unit is out on, if any. */
-  outage?: EquipmentUnavailabilityRecord;
   onClose: () => void;
-  onRecordUnavailable: (values: EquipmentUnavailabilityFormValues) => Promise<void>;
   onSetRetired: (retired: boolean) => Promise<void>;
 }) {
-  const [mode, setMode] = useState<"details" | "unavailable" | "confirm_retire">("details");
+  const [mode, setMode] = useState<"details" | "confirm_retire">("details");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const close = useStableCallback(() => {
@@ -51,7 +35,7 @@ export function EquipmentUnitDialog({
   });
 
   const label = equipmentUnitLabel(item.code, unit.unitNumber);
-  const status = unit.retiredAt ? "Retired" : outage ? "Out of service" : "In service";
+  const status = unit.retiredAt ? "Retired" : "In service";
 
   async function toggleRetired() {
     setBusy(true);
@@ -71,7 +55,6 @@ export function EquipmentUnitDialog({
       titleId="equipment-unit-dialog-title"
       title={`${label} · ${item.name}`}
       onCancel={close}
-      size={mode === "unavailable" ? "large" : "default"}
     >
       {mode === "details" ? (
         <>
@@ -81,7 +64,6 @@ export function EquipmentUnitDialog({
                 className={cn(
                   "rounded-full px-2 py-0.5 text-xs font-semibold",
                   status === "In service" && "bg-emerald-100 text-emerald-800",
-                  status === "Out of service" && "bg-amber-100 text-amber-800",
                   status === "Retired" && "bg-slate-200 text-slate-600",
                 )}
               >
@@ -89,11 +71,6 @@ export function EquipmentUnitDialog({
               </span>
               <span className="text-slate-500">{item.category ?? "Other"}</span>
             </p>
-            {outage && (
-              <p className="mt-2 text-slate-700">
-                {outage.reason} · until {dateFormat.format(new Date(outage.endsAt))}
-              </p>
-            )}
             {unit.retiredAt && (
               <p className="mt-2 text-slate-700">
                 Retired {dateFormat.format(new Date(unit.retiredAt))}. It no longer counts as stock.
@@ -111,11 +88,6 @@ export function EquipmentUnitDialog({
             <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>
               Close
             </Button>
-            {!unit.retiredAt && (
-              <Button type="button" variant="outline" disabled={busy} onClick={() => setMode("unavailable")}>
-                <CalendarX2 /> Mark unavailable
-              </Button>
-            )}
             <Button
               type="button"
               variant={unit.retiredAt ? "default" : "destructive"}
@@ -126,11 +98,11 @@ export function EquipmentUnitDialog({
             </Button>
           </div>
         </>
-      ) : mode === "confirm_retire" ? (
+      ) : (
         <>
           <p className="mt-3 text-sm font-semibold text-slate-900">Retire {label}?</p>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            {label} will stop counting as stock and can't be chosen for outages. It stays listed as
+            {label} will stop counting as stock. It stays listed as
             retired, and you can restore it later.
           </p>
           {error && (
@@ -146,26 +118,6 @@ export function EquipmentUnitDialog({
               {busy ? "Retiring…" : `Retire ${label}`}
             </Button>
           </div>
-        </>
-      ) : (
-        <>
-          <button
-            type="button"
-            className="text-sm font-medium text-primary hover:underline"
-            onClick={() => setMode("details")}
-          >
-            ← Back to {label}
-          </button>
-          <EquipmentUnavailabilityForm
-            items={items}
-            records={records}
-            initialValues={{ equipmentItemId: item.id, unitIds: [unit.id] }}
-            submitLabel={`Mark ${label} unavailable`}
-            onSave={async (values) => {
-              await onRecordUnavailable(values);
-              onClose();
-            }}
-          />
         </>
       )}
     </Modal>

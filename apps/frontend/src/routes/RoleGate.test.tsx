@@ -75,7 +75,7 @@ describe("RoleGate", () => {
     });
 
     // SPM-48 AC01: technical support staff see the pages permitted for their role.
-    it.each(["/equipment", "/equipment/inventory", "/equipment/unavailability"])(
+    it.each(["/equipment", "/equipment/inventory"])(
       "shows technical support staff the page at %s",
       (path) => {
         renderAt(path);

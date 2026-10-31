@@ -23,9 +23,9 @@ vi.mock("@/features/event-requests/services/equipment-arrangements", () => ({
   EVENT_COMPLETED_RELEASE_REASON: "The event was completed",
   listEquipmentArrangements: (...args: unknown[]) => listEquipmentArrangementsMock(...args),
 }));
-const loadEquipmentArrangementStatusesMock = vi.fn();
+const loadArrangementHistoryMock = vi.fn();
 vi.mock("@/features/equipment/services/equipment-arrangement-status", () => ({
-  loadEquipmentArrangementStatuses: (...args: unknown[]) => loadEquipmentArrangementStatusesMock(...args),
+  loadEquipmentArrangementHistory: (...args: unknown[]) => loadArrangementHistoryMock(...args),
 }));
 const saveEventEquipmentMock = vi.fn();
 vi.mock("@/features/event-requests/services/coordinator-event-edit", async () => ({
@@ -95,7 +95,7 @@ function renderPage() {
 }
 
 beforeEach(() => {
-  loadEquipmentArrangementStatusesMock.mockReset().mockResolvedValue(new Map());
+  loadArrangementHistoryMock.mockReset().mockResolvedValue(new Map());
   loadEventDetailMock.mockReset().mockResolvedValue({
     id: "event-1",
     title: "Spring Expo",
@@ -198,38 +198,32 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
   const statuses = new Map([
     [
       "req-proj",
-      {
-        status: "issue",
-        note: "One projector is faulty",
-        updatedByName: "Lee Support",
-        updatedAt: "2099-06-22T02:00:00.000Z",
-        history: [
-          { id: 1, status: "in_progress", note: null, updatedByName: "Tess Support", updatedAt: "2099-06-21T02:00:00.000Z" },
-          { id: 2, status: "issue", note: "One projector is faulty", updatedByName: "Lee Support", updatedAt: "2099-06-22T02:00:00.000Z" },
-        ],
-      },
+      [
+        { id: 1, status: "in_progress", note: "Reserved 1 of 3", updatedByName: "Tess Support", updatedAt: "2099-06-21T02:00:00.000Z" },
+        { id: 2, status: "issue", note: "Request changed", updatedByName: "Lee Support", updatedAt: "2099-06-22T02:00:00.000Z" },
+      ],
     ],
   ]);
 
-  it("shows the assigned coordinator each item's status, note and history (AC02/AC03)", async () => {
+  it("shows the assigned coordinator each item's status and history (AC02/AC03/AC07)", async () => {
     loadEventDetailMock.mockResolvedValue({
       ...(await loadEventDetailMock()),
       assignedCoordinatorId: "coordinator-1",
     });
-    loadEquipmentArrangementStatusesMock.mockResolvedValue(statuses);
+    loadArrangementHistoryMock.mockResolvedValue(statuses);
     renderPage();
 
     const projector = (await screen.findByText("Projector × 3")).closest("li")!;
-    expect(loadEquipmentArrangementStatusesMock).toHaveBeenCalledWith(["event-1"]);
-    expect(within(projector).getByText("Arrangement: Issue")).toBeInTheDocument();
-    expect(within(projector).getByText(/One projector is faulty/, { selector: "p" })).toBeInTheDocument();
+    expect(loadArrangementHistoryMock).toHaveBeenCalledWith(["event-1"]);
+    // The status follows the reservation, whatever the history last said:
+    // reserved in full is Arranged.
+    expect(within(projector).getByText("Arrangement: Arranged")).toBeInTheDocument();
     expect(within(projector).getByText(/Updated by Lee Support/)).toBeInTheDocument();
     expect(within(projector).getByText("Arrangement history (2)")).toBeInTheDocument();
 
-    // Nobody set these, so they follow the reservation: a flagged one is an issue,
-    // and one whose reservation was released hasn't been started.
+    // A flagged reservation is an issue, and one that was released hasn't been started.
     const mic = screen.getByText("Wireless microphone × 10").closest("li")!;
-    expect(within(mic).getByText(/Arrangement: Issue/)).toHaveTextContent("Arrangement: Issue (automatic)");
+    expect(within(mic).getByText(/Arrangement: Issue/)).toHaveTextContent(/^Arrangement: Issue$/);
     const tv = screen.getAllByText("TV / display monitor × 2")[0]!.closest("li")!;
     expect(within(tv).getByText("Arrangement: Not started")).toBeInTheDocument();
     // Read-only here: updating happens on the Technical Support Staff page.
@@ -241,7 +235,7 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
       ...(await loadEventDetailMock()),
       assignedCoordinatorId: "coordinator-1",
     });
-    loadEquipmentArrangementStatusesMock.mockRejectedValue(new Error("We couldn't load the equipment arrangement statuses."));
+    loadArrangementHistoryMock.mockRejectedValue(new Error("We couldn't load the equipment arrangement statuses."));
     renderPage();
 
     const projector = (await screen.findByText("Projector × 3")).closest("li")!;
@@ -433,7 +427,7 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
       ...(await loadEventDetailMock()),
       assignedCoordinatorId: "coordinator-2",
     });
-    loadEquipmentArrangementStatusesMock.mockResolvedValue(statuses);
+    loadArrangementHistoryMock.mockResolvedValue(statuses);
     renderPage();
 
     expect(await screen.findByText("Projector × 3")).toBeInTheDocument();
@@ -470,7 +464,7 @@ describe("EventEquipmentPage (requesting equipment from Technical Support Staff)
 
   it("marks items not yet requested, without an arrangement status", async () => {
     await withUnrequested();
-    loadEquipmentArrangementStatusesMock.mockResolvedValue(new Map());
+    loadArrangementHistoryMock.mockResolvedValue(new Map());
     renderPage();
 
     const cord = (await screen.findByText("Extension cord × 1")).closest("li")!;
@@ -515,23 +509,11 @@ describe("EventEquipmentPage (requesting equipment from Technical Support Staff)
     expect(clicker).toBeEnabled();
   });
 
-  it("lets an item flagged as an Issue be requested again", async () => {
+  it("lets an item whose reservation needs re-checking be requested again", async () => {
     await withUnrequested();
-    loadEquipmentArrangementStatusesMock.mockResolvedValue(
-      new Map([
-        [
-          "req-proj",
-          {
-            status: "issue",
-            automatic: false,
-            note: "faulty",
-            updatedByName: "Tess Support",
-            updatedAt: "2099-06-21T02:00:00.000Z",
-            history: [],
-          },
-        ],
-      ]),
-    );
+    listEquipmentArrangementsMock.mockResolvedValue([
+      arrangement({ needsRecheck: true, recheckReason: "The equipment request changed" }),
+    ]);
     const user = userEvent.setup();
     renderPage();
 

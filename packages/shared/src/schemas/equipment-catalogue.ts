@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { isPositiveWholeNumber } from "./equipment-unavailability";
+/** "4", "04" and "004" are all 4; "0", "-1" and "1.5" are not positive whole numbers. */
+export function isPositiveWholeNumber(value: string) {
+  return /^\d+$/.test(value.trim()) && Number(value) > 0;
+}
 
 /**
  * Catalogue item fields, mirroring public.clean_equipment_item_fields

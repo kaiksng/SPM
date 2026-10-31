@@ -19,7 +19,7 @@ insert into public.events (id, organiser_id, assigned_coordinator_id, title, sta
 values ('ec000000-0000-0000-0000-0000000000e1', 'ec000000-0000-0000-0000-000000000002', 'ec000000-0000-0000-0000-000000000003',
         'Recheck Expo', 'planning', '2099-10-01T10:00:00+08:00', '2099-10-01T14:00:00+08:00');
 
--- worked: arranged by hand and reserved. notes-only: reserved. untouched: nothing done yet.
+-- worked: reserved in full (Arranged). notes-only: reserved. untouched: nothing done yet.
 insert into public.event_equipment_requirements (event_id, equipment_item_id, equipment_name, quantity, required_from, required_until, notes)
 values
   ('ec000000-0000-0000-0000-0000000000e1', (select id from v_ids where name = 'mic'), 'x', 2, '2099-10-01T10:00:00+08:00', '2099-10-01T14:00:00+08:00', 'worked'),
@@ -36,7 +36,6 @@ select set_config('app.requesting_equipment', 'off', true);
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"ec000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select public.update_equipment_arrangement((select id from v_ids where name = 'worked'), 'in_progress', 'Delivered to the hall');
 insert into v_ids select 'res-worked', public.reserve_equipment((select id from v_ids where name = 'worked'), 2);
 insert into v_ids select 'res-notes', public.reserve_equipment((select id from v_ids where name = 'notes-only'), 1);
 reset role;
@@ -53,8 +52,8 @@ select is(
 );
 select is(
   (select count(*)::int from public.equipment_arrangement_updates where requirement_id = (select id from v_ids where name = 'worked')),
-  3,
-  'the earlier entries (In progress by hand, then Arranged by the reservation) stay in the history (SPM-28 AC03)'
+  2,
+  'the earlier entry (Arranged by the reservation) stays in the history (SPM-28 AC03)'
 );
 select is(
   (select row(needs_recheck, recheck_reason) from public.equipment_reservations where id = (select id from v_ids where name = 'res-worked')),
@@ -90,14 +89,16 @@ select is(
 update public.event_equipment_requirements set quantity = quantity where id = (select id from v_ids where name = 'worked');
 select is(
   (select count(*)::int from public.equipment_arrangement_updates where requirement_id = (select id from v_ids where name = 'worked')),
-  3,
+  2,
   'saving a request unchanged adds nothing'
 );
 
 set local role authenticated;
 select throws_ok(
-  $$select public.update_equipment_arrangement((select id from v_ids where name = 'worked'), 'arranged', null)$$,
-  '42501', 'Only Technical Support Staff can update equipment arrangements',
+  $$insert into public.equipment_arrangement_updates (requirement_id, event_id, status, note, updated_by)
+    values ((select id from v_ids where name = 'worked'), 'ec000000-0000-0000-0000-0000000000e1', 'arranged', null,
+            'ec000000-0000-0000-0000-000000000003')$$,
+  '42501', null,
   'the coordinator still cannot set an arrangement status themselves (SPM-28 AC06)'
 );
 

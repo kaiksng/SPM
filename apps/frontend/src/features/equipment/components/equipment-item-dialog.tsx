@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useStableCallback } from "@/features/equipment/hooks/use-stable-callback";
 import { Modal } from "@/features/event-requests/components/modal";
-import type { InventoryItem } from "@/features/equipment/services/equipment-unavailability";
+import type { InventoryItem } from "@/features/equipment/services/equipment-inventory";
 
 /** Add a catalogue item (with its first units) or edit an existing one. */
 export function EquipmentItemDialog({
