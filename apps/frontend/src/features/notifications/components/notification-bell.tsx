@@ -88,6 +88,10 @@ function notificationDestination(
   if (notification.type === "equipment_change_review") return "/equipment";
   // A coordinator requested an event's equipment: staff arrange it there.
   if (notification.type === "equipment_requested") return "/equipment";
+  // SPM-81: a new event needs a coordinator; the Lead assigns one on its page.
+  if (notification.type === "event_awaiting_assignment") {
+    return notification.eventId ? `/events/${notification.eventId}` : "/events";
+  }
   if (notification.type === "safety_review_reset") return "/safety-checks";
   // Attendee-facing: an attendee has no "events" nav section (see
   // navigation.ts) and can't reach /events/:id at all — their own copy of

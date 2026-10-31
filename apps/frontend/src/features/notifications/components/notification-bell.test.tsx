@@ -192,6 +192,31 @@ describe("NotificationBell", () => {
 
   // 202611010002: the events' coordinators are told about conflicts too, but
   // can't open the Flagged page, so theirs opens the event's venue page.
+  // SPM-81: the Lead opens the new event to assign it a coordinator.
+  it("opens the event from a new-event-needs-a-coordinator notification", async () => {
+    authState.profile.role = "event_coordinator_lead";
+    listNotificationsMock.mockResolvedValue([
+      {
+        id: "n7",
+        type: "event_awaiting_assignment" as const,
+        title: "New event needs a coordinator",
+        message: '"Java workshop" was submitted by jasmine and needs an Event Coordinator.',
+        eventId: "e7",
+        venueId: null,
+        readAt: null,
+        createdAt: "2026-11-01T02:00:00Z",
+      },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("New event needs a coordinator"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/events/e7");
+  });
+
   it("opens a coordinator's conflict notification on the event's venue page", async () => {
     authState.profile.role = "event_coordinator";
     listNotificationsMock.mockResolvedValue([
