@@ -30,7 +30,7 @@ const event: EventDetail = {
   expectedAttendance: 20,
   startsAt: "2099-04-06T02:00:00.000Z", endsAt: "2099-04-06T04:00:00.000Z",
   status: "planning", submittedAt: null, organiserId: "organiser-1", organiserName: null,
-  assignedCoordinatorId: "coordinator-1", assignedCoordinatorName: null,
+  assignedCoordinatorId: "coordinator-1", assignedCoordinatorName: null, bannerPath: null,
   venue: {
     preferredLocation: "Bugis", minimumCapacity: 30, accessibilityNotes: "wheelchair",
     layoutNotes: "Theatre", facilities: ["Projector"],

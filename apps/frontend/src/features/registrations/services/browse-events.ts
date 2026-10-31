@@ -10,6 +10,8 @@ import { supabase } from "@/lib/supabase-client";
 export type BrowseEventSummary = {
   id: string;
   title: string;
+  /** The organiser's optional banner image. */
+  bannerPath: string | null;
   startsAt: string | null;
   endsAt: string | null;
   location: string | null;
@@ -36,6 +38,7 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
       `
         id,
         title,
+        banner_path,
         starts_at,
         ends_at,
         event_venue_requirements ( preferred_location ),
@@ -89,6 +92,7 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
     return {
       id: event.id,
       title: event.title,
+      bannerPath: event.banner_path,
       startsAt: event.starts_at,
       endsAt: event.ends_at,
       location: event.event_venue_requirements?.preferred_location ?? null,

@@ -15,6 +15,11 @@ vi.mock("@/context/auth-context", () => ({
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
+vi.mock("@/features/event-banners/services/event-banners", () => ({
+  eventBannerUrl: (path: string | null) => (path ? `https://storage.test/${path}` : null),
+  uploadEventBanner: vi.fn(),
+  removeEventBanner: vi.fn(),
+}));
 
 vi.mock("@/features/registrations/services/browse-events", () => ({
   listBrowseEvents: (...args: unknown[]) => listBrowseEventsMock(...args),
@@ -60,6 +65,21 @@ describe("BrowseEventsPage", () => {
   beforeEach(() => {
     authState.profile.role = "attendee";
     listBrowseEventsMock.mockReset().mockResolvedValue([]);
+  });
+
+  // Event banner: each card shows the organiser's banner, or a placeholder.
+  it("shows each event's banner, or a placeholder when it has none", async () => {
+    listBrowseEventsMock.mockResolvedValue([
+      { ...openEvent, bannerPath: "org-1/summit.png" },
+      { ...fullEvent, bannerPath: null },
+    ]);
+    renderPage();
+
+    const summit = (await screen.findByText("AI Innovation Summit")).closest("a")!;
+    expect(summit.querySelector("img")).toHaveAttribute("src", "https://storage.test/org-1/summit.png");
+    const fair = screen.getByText("Career Fair 2026").closest("a")!;
+    expect(fair.querySelector("img")).toBeNull();
+    expect(within(fair).getByTestId("event-banner-placeholder")).toBeInTheDocument();
   });
 
   // SPM-49 AC01: a signed-in attendee sees the attendee-facing events page.

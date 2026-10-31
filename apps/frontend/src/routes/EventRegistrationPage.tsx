@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { eventBannerUrl } from "@/features/event-banners/services/event-banners";
 import { RegistrationStatusBadge } from "@/features/registrations/components/registration-status-badge";
 import { WithdrawRegistrationDialog } from "@/features/registrations/components/withdraw-registration-dialog";
 import {
@@ -59,6 +60,7 @@ export function EventRegistrationPage() {
   const [withdrawNotice, setWithdrawNotice] = useState<string>();
 
   usePageTitle(event?.title ? `Register — ${event.title}` : "Event registration");
+  const bannerUrl = eventBannerUrl(event?.bannerPath ?? null);
 
   useEffect(() => {
     if (!eventId || !user) return;
@@ -206,7 +208,14 @@ export function EventRegistrationPage() {
           ) : (
             <div className="mt-6 flex flex-col gap-4">
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                <div className="flex h-44 flex-col justify-between bg-gradient-to-br from-primary to-blue-900 p-5">
+                <div
+                  className="flex h-44 flex-col justify-between bg-gradient-to-br from-primary to-blue-900 bg-cover bg-center p-5"
+                  style={
+                    bannerUrl
+                      ? { backgroundImage: `linear-gradient(to top, rgba(15,23,42,0.75), rgba(15,23,42,0.15)), url("${bannerUrl}")` }
+                      : undefined
+                  }
+                >
                   <span className="w-fit rounded-full border border-white/40 bg-white/15 px-2.5 py-1 text-xs font-semibold text-white">
                     {EVENT_STATUS_LABELS[event.status] ?? event.status}
                   </span>

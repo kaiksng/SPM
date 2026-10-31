@@ -19,6 +19,7 @@ import { EventPageTopBar } from "@/features/event-requests/components/event-page
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
 import { EventStatusBadge, StatusBadge } from "@/features/event-requests/components/status-badges";
 import { EventStatusTimeline } from "@/features/event-requests/components/status-timeline";
+import { EventBannerSection } from "@/features/event-banners/components/event-banner-section";
 import { EventDocumentsSection } from "@/features/event-documents/components/event-documents-section";
 import { VenueFacilitiesSection } from "@/features/event-requests/components/venue-facilities-section";
 import type { ClarificationSummary } from "@/features/event-requests/services/clarifications";
@@ -257,9 +258,20 @@ export function EventDetailPage() {
                   </h1>
                   {/* One group, so the actions sit together on the right
                       instead of being spread across the row. */}
-                  {(isEditable || canComplete || isCancellable) && (
+                  {(isEditable || canComplete || isCancellable || role === "organiser") && (
                     <div className="flex flex-col items-end gap-1.5">
-                      <div role="group" aria-label="Event actions" className="flex flex-wrap justify-end gap-2">
+                      <div role="group" aria-label="Event actions" className="flex flex-wrap items-start justify-end gap-2">
+                        {/* The organiser's way to change the event. */}
+                        {role === "organiser" && (
+                          <ChangeRequestPanel
+                            eventId={event.id}
+                            eventStatus={event.status}
+                            role={role}
+                            isEventAssigned={!!event.assignedCoordinatorId}
+                            className="flex max-w-xs flex-col items-end gap-1 text-right text-sm"
+                            compact
+                          />
+                        )}
                         {isEditable && (
                           <Link
                             to={`/events/${event.id}/coordinator-edit`}
@@ -317,15 +329,13 @@ export function EventDetailPage() {
                     accurate — submit a change request instead of editing it directly.
                   </p>
                 )}
-                {/* The organiser's way to change the event, so it sits right
-                    under the header rather than at the bottom of the page. */}
-                {role === "organiser" && (
-                  <ChangeRequestPanel
+                {/* The organiser's own banner, first thing on their page. */}
+                {role === "organiser" && event.organiserId === user?.id && (
+                  <EventBannerSection
                     eventId={event.id}
-                    eventStatus={event.status}
-                    role={role}
-                    isEventAssigned={!!event.assignedCoordinatorId}
-                    className="mt-4 rounded-2xl border border-slate-200 bg-white p-5 text-sm"
+                    organiserId={event.organiserId}
+                    bannerPath={event.bannerPath}
+                    onChanged={(bannerPath) => setEvent({ ...event, bannerPath })}
                   />
                 )}
                 {role === "coordinator" &&

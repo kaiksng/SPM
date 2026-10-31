@@ -1251,6 +1251,7 @@ export type Database = {
       events: {
         Row: {
           assigned_coordinator_id: string | null
+          banner_path: string | null
           created_at: string
           description: string | null
           ends_at: string | null
@@ -1270,6 +1271,7 @@ export type Database = {
         }
         Insert: {
           assigned_coordinator_id?: string | null
+          banner_path?: string | null
           created_at?: string
           description?: string | null
           ends_at?: string | null
@@ -1289,6 +1291,7 @@ export type Database = {
         }
         Update: {
           assigned_coordinator_id?: string | null
+          banner_path?: string | null
           created_at?: string
           description?: string | null
           ends_at?: string | null
@@ -2432,6 +2435,10 @@ export type Database = {
       }
       set_equipment_unit_retired: {
         Args: { p_retired: boolean; p_unit_id: string }
+        Returns: string
+      }
+      set_event_banner: {
+        Args: { p_banner_path?: string; p_event_id: string }
         Returns: string
       }
       set_main_venue_booking: {
