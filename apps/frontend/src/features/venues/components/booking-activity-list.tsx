@@ -17,6 +17,9 @@ const KIND_CLASSES: Record<BookingActivityKind, string> = {
   replacement_requested: "border-amber-200 bg-amber-50 text-amber-800",
   replaced: "border-amber-200 bg-amber-50 text-amber-800",
   disrupted: "border-red-200 bg-red-50 text-red-800",
+  disruption_cleared: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  conflict_flagged: "border-amber-200 bg-amber-50 text-amber-800",
+  conflict_cleared: "border-emerald-200 bg-emerald-50 text-emerald-700",
 };
 
 /**

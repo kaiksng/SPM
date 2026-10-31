@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { VenueBookingFlag } from "@/features/venues/services/venue-booking-flags";
 import type { VenueBookingRequestSummary } from "@/features/venues/services/venue-bookings";
 
 import { buildBookingActivity } from "./booking-activity";
@@ -15,6 +16,15 @@ function booking(overrides: Partial<VenueBookingRequestSummary> = {}): VenueBook
     replacesVenueName: null, advisoryNotes: null, label: "Breakout 1", expectedHeadcount: 40,
     isMainVenue: false, venueLocation: "Marina Bay", venueAreaTags: [], cancellationReason: null,
     cancelledAt: null, cancelledByName: null, mainDesignatedAt: null,
+    ...overrides,
+  };
+}
+
+function flag(overrides: Partial<VenueBookingFlag> = {}): VenueBookingFlag {
+  return {
+    id: "disruption-1", kind: "disruption", bookingId: "b-1", conflictingEventTitle: null,
+    blockReason: "failed mic", blockStartsAt: "2099-04-06T02:30:00.000Z", blockEndsAt: "2099-04-06T03:00:00.000Z",
+    flaggedAt: "2099-04-04T00:00:00.000Z", flaggedByName: "Daryl", clearedAt: null, clearedByName: null,
     ...overrides,
   };
 }
@@ -100,12 +110,72 @@ describe("buildBookingActivity", () => {
   });
 
   it("logs a disruption only for a booking in the list", () => {
-    const entries = buildBookingActivity([booking()], [
-      { bookingId: "b-1", flaggedAt: "2099-04-04T00:00:00.000Z" },
-      { bookingId: "elsewhere", flaggedAt: "2099-04-04T00:00:00.000Z" },
-    ]);
+    const entries = buildBookingActivity([booking()], [flag(), flag({ id: "disruption-2", bookingId: "elsewhere" })]);
 
     expect(entries.filter((entry) => entry.kind === "disrupted")).toHaveLength(1);
+  });
+});
+
+// SPM-9: conflicts and disruptions stay in an event's history after they are cleared.
+describe("buildBookingActivity flags", () => {
+  it("logs a disruption with the block, who recorded it, and when it was cleared", () => {
+    const entries = buildBookingActivity([booking()], [
+      flag({ clearedAt: "2099-04-05T00:00:00.000Z", clearedByName: "Keith" }),
+    ]);
+
+    expect(entries.find((entry) => entry.kind === "disrupted")).toMatchObject({
+      title: "Disrupted",
+      at: "2099-04-04T00:00:00.000Z",
+      actor: "Daryl",
+      detail: 'The venue became unavailable for this booking because of the venue block "failed mic" (6 Apr 2099, 10:30 am – 6 Apr 2099, 11:00 am). An alternative is needed.',
+    });
+    expect(entries.find((entry) => entry.kind === "disruption_cleared")).toMatchObject({
+      title: "Disruption cleared",
+      at: "2099-04-05T00:00:00.000Z",
+      actor: "Keith",
+    });
+  });
+
+  it("keeps an open disruption without a cleared entry", () => {
+    const kinds = buildBookingActivity([booking()], [flag()]).map((entry) => entry.kind);
+
+    expect(kinds).toContain("disrupted");
+    expect(kinds).not.toContain("disruption_cleared");
+  });
+
+  it("logs a conflict with another booking, and when it was cleared", () => {
+    const entries = buildBookingActivity([booking()], [
+      flag({
+        id: "conflict-1", kind: "conflict", conflictingEventTitle: "F1 event 2",
+        blockReason: null, blockStartsAt: null, blockEndsAt: null,
+        clearedAt: "2099-04-05T00:00:00.000Z", clearedByName: "Daryl",
+      }),
+    ]);
+
+    expect(entries.find((entry) => entry.kind === "conflict_flagged")).toMatchObject({
+      title: "Conflict flagged",
+      detail: 'Overlaps the booking for "F1 event 2" once setup/turnaround time is applied.',
+    });
+    expect(entries.find((entry) => entry.kind === "conflict_cleared")).toMatchObject({
+      title: "Conflict cleared",
+      actor: "Daryl",
+      detail: 'No longer overlaps the booking for "F1 event 2".',
+    });
+  });
+
+  it("logs a conflict with a venue block", () => {
+    const [entry] = buildBookingActivity([booking()], [flag({ id: "conflict-2", kind: "conflict" })])
+      .filter((item) => item.kind === "conflict_flagged");
+
+    expect(entry?.detail).toMatch(/^Overlaps the venue block "failed mic" \(/);
+  });
+
+  it("lists everything newest first", () => {
+    const entries = buildBookingActivity([booking()], [
+      flag({ clearedAt: "2099-04-05T00:00:00.000Z" }),
+    ]);
+
+    expect(entries.map((entry) => entry.kind)).toEqual(["disruption_cleared", "disrupted", "requested"]);
   });
 });
 

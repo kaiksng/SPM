@@ -247,8 +247,8 @@ select is((select string_agg(label || ':' || status, ', ' order by label) from p
 select is((select cancellation_reason || '|' || (cancelled_by = 'f8500000-0000-0000-0000-000000000002')::text from public.venue_bookings where id = (select id from spm85_ids where label = 's-main')),
   'Hall double-booked by the school|true', 'AC10: the reason and who cancelled are recorded');
 select is((select count(*)::int from public.notifications where booking_id = (select id from spm85_ids where label = 's-main')
-  and recipient_id = 'f8500000-0000-0000-0000-000000000001' and title = 'Venue booking cancelled' and message like '%Hall double-booked by the school%'),
-  1, 'AC10: Venue Staff are told a confirmed booking was cancelled, with the reason');
+  and recipient_id = 'f8500000-0000-0000-0000-000000000001' and title = 'Venue booking cancelled' and message like '%was cancelled by the coordinator.'),
+  1, 'AC10: Venue Staff are told a confirmed booking was cancelled (the reason is recorded on the booking)');
 select is((select count(*)::int from public.notifications where booking_id = (select id from spm85_ids where label = 's-b')
   and recipient_id = 'f8500000-0000-0000-0000-000000000001' and title = 'Venue booking request withdrawn'),
   1, 'AC10: Venue Staff are told a request was withdrawn');

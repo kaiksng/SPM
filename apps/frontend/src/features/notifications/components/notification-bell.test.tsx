@@ -16,6 +16,8 @@ vi.mock("@/features/notifications/services/notifications", () => ({
   markAllNotificationsRead: (...args: unknown[]) => markAllNotificationsReadMock(...args),
 }));
 
+const authState = { profile: { role: "venue_staff" as string } };
+
 vi.mock("react-router", async () => {
   const actual = await vi.importActual<typeof import("react-router")>("react-router");
   return { ...actual, useNavigate: () => navigateMock };
@@ -56,13 +58,14 @@ const VENUE_REQUEST_UNREAD = {
 function renderBell() {
   return render(
     <MemoryRouter>
-      <NotificationBell />
+      <NotificationBell role={authState.profile.role} />
     </MemoryRouter>,
   );
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  authState.profile.role = "venue_staff";
   markNotificationReadMock.mockResolvedValue(undefined);
   markAllNotificationsReadMock.mockResolvedValue(undefined);
 });
@@ -184,6 +187,57 @@ describe("NotificationBell", () => {
 
     expect(markNotificationReadMock).toHaveBeenCalledWith("n5");
     expect(navigateMock).toHaveBeenCalledWith("/flagged-bookings");
+  });
+
+  // 202611010002: the events' coordinators are told about conflicts too, but
+  // can't open the Flagged page, so theirs opens the event's venue page.
+  // SPM-81: the Lead opens the new event to assign it a coordinator.
+  it("opens the event from a new-event-needs-a-coordinator notification", async () => {
+    authState.profile.role = "event_coordinator_lead";
+    listNotificationsMock.mockResolvedValue([
+      {
+        id: "n7",
+        type: "event_awaiting_assignment" as const,
+        title: "New event needs a coordinator",
+        message: '"Java workshop" was submitted by jasmine and needs an Event Coordinator.',
+        eventId: "e7",
+        venueId: null,
+        readAt: null,
+        createdAt: "2026-11-01T02:00:00Z",
+      },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("New event needs a coordinator"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/events/e7");
+  });
+
+  it("opens a coordinator's conflict notification on the event's venue page", async () => {
+    authState.profile.role = "event_coordinator";
+    listNotificationsMock.mockResolvedValue([
+      {
+        id: "n6",
+        type: "venue_conflict_flagged" as const,
+        title: "Venue booking conflict",
+        message: 'The venue booking for "Morning Talk" at Hall now overlaps the booking for "Afternoon Talk" once setup/turnaround time is applied. One of the bookings needs to move.',
+        eventId: "e6",
+        venueId: null,
+        readAt: null,
+        createdAt: "2026-10-09T02:00:00Z",
+      },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("Venue booking conflict"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/events/e6/venue");
   });
 
   it("marks every unread notification read without navigating", async () => {

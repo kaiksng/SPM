@@ -136,10 +136,10 @@ select is((select status::text from public.venue_bookings where id = 'f8200000-0
   'AC07: the original booking is unchanged by a rejection');
 select is((select count(*)::int from public.venue_booking_disruptions where booking_id = 'f8200000-0000-0000-0000-0000000000b1' and cleared_at is null), 1,
   'AC07: the original remains Disrupted after a rejection');
-select ok((select message like '%Reserved for an exam%' and message like '%still disrupted%' and message like '%request another venue%'
+select ok((select message not like '%Reserved for an exam%' and message like '%still disrupted%' and message like '%request another venue%'
   from public.notifications where type = 'venue_decision' and event_id = 'f8200000-0000-0000-0000-0000000000e1'
     and title = 'Replacement venue rejected'),
-  'AC07: the coordinator is told the reason and that they may try again');
+  'AC06: the coordinator is told the original is still disrupted and that they may try again (the reason stays on the booking)');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"f8200000-0000-0000-0000-000000000002","role":"authenticated"}', true);
@@ -190,10 +190,10 @@ select is((select status::text from public.venue_bookings where id = 'f8200000-0
   'AC05: the event''s other bookings and other disruptions are untouched');
 select is((select (public.check_venue_booking_availability('f8200000-0000-0000-0000-000000000010', 'f8200000-0000-0000-0000-0000000000e3') ->> 'available')::boolean),
   true, 'AC05: the cancelled booking''s slot at the Hall is released');
-select ok((select message like '%replacement venue booking has been approved%' and message like '%SPM82 Hall%cancelled%'
+select ok((select message like 'The replacement venue booking at % for "%" has been approved.%' and message like '%SPM82 Hall%cancelled%'
   from public.notifications where type = 'venue_decision' and event_id = 'f8200000-0000-0000-0000-0000000000e1'
     and title = 'Replacement venue approved'),
-  'the coordinator is notified of the approval');
+  'the coordinator is notified of the approval, naming the venue and event');
 
 -- ------------------------------------------------- Confirmed -> Planning
 select is((select status::text from public.events where id = 'f8200000-0000-0000-0000-0000000000e1'), 'planning',
@@ -272,9 +272,9 @@ select lives_ok($$select public.decide_venue_booking_request('f8200000-0000-0000
 reset role;
 select is((select status::text from public.venue_bookings where id = 'f8200000-0000-0000-0000-0000000000b8'), 'approved',
   'the ordinary booking becomes Approved');
-select ok((select message like 'Your venue booking request has been approved.%' and message not like '%replacement%'
+select ok((select message like 'The venue booking request at % for "%" has been approved.%' and message not like '%replacement%'
   from public.notifications where type = 'venue_decision' and event_id = 'f8200000-0000-0000-0000-0000000000e3'),
-  'the ordinary approval keeps its original notification wording');
+  'an ordinary approval names the venue and event, and says nothing about a replacement');
 select is((select count(*)::int from public.venue_bookings where status = 'cancelled' and event_id = 'f8200000-0000-0000-0000-0000000000e3'), 0,
   'approving an ordinary booking cancels nothing');
 

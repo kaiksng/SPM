@@ -192,7 +192,11 @@ export function EventRequestEditorPage({
     // still satisfied: a response is recorded, with a timestamp and actor).
     // The response text names the edited area(s) rather than a generic
     // sentence, since that's what the coordinator's review actually needs.
-    let notice = editing ? "Draft updated." : "Draft saved.";
+    let notice = openClarification
+      ? "Changes saved."
+      : editing
+        ? "Draft updated."
+        : "Draft saved.";
     if (openClarification?.status === "open") {
       const editedAreas = openClarification.permittedFields
         .map((field) => clarificationPermittedFieldLabels[field as ClarificationPermittedField] ?? field)
@@ -201,7 +205,7 @@ export function EventRequestEditorPage({
         openClarification.id,
         editedAreas ? `Edited: ${editedAreas}` : "Updated the requested information.",
       );
-      notice = "Draft updated. Clarification addressed.";
+      notice = "Clarification submitted. Your coordinator has been told.";
     }
 
     if (!bannerAttached) notice += BANNER_NOT_ATTACHED;
@@ -319,7 +323,26 @@ export function EventRequestEditorPage({
                 onCancel={() => navigate("/events")}
                 validationSchema={submitting ? eventSubmissionSchema : undefined}
                 submissionSchema={eventSubmissionSchema}
-                submitLabel={submitting ? "Submit request" : undefined}
+                // While answering a clarification the organiser isn't saving a
+                // draft: saving sends the answer to their coordinator.
+                submitLabel={
+                  submitting
+                    ? "Submit request"
+                    : openClarification?.status === "open"
+                      ? "Submit clarification"
+                      : openClarification
+                        ? "Save changes"
+                        : undefined
+                }
+                footerNote={
+                  submitting
+                    ? undefined
+                    : openClarification?.status === "open"
+                      ? "Saving sends your changes to your coordinator as your clarification response."
+                      : openClarification
+                        ? "Your coordinator is reviewing your response. Saved changes are visible to them."
+                        : undefined
+                }
                 permittedFields={openClarification?.permittedFields}
               />
             </div>

@@ -49,9 +49,9 @@ const VENUE_STAFF_REQUEST_TYPES = new Set<NotificationType>([
   "venue_request_withdrawn",
 ]);
 
-// Also venue-staff-facing: a conflict notification now goes to Venue Staff
-// (not the coordinator — see recheck_venue_conflicts), so it links to the
-// Flagged page they can actually open, not an event page.
+// A venue conflict flagged or cleared (recheck_venue_conflicts): Venue Staff
+// open the Flagged page; the events' coordinators, who are told too
+// (202611010002) but can't open that page, go to the event's venue page.
 const VENUE_STAFF_CONFLICT_TYPES = new Set<NotificationType>([
   "venue_conflict_flagged",
   "venue_conflict_resolved",
@@ -66,13 +66,19 @@ const VENUE_STAFF_CONFLICT_TYPES = new Set<NotificationType>([
  * they actually act on a request is the flat /venue-requests list, not a
  * per-request route, so that's the target regardless of eventId.
  */
-function notificationDestination(notification: NotificationSummary): string | undefined {
+function notificationDestination(
+  notification: NotificationSummary,
+  role: string | undefined,
+): string | undefined {
   // A withdrawn or cancelled booking is logged on the venue's Activity section.
   if (notification.type === "venue_request_withdrawn" && notification.venueId) {
     return `/venues/${notification.venueId}#activity`;
   }
   if (VENUE_STAFF_REQUEST_TYPES.has(notification.type)) return "/venue-requests";
-  if (VENUE_STAFF_CONFLICT_TYPES.has(notification.type)) return "/flagged-bookings";
+  if (VENUE_STAFF_CONFLICT_TYPES.has(notification.type)) {
+    if (role === "venue_staff") return "/flagged-bookings";
+    return notification.eventId ? `/events/${notification.eventId}/venue` : undefined;
+  }
   // SPM-39: an applied change request flagged arrangements for staff who
   // can't open the event page — send each to where they review them.
   if (notification.type === "venue_change_review") {
@@ -81,6 +87,10 @@ function notificationDestination(notification: NotificationSummary): string | un
   if (notification.type === "equipment_change_review") return "/equipment";
   // A coordinator requested an event's equipment: staff arrange it there.
   if (notification.type === "equipment_requested") return "/equipment";
+  // SPM-81: a new event needs a coordinator; the Lead assigns one on its page.
+  if (notification.type === "event_awaiting_assignment") {
+    return notification.eventId ? `/events/${notification.eventId}` : "/events";
+  }
   if (notification.type === "safety_review_reset") return "/safety-checks";
   // Attendee-facing: an attendee has no "events" nav section (see
   // navigation.ts) and can't reach /events/:id at all — their own copy of
@@ -110,7 +120,7 @@ function notificationDestination(notification: NotificationSummary): string | un
  * precedent anywhere) — then updates local state optimistically after a
  * mark-read call.
  */
-export function NotificationBell() {
+export function NotificationBell({ role }: { role?: string }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<NotificationSummary[]>([]);
@@ -156,7 +166,7 @@ export function NotificationBell() {
     }
 
     setOpen(false);
-    const destination = notificationDestination(notification);
+    const destination = notificationDestination(notification, role);
     if (destination) navigate(destination);
   }
 
@@ -220,7 +230,7 @@ export function NotificationBell() {
                 key={notification.id}
                 type="button"
                 onClick={() => handleSelect(notification)}
-                disabled={!notificationDestination(notification)}
+                disabled={!notificationDestination(notification, role)}
                 className={cn(
                   "block w-full border-b px-3 py-2.5 text-left last:border-b-0",
                   unread ? "bg-muted/60" : "hover:bg-muted/40",

@@ -628,10 +628,16 @@ describe("EventsPage draft controls", () => {
     expect(details.parentElement).toBe(registrations.parentElement);
   });
 
-  // SPM-11 AC01 + AC02: no edit link, and a pointer to a change request instead.
-  it.each(["confirmed", "completed", "rejected", "cancelled"])(
-    "directs the organiser to a change request instead of editing a %s event",
-    async (status) => {
+  // SPM-11 AC01 + AC02: no edit link; a Confirmed event points to a change
+  // request, the others say they can no longer be changed.
+  it.each([
+    ["confirmed", /submit a change request instead of editing it directly/],
+    ["completed", "This event has been completed. It can no longer be changed."],
+    ["rejected", "This event was rejected. It can no longer be changed."],
+    ["cancelled", "This event was cancelled. It can no longer be changed."],
+  ])(
+    "tells the organiser a %s event can't be edited directly",
+    async (status, message) => {
       listEventRequestsMock.mockResolvedValue([
         { ...requested, id: "finalised-1", title: "Finalised Gala", status },
       ]);
@@ -643,11 +649,7 @@ describe("EventsPage draft controls", () => {
       );
 
       expect(await screen.findByText("Finalised Gala")).toBeInTheDocument();
-      expect(
-        screen.getByText(
-          "This event is finalised. Direct edits are locked — submit a change request instead.",
-        ),
-      ).toBeInTheDocument();
+      expect(screen.getByText(message)).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Edit request" })).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute(
         "href",

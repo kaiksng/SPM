@@ -58,6 +58,7 @@ vi.mock("@/features/event-requests/components/event-request-form", () => ({
     onCancel: () => void;
     validationSchema?: unknown;
     submitLabel?: string;
+    footerNote?: string;
     permittedFields?: string[];
   }) => {
     const [failure, setFailure] = useState("");
@@ -73,6 +74,7 @@ vi.mock("@/features/event-requests/components/event-request-form", () => ({
       <div>
         <p>Form title: {props.initialValues.title || "(empty)"}</p>
         <p>Submit label: {props.submitLabel ?? "default"}</p>
+        <p>Footer note: {props.footerNote ?? "default"}</p>
         <p>Strict validation: {props.validationSchema ? "yes" : "no"}</p>
         <p>Permitted: {props.permittedFields ? props.permittedFields.join("|") || "none" : "all"}</p>
         <button type="button" onClick={() => run(() => props.onSave({ ...props.initialValues, title: "Edited" }))}>Save</button>
@@ -306,6 +308,24 @@ describe("an open clarification", () => {
     expect(screen.getByText("Permitted: expectedAttendance|title")).toBeInTheDocument();
   });
 
+  // The organiser is answering their coordinator, not saving a draft.
+  it("labels the save button Submit clarification, with a matching hint", async () => {
+    listClarificationsMock.mockResolvedValue([open]);
+    renderAt("/events/event-1/edit");
+
+    expect(await screen.findByText("Submit label: Submit clarification")).toBeInTheDocument();
+    expect(
+      screen.getByText("Footer note: Saving sends your changes to your coordinator as your clarification response."),
+    ).toBeInTheDocument();
+  });
+
+  it("labels it Save changes once the clarification is answered", async () => {
+    listClarificationsMock.mockResolvedValue([{ ...open, status: "answered" }]);
+    renderAt("/events/event-1/edit");
+
+    expect(await screen.findByText("Submit label: Save changes")).toBeInTheDocument();
+  });
+
   it("records the edit as the response and says the clarification was addressed", async () => {
     listClarificationsMock.mockResolvedValue([open]);
     renderAt("/events/event-1/edit");
@@ -313,7 +333,9 @@ describe("an open clarification", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(await screen.findByText("Events list. Notice: Draft updated. Clarification addressed.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Events list. Notice: Clarification submitted. Your coordinator has been told."),
+    ).toBeInTheDocument();
     expect(respondToClarificationMock).toHaveBeenCalledWith("clar-1", "Edited: Expected attendance, Event name");
   });
 
@@ -345,7 +367,7 @@ describe("an open clarification", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(await screen.findByText("Events list. Notice: Draft updated.")).toBeInTheDocument();
+    expect(await screen.findByText("Events list. Notice: Changes saved.")).toBeInTheDocument();
     expect(respondToClarificationMock).not.toHaveBeenCalled();
   });
 

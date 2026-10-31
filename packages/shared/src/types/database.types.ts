@@ -2534,6 +2534,7 @@ export type Database = {
         | "safety_review_reset"
         | "waitlist_promoted"
         | "equipment_requested"
+        | "event_awaiting_assignment"
       request_status:
         | "pending"
         | "approved"
@@ -2743,6 +2744,7 @@ export const Constants = {
         "safety_review_reset",
         "waitlist_promoted",
         "equipment_requested",
+        "event_awaiting_assignment",
       ],
       request_status: [
         "pending",

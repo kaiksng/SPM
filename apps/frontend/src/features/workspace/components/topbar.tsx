@@ -59,7 +59,7 @@ export function Topbar({
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        <NotificationBell />
+        <NotificationBell role={role} />
         <UserMenu role={role} email={email} fullName={fullName} />
       </div>
     </header>
