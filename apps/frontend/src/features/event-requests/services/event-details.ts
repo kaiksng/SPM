@@ -19,6 +19,8 @@ export type EventDetail = {
   organiserName: string | null;
   assignedCoordinatorId: string | null;
   assignedCoordinatorName: string | null;
+  /** Optional banner image's storage path; shown only to the organiser and attendees. */
+  bannerPath: string | null;
   venue: {
     preferredLocation: string | null;
     minimumCapacity: number | null;
@@ -59,6 +61,7 @@ export async function loadEventDetail(eventId: string) {
         ends_at,
         status,
         submitted_at,
+        banner_path,
         organiser_id,
         organiser:profiles!events_organiser_id_fkey (full_name),
         assigned_coordinator_id,
@@ -116,6 +119,7 @@ export async function loadEventDetail(eventId: string) {
     organiserName: data.organiser?.full_name ?? null,
     assignedCoordinatorId: data.assigned_coordinator_id,
     assignedCoordinatorName: data.assigned_coordinator?.full_name ?? null,
+    bannerPath: data.banner_path,
     venue: {
       preferredLocation: venue?.preferred_location ?? null,
       minimumCapacity: venue?.minimum_capacity ?? null,
