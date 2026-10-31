@@ -6,7 +6,7 @@ Source: `SPM List - Jira (6).csv`, read 2026-10-31. SHA-256: `384255afb34a03ec2d
 
 ## Evidence and status
 
-Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. All APP work is planned except the SPM-2 pilot; its execution results are recorded separately in integration-testing.md.
+Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2 and SPM-13; execution results are recorded in integration-testing.md. The remaining 55 stories are planned.
 
 Before each later story, audit the named tests against the exact ACs, settle contradictions and obtain the next-story instruction. For each APP criterion, assert observable output and independent stored state, actor permissions, relevant history/notifications, failure invariants and cleanup. Keep presentation, navigation, highlighting and confirmation assertions in UI/E2E tests.
 
@@ -41,18 +41,21 @@ Concurrency increments: SPM-81 simultaneous assignment; SPM-26 overlapping booki
 
 ### SPM-13 — Authenticate via Sign-In (Done)
 
-**Real boundary to exercise:** Login action → local Auth → real session; role navigation stays UI.
+**Real boundary to exercise:** Login action → local Auth → stored profile and real session; apiFetch → Express/Auth → protected RPC. Screen navigation stays UI.
+
+**Application integration:** [SPM-13 sign-in suite](../../tests/integration/spm13-login.integration.test.ts).
 
 **Existing evidence locations:** [auth.test.ts](../../apps/backend/src/middleware/auth.test.ts); [login.test.ts](../../apps/frontend/src/features/auth/actions/login.test.ts); [login-form.test.tsx](../../apps/frontend/src/features/auth/components/login-form.test.tsx); [auth.spec.ts](../../tests/e2e/auth.spec.ts).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | A user with valid credentials can sign in and is routed to a role-appropriate view. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | Invalid credentials are rejected with a generic error message that does not reveal which credential (username or password) was incorrect. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | An unauthenticated user cannot access any protected information or action. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| Scenario S01 | Given a user enters valid credentials When they submit the sign-in form Then they are authenticated and directed to a view appropriate to their role. | Additional source scenario: map to AC/APP/UI outcomes before implementation. |
-| Scenario S02 | Given a user enters invalid credentials When they submit the sign-in form Then the sign-in is rejected with a generic error that does not indicate whether the username or password was incorrect. | Additional source scenario: map to AC/APP/UI outcomes before implementation. |
-| Scenario S03 | Given a user is not authenticated, when they attempt to access protected information Then access is denied and they are redirected to sign in | Additional source scenario: map to AC/APP/UI outcomes before implementation. |
+| AC01 | A user with valid credentials can sign in and is routed to a role-appropriate view. | APP implemented: real login/session/profile and expected destination for all seven roles. Actual screen navigation stays UI. |
+| AC02 | Invalid credentials are rejected with a generic error message that does not reveal which credential (username or password) was incorrect. | APP implemented: wrong-password and unknown-email cases return the same generic message and no session. Message rendering stays UI. |
+| AC03 | An unauthenticated user cannot access any protected information or action. | APP implemented: signed-out protected read/action denial and invalid bearer rejection, with a valid-session control and unchanged stored draft. Page redirects stay UI; resource-specific permission coverage belongs to later stories. |
+| Scenario S01 | Given a user enters valid credentials When they submit the sign-in form Then they are authenticated and directed to a view appropriate to their role. | Mapped to AC01; integration and UI responsibilities as above. |
+| Scenario S02 | Given a user enters invalid credentials When they submit the sign-in form Then the sign-in is rejected with a generic error that does not indicate whether the username or password was incorrect. | Mapped to AC02; integration and UI responsibilities as above. |
+| Scenario S03 | Given a user is not authenticated, when they attempt to access protected information Then access is denied and they are redirected to sign in | Mapped to AC03; integration and UI responsibilities as above. |
+
 
 ### SPM-14 — Organiser Access Restricted to Own Events (Done)
 

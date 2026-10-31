@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "@spm/shared";
+import type { Database, UserRole } from "@spm/shared";
 import pg from "pg";
 import { assertDedicatedTarget } from "../../scripts/integration-environment.mjs";
 import { supabase } from "@/lib/supabase-client";
@@ -15,22 +15,26 @@ const admin = createClient<Database>(process.env.VITE_SUPABASE_URL!, process.env
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
 });
 
-export class DraftFixture {
+export class IntegrationFixture {
   private users: Array<{ id: string; email: string; password: string }> = [];
   private equipmentIds: string[] = [];
 
   async organiser() {
+    return this.user("event_organiser");
+  }
+
+  async user(role: UserRole) {
     const email = `integration-${randomUUID()}@example.test`;
     const password = `Test-${randomUUID()}!`;
     const { data, error } = await admin.auth.admin.createUser({
       email, password, email_confirm: true,
-      user_metadata: { full_name: "Synthetic integration organiser", role: "event_organiser" },
+      user_metadata: { full_name: "Synthetic integration user", role },
     });
-    if (error || !data.user) throw new Error("Could not create a dedicated test organiser.");
+    if (error || !data.user) throw new Error("Could not create a dedicated test user.");
     const user = { id: data.user.id, email, password };
     this.users.push(user);
     const result = await database.query("select role from public.profiles where id = $1", [user.id]);
-    if (result.rows[0]?.role !== "event_organiser") throw new Error("Fixture organiser role was not created.");
+    if (result.rows[0]?.role !== role) throw new Error("Fixture user role was not created.");
     return user;
   }
 

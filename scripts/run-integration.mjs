@@ -64,7 +64,7 @@ const lock = await open(path.join(runtime, "run.lock"), "wx");
 let started = false;
 try {
   await command(["exec", "node", "--test", "scripts/integration-environment.test.mjs"]);
-  for (const port of [55320, 55321, 55322, 55324]) await requireFreePort(port);
+  for (const port of [55320, 55321, 55322, 55324, 55398]) await requireFreePort(port);
   const config = testConfig();
   const sourceConfig = await readFile(path.join(root, "supabase/config.toml"), "utf8");
   if (!sourceConfig.includes("major_version = 17")) throw new Error("Update the integration Postgres version to match the source config first.");
@@ -89,9 +89,10 @@ try {
       extraEnv: {
         VITE_SUPABASE_URL: status.API_URL,
         VITE_SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY,
-        // Reserved test-only backend port. Until API fixtures are added, a
-        // mistakenly imported API operation must fail, not use localhost:3001.
+        // Test-only backend listener; never use the normal dev server.
         VITE_BACKEND_URL: "http://127.0.0.1:55398",
+        SUPABASE_URL: status.API_URL,
+        SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
         INTEGRATION_PROJECT_ID: projectId,
         INTEGRATION_DATABASE_URL: status.DB_URL,
         INTEGRATION_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,

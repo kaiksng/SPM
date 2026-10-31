@@ -1,9 +1,9 @@
 # Integration testing
 
-This is the first increment of project-wide application integration testing:
-the dedicated harness and **SPM-2 only**. The [coverage matrix](integration-coverage-matrix.md)
-tracks all 57 non-retired stories against Jira export (6). Later stories remain
-planned and need their own walkthrough and implementation instruction.
+Application integration coverage currently includes **SPM-2 (drafts)** and
+**SPM-13 (sign-in)**. The [coverage matrix](integration-coverage-matrix.md)
+tracks all 57 non-retired stories against Jira export (6). The remaining 55
+stories need their own coverage review, walkthrough and implementation instruction.
 
 ## What these tests prove
 
@@ -16,9 +16,13 @@ real draft service → shared validation/serialization → Supabase client
     → local Auth / PostgREST → Postgres RPC / RLS / triggers / related tables
 ```
 
+SPM-13 also exercises the real login action → local Auth → profile query →
+landing-page destination, and apiFetch → Express authentication → local Auth
+→ protected RPC. Actual screen navigation remains a UI assertion.
+
 The database is disposable PostgreSQL 17, matching the repository config.
-There is no SQLite substitute, mocked RPC, fake auth token or browser in this
-pilot. Administrative access creates synthetic fixtures and independently
+The suites keep application functions, RPCs and authentication real. Successful
+sign-ins use tokens issued by local Auth. Administrative access creates synthetic fixtures and independently
 reads stored state; tested operations use the real application client signed
 in as the relevant actor. No production application module was changed.
 
@@ -41,7 +45,7 @@ pnpm check
 ```
 
 - `test:integration` creates the stack, resets its database to the current
-  migrations, runs the SPM-2 tests, checks fixture cleanup, then removes its
+  migrations, runs both story suites, checks fixture cleanup, then removes its
   containers and volumes. A nonzero test/setup/cleanup result fails the command.
 - `test:integration:db` performs the same isolated startup/reset, then runs the
   existing pgTAP suite **before any application fixtures**. Do not substitute
@@ -55,8 +59,8 @@ The runtime directory `.integration-runtime/` is ignored and generated from
 current migrations/tests and an isolated config. It contains no copied
 application dotenv files, hosted linkage or development seed files.
 
-API port **55321**, Postgres **55322**, shadow port **55320** and mail capture
-**55324** are reserved for the test stack. Startup refuses occupied ports,
+API port **55321**, Postgres **55322**, shadow port **55320**, mail capture
+**55324** and backend **55398** are reserved for the test stack. Startup refuses occupied ports,
 and an exclusive lock prevents overlapping runs in the same worktree. Separate
 worktrees still share these ports and must run serially. The existing
 `connectsphere` development project uses different container names and ports.
@@ -70,10 +74,11 @@ and only then resets or runs tests. The Vitest config repeats the destination
 check before loading application modules. Do not run the integration config
 directly or point it at another database.
 
-The backend URL is pinned to the reserved test port **55398**. No backend
-listener is needed for SPM-2; future HTTP-route increments must add a dedicated
-listener there. An accidentally invoked backend operation cannot fall back to
-the normal development server on port 3001.
+The backend URL is pinned to the reserved test port **55398**. SPM-13 starts
+the real Express app there, verifies it uses the same dedicated Supabase URL
+and service credentials, and closes the listener afterwards. It imports the
+app factory directly, so no backend dotenv file or normal development server
+is used. SPM-2 does not need the listener.
 
 Tests run serially with `TZ=Asia/Singapore` and dates in 2099. Every test creates
 its own synthetic `@example.test` accounts and any equipment it needs. Cleanup
@@ -120,6 +125,9 @@ read is used only to independently verify unchanged data.
 
 ## Execution record — 2026-10-31
 
+The following table records the original SPM-2 increment. SPM-13 results are
+recorded separately below.
+
 | Check | Result |
 | --- | --- |
 | Final SPM-2 clean run 1 | 7/7 passed; Vitest execution 2.42s, excluding stack startup/reset |
@@ -165,3 +173,44 @@ Initial harness setup findings: TypeScript needed a root Vite dependency for
 applying the venue-image migration with Storage disabled; enabling local
 Storage allowed all migrations and all 67 pgTAP files / 1,432 checks to pass.
 No production migration was changed to accommodate the harness.
+
+## SPM-13 evidence
+
+The [sign-in suite](../../tests/integration/spm13-login.integration.test.ts)
+adds 11 cases, keeping the real login action, Auth, profiles and backend
+authentication. The shared fixture now creates users for any supported role;
+SPM-2 retains its organiser convenience helper and existing seven cases.
+
+| AC | Integration evidence | Separate UI responsibility |
+| --- | --- | --- |
+| AC1 | Seven independently created role accounts sign in; local Auth verifies the session's user identity; a real profile query returns the stored role; login returns the explicit expected destination | The login form navigates to that destination |
+| AC2 | Wrong password and unknown email each return exactly `Invalid email or password.` with no session | The form displays the message without navigating |
+| AC3 | The real protected event-submission path accepts a valid session far enough to return incomplete-draft validation; after sign-out, draft reads are denied and the same action returns 401 without changing the draft. A separate case verifies local Auth rejects an invalid bearer token | A protected page redirects to sign-in and does not render protected data |
+
+The incomplete-draft control does not submit an event or implement SPM-3.
+It prevents a broken/always-401 backend from falsely proving authentication.
+These representative protected-path checks do not prove every resource's role
+permissions; those remain mapped to their own stories. No login/product/schema
+behaviour was changed, including the existing attendee-destination fallback
+when a profile cannot be read.
+
+### SPM-13 execution record — 2026-10-31
+
+| Check | Result |
+| --- | --- |
+| Combined clean run 1 | 2 files / 18 tests passed (11 SPM-13 + 7 SPM-2); Vitest execution 5.85s, excluding stack startup/reset |
+| Combined clean run 2 | 2 files / 18 tests passed; Vitest execution 5.95s, excluding stack startup/reset |
+| Destination safety tests | 8/8 passed on both runs |
+| Integration typecheck | Passed |
+| `pnpm check` | Passed: shared 463, backend 185, frontend 1,540 tests; three typechecks and both builds |
+| Cleanup | Suite residue checks passed; no dedicated test containers or volumes remain; normal local Supabase retained |
+| Documentation checks | All links resolve; 57 story headings and 336 AC rows retained |
+
+No failures, retries, flakes or skipped tests were observed in this increment.
+The existing frontend chunk-size build warning remains. No separate pgTAP,
+browser E2E or hosted UAT run was performed for this increment; migrations
+and production application code are unchanged. The earlier SPM-2 execution
+record preserves its initial fixture-setup failures.
+
+This guide records tested behaviour. Use Git history to check the current
+commit and merge status of each increment.

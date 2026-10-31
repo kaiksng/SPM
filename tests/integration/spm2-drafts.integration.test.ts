@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { emptyEventRequestFormValues, type EventRequestFormValues } from "@spm/shared";
 import { deleteEventDraft, listEventRequests, loadEventDraft, saveEventDraft } from "@/features/event-requests/services/event-drafts";
 import { supabase } from "@/lib/supabase-client";
-import { assertNoFixtureResidue, database, DraftFixture } from "./fixtures";
+import { assertNoFixtureResidue, database, IntegrationFixture } from "./fixtures";
 
 function draft(title = "Integration draft"): EventRequestFormValues {
   return { ...structuredClone(emptyEventRequestFormValues), title };
@@ -14,10 +14,10 @@ async function storedEvent(id: string) {
   return rows[0];
 }
 
-let fixture: DraftFixture;
-let owner: Awaited<ReturnType<DraftFixture["organiser"]>>;
+let fixture: IntegrationFixture;
+let owner: Awaited<ReturnType<IntegrationFixture["organiser"]>>;
 beforeEach(async () => {
-  fixture = new DraftFixture();
+  fixture = new IntegrationFixture();
   owner = await fixture.organiser();
   await fixture.signIn(owner);
 });
