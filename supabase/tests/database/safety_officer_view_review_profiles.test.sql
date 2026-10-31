@@ -28,6 +28,17 @@ values ('fe000000-0000-0000-0000-0000000000b1', 'fe000000-0000-0000-0000-0000000
 insert into public.events (id, organiser_id, assigned_coordinator_id, title, status, starts_at, ends_at, requirements_acknowledged)
 values ('fe000000-0000-0000-0000-0000000000e2', 'fe000000-0000-0000-0000-000000000005', 'fe000000-0000-0000-0000-000000000002', 'SOVRP Unrelated Event', 'planning', '2099-11-02T10:00:00+08:00', '2099-11-02T12:00:00+08:00', true);
 
+-- SPM-90: the coordinator's safety plan, required before the safety check.
+update public.events
+set crowd_movement_plan = 'Single entrance; ushers at both exits.',
+    equipment_placement_notes = 'Stage left; cables taped down.',
+    emergency_access_notes = 'Two exits; assembly point at the car park.',
+    restrictions_notes = 'None known.',
+    emergency_access_checked = true,
+    restrictions_checked = true,
+    crowd_movement_checked = true
+where crowd_movement_plan is null;
+
 set local role authenticated;
 
 -- Round 1: coordinator submits, Safety Officer A rejects it.

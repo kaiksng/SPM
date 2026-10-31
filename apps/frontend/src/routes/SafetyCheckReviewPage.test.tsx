@@ -235,7 +235,7 @@ describe("SafetyCheckReviewPage", () => {
     const approval = await screen.findByRole("dialog", { name: "Approve safety arrangement" });
     expect(within(approval).queryByRole("checkbox")).not.toBeInTheDocument();
     await user.click(within(approval).getByRole("button", { name: "Confirm approval" }));
-    await waitFor(() => expect(decideEventSafetyCheckMock).toHaveBeenCalledWith("event-1", "approved", "", [], []));
+    await waitFor(() => expect(decideEventSafetyCheckMock).toHaveBeenCalledWith("event-1", "approved", "", [], [], []));
   });
 
   it("submits Request changes with only the selected ids, then navigates to the queue", async () => {
@@ -255,11 +255,36 @@ describe("SafetyCheckReviewPage", () => {
         "Reposition away from the exit.",
         [],
         ["req-1"],
+        [],
       ),
     );
     expect(navigateMock).toHaveBeenCalledWith(
       "/safety-checks",
       expect.objectContaining({ replace: true }),
+    );
+  });
+
+  // SPM-90: the Safety Officer can flag the coordinator's safety checks.
+  it("lets the Safety Officer flag safety checks when requesting changes", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Request changes" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("checkbox", { name: "Flag Emergency access" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: "Flag Equipment placement" }));
+    await user.type(within(dialog).getByLabelText("Reason"), "The rear exit is blocked by the stage.");
+    await user.click(within(dialog).getByRole("button", { name: "Send change request" }));
+
+    await waitFor(() =>
+      expect(decideEventSafetyCheckMock).toHaveBeenCalledWith(
+        "event-1",
+        "changes_requested",
+        "The rear exit is blocked by the stage.",
+        [],
+        [],
+        ["emergency_access", "equipment_placement"],
+      ),
     );
   });
 
@@ -277,6 +302,7 @@ describe("SafetyCheckReviewPage", () => {
         "event-1",
         "rejected",
         "Crowd plan is incomplete.",
+        [],
         [],
         [],
       ),
@@ -301,7 +327,7 @@ describe("SafetyCheckReviewPage", () => {
     await user.click(within(dialog).getByRole("button", { name: "Confirm approval" }));
 
     await waitFor(() =>
-      expect(decideEventSafetyCheckMock).toHaveBeenCalledWith("event-1", "approved", "", [], []),
+      expect(decideEventSafetyCheckMock).toHaveBeenCalledWith("event-1", "approved", "", [], [], []),
     );
     expect(navigateMock).toHaveBeenCalledWith(
       "/safety-checks",
@@ -326,6 +352,7 @@ describe("SafetyCheckReviewPage", () => {
         "event-1",
         "approved",
         "Looks good.",
+        [],
         [],
         [],
       ),

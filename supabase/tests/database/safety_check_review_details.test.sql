@@ -33,6 +33,17 @@ values
   ('fe300000-0000-0000-0000-0000000000b1', 'fe300000-0000-0000-0000-0000000000e1', 'fe300000-0000-0000-0000-000000000010', 'fe300000-0000-0000-0000-000000000002', '2099-12-10T10:00:00+08:00', '2099-12-10T12:00:00+08:00', 'approved', true),
   ('fe300000-0000-0000-0000-0000000000b2', 'fe300000-0000-0000-0000-0000000000e2', 'fe300000-0000-0000-0000-000000000010', 'fe300000-0000-0000-0000-000000000002', '2099-12-11T10:00:00+08:00', '2099-12-11T12:00:00+08:00', 'approved', true);
 
+-- SPM-90: the coordinator's safety plan, required before the safety check.
+update public.events
+set crowd_movement_plan = 'Single entrance; ushers at both exits.',
+    equipment_placement_notes = 'Stage left; cables taped down.',
+    emergency_access_notes = 'Two exits; assembly point at the car park.',
+    restrictions_notes = 'None known.',
+    emergency_access_checked = true,
+    restrictions_checked = true,
+    crowd_movement_checked = true
+where crowd_movement_plan is null;
+
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"fe300000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select public.submit_event_for_safety_check('fe300000-0000-0000-0000-0000000000e1');

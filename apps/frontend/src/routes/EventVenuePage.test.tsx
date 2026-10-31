@@ -58,6 +58,7 @@ vi.mock("@/features/venues/hooks/use-room-layout-options", () => ({
 }));
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
+vi.mock("@/features/safety-check/services/safety-plan", () => ({ saveVenueSafetyChecks: vi.fn() }));
 
 import { EventVenuePage } from "./EventVenuePage";
 
@@ -74,6 +75,14 @@ const event = {
   submittedAt: "2026-09-20T00:00:00.000Z",
   organiserId: "org-1",
   organiserName: "kenneth",
+  emergencyAccessChecked: false,
+  emergencyAccess: null,
+  restrictionsChecked: false,
+  restrictions: null,
+  crowdMovementChecked: false,
+  crowdMovementPlan: null,
+  safetyCheckFlags: [],
+  safetyCheckFlagReason: null,
   assignedCoordinatorId: "coord-1",
   assignedCoordinatorName: "joyce",
   venue: {
@@ -605,5 +614,42 @@ describe("EventVenuePage main venue and disruption details", () => {
     const card = await screen.findByRole("region", { name: "Disrupted venue booking" });
     expect(within(card).getByText("Renovation")).toBeInTheDocument();
     expect(within(card).queryByText(/Renovation –/)).not.toBeInTheDocument();
+  });
+});
+
+// SPM-90: the Venue step's safety checks sit at the bottom of the page.
+describe("EventVenuePage safety checks", () => {
+  it("lets the assigned coordinator tick the safety checks during Planning", async () => {
+    renderPage();
+
+    const checks = await screen.findByRole("region", { name: "Safety checks" });
+    expect(within(checks).getByRole("checkbox", { name: "Emergency access checked" })).not.toBeChecked();
+    expect(within(checks).getByRole("checkbox", { name: "Known restrictions checked" })).toBeInTheDocument();
+    expect(within(checks).getByRole("checkbox", { name: "Crowd movement planned" })).toBeInTheDocument();
+    expect(within(checks).getByRole("button", { name: "Save safety checks" })).toBeInTheDocument();
+  });
+
+  it("shows them read-only once the event has left Planning", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "pending_safety_check", emergencyAccessChecked: true });
+    renderPage();
+
+    const checks = await screen.findByRole("region", { name: "Safety checks" });
+    expect(within(checks).queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(within(checks).getByRole("img", { name: "Checked" })).toBeInTheDocument();
+  });
+
+  it("shows the coordinator which check the Safety Officer asked them to revise", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      ...event,
+      safetyCheckFlags: ["emergency_access"],
+      safetyCheckFlagReason: "The rear exit is blocked by the stage.",
+    });
+    renderPage();
+
+    const checks = await screen.findByRole("region", { name: "Safety checks" });
+    expect(
+      within(checks).getByText("The Safety Officer asked for this to be revised: The rear exit is blocked by the stage."),
+    ).toBeInTheDocument();
+    expect(within(checks).getAllByText(/asked for this to be revised/)).toHaveLength(1);
   });
 });

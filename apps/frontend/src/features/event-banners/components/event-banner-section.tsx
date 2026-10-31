@@ -3,23 +3,31 @@ import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { EventBannerImage } from "@/features/event-banners/components/event-banner-image";
-import { removeEventBanner, uploadEventBanner } from "@/features/event-banners/services/event-banners";
+import {
+  discardBannerFile,
+  removeEventBanner,
+  uploadBannerFile,
+  uploadEventBanner,
+} from "@/features/event-banners/services/event-banners";
 
 /**
  * The organiser's optional event banner, shown to attendees. Only the
  * event's own organiser sees this section; they can add, replace or remove
- * the banner at any stage.
+ * the banner at any stage. On a new event (no eventId yet) the image is
+ * only uploaded here; the page attaches it when the event is first saved.
  */
 export function EventBannerSection({
   eventId,
   organiserId,
   bannerPath,
   onChanged,
+  className = "mt-6",
 }: {
-  eventId: string;
+  eventId?: string;
   organiserId: string;
   bannerPath: string | null;
   onChanged: (bannerPath: string | null) => void;
+  className?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -43,22 +51,30 @@ export function EventBannerSection({
     input.value = "";
     if (!file) return;
     await run(async () => {
-      onChanged(await uploadEventBanner(eventId, organiserId, file, bannerPath));
+      if (eventId) {
+        onChanged(await uploadEventBanner(eventId, organiserId, file, bannerPath));
+        return;
+      }
+      const path = await uploadBannerFile(organiserId, file);
+      await discardBannerFile(bannerPath);
+      onChanged(path);
     });
   }
 
   async function handleRemove() {
     await run(async () => {
-      await removeEventBanner(eventId, bannerPath);
+      if (eventId) await removeEventBanner(eventId, bannerPath);
+      else await discardBannerFile(bannerPath);
       onChanged(null);
     });
   }
 
   return (
-    <section aria-label="Event banner" className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+    <section aria-label="Event banner" className={`${className} rounded-2xl border border-slate-200 bg-white p-6`}>
       <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">Event banner</h2>
       <p className="mt-1 text-sm text-slate-600">
         Optional. Attendees see it when browsing and registering for your event.
+        {!eventId && " It's added to the event when you save it."}
       </p>
       <EventBannerImage bannerPath={bannerPath} placeholderLabel="No banner yet" className="mt-4 rounded-xl" />
       <div className="mt-4 flex flex-wrap items-center gap-3">

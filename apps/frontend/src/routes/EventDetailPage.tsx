@@ -22,6 +22,7 @@ import { EventStatusTimeline } from "@/features/event-requests/components/status
 import { EventBannerSection } from "@/features/event-banners/components/event-banner-section";
 import { EventDocumentsSection } from "@/features/event-documents/components/event-documents-section";
 import { VenueFacilitiesSection } from "@/features/event-requests/components/venue-facilities-section";
+import { SafetyPlanSummary } from "@/features/safety-check/components/safety-plan-summary";
 import type { ClarificationSummary } from "@/features/event-requests/services/clarifications";
 import { cancelEvent } from "@/features/event-requests/services/event-cancellation";
 import {
@@ -329,6 +330,20 @@ export function EventDetailPage() {
                     accurate — submit a change request instead of editing it directly.
                   </p>
                 )}
+                {/* SPM-38: the change request to decide or apply, at the top
+                    so the coordinator sees what was asked for straight away.
+                    Unlike ClarificationPanel, a Lead sees this when the event
+                    has no assigned coordinator yet — that's the one case a
+                    Lead decides a change request directly (AC06). */}
+                {role !== "organiser" && (role !== "lead" || !event.assignedCoordinatorId) && (
+                  <ChangeRequestPanel
+                    eventId={event.id}
+                    eventStatus={event.status}
+                    role={role}
+                    isEventAssigned={!!event.assignedCoordinatorId}
+                    className="mt-4 text-sm"
+                  />
+                )}
                 {/* The organiser's own banner, first thing on their page. */}
                 {role === "organiser" && event.organiserId === user?.id && (
                   <EventBannerSection
@@ -391,6 +406,20 @@ export function EventDetailPage() {
                   onSaved={(venue) => setEvent({ ...event, venue })}
                 />
 
+                {/* SPM-90: the coordinator's safety checks, recorded on the
+                    Venue and Equipment steps; summarised here. */}
+                {role !== "organiser" && (
+                  <SafetyPlanSummary
+                    eventId={event.id}
+                    emergencyAccessChecked={event.emergencyAccessChecked}
+                    restrictionsChecked={event.restrictionsChecked}
+                    crowdMovementChecked={event.crowdMovementChecked}
+                    equipmentPlacement={event.equipmentPlacement}
+                    equipmentPlacementFlagged={event.safetyCheckFlags.includes("equipment_placement")}
+                    hasEquipment={event.equipment.length > 0}
+                  />
+                )}
+
 <RegistrationSettingsSection
                   eventId={event.id}
                   status={event.status}
@@ -433,18 +462,6 @@ export function EventDetailPage() {
                           // The decision is saved; a stale view is corrected on refresh.
                         });
                     }}
-                    className="mt-6 text-sm"
-                  />
-                )}
-                {/* SPM-38: unlike ClarificationPanel, a Lead sees this when
-                    the event has no assigned coordinator yet — that's the one
-                    case a Lead decides a change request directly (AC06). */}
-                {role !== "organiser" && (role !== "lead" || !event.assignedCoordinatorId) && (
-                  <ChangeRequestPanel
-                    eventId={event.id}
-                    eventStatus={event.status}
-                    role={role}
-                    isEventAssigned={!!event.assignedCoordinatorId}
                     className="mt-6 text-sm"
                   />
                 )}

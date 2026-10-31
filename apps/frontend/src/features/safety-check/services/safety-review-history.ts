@@ -15,6 +15,8 @@ const historyRecordSchema = z.object({
   outcome: z.enum(["approved", "changes_requested", "rejected"]),
   reason: z.string().nullable(), reviewerName: z.string().nullable(), decidedAt: z.string(),
   flaggedBookingIds: z.array(z.string()), flaggedRequirementIds: z.array(z.string()),
+  // SPM-90 (202610310008): the coordinator's safety checks flagged in this round.
+  flaggedSafetyChecks: z.array(z.string()).default([]),
   venuesSnapshot: z.array(venueSnapshot), equipmentSnapshot: z.array(equipmentSnapshot),
   periodSnapshot: z.object({ startsAt: z.string().nullable(), endsAt: z.string().nullable() }),
   attendanceSnapshot: z.number().nullable(),

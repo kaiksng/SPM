@@ -1,4 +1,4 @@
-import { eventFieldHistoryLabel } from "@spm/shared";
+import { eventFieldHistoryLabel, SAFETY_CHECK_FLAG_LABELS } from "@spm/shared";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router";
@@ -637,6 +637,7 @@ const SAFETY_CHECK_OUTCOME_CLASSES: Record<SafetyCheckDecisionHistoryEntry["outc
 /** AC6: each review round's outcome, reason, reviewer and time. */
 function SafetyCheckDecisionItem({ decision }: { decision: SafetyCheckDecisionHistoryEntry }) {
   const flaggedCount = decision.flaggedBookingIds.length + decision.flaggedRequirementIds.length;
+  const flaggedChecks = decision.flaggedSafetyChecks.map((check) => SAFETY_CHECK_FLAG_LABELS[check]);
   return (
     <li className="rounded-xl border border-slate-100 bg-slate-50/70 p-3 text-sm">
       <p className={`font-semibold ${SAFETY_CHECK_OUTCOME_CLASSES[decision.outcome]}`}>
@@ -647,6 +648,9 @@ function SafetyCheckDecisionItem({ decision }: { decision: SafetyCheckDecisionHi
         <p className="mt-1 text-xs text-slate-500">
           {flaggedCount} item{flaggedCount === 1 ? "" : "s"} flagged
         </p>
+      )}
+      {flaggedChecks.length > 0 && (
+        <p className="mt-1 text-xs text-slate-500">Safety checks flagged: {flaggedChecks.join(", ")}</p>
       )}
       <p className="mt-1 text-xs text-slate-500">
         Reviewed by {decision.decidedByName ?? "a Safety Officer"} ·{" "}

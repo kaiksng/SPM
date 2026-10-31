@@ -16,7 +16,14 @@ vi.mock("@/lib/supabase-client", () => ({
   },
 }));
 
-import { eventBannerUrl, removeEventBanner, uploadEventBanner } from "./event-banners";
+import {
+  discardBannerFile,
+  eventBannerUrl,
+  removeEventBanner,
+  setEventBanner,
+  uploadBannerFile,
+  uploadEventBanner,
+} from "./event-banners";
 
 const image = (type = "image/png", size = 1024) => {
   const file = new File(["x"], "banner.png", { type });
@@ -96,5 +103,28 @@ describe("removeEventBanner", () => {
       "The banner could not be removed. Try again.",
     );
     expect(removeMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("for a new event", () => {
+  it("uploads a banner without attaching it to any event", async () => {
+    const path = await uploadBannerFile("org-1", image());
+
+    expect(path).toMatch(/^org-1\/[\w-]+\.png$/);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("attaches it once the event exists", async () => {
+    await setEventBanner("event-1", "org-1/new.png");
+
+    expect(rpcMock).toHaveBeenCalledWith("set_event_banner", { p_event_id: "event-1", p_banner_path: "org-1/new.png" });
+  });
+
+  it("discards an unused upload", async () => {
+    await discardBannerFile("org-1/unused.png");
+    await discardBannerFile(null);
+
+    expect(removeMock).toHaveBeenCalledTimes(1);
+    expect(removeMock).toHaveBeenCalledWith(["org-1/unused.png"]);
   });
 });

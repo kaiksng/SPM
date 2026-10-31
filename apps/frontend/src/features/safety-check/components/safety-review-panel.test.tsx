@@ -25,7 +25,14 @@ const details: SafetyReviewDetails = {
   accessibilityNeeds: "Two wheelchair spaces",
   layoutPreference: null,
   venues: [venue],
-  equipment: [{ requirementId: "r1", equipmentName: "Projector", quantity: 2, notes: "Rear of hall" }],
+  equipment: [{ requirementId: "r1", equipmentName: "Projector", quantity: 2, notes: "HDMI input" }],
+  crowdMovementPlan: "Enter at gate A; leave by gates B and C.",
+  equipmentPlacement: "Projector at the rear, cables taped.",
+  emergencyAccess: "Four exits; assembly point at the car park.",
+  restrictions: "No open flames.",
+  emergencyAccessChecked: true,
+  restrictionsChecked: true,
+  crowdMovementChecked: true,
 };
 
 describe("SafetyReviewPanel", () => {
@@ -40,8 +47,56 @@ describe("SafetyReviewPanel", () => {
     expect(screen.getByText("Two wheelchair spaces")).toBeInTheDocument();
     expect(screen.getByText("Two fire exits at the rear.")).toBeInTheDocument();
     expect(screen.getByText("Projector × 2")).toBeInTheDocument();
-    expect(screen.getByText("Placement notes: Rear of hall")).toBeInTheDocument();
+    expect(screen.getByText("Technical requirements: HDMI input")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  // SPM-90: the coordinator's Venue step checks (ticked, with any details)
+  // and the Equipment step's placement.
+  it("shows each venue safety check as checked, with its details, and the equipment placement", () => {
+    render(<SafetyReviewPanel details={details} />);
+
+    const emergency = screen.getByText("Emergency access").parentElement!;
+    expect(emergency).toHaveTextContent("Checked");
+    expect(emergency).toHaveTextContent("Four exits; assembly point at the car park.");
+    expect(screen.getByText("Known restrictions").parentElement).toHaveTextContent("CheckedNo open flames.");
+    expect(screen.getByText("Crowd movement").parentElement).toHaveTextContent(
+      "Enter at gate A; leave by gates B and C.",
+    );
+    expect(screen.getByText("Equipment placement").nextElementSibling).toHaveTextContent(
+      "Projector at the rear, cables taped.",
+    );
+    expect(screen.queryByText("Not checked")).not.toBeInTheDocument();
+    expect(screen.queryByText("Not provided")).not.toBeInTheDocument();
+  });
+
+  it("accepts a ticked check without details", () => {
+    render(<SafetyReviewPanel details={{ ...details, restrictions: null }} />);
+
+    expect(screen.getByText("Known restrictions").parentElement).toHaveTextContent(/^Known restrictionsChecked$/);
+  });
+
+  it("highlights unticked checks and missing equipment placement", () => {
+    render(
+      <SafetyReviewPanel
+        details={{
+          ...details,
+          emergencyAccessChecked: false,
+          restrictionsChecked: false,
+          crowdMovementChecked: true,
+          equipmentPlacement: null,
+        }}
+      />,
+    );
+
+    expect(screen.getAllByText("Not checked")).toHaveLength(2);
+    expect(screen.getByText("Equipment placement").nextElementSibling).toHaveTextContent("Not provided");
+  });
+
+  it("doesn't ask for equipment placement when there is no equipment", () => {
+    render(<SafetyReviewPanel details={{ ...details, equipment: [], equipmentPlacement: null }} />);
+
+    expect(screen.queryByText("Equipment placement")).not.toBeInTheDocument();
   });
 
   // SPM-90 AC03: a venue smaller than its expected attendance is highlighted.
@@ -65,13 +120,20 @@ describe("SafetyReviewPanel", () => {
           layoutPreference: null,
           venues: [{ ...venue, headcount: null, layouts: [], venueDescription: null, venueAccessibilityNotes: " " }],
           equipment: [{ requirementId: "r2", equipmentName: "Speaker", quantity: 1, notes: null }],
+          crowdMovementPlan: "Enter at gate A.",
+          equipmentPlacement: "Stage left.",
+          emergencyAccess: "Exits B and C.",
+          restrictions: "None known.",
+          emergencyAccessChecked: true,
+          restrictionsChecked: true,
+          crowdMovementChecked: true,
         }}
       />,
     );
 
     expect(screen.getByText("Capacity 100; no expected attendance recorded")).toBeInTheDocument();
     expect(screen.getAllByText("No information recorded").length).toBeGreaterThan(3);
-    expect(screen.getByText("Placement notes: No information recorded")).toBeInTheDocument();
+    expect(screen.queryByText(/Technical requirements:/)).not.toBeInTheDocument();
   });
 
   it("shows empty states for no venue booking and no equipment", () => {

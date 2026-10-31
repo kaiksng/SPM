@@ -1066,6 +1066,7 @@ export type Database = {
           event_id: string
           flagged_booking_ids: string[]
           flagged_requirement_ids: string[]
+          flagged_safety_checks: string[]
           id: number
           outcome: Database["public"]["Enums"]["event_safety_check_decision_type"]
           reason: string | null
@@ -1077,6 +1078,7 @@ export type Database = {
           event_id: string
           flagged_booking_ids?: string[]
           flagged_requirement_ids?: string[]
+          flagged_safety_checks?: string[]
           id?: never
           outcome: Database["public"]["Enums"]["event_safety_check_decision_type"]
           reason?: string | null
@@ -1088,6 +1090,7 @@ export type Database = {
           event_id?: string
           flagged_booking_ids?: string[]
           flagged_requirement_ids?: string[]
+          flagged_safety_checks?: string[]
           id?: never
           outcome?: Database["public"]["Enums"]["event_safety_check_decision_type"]
           reason?: string | null
@@ -1253,14 +1256,23 @@ export type Database = {
           assigned_coordinator_id: string | null
           banner_path: string | null
           created_at: string
+          crowd_movement_checked: boolean
+          crowd_movement_plan: string | null
           description: string | null
+          emergency_access_checked: boolean
+          emergency_access_notes: string | null
           ends_at: string | null
+          equipment_placement_notes: string | null
           event_type: string | null
           expected_attendance: number | null
           id: string
           organiser_id: string
           purpose: string | null
           requirements_acknowledged: boolean
+          restrictions_checked: boolean
+          restrictions_notes: string | null
+          safety_check_flag_reason: string | null
+          safety_check_flags: string[]
           starts_at: string | null
           status: Database["public"]["Enums"]["event_status"]
           submitted_at: string | null
@@ -1273,14 +1285,23 @@ export type Database = {
           assigned_coordinator_id?: string | null
           banner_path?: string | null
           created_at?: string
+          crowd_movement_checked?: boolean
+          crowd_movement_plan?: string | null
           description?: string | null
+          emergency_access_checked?: boolean
+          emergency_access_notes?: string | null
           ends_at?: string | null
+          equipment_placement_notes?: string | null
           event_type?: string | null
           expected_attendance?: number | null
           id?: string
           organiser_id: string
           purpose?: string | null
           requirements_acknowledged?: boolean
+          restrictions_checked?: boolean
+          restrictions_notes?: string | null
+          safety_check_flag_reason?: string | null
+          safety_check_flags?: string[]
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
           submitted_at?: string | null
@@ -1293,14 +1314,23 @@ export type Database = {
           assigned_coordinator_id?: string | null
           banner_path?: string | null
           created_at?: string
+          crowd_movement_checked?: boolean
+          crowd_movement_plan?: string | null
           description?: string | null
+          emergency_access_checked?: boolean
+          emergency_access_notes?: string | null
           ends_at?: string | null
+          equipment_placement_notes?: string | null
           event_type?: string | null
           expected_attendance?: number | null
           id?: string
           organiser_id?: string
           purpose?: string | null
           requirements_acknowledged?: boolean
+          restrictions_checked?: boolean
+          restrictions_notes?: string | null
+          safety_check_flag_reason?: string | null
+          safety_check_flags?: string[]
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
           submitted_at?: string | null
@@ -2099,6 +2129,7 @@ export type Database = {
           p_event_id: string
           p_flagged_booking_ids?: string[]
           p_flagged_requirement_ids?: string[]
+          p_flagged_safety_checks?: string[]
           p_reason: string
         }
         Returns: Json
@@ -2463,6 +2494,22 @@ export type Database = {
       set_event_banner: {
         Args: { p_banner_path?: string; p_event_id: string }
         Returns: string
+      }
+      set_event_equipment_placement: {
+        Args: { p_equipment_placement: string; p_event_id: string }
+        Returns: undefined
+      }
+      set_event_venue_safety_checks: {
+        Args: {
+          p_crowd_movement_checked: boolean
+          p_crowd_movement_plan: string
+          p_emergency_access: string
+          p_emergency_access_checked: boolean
+          p_event_id: string
+          p_restrictions: string
+          p_restrictions_checked: boolean
+        }
+        Returns: undefined
       }
       set_main_venue_booking: {
         Args: { p_actor_id?: string; p_booking_id: string }

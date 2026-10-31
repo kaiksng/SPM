@@ -103,7 +103,7 @@ describe("decideEventSafetyCheck", () => {
 
     expect(apiFetchMock).toHaveBeenCalledWith("/events/event-1/safety-check-decision", {
       method: "POST",
-      body: JSON.stringify({ decision: "approved", reason: "All clear", flaggedBookingIds: [], flaggedRequirementIds: [] }),
+      body: JSON.stringify({ decision: "approved", reason: "All clear", flaggedBookingIds: [], flaggedRequirementIds: [], flaggedSafetyChecks: [] }),
     });
     expect(result).toMatchObject({ status: "confirmed", outcome: "approved" });
   });
@@ -115,7 +115,27 @@ describe("decideEventSafetyCheck", () => {
 
     expect(apiFetchMock).toHaveBeenCalledWith(
       "/events/event-1/safety-check-decision",
-      expect.objectContaining({ body: JSON.stringify({ decision: "changes_requested", reason: "Exit blocked", flaggedBookingIds: ["booking-1"], flaggedRequirementIds: ["req-1"] }) }),
+      expect.objectContaining({ body: JSON.stringify({ decision: "changes_requested", reason: "Exit blocked", flaggedBookingIds: ["booking-1"], flaggedRequirementIds: ["req-1"], flaggedSafetyChecks: [] }) }),
+    );
+  });
+
+  // SPM-90: flagged safety checks are sent too.
+  it("sends the flagged safety checks", async () => {
+    apiFetchMock.mockResolvedValue({ data: { eventId: "event-1", status: "planning", outcome: "changes_requested" } });
+
+    await decideEventSafetyCheck("event-1", "changes_requested", "Exit blocked", [], [], ["emergency_access"]);
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/events/event-1/safety-check-decision",
+      expect.objectContaining({
+        body: JSON.stringify({
+          decision: "changes_requested",
+          reason: "Exit blocked",
+          flaggedBookingIds: [],
+          flaggedRequirementIds: [],
+          flaggedSafetyChecks: ["emergency_access"],
+        }),
+      }),
     );
   });
 

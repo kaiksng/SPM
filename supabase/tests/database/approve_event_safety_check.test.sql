@@ -32,6 +32,17 @@ values
   ('fd200000-0000-0000-0000-0000000000b3', 'fd200000-0000-0000-0000-0000000000e3', 'fd200000-0000-0000-0000-000000000010', 'fd200000-0000-0000-0000-000000000002', '2099-12-12T10:00:00+08:00', '2099-12-12T12:00:00+08:00', 'approved', true),
   ('fd200000-0000-0000-0000-0000000000b4', 'fd200000-0000-0000-0000-0000000000e4', 'fd200000-0000-0000-0000-000000000010', 'fd200000-0000-0000-0000-000000000002', '2099-12-13T10:00:00+08:00', '2099-12-13T12:00:00+08:00', 'approved', true);
 
+-- SPM-90: the coordinator's safety plan, required before the safety check.
+update public.events
+set crowd_movement_plan = 'Single entrance; ushers at both exits.',
+    equipment_placement_notes = 'Stage left; cables taped down.',
+    emergency_access_notes = 'Two exits; assembly point at the car park.',
+    restrictions_notes = 'None known.',
+    emergency_access_checked = true,
+    restrictions_checked = true,
+    crowd_movement_checked = true
+where crowd_movement_plan is null;
+
 set local role authenticated;
 
 -- Submit every event for its safety check first (as the coordinator).
@@ -146,7 +157,7 @@ select set_config('request.jwt.claims', '{"sub":"fd200000-0000-0000-0000-0000000
 -- Regression: Request Changes still requires at least one flagged item.
 select throws_ok(
   $$select public.decide_event_safety_check('fd200000-0000-0000-0000-0000000000e4'::uuid, 'changes_requested'::public.event_safety_check_decision_type, 'Reposition it.')$$,
-  '23514', 'Select at least one venue booking or equipment arrangement to flag',
+  '23514', 'Select at least one safety check, venue booking or equipment arrangement to flag',
   'Request Changes still requires at least one flagged item'
 );
 

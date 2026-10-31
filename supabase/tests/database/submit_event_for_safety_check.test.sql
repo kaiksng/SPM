@@ -32,6 +32,17 @@ values
 create temporary table sub_result (label text primary key, body jsonb);
 grant all on sub_result to authenticated;
 
+-- SPM-90: the coordinator's safety plan, required before the safety check.
+update public.events
+set crowd_movement_plan = 'Single entrance; ushers at both exits.',
+    equipment_placement_notes = 'Stage left; cables taped down.',
+    emergency_access_notes = 'Two exits; assembly point at the car park.',
+    restrictions_notes = 'None known.',
+    emergency_access_checked = true,
+    restrictions_checked = true,
+    crowd_movement_checked = true
+where crowd_movement_plan is null;
+
 set local role authenticated;
 
 -- AC05: only the assigned coordinator can submit.
@@ -119,8 +130,8 @@ select is(
 -- nested event_readiness -> can_view_event check only ever looked at
 -- auth.uid(), never the resolved actor (202610190008).
 reset role;
-insert into public.events (id, organiser_id, assigned_coordinator_id, title, status, starts_at, ends_at, requirements_acknowledged)
-values ('fd000000-0000-0000-0000-0000000000e4', 'fd000000-0000-0000-0000-000000000001', 'fd000000-0000-0000-0000-000000000002', 'SUB Backend Ready Event', 'planning', '2099-10-04T10:00:00+08:00', '2099-10-04T12:00:00+08:00', true);
+insert into public.events (id, organiser_id, assigned_coordinator_id, title, status, starts_at, ends_at, requirements_acknowledged, crowd_movement_plan, emergency_access_notes, restrictions_notes, emergency_access_checked, restrictions_checked, crowd_movement_checked)
+values ('fd000000-0000-0000-0000-0000000000e4', 'fd000000-0000-0000-0000-000000000001', 'fd000000-0000-0000-0000-000000000002', 'SUB Backend Ready Event', 'planning', '2099-10-04T10:00:00+08:00', '2099-10-04T12:00:00+08:00', true, 'Single entrance; ushers at both exits.', 'Two exits; assembly point at the car park.', 'None known.', true, true, true);
 insert into public.venue_bookings (id, event_id, venue_id, requested_by, starts_at, ends_at, status, is_main_venue)
 values ('fd000000-0000-0000-0000-0000000000b4', 'fd000000-0000-0000-0000-0000000000e4', 'fd000000-0000-0000-0000-000000000010', 'fd000000-0000-0000-0000-000000000002', '2099-10-04T10:00:00+08:00', '2099-10-04T12:00:00+08:00', 'approved', true);
 

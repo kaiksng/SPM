@@ -1,4 +1,10 @@
-import { READINESS_STATUS_LABELS, type EventReadiness } from "@spm/shared";
+import {
+  READINESS_STATUS_LABELS,
+  SAFETY_CHECK_FLAG_LABELS,
+  SAFETY_CHECK_FLAGS,
+  type EventReadiness,
+  type SafetyCheckFlag,
+} from "@spm/shared";
 
 import { READINESS_ITEM_BADGE_CLASSES } from "@/features/safety-check/services/event-readiness";
 import { cn } from "@/lib/utils";
@@ -26,7 +32,9 @@ function MainVenueTag() {
 
 /**
  * AC2: the Safety Officer selects which venue bookings and equipment
- * arrangements are affected. Same per-item shape ReadinessChecklist
+ * arrangements are affected — and (SPM-90) which of the coordinator's
+ * safety checks, shown first in the Request changes dialog when
+ * onToggleSafetyCheck is given. Same per-item shape ReadinessChecklist
  * renders for the coordinator. The review page uses readOnly; only the
  * Request changes dialog exposes checkboxes. Selection stays in the page
  * so only explicitly selected arrangements are sent with that decision.
@@ -37,6 +45,8 @@ export function SafetyCheckItemPicker({
   onToggleBooking,
   selectedRequirementIds = [],
   onToggleRequirement,
+  selectedSafetyChecks = [],
+  onToggleSafetyCheck,
   disabled = false,
   readOnly = false,
 }: {
@@ -45,12 +55,43 @@ export function SafetyCheckItemPicker({
   onToggleBooking?: (bookingId: string) => void;
   selectedRequirementIds?: string[];
   onToggleRequirement?: (requirementId: string) => void;
+  selectedSafetyChecks?: SafetyCheckFlag[];
+  onToggleSafetyCheck?: (check: SafetyCheckFlag) => void;
   disabled?: boolean;
   readOnly?: boolean;
 }) {
   const ItemContainer = readOnly ? "div" : "label";
+  // Equipment placement only applies when the event has equipment.
+  const safetyChecks = SAFETY_CHECK_FLAGS.filter(
+    (check) => check !== "equipment_placement" || readiness.equipment.length > 0,
+  );
   return (
     <div className="mt-6 space-y-4">
+      {!readOnly && onToggleSafetyCheck && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-6">
+          <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">Safety checks</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            The coordinator's checks. A flagged one is reopened for them to revise.
+          </p>
+          <ul className="mt-4 divide-y divide-slate-100">
+            {safetyChecks.map((check) => (
+              <li key={check} className="py-3 first:pt-0 last:pb-0">
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-primary"
+                    checked={selectedSafetyChecks.includes(check)}
+                    onChange={() => onToggleSafetyCheck(check)}
+                    disabled={disabled}
+                    aria-label={`Flag ${SAFETY_CHECK_FLAG_LABELS[check]}`}
+                  />
+                  <span className="text-sm font-medium text-slate-800">{SAFETY_CHECK_FLAG_LABELS[check]}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="rounded-2xl border border-slate-200 bg-white p-6">
         <h2 className="text-sm font-semibold tracking-wide text-slate-400 uppercase">
           Venue arrangements
