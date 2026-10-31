@@ -1,5 +1,5 @@
 begin;
-select plan(33);
+select plan(41);
 
 -- Venue holds: Venue Staff place a tentative hold on a Pending request with an
 -- expiry ("Placing" ACs), and the Event Coordinator confirms it before it
@@ -98,6 +98,11 @@ select throws_ok($$select public.submit_venue_booking_request(
   '23514', 'This venue is already occupied from 10:00 AM on 12 May to 12:00 PM on 12 May (including setup and turnaround), which overlaps your requested period.',
   'AC03: while the hold is running, another event cannot book the same venue period');
 
+-- AC03: the read-only pre-check must still block an unexpired hold.
+select is((public.check_venue_booking_availability(
+  'f4000000-0000-0000-0000-000000000010', 'f4000000-0000-0000-0000-0000000000e2')->>'available')::boolean,
+  false, 'AC03: the availability pre-check blocks an active hold');
+
 -- AC02: only the coordinator who made the request can confirm it.
 select throws_ok(format($$select public.confirm_venue_booking_hold(%L::uuid)$$, (select id from hold_ids where label = 'a')),
   '42501', 'Only the coordinator who submitted this request can confirm its hold',
@@ -137,6 +142,35 @@ select lives_ok(format($$select public.place_venue_booking_hold(%L::uuid, now() 
 reset role;
 update public.venue_bookings set expires_at = now() - interval '1 minute'
 where id = (select id from hold_ids where label = 'a');
+
+-- AC03 regression: the page checks availability before it permits submission.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"f4000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select is((public.check_venue_booking_availability(
+  'f4000000-0000-0000-0000-000000000010', 'f4000000-0000-0000-0000-0000000000e1')->>'available')::boolean,
+  true, 'AC03: own stale hold does not block the read-only pre-check');
+select is((public.check_venue_booking_availability(
+  'f4000000-0000-0000-0000-000000000010', 'f4000000-0000-0000-0000-0000000000e2')->>'available')::boolean,
+  true, 'AC03: another event can also pre-check the stale hold period');
+reset role;
+select is((select status::text from public.venue_bookings where id = (select id from hold_ids where label = 'a')),
+  'on_hold', 'AC03: the availability pre-check does not mutate history');
+
+savepoint own_retry;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"f4000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select lives_ok($$insert into hold_ids select 'retry', public.submit_venue_booking_request(
+  'f4000000-0000-0000-0000-0000000000e1', 'f4000000-0000-0000-0000-000000000010')$$,
+  'AC03: the same event can request the venue again after expiry');
+reset role;
+select is((select status::text from public.venue_bookings where id = (select id from hold_ids where label = 'a')),
+  'expired', 'AC04: retry preserves the original expired booking');
+select is((select status::text from public.venue_bookings where id = (select id from hold_ids where label = 'retry')),
+  'pending', 'AC03: retry creates a fresh pending request');
+select is((public.check_venue_booking_availability(
+  'f4000000-0000-0000-0000-000000000010', 'f4000000-0000-0000-0000-0000000000e2')->>'available')::boolean,
+  false, 'AC03: a new pending booking still blocks another event');
+rollback to savepoint own_retry;
 
 -- AC02: after the deadline the hold can no longer be confirmed.
 set local role authenticated;

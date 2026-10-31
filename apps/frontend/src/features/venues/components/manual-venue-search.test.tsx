@@ -399,6 +399,31 @@ describe("ManualVenueSearch", () => {
       expect(searchAvailableVenuesMock).not.toHaveBeenCalled();
     });
 
+    // SPM-85: field feedback follows the event boundary that was exceeded.
+    it.each([
+      ["2099-04-06T09:00", "2099-04-06T12:00", true, false],
+      ["2099-04-06T10:00", "2099-04-06T13:00", false, true],
+      ["2099-04-06T09:00", "2099-04-06T13:00", true, true],
+    ])("flags the correct boundary for %s to %s", async (start, end, invalidStart, invalidEnd) => {
+      renderSearch({ additional });
+      await userEvent.type(screen.getByLabelText(/Booking label/), "Breakout 1");
+      fireEvent.change(capacityInput(), { target: { value: "20" } });
+      fireEvent.change(startInput(), { target: { value: start } });
+      fireEvent.change(endInput(), { target: { value: end } });
+      await userEvent.click(screen.getByRole("button", { name: /Search venues/ }));
+      await screen.findAllByText("This booking's period must fall within the event's start and end time");
+      expect(startInput()).toHaveAttribute("aria-invalid", String(invalidStart));
+      expect(endInput()).toHaveAttribute("aria-invalid", String(invalidEnd));
+      expect(searchAvailableVenuesMock).not.toHaveBeenCalled();
+      // Correcting the range lets the next search proceed.
+      fireEvent.change(startInput(), { target: { value: "2099-04-06T10:00" } });
+      fireEvent.change(endInput(), { target: { value: "2099-04-06T12:00" } });
+      await userEvent.click(screen.getByRole("button", { name: /Search venues/ }));
+      expect(await screen.findByRole("link", { name: "View details" })).toBeInTheDocument();
+      expect(startInput()).toHaveAttribute("aria-invalid", "false");
+      expect(endInput()).toHaveAttribute("aria-invalid", "false");
+    });
+
     it("rejects a period when the event has no schedule", async () => {
       renderSearch({ additional }, undefined, noDates);
 
@@ -408,7 +433,7 @@ describe("ManualVenueSearch", () => {
       fireEvent.change(endInput(), { target: { value: "2099-04-06T11:00" } });
       await userEvent.click(screen.getByRole("button", { name: /Search venues/ }));
 
-      expect(await screen.findByText(/must fall within the event's start and end time/)).toBeInTheDocument();
+      expect(await screen.findAllByText(/must fall within the event's start and end time/)).toHaveLength(2);
     });
 
     it("finds venues for a labelled booking inside the event and opens them as an additional booking", async () => {
