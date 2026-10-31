@@ -1,9 +1,9 @@
--- SPM-6-TC-021: Asking again over an answered clarification closes it automatically
--- Acceptance criterion: AC 6
--- Login: Event Coordinator (joyce@gmail.com) - password is in the test case's Test Data / Test accounts
+-- SPM-6-TC-021: A coordinator not assigned to the event cannot see it or request clarification
+-- Acceptance criterion: AC 8
+-- Login: Event Coordinator (jonathan@gmail.com) - password is in the test case's Test Data / Test accounts
 -- Inputs entered during the test (not inserted): see Test Data
 -- Source: refined Preconditions of docs/Project Planning_refined_v2.xlsx
--- Records restored: profiles daryl, jasmine, jonathan, joyce, sally, tom; event "E1 Planning Meeting" (id 00000000-0000-4000-8006-000000000201: requested, organiser jasmine, coordinator joyce, 2026-11-20 10:00-12:00, clarification answered, history draft > requested)
+-- Records restored: profiles daryl, jasmine, jonathan, joyce, sally, tom; event "E1 Planning Meeting" (id 00000000-0000-4000-8006-000000000201: requested, organiser jasmine, coordinator joyce, 2026-11-20 10:00-12:00, history draft > requested)
 -- Must-not-exist conditions enforced: other clarifications, change requests, notifications, venue requests and equipment on "E1 Planning Meeting"
 -- Defaults added: Central Area test venues (Venue A 200 pax, Angel Hall 300, Registration Hall 100, Small Studio 50; open all day); event descriptions and times not stated in the case; workflow dates 18 Sep - 28 Oct 2026
 -- Shared records: cases of a story use the same test events (E1, E3, E18, E19, Venue A...): test one story at a time.
@@ -119,7 +119,7 @@ BEGIN
     DELETE FROM public.events WHERE id = '00000000-0000-4000-8006-000000000201';
   END IF;
   -- Must not exist: clarifications this case doesn't list (an unresolved one would block the status below).
-  DELETE FROM public.clarifications WHERE event_id = '00000000-0000-4000-8006-000000000201' AND NOT (id = ANY (ARRAY['00000000-0000-4000-8006-000000000301']::uuid[]));
+  DELETE FROM public.clarifications WHERE event_id = '00000000-0000-4000-8006-000000000201' AND NOT (id = ANY (ARRAY[]::uuid[]));
   INSERT INTO public.events AS ev (id, organiser_id, assigned_coordinator_id, title, purpose, description, expected_attendance,
                                    starts_at, ends_at, status, submitted_at, submitted_by, requirements_acknowledged, venue_id)
   VALUES ('00000000-0000-4000-8006-000000000201', (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), 'E1 Planning Meeting', 'Meeting', 'Planning meeting for the quarter ahead.', 80,
@@ -164,11 +164,7 @@ BEGIN
   DELETE FROM public.event_safety_check_decisions WHERE event_id = '00000000-0000-4000-8006-000000000201';
   DELETE FROM public.event_safety_check_submissions WHERE event_id = '00000000-0000-4000-8006-000000000201';
   -- Clarifications: exactly the listed ones.
-  DELETE FROM public.clarifications WHERE event_id = '00000000-0000-4000-8006-000000000201' AND NOT (id = ANY (ARRAY['00000000-0000-4000-8006-000000000301']::uuid[]));
-  INSERT INTO public.clarifications AS c (id, event_id, question, permitted_fields, requested_by, requested_at, status, response, responded_by, responded_at, resolved_by, resolved_at)
-  VALUES ('00000000-0000-4000-8006-000000000301', '00000000-0000-4000-8006-000000000201', 'Please confirm expected attendance and preferred venue capacity.', ARRAY['expectedAttendance', 'venue']::text[], (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), '2026-10-02 10:00:00+08', 'answered', '80 attendees expected; Hall B preferred.', (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), '2026-10-03 10:00:00+08', NULL, NULL)
-  ON CONFLICT (id) DO UPDATE SET event_id = EXCLUDED.event_id, question = EXCLUDED.question, permitted_fields = EXCLUDED.permitted_fields, requested_by = EXCLUDED.requested_by, requested_at = EXCLUDED.requested_at, status = EXCLUDED.status, response = EXCLUDED.response, responded_by = EXCLUDED.responded_by, responded_at = EXCLUDED.responded_at, resolved_by = EXCLUDED.resolved_by, resolved_at = EXCLUDED.resolved_at
-  WHERE (c.event_id, c.question, c.permitted_fields, c.requested_by, c.requested_at, c.status, c.response, c.responded_by, c.responded_at, c.resolved_by, c.resolved_at) IS DISTINCT FROM (EXCLUDED.event_id, EXCLUDED.question, EXCLUDED.permitted_fields, EXCLUDED.requested_by, EXCLUDED.requested_at, EXCLUDED.status, EXCLUDED.response, EXCLUDED.responded_by, EXCLUDED.responded_at, EXCLUDED.resolved_by, EXCLUDED.resolved_at);
+  DELETE FROM public.clarifications WHERE event_id = '00000000-0000-4000-8006-000000000201' AND NOT (id = ANY (ARRAY[]::uuid[]));
   -- Change requests: exactly the listed ones.
   DELETE FROM public.event_change_requests WHERE event_id = '00000000-0000-4000-8006-000000000201' AND NOT (id = ANY (ARRAY[]::uuid[]));
   -- Status history through each allowed step, each by the person who did it.

@@ -1,5 +1,5 @@
--- SPM-6-TC-019: Approve/Reject stay available and the button reads "Request clarification" once the clarification is answered
--- Acceptance criterion: AC 5
+-- SPM-6-TC-019: Approving with an answered, unclosed clarification resolves it
+-- Acceptance criterion: AC 6
 -- Login: Event Coordinator (joyce@gmail.com) - password is in the test case's Test Data / Test accounts
 -- Inputs entered during the test (not inserted): see Test Data
 -- Source: refined Preconditions of docs/Project Planning_refined_v2.xlsx

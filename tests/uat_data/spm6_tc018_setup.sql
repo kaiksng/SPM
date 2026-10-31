@@ -1,6 +1,6 @@
--- SPM-6-TC-018: Organiser cannot respond twice to the same clarification
--- Acceptance criterion: AC 4
--- Login: Event Organiser (jasmine@gmail.com) - password is in the test case's Test Data / Test accounts
+-- SPM-6-TC-018: Asking again over an answered clarification closes it automatically
+-- Acceptance criterion: AC 6
+-- Login: Event Coordinator (joyce@gmail.com) - password is in the test case's Test Data / Test accounts
 -- Inputs entered during the test (not inserted): see Test Data
 -- Source: refined Preconditions of docs/Project Planning_refined_v2.xlsx
 -- Records restored: profiles daryl, jasmine, jonathan, joyce, sally, tom; event "E1 Planning Meeting" (id 00000000-0000-4000-8006-000000000201: requested, organiser jasmine, coordinator joyce, 2026-11-20 10:00-12:00, clarification answered, history draft > requested)

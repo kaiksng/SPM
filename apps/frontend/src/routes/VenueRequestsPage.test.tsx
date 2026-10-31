@@ -623,6 +623,22 @@ describe("VenueRequestsPage", () => {
       expect(within(screen.getByRole("article")).getByText("Confirmed Booking")).toBeInTheDocument();
     });
 
+    // AC 3: the staff member who decided is shown straight after the decision, not only after a reload.
+    it("shows the signed-in staff member as the decider right after approving or rejecting", async () => {
+      const user = userEvent.setup();
+      listVenueBookingRequestsMock.mockResolvedValue([ordinary]);
+      renderPage();
+
+      await user.click(within(await screen.findByRole("article")).getByRole("button", { name: "Reject" }));
+      const dialog = screen.getByRole("dialog", { name: "Reject venue booking request" });
+      await user.type(within(dialog).getByLabelText("Reason for rejecting"), "Hall is under renovation");
+      await user.click(within(dialog).getByRole("button", { name: "Reject request" }));
+
+      await user.click(await screen.findByRole("button", { name: "Decided (1)" }));
+      expect(within(screen.getByRole("article")).getByText(/^Sam Staff ·/)).toBeInTheDocument();
+      expect(listVenueBookingRequestsMock).toHaveBeenCalledTimes(1);
+    });
+
     it("keeps the dialog open with the error when the decision fails", async () => {
       const user = userEvent.setup();
       decideVenueBookingRequestMock.mockRejectedValue(new Error("This request is no longer Pending"));
