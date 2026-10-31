@@ -9,7 +9,7 @@ export async function startIntegrationBackend() {
   ) {
     throw new Error("Integration backend must use the dedicated local stack's credentials.");
   }
-  const server = createApp().listen(55398, "127.0.0.1");
+  const server = createApp().listen(15398, "127.0.0.1");
   await new Promise<void>((resolve, reject) => {
     server.once("listening", resolve);
     server.once("error", reject);

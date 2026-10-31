@@ -79,6 +79,11 @@ vi.mock("@/features/event-requests/services/event-cancellation", () => ({
 // localDateTime), which imports the Supabase client. Stub the client so the
 // test never needs VITE_SUPABASE_URL — CI's checks job doesn't set it.
 vi.mock("@/lib/supabase-client", () => ({ supabase: {} }));
+vi.mock("@/features/event-banners/services/event-banners", () => ({
+  eventBannerUrl: (path: string | null) => (path ? `https://storage.test/${path}` : null),
+  uploadEventBanner: vi.fn(),
+  removeEventBanner: vi.fn(),
+}));
 
 vi.mock("@/features/event-requests/services/coordinator-event-edit", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/features/event-requests/services/coordinator-event-edit")>();
@@ -123,6 +128,7 @@ const event = {
   submittedAt: "2026-09-12T21:05:00.000Z",
   organiserId: "10000000-0000-0000-0000-000000000001",
   organiserName: "jasmine",
+  bannerPath: null,
   assignedCoordinatorId: "20000000-0000-0000-0000-000000000002",
   assignedCoordinatorName: "Joyce Coordinator",
   venue: {
@@ -263,6 +269,33 @@ describe("EventDetailPage", () => {
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
+  // Event banner: only the event's own organiser manages it; no one else in
+  // the workspace sees it.
+  it("shows the event's own organiser the banner section", async () => {
+    authState.profile.role = "event_organiser";
+    const coordinatorId = authState.user.id;
+    authState.user.id = event.organiserId;
+    try {
+      renderPage();
+      const banner = await screen.findByRole("region", { name: "Event banner" });
+      expect(screen.getByRole("button", { name: "Upload banner" })).toBeInTheDocument();
+      // At the top, before the event's details.
+      const overview = screen.getByRole("heading", { name: "Overview" });
+      expect(banner.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    } finally {
+      authState.user.id = coordinatorId;
+    }
+  });
+
+  it("does not show the banner to anyone else", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, bannerPath: "org/banner.png" });
+    renderPage();
+
+    await screen.findByText("Student Leadership Summit 2");
+    expect(screen.queryByRole("region", { name: "Event banner" })).not.toBeInTheDocument();
+    expect(document.querySelector("img[src*='banner.png']")).toBeNull();
+  });
+
   it("does not show the lifecycle sidebar to the organiser", async () => {
     authState.profile.role = "event_organiser";
     loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
@@ -373,7 +406,7 @@ describe("EventDetailPage", () => {
     expect(
       await screen.findByRole("button", { name: "Mark as completed" }),
     ).toBeInTheDocument();
-    expect(loadEventCompletionAvailableAtMock).toHaveBeenCalledWith("event-1");
+    await waitFor(() => expect(loadEventCompletionAvailableAtMock).toHaveBeenCalledWith("event-1"));
   });
 
   // SPM-46 AC02: not before the end time plus turnaround, and the coordinator
@@ -485,9 +518,9 @@ describe("EventDetailPage", () => {
     }
   });
 
-  // UI fix: the organiser's Request a change is near the top of the page,
-  // before the event's details, and appears only once.
-  it("shows the organiser's change requests under the header, before the overview", async () => {
+  // UI fix: the organiser's Request a change is a single button with the
+  // event's other actions at the top right, before the event's details.
+  it("shows the organiser's Request a change with the event actions, before the overview", async () => {
     authState.profile.role = "event_organiser";
     authState.user.id = event.organiserId;
     loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
@@ -500,7 +533,9 @@ describe("EventDetailPage", () => {
       expect(
         requestChange.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
-      expect(screen.getAllByText("Change requests")).toHaveLength(1);
+      expect(screen.getAllByRole("button", { name: "Request a change" })).toHaveLength(1);
+      expect(within(screen.getByRole("group", { name: "Event actions" })).getByRole("button", { name: "Request a change" })).toBe(requestChange);
+      expect(screen.queryByText("Change requests")).not.toBeInTheDocument();
     } finally {
       authState.user.id = "20000000-0000-0000-0000-000000000002";
     }

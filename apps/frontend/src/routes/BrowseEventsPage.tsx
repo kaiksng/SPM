@@ -5,6 +5,7 @@ import { Link } from "react-router";
 import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { EventBannerImage } from "@/features/event-banners/components/event-banner-image";
 import {
   emptyRegistrationFilters,
   registrationFilterChips,
@@ -134,53 +135,56 @@ function EventCard({ event }: { event: BrowseEventSummary }) {
   return (
     <Link
       to={`/browse-events/${event.id}`}
-      className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-primary/40"
+      className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-primary/40"
     >
-      <div className="flex items-start justify-between gap-3">
-        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-          Confirmed
-        </span>
-        {event.state === "full" && <RegistrationStatusBadge state={event.state} />}
-      </div>
-      <h2 className="mt-4 text-lg font-semibold tracking-tight text-slate-950 group-hover:text-primary">
-        {event.title}
-      </h2>
-      <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-        <CalendarDays className="size-4" aria-hidden="true" />
-        {event.startsAt ? dateFormatter.format(new Date(event.startsAt)) : "Schedule not set"}
-      </div>
-      {event.location && (
-        <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
-          <MapPin className="size-4" aria-hidden="true" />
-          {event.location}
+      <EventBannerImage bannerPath={event.bannerPath} />
+      <div className="flex flex-1 flex-col p-5">
+        <div className="flex items-start justify-between gap-3">
+          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+            Confirmed
+          </span>
+          {event.state === "full" && <RegistrationStatusBadge state={event.state} />}
         </div>
-      )}
-
-      {event.capacity !== null && (
-        <div className="mt-4">
-          <div className="mb-1 flex justify-between text-xs text-slate-500">
-            <span>
-              {Math.max(event.capacity - event.registeredCount, 0)} of {event.capacity} spots left
-            </span>
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
-            <div
-              className={`h-full rounded-full ${event.state === "full" ? "bg-red-600" : "bg-primary"}`}
-              style={{
-                width: `${Math.min((event.registeredCount / event.capacity) * 100, 100)}%`,
-              }}
-            />
-          </div>
+        <h2 className="mt-4 text-lg font-semibold tracking-tight text-slate-950 group-hover:text-primary">
+          {event.title}
+        </h2>
+        <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+          <CalendarDays className="size-4" aria-hidden="true" />
+          {event.startsAt ? dateFormatter.format(new Date(event.startsAt)) : "Schedule not set"}
         </div>
-      )}
+        {event.location && (
+          <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+            <MapPin className="size-4" aria-hidden="true" />
+            {event.location}
+          </div>
+        )}
 
-      {event.state === "not_open" && event.opensAt && (
-        <p className="mt-4 text-xs text-slate-400">
-          Registration opens {dateFormatter.format(new Date(event.opensAt))}
-        </p>
-      )}
+        {event.capacity !== null && (
+          <div className="mt-4">
+            <div className="mb-1 flex justify-between text-xs text-slate-500">
+              <span>
+                {Math.max(event.capacity - event.registeredCount, 0)} of {event.capacity} spots left
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className={`h-full rounded-full ${event.state === "full" ? "bg-red-600" : "bg-primary"}`}
+                style={{
+                  width: `${Math.min((event.registeredCount / event.capacity) * 100, 100)}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
 
-      <EventCardCta state={event.state} waitlistEnabled={event.waitlistEnabled} />
+        {event.state === "not_open" && event.opensAt && (
+          <p className="mt-4 text-xs text-slate-400">
+            Registration opens {dateFormatter.format(new Date(event.opensAt))}
+          </p>
+        )}
+
+        <EventCardCta state={event.state} waitlistEnabled={event.waitlistEnabled} />
+      </div>
     </Link>
   );
 }

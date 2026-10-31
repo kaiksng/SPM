@@ -9,6 +9,8 @@ export type AttendeeEventDetail = {
   endsAt: string | null;
   status: string;
   organiserName: string | null;
+  /** The organiser's optional banner image. */
+  bannerPath: string | null;
   venue: { preferredLocation: string | null };
   registration: {
     required: boolean;
@@ -37,6 +39,7 @@ export async function loadAttendeeEventDetail(eventId: string): Promise<Attendee
         starts_at,
         ends_at,
         status,
+        banner_path,
         organiser:profiles!events_organiser_id_fkey (full_name),
         event_venue_requirements (preferred_location),
         event_registration_requirements (
@@ -66,6 +69,7 @@ export async function loadAttendeeEventDetail(eventId: string): Promise<Attendee
     endsAt: data.ends_at,
     status: data.status,
     organiserName: data.organiser?.full_name ?? null,
+    bannerPath: data.banner_path,
     venue: { preferredLocation: data.event_venue_requirements?.preferred_location ?? null },
     registration: {
       required: registration?.registration_required ?? false,

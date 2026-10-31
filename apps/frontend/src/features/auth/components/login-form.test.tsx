@@ -142,4 +142,23 @@ describe("LoginForm", () => {
 
     resolveLogin({});
   });
+
+  // Public main page: the event picked before signing in is passed along.
+  it("passes on where the visitor was heading", async () => {
+    loginMock.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/login?next=%2Fbrowse-events%2Fevent-1"]}>
+        <LoginForm />
+      </MemoryRouter>,
+    );
+
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.type(screen.getByLabelText("Password"), "correct-password");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(loginMock).toHaveBeenCalled());
+    const formData = loginMock.mock.calls.at(-1)![1] as FormData;
+    expect(formData.get("next")).toBe("/browse-events/event-1");
+  });
 });

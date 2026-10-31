@@ -1,0 +1,4 @@
+interface:
+  display_name: "SPM Integration Testing"
+  short_description: "Build safe ConnectSphere integration tests by story"
+  default_prompt: "Use $spm-integration-testing to inspect the chosen Jira story and propose integration coverage before coding."
