@@ -21,7 +21,7 @@ export default defineConfig({
     env: {
       VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL!,
       VITE_SUPABASE_PUBLISHABLE_KEY: process.env.VITE_SUPABASE_PUBLISHABLE_KEY!,
-      VITE_BACKEND_URL: "http://127.0.0.1:55398",
+      VITE_BACKEND_URL: "http://127.0.0.1:15398",
     },
   },
 });

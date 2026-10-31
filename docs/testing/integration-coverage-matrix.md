@@ -6,7 +6,7 @@ Source: `SPM List - Jira (6).csv`, read 2026-10-31. SHA-256: `384255afb34a03ec2d
 
 ## Evidence and status
 
-Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14 and SPM-86; execution results are recorded in integration-testing.md. The remaining 53 stories are planned.
+Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86 and SPM-87; execution results are recorded in integration-testing.md. The remaining 52 stories are planned.
 
 Before each later story, audit the named tests against the exact ACs, settle contradictions and obtain the next-story instruction. For each APP criterion, assert observable output and independent stored state, actor permissions, relevant history/notifications, failure invariants and cleanup. Keep presentation, navigation, highlighting and confirmation assertions in UI/E2E tests.
 
@@ -332,16 +332,16 @@ Concurrency increments: SPM-81 simultaneous assignment; SPM-26 overlapping booki
 
 ### SPM-87 — Apply Setup and Turnaround to Availability and Conflict Checks (Done)
 
-**Real boundary to exercise:** Search/availability/booking callers → effective-window functions.
+**Real boundary exercised:** availability service → PostgREST → effective-window functions. [Integration tests](../../tests/integration/spm87-venue-availability.integration.test.ts); search and booking operations retain separate story coverage.
 
 **Existing evidence locations:** [VenueAvailabilityPage.test.tsx](../../apps/frontend/src/routes/VenueAvailabilityPage.test.tsx); [VenueDetailPage.test.tsx](../../apps/frontend/src/routes/VenueDetailPage.test.tsx); [check_venue_booking_availability.test.sql](../../supabase/tests/database/check_venue_booking_availability.test.sql).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | A booking’s effective occupancy window runs from (event start time minus the venue’s setup time) to (event end time plus the venue’s turnaround time), based on the venue’s current setup/turnaround settings. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | Two bookings are in conflict only if their effective occupancy windows overlap. Windows that merely touch with one ending at the exact moment the other begins are not a conflict. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | A venue is only available for a period if its entire effective window with setup and turnaround included falls within that venue’s operating days and hours. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | On the availability calendar, setup and turnaround periods are shown visually distinct from the event time itself | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | A booking’s effective occupancy window runs from (event start time minus the venue’s setup time) to (event end time plus the venue’s turnaround time), based on the venue’s current setup/turnaround settings. | APP: real service and database verify this outcome; UI tests cover visible controls and text. |
+| AC02 | Two bookings are in conflict only if their effective occupancy windows overlap. Windows that merely touch with one ending at the exact moment the other begins are not a conflict. | APP: real service and database verify this outcome; UI tests cover visible controls and text. |
+| AC03 | A venue is only available for a period if its entire effective window with setup and turnaround included falls within that venue’s operating days and hours. | APP: real service and database verify this outcome; UI tests cover visible controls and text. |
+| AC04 | On the availability calendar, setup and turnaround periods are shown visually distinct from the event time itself | UI: existing VenueAvailabilityPage tests verify distinct calendar styling. |
 
 ### SPM-78 — Place a Tentative Venue Hold with Expiry (Done)
 
