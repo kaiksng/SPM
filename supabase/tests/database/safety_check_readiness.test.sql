@@ -198,15 +198,17 @@ select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000e0')
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ef') ->> 'equipmentArrangementStatus'), 'needs_review', 'AC02: equipment that can never be reserved in full rolls up to Needs Review');
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ef') -> 'equipment' -> 0 ->> 'status'), 'needs_review', 'AC02: the item itself shows Needs Review when it can never be reserved in full');
 
--- AC02: equipment flagged Issue is Needs Review.
-select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ec') ->> 'equipmentArrangementStatus'), 'needs_review', 'AC02: equipment flagged Issue rolls up to Needs Review');
+-- SPM-28 AC02 (202610310005): the status always follows the reservation, so
+-- an Issue left in the history from before hand-set statuses were removed no
+-- longer counts. This unreserved, reservable item is just Pending.
+select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ec') ->> 'equipmentArrangementStatus'), 'pending', 'an Issue in the history alone does not make equipment Needs Review');
 select is(
   (select public.event_readiness('fc000000-0000-0000-0000-0000000000ec') -> 'equipment' -> 0 ->> 'needsReviewReason'),
-  'Wireless microphone is flagged Issue and needs review.',
-  'an Issue-flagged equipment item carries a reason even with no needs_review_reason column value'
+  null,
+  'and gives no Needs Review reason'
 );
 
--- A hand-set Arranged status does not by itself mean reserved: only 1 of 2
+-- An Arranged in the history does not by itself mean reserved: only 1 of 2
 -- requested units is actually reserved, so this is Pending, not Complete.
 select is((select public.event_readiness('fc000000-0000-0000-0000-0000000000ed') ->> 'equipmentArrangementStatus'), 'pending', 'a hand-set Arranged status without a full reservation still rolls up to Pending');
 

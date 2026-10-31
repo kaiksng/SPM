@@ -1,6 +1,6 @@
 begin;
 
-select plan(6);
+select plan(4);
 
 -- While Pending Safety Check, the coordinator cannot change venue or
 -- technical arrangements (202610190005, 202610190006).
@@ -53,27 +53,10 @@ select throws_ok(
   'AC06: the main venue cannot be changed while Pending Safety Check'
 );
 
-select set_config('request.jwt.claims', '{"sub":"fe000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-
--- AC06: updating an equipment arrangement is blocked for everyone, including
--- Technical Support Staff, while Pending Safety Check.
-select throws_ok(
-  $$select public.update_equipment_arrangement('fe000000-0000-0000-0000-0000000000a1', 'arranged', null)$$,
-  '23514', 'Arrangements can only be updated for a Planning or Confirmed event',
-  'AC06: equipment arrangements cannot be updated while Pending Safety Check'
-);
-
 -- Once back in Planning, the same actions are allowed again.
 reset role;
 update public.events set status = 'planning' where id = 'fe000000-0000-0000-0000-0000000000e1';
 set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"fe000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
-select isnt(
-  public.update_equipment_arrangement('fe000000-0000-0000-0000-0000000000a1', 'in_progress', null),
-  null,
-  'equipment arrangements can be updated again once the event returns to Planning'
-);
-
 select set_config('request.jwt.claims', '{"sub":"fe000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select lives_ok(
   $$select public.confirm_venue_booking_hold('fe000000-0000-0000-0000-0000000000b2')$$,

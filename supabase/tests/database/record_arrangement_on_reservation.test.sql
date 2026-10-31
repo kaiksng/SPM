@@ -1,6 +1,6 @@
 begin;
 
-select plan(11);
+select plan(10);
 
 -- Technical Support Staff's reservation actions record the arrangement status
 -- (202610290003_record_arrangement_on_reservation.sql).
@@ -58,15 +58,11 @@ select is(pg_temp.latest('five'), row('in_progress'::text, 'Reserved 3 of 5'::te
 select public.change_equipment_reservation((select id from v_ids where name = 'res-five'), 5);
 select is(pg_temp.latest('five'), row('arranged'::text, 'Reserved 5 of 5'::text), 'topping it up to the request records Arranged');
 
--- AC04/AC05: staff can still set a status by hand.
-select public.update_equipment_arrangement((select id from v_ids where name = 'five'), 'issue', 'One unit is damaged');
-select is(pg_temp.latest('five'), row('issue'::text, 'One unit is damaged'::text), 'a status set by hand still applies (SPM-28 AC04)');
-
 select public.release_equipment_reservation((select id from v_ids where name = 'res-five'), 'Not needed');
 select is(pg_temp.latest('five'), row('not_started'::text, 'Reservation released'::text), 'releasing records Not started, until the next action');
 select is(
   (select count(*)::int from public.equipment_arrangement_updates where requirement_id = (select id from v_ids where name = 'five')),
-  4,
+  3,
   'every step stays in the history (SPM-28 AC03)'
 );
 

@@ -4,6 +4,7 @@ import {
   isEquipmentReservationAllowed,
   describeEquipmentReservationEvent,
   equipmentReservationActionLabels,
+  type EquipmentArrangementEntry,
   type EquipmentArrangementState,
   type EquipmentRequirementFormValues,
 } from "@spm/shared";
@@ -14,7 +15,7 @@ import { useLocation, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
 import { ArrangementBadge, ArrangementDetails } from "@/features/equipment/components/equipment-arrangement";
-import { loadEquipmentArrangementStatuses } from "@/features/equipment/services/equipment-arrangement-status";
+import { loadEquipmentArrangementHistory } from "@/features/equipment/services/equipment-arrangement-status";
 import { EquipmentRequestDialog } from "@/features/event-requests/components/equipment-request-dialog";
 import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
@@ -54,8 +55,8 @@ function formatPeriod(from: string | null, until: string | null) {
  * The "Equipment" sub-step of an event's Planning stage: each requested item
  * with the reservation Technical Support Staff made for it (who, when, how
  * many, for which period), any re-check flag, and the reservation history.
- * The assigned coordinator also sees each item's arrangement status, note
- * and history (SPM-28). Reserving and arranging happen on the Technical
+ * The assigned coordinator also sees each item's arrangement status and
+ * history (SPM-28 AC07). Reserving and arranging happen on the Technical
  * Support Staff Equipment page, and only for items the coordinator has
  * requested here: the organiser's list and anything added stay "Not
  * requested" until the coordinator chooses them under Request equipment.
@@ -65,7 +66,7 @@ export function EventEquipmentPage() {
   const { user } = useAuth();
   const [event, setEvent] = useState<EventDetail>();
   const [arrangements, setArrangements] = useState<EquipmentArrangement[]>([]);
-  const [arrangementStatuses, setArrangementStatuses] = useState<Map<string, EquipmentArrangementState> | null>(
+  const [arrangementHistory, setArrangementHistory] = useState<Map<string, EquipmentArrangementEntry[]> | null>(
     new Map(),
   );
   const [loading, setLoading] = useState(true);
@@ -89,13 +90,13 @@ export function EventEquipmentPage() {
       listEquipmentArrangements(eventId),
       // Under RLS only the assigned coordinator gets rows; others get none.
       // Extra detail: if it can't be loaded, the rest of the page still shows.
-      loadEquipmentArrangementStatuses([eventId]).catch(() => null),
+      loadEquipmentArrangementHistory([eventId]).catch(() => null),
     ])
-      .then(([detail, rows, statuses]) => {
+      .then(([detail, rows, history]) => {
         if (!active) return;
         setEvent(detail);
         setArrangements(rows);
-        setArrangementStatuses(statuses);
+        setArrangementHistory(history);
       })
       .catch((loadError: unknown) => {
         if (active) {
@@ -142,7 +143,7 @@ export function EventEquipmentPage() {
   const released = arrangements.filter((arrangement) => arrangement.status === "released");
   // SPM-28 visibility: the assigned coordinator. Anyone else who can open
   // this page would see every item as Not started, so the status is hidden.
-  const showArrangementStatus = Boolean(arrangementStatuses && user && event?.assignedCoordinatorId === user.id);
+  const showArrangementStatus = Boolean(arrangementHistory && user && event?.assignedCoordinatorId === user.id);
   // Requested, edited and removed here by the assigned coordinator, and only
   // while the event is in Planning — the same rule update_event_as_coordinator
   // enforces.
@@ -155,19 +156,16 @@ export function EventEquipmentPage() {
   /** SPM-28 status of a requested item; none until it is requested. */
   function arrangementFor(requirement: EquipmentRequirement): EquipmentArrangementState | undefined {
     if (!event || !requirement.requestedAt) return undefined;
-    return (
-      arrangementStatuses?.get(requirement.id) ??
-      currentEquipmentArrangement(
-        [],
-        // Stock levels aren't available to coordinators, so an
-        // unreserved catalogue item shows Not started here.
-        automaticEquipmentArrangementStatus({
-          requestedQuantity: requirement.quantity,
-          reservation: liveByRequirement.get(requirement.id) ?? null,
-          canReserveInFull:
-            requirement.equipmentItemId !== null && isEquipmentReservationAllowed(event.status),
-        }),
-      )
+    return currentEquipmentArrangement(
+      arrangementHistory?.get(requirement.id) ?? [],
+      // Stock levels aren't available to coordinators, so an
+      // unreserved catalogue item shows Not started here.
+      automaticEquipmentArrangementStatus({
+        requestedQuantity: requirement.quantity,
+        reservation: liveByRequirement.get(requirement.id) ?? null,
+        canReserveInFull:
+          requirement.equipmentItemId !== null && isEquipmentReservationAllowed(event.status),
+      }),
     );
   }
 
@@ -329,7 +327,7 @@ export function EventEquipmentPage() {
       {event && dialog?.kind === "send" && (
         <RequestEquipmentDialog
           requirements={event.equipment}
-          // Flagged by Technical Support Staff: the coordinator may send it again.
+          // Its reservation needs re-checking: the coordinator may send it again.
           issueIds={event.equipment
             .filter((requirement) => arrangementFor(requirement)?.status === "issue")
             .map((requirement) => requirement.id)}

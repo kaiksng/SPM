@@ -13,7 +13,7 @@ import {
 import {
   listEquipmentCatalogue,
   type EquipmentCatalogueItem,
-} from "@/features/equipment/services/equipment-unavailability";
+} from "@/features/equipment/services/equipment-inventory";
 import { ChooseEquipmentEventDialog } from "@/features/event-requests/components/choose-equipment-event-dialog";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
@@ -29,15 +29,11 @@ const sectionHeadings: Readonly<Record<EquipmentSection, { title: string; descri
     description: "Reserve the equipment events have requested, and track how arranging it is going.",
   },
   inventory: { title: "Inventory", description: "Every equipment item and unit in the catalogue." },
-  unavailability: {
-    title: "Unavailability",
-    description: "Repairs, maintenance and losses that take equipment out of service.",
-  },
 };
 
 /**
- * Technical Support Staff see one of three sections (Event requests,
- * Inventory, Unavailability), each its own page in the top bar. Other roles
+ * Technical Support Staff see one of two sections (Event requests,
+ * Inventory), each its own page in the top bar. Other roles
  * see the plain Equipment page.
  */
 export function EquipmentPage({ section = "requests" }: { section?: EquipmentSection }) {

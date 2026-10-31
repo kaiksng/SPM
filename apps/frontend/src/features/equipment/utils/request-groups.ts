@@ -1,5 +1,3 @@
-import type { EquipmentArrangementStatus } from "@spm/shared";
-
 import type {
   EquipmentAvailabilityResult,
   EventEquipmentAvailability,
@@ -8,10 +6,9 @@ import type {
 /**
  * The Event requests tabs: All, then each item in exactly one of
  *   Need attention — still being arranged (Not started / In progress);
- *   Arranged       — arranged, with nothing wrong;
- *   Issue          — set to Issue, or anything wrong whatever its arrangement
- *                    status: not available in full, or a reservation flagged
- *                    for re-check. A reservation whose request was removed
+ *   Arranged       — reserved in full, with nothing wrong;
+ *   Issue          — not available in full, or a reservation flagged for
+ *                    re-check. A reservation whose request was removed
  *                    needs releasing, so it is listed under Issue too.
  * The arrangement status itself (SPM-28) still shows on each item.
  */
@@ -30,29 +27,10 @@ export function hasEquipmentProblem(result: EquipmentAvailabilityResult) {
   return result.status !== "available" || Boolean(result.reservation?.needsRecheck);
 }
 
-/**
- * Arranged means the stock is held: the full quantity reserved, no re-check
- * outstanding. Equipment outside the catalogue can't be reserved here, so a
- * hand-set Arranged is the only record of it (202610290004).
- */
-export function canBeArranged(result: EquipmentAvailabilityResult) {
-  if (result.equipmentItemId === null) return true;
-  const { reservation } = result;
-  return Boolean(reservation && !reservation.needsRecheck && reservation.quantity >= result.requestedQuantity);
-}
-
-/** What the item's reservation says, as reserving records it (202610290003). */
-export function reservationArrangementStatus(result: EquipmentAvailabilityResult): EquipmentArrangementStatus {
-  const { reservation } = result;
-  if (reservation && !reservation.needsRecheck && reservation.quantity >= result.requestedQuantity) return "arranged";
-  return reservation ? "in_progress" : "not_started";
-}
-
 /** The one status tab an item belongs to. */
 export function equipmentRequestTab(result: EquipmentAvailabilityResult): Exclude<EquipmentRequestTab, "all"> {
   if (result.arrangement?.status === "issue" || hasEquipmentProblem(result)) return "issue";
-  // Marked Arranged without its stock held is still work to do.
-  if (result.arrangement?.status === "arranged" && canBeArranged(result)) return "arranged";
+  if (result.arrangement?.status === "arranged") return "arranged";
   return "attention";
 }
 

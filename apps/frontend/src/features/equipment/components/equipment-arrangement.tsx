@@ -19,36 +19,22 @@ const statusStyles: Record<EquipmentArrangementStatus, string> = {
   issue: "bg-red-100 text-red-800",
 };
 
-/**
- * SPM-28: the requirement's current arrangement status (AC01/AC02), marked
- * "(automatic)" when it was worked out rather than set by a person.
- */
+/** SPM-28: the requirement's arrangement status (AC01), worked out from its reservation (AC02). */
 export function ArrangementBadge({ arrangement }: { arrangement: EquipmentArrangementState }) {
   const { status } = arrangement;
   return (
     <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", statusStyles[status])}>
       Arrangement: {equipmentArrangementStatusLabels[status]}
-      {arrangement.automatic && status !== "not_started" && (
-        <span className="font-normal"> (automatic)</span>
-      )}
     </span>
   );
 }
 
-/**
- * SPM-28: the latest note, who last updated it and when (AC04), and every
- * earlier update, oldest first (AC03).
- */
+/** SPM-28: who last updated it and when, and every update, oldest first (AC03). */
 export function ArrangementDetails({ arrangement }: { arrangement: EquipmentArrangementState }) {
   if (arrangement.history.length === 0) return null;
   return (
     <div className="mt-2 text-sm">
-      {arrangement.note && (
-        <p className="whitespace-pre-line text-slate-700">
-          <span className="font-medium text-slate-800">Arrangement note:</span> {arrangement.note}
-        </p>
-      )}
-      <p className="mt-0.5 text-xs text-slate-500">
+      <p className="text-xs text-slate-500">
         Updated{arrangement.updatedByName ? ` by ${arrangement.updatedByName}` : ""}
         {arrangement.updatedAt ? ` · ${dateFormat.format(new Date(arrangement.updatedAt))}` : ""}
       </p>

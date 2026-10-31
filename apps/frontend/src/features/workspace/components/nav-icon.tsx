@@ -20,7 +20,6 @@ const NAV_ICONS = {
   equipment: Wrench,
   "equipment-requests": ClipboardList,
   "equipment-inventory": Boxes,
-  "equipment-unavailability": CircleAlert,
   "browse-events": Compass,
   "my-registrations": ClipboardList,
   "safety-checks": ShieldCheck,

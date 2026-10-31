@@ -24,23 +24,22 @@ describe("workspace navigation", () => {
     ]);
   });
 
-  it("gives technical support staff event requests, inventory and unavailability", () => {
+  it("gives technical support staff event requests and inventory", () => {
     expect(
       getNavItemsForRole("technical_support_staff").map((item) => [item.label, item.href]),
     ).toEqual([
       ["Event requests", "/equipment"],
       ["Inventory", "/equipment/inventory"],
-      ["Unavailability", "/equipment/unavailability"],
     ]);
   });
 
-  it("keeps inventory and unavailability to technical support staff", () => {
-    for (const path of ["/equipment", "/equipment/inventory", "/equipment/unavailability"]) {
+  it("keeps inventory to technical support staff", () => {
+    for (const path of ["/equipment", "/equipment/inventory"]) {
       expect(isPathAllowedForRole(path, "technical_support_staff")).toBe(true);
     }
     expect(isPathAllowedForRole("/equipment", "event_coordinator")).toBe(true);
     expect(isPathAllowedForRole("/equipment/inventory", "event_coordinator")).toBe(false);
-    expect(isPathAllowedForRole("/equipment/unavailability", "event_organiser")).toBe(false);
+    expect(isPathAllowedForRole("/equipment/inventory", "event_organiser")).toBe(false);
   });
 
   it("gives attendees the browse events and my registrations sections", () => {
@@ -144,7 +143,6 @@ describe("workspace navigation", () => {
       `/events/${eventId}/venue`,
       "/equipment",
       "/equipment/inventory",
-      "/equipment/unavailability",
       "/browse-events",
       "/safety-checks",
     ])("blocks venue staff from %s", (path) => {
@@ -162,7 +160,7 @@ describe("workspace navigation", () => {
     const venueId = "30000000-0000-0000-0000-000000000003";
 
     // SPM-48 AC01: technical support staff reach every equipment section their role needs.
-    it.each(["/equipment", "/equipment/inventory", "/equipment/unavailability"])(
+    it.each(["/equipment", "/equipment/inventory"])(
       "allows technical support staff to reach %s",
       (path) => {
         expect(isPathAllowedForRole(path, "technical_support_staff")).toBe(true);

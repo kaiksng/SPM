@@ -84,11 +84,9 @@ export function deriveVenueArrangementOverallStatus(
 
 /**
  * AC01: Arranged -> Complete, Issue -> Needs Review, everything else -> Pending.
- * `arrangementStatus` is whatever the server resolved it to — a staff
- * member's own setting if they ever made one, otherwise event_readiness
- * (202610260001) auto-derives it the same way automaticEquipmentArrangementStatus
- * does, so a requirement reserved in full always resolves here as Complete,
- * never stuck at Pending just because nobody has clicked Arranged yet.
+ * `arrangementStatus` is what event_readiness worked out from the
+ * reservation, the same way automaticEquipmentArrangementStatus does, so a
+ * requirement reserved in full always resolves here as Complete.
  */
 export function deriveEquipmentRequirementReadinessStatus(
   arrangementStatus: EquipmentArrangementStatus,

@@ -1,23 +1,19 @@
-import {
-  currentEquipmentArrangement,
-  isEquipmentArrangementStatus,
-  type EquipmentArrangementEntry,
-  type EquipmentArrangementFormValues,
-  type EquipmentArrangementState,
-} from "@spm/shared";
+import { isEquipmentArrangementStatus, type EquipmentArrangementEntry } from "@spm/shared";
 
 import { supabase } from "@/lib/supabase-client";
 
 /**
- * SPM-28: the arrangement status, note and history of each equipment
- * requirement on the given events, keyed by requirement id. Read under RLS
- * (Technical Support Staff, or the event's assigned coordinator). A
- * requirement with no entries is absent; show it with
- * currentEquipmentArrangement([]), which is Not started.
+ * SPM-28: the arrangement history of each equipment requirement on the given
+ * events, keyed by requirement id, oldest first. The database records an
+ * entry whenever a reservation is made, changed, released or re-checked, or
+ * the request changes. Read under RLS (Technical Support Staff, or the
+ * event's assigned coordinator). A requirement with no entries is absent.
+ * The status itself always comes from the reservation: pass the entries to
+ * currentEquipmentArrangement with the automatic status.
  */
-export async function loadEquipmentArrangementStatuses(
+export async function loadEquipmentArrangementHistory(
   eventIds: string[],
-): Promise<Map<string, EquipmentArrangementState>> {
+): Promise<Map<string, EquipmentArrangementEntry[]>> {
   if (eventIds.length === 0) return new Map();
 
   const { data, error } = await supabase
@@ -51,28 +47,5 @@ export async function loadEquipmentArrangementStatuses(
     entriesByRequirement.set(row.requirement_id, [...(entriesByRequirement.get(row.requirement_id) ?? []), entry]);
   }
 
-  return new Map(
-    [...entriesByRequirement].map(([requirementId, entries]) => [
-      requirementId,
-      currentEquipmentArrangement(entries),
-    ]),
-  );
-}
-
-/**
- * Records a new arrangement status and note (all checks are in the
- * database). Resolves to false when nothing changed, so no history entry
- * was added.
- */
-export async function updateEquipmentArrangement(
-  requirementId: string,
-  values: EquipmentArrangementFormValues,
-): Promise<boolean> {
-  const { data, error } = await supabase.rpc("update_equipment_arrangement", {
-    p_requirement_id: requirementId,
-    p_status: values.status,
-    p_note: values.note.trim(),
-  });
-  if (error) throw new Error(error.message);
-  return data !== null;
+  return entriesByRequirement;
 }

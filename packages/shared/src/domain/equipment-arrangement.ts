@@ -1,7 +1,7 @@
 /**
  * SPM-28 arrangement statuses, as public.equipment_arrangement_updates
- * stores them (202610150001). Keep the two in step. Set by hand by
- * Technical Support Staff; independent of reservations.
+ * stores them (202610150001). Keep the two in step. Never set by hand: the
+ * status always follows the reservation (automaticEquipmentArrangementStatus).
  */
 export const equipmentArrangementStatuses = ["not_started", "in_progress", "arranged", "issue"] as const;
 
@@ -30,20 +30,19 @@ export type EquipmentArrangementEntry = {
 };
 
 export type EquipmentArrangementState = {
+  /** Always worked out from the reservation (AC02). */
   status: EquipmentArrangementStatus;
-  /** True while nobody has set a status by hand: the status is worked out (AC02). */
-  automatic: boolean;
-  note: string | null;
+  /** Who made the latest recorded update, and when. */
   updatedByName: string | null;
   updatedAt: string | null;
-  /** Every update, oldest first (AC03). */
+  /** Every update the system recorded, oldest first (AC03). */
   history: EquipmentArrangementEntry[];
 };
 
 /**
- * The current arrangement is the latest entry a person made. With none, it
- * is the automatic status (AC02), Not started when that isn't known. Entries
- * are ordered by id, which follows insertion order.
+ * The current arrangement: the automatic status (AC02), with the recorded
+ * updates as its history. Entries are ordered by id, which follows
+ * insertion order.
  */
 export function currentEquipmentArrangement(
   entries: readonly EquipmentArrangementEntry[],
@@ -52,9 +51,7 @@ export function currentEquipmentArrangement(
   const history = [...entries].sort((left, right) => left.id - right.id);
   const latest = history[history.length - 1];
   return {
-    status: latest?.status ?? automaticStatus,
-    automatic: !latest,
-    note: latest?.note ?? null,
+    status: automaticStatus,
     updatedByName: latest?.updatedByName ?? null,
     updatedAt: latest?.updatedAt ?? null,
     history,
@@ -62,12 +59,11 @@ export function currentEquipmentArrangement(
 }
 
 /**
- * AC02: the status of a requirement nobody has set by hand, from what has
- * happened to it.
+ * AC02: a requirement's status, from what has happened to it.
  * - Reserved in full: Arranged. Partly reserved: In progress.
  * - Reservation flagged for re-check: Issue.
- * - Not reserved and can't be reserved in full (short, unavailable, not in
- *   the catalogue, retired, or the event's reservations are locked): Issue.
+ * - Not reserved and can't be reserved in full (short, retired, or the
+ *   event's reservations are locked): Issue.
  * - Otherwise: Not started.
  */
 export function automaticEquipmentArrangementStatus(input: {
