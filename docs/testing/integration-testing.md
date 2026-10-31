@@ -1,9 +1,6 @@
 # Integration testing
 
-Application integration coverage currently includes **SPM-2 (drafts)**,
-**SPM-13 (sign-in)**, **SPM-14 (organiser ownership)** **SPM-86 (venue buffers)** **SPM-87 (buffered availability)** **SPM-20 (availability calendar data)** **SPM-21 (manual venue search)** **SPM-88 (booking conflict flags)** and **SPM-19 (operational blocks)**. The [coverage matrix](integration-coverage-matrix.md)
-tracks all 57 non-retired stories against Jira export (6). The remaining 48
-stories need their own coverage review, walkthrough and implementation instruction.
+Application integration coverage currently includes **SPM-2 (drafts), SPM-13 (sign-in), SPM-14 (organiser ownership), SPM-86 (venue buffers), SPM-87 (buffered availability), SPM-20 (availability calendar data), SPM-21 (manual venue search), SPM-88 (booking conflict flags), SPM-19 (operational blocks) and SPM-83 (venue disruptions)**. The [coverage matrix](integration-coverage-matrix.md) tracks all 57 non-retired stories against Jira export (6). The remaining 47 stories need their own coverage review and implementation instruction.
 
 ## What these tests prove
 
@@ -64,8 +61,8 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **9 files / 51 tests passed**
-for the current SPM-2/SPM-13/SPM-14/SPM-86/SPM-87/SPM-20/SPM-21/SPM-88 and SPM-19 coverage. A green job verifies this suite on GitHub;
+and open its details. The test step should report **10 files / 53 tests passed**
+for the current SPM-2/SPM-13/SPM-14/SPM-86/SPM-87/SPM-20/SPM-21/SPM-88 SPM-19 and SPM-83 coverage. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
 
@@ -336,3 +333,7 @@ At the user’s request, an additional application integration case covers the c
 The follow-up `pnpm check` passed. No tests were skipped.
 
 The user confirmed the SPM-19 Jira wording was updated to reflect the save-and-flag behaviour; the available CSV predates that update.
+
+## SPM-83 execution record — 2026-10-31
+
+Two integration cases cover preview and saving blocks affecting pending/approved bookings and an active hold, buffered overlap, persistent disruptions, booking and existing approval-history preservation, coordinator notifications and permissions, readiness, rejection of a new request in an otherwise-free blocked period, replacement-request state, shortening/removal, clearance notifications, and the pending-safety-check transition and notification. Existing UI tests cover the confirmation screen; lifecycle states and historical approval data are prepared fixtures and do not prove their separate business workflows. Three clean integration runs passed 53/53 as assertions were expanded; the final run passed 8/8 safety checks and integration typecheck. `pnpm check` passed. No tests were skipped.
