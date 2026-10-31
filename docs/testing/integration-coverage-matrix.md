@@ -6,7 +6,7 @@ Source: `SPM List - Jira (6).csv`, read 2026-10-31. SHA-256: `384255afb34a03ec2d
 
 ## Evidence and status
 
-Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86, SPM-87, SPM-20 and SPM-21; execution results are recorded in integration-testing.md. The remaining 50 stories are planned.
+Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86, SPM-87, SPM-20, SPM-21 and SPM-88; execution results are recorded in integration-testing.md. The remaining 49 stories are planned.
 
 Before each later story, audit the named tests against the exact ACs, settle contradictions and obtain the next-story instruction. For each APP criterion, assert observable output and independent stored state, actor permissions, relevant history/notifications, failure invariants and cleanup. Keep presentation, navigation, highlighting and confirmation assertions in UI/E2E tests.
 
@@ -420,18 +420,18 @@ Concurrency increments: SPM-81 simultaneous assignment; SPM-26 overlapping booki
 
 ### SPM-88 — Identify Bookings That Conflict Under the Buffer Rule (Done)
 
-**Real boundary to exercise:** Buffer update/recheck callers → flags, readiness and notifications.
+**Real boundary exercised:** real buffer update and recheck services → Express/Auth/RPC → conflict flags, listing and staff notifications. [Integration tests](../../tests/integration/spm88-venue-conflicts.integration.test.ts).
 
 **Existing evidence locations:** [notification-bell.test.tsx](../../apps/frontend/src/features/notifications/components/notification-bell.test.tsx); [VenueDetailPage.test.tsx](../../apps/frontend/src/routes/VenueDetailPage.test.tsx); [spm88_venue_conflict_recheck.test.sql](../../supabase/tests/database/spm88_venue_conflict_recheck.test.sql).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | Venue Staff can trigger a conflict re-check for a single venue or all venues | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | Saving a change to a venue setup and turnaround time will automatically trigger a conflict check for that venue | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | A flagged booking is never deleted or cancelled, and its status is not changed. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | Given two or more Pending or Approved bookings now overlap in their effective windows, when a check runs, then every affected booking is flagged “Conflict – Needs Review”. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC05 | Given a booking is flagged, when I view the flagged bookings list, then I see its event, venue, period, and the conflicting booking or block. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC06 | Given a flagged booking no longer overlaps, when a check runs, then its flag is cleared and it no longer appears on the flagged bookings list. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | Venue Staff can trigger a conflict re-check for a single venue or all venues | APP: real services, backend and database; existing UI and pgTAP tests provide additional evidence. |
+| AC02 | Saving a change to a venue setup and turnaround time will automatically trigger a conflict check for that venue | APP: real services, backend and database; existing UI and pgTAP tests provide additional evidence. |
+| AC03 | A flagged booking is never deleted or cancelled, and its status is not changed. | APP: real services, backend and database; existing UI and pgTAP tests provide additional evidence. |
+| AC04 | Given two or more Pending or Approved bookings now overlap in their effective windows, when a check runs, then every affected booking is flagged “Conflict – Needs Review”. | APP: real services, backend and database; existing UI and pgTAP tests provide additional evidence. |
+| AC05 | Given a booking is flagged, when I view the flagged bookings list, then I see its event, venue, period, and the conflicting booking or block. | APP: real services, backend and database; existing UI and pgTAP tests provide additional evidence. |
+| AC06 | Given a flagged booking no longer overlaps, when a check runs, then its flag is cleared and it no longer appears on the flagged bookings list. | APP: real services, backend and database; existing UI and pgTAP tests provide additional evidence. |
 
 ### SPM-19 — Manage Venue Operational Blocks (Done)
 
