@@ -98,6 +98,9 @@ stack, see [integration testing](docs/testing/integration-testing.md). Use
 `pnpm test:integration` and `pnpm typecheck:integration`; Docker is required only
 for the integration run, not for `pnpm check`.
 
+Teammates can follow the [numbered integration-testing guide](docs/testing/integration-team-guide.md)
+and invoke the shared `spm-integration-testing` skill to add one story at a time.
+
 Use pnpm consistently. Do not run `npm install` or commit a `package-lock.json`.
 
 ## Git workflow
