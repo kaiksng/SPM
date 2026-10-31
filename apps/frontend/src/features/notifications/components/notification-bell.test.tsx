@@ -17,7 +17,6 @@ vi.mock("@/features/notifications/services/notifications", () => ({
 }));
 
 const authState = { profile: { role: "venue_staff" as string } };
-vi.mock("@/context/auth-context", () => ({ useAuth: () => authState }));
 
 vi.mock("react-router", async () => {
   const actual = await vi.importActual<typeof import("react-router")>("react-router");
@@ -59,7 +58,7 @@ const VENUE_REQUEST_UNREAD = {
 function renderBell() {
   return render(
     <MemoryRouter>
-      <NotificationBell />
+      <NotificationBell role={authState.profile.role} />
     </MemoryRouter>,
   );
 }

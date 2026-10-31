@@ -4,7 +4,6 @@ import { useNavigate } from "react-router";
 
 import { buttonVariants } from "@/components/ui/button";
 import { Menu, MenuContent, MenuTrigger } from "@/components/ui/menu";
-import { useAuth } from "@/context/auth-context";
 import { cn } from "@/lib/utils";
 import {
   getUnreadNotificationCount,
@@ -121,13 +120,12 @@ function notificationDestination(
  * precedent anywhere) — then updates local state optimistically after a
  * mark-read call.
  */
-export function NotificationBell() {
+export function NotificationBell({ role }: { role?: string }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<NotificationSummary[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
-  const { profile } = useAuth();
 
   useEffect(() => {
     let active = true;
@@ -168,7 +166,7 @@ export function NotificationBell() {
     }
 
     setOpen(false);
-    const destination = notificationDestination(notification, profile?.role);
+    const destination = notificationDestination(notification, role);
     if (destination) navigate(destination);
   }
 
@@ -232,7 +230,7 @@ export function NotificationBell() {
                 key={notification.id}
                 type="button"
                 onClick={() => handleSelect(notification)}
-                disabled={!notificationDestination(notification, profile?.role)}
+                disabled={!notificationDestination(notification, role)}
                 className={cn(
                   "block w-full border-b px-3 py-2.5 text-left last:border-b-0",
                   unread ? "bg-muted/60" : "hover:bg-muted/40",
