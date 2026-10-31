@@ -1,8 +1,8 @@
 # Integration testing
 
 Application integration coverage currently includes **SPM-2 (drafts)**,
-**SPM-13 (sign-in)**, **SPM-14 (organiser ownership)** **SPM-86 (venue buffers)** **SPM-87 (buffered availability)** and **SPM-20 (availability calendar data)**. The [coverage matrix](integration-coverage-matrix.md)
-tracks all 57 non-retired stories against Jira export (6). The remaining 51
+**SPM-13 (sign-in)**, **SPM-14 (organiser ownership)** **SPM-86 (venue buffers)** **SPM-87 (buffered availability)** **SPM-20 (availability calendar data)** **SPM-21 (manual venue search)** and **SPM-88 (booking conflict flags)**. The [coverage matrix](integration-coverage-matrix.md)
+tracks all 57 non-retired stories against Jira export (6). The remaining 49
 stories need their own coverage review, walkthrough and implementation instruction.
 
 ## What these tests prove
@@ -64,8 +64,8 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **6 files / 38 tests passed**
-for the current SPM-2/SPM-13/SPM-14/SPM-86/SPM-87/SPM-20 coverage. A green job verifies this suite on GitHub;
+and open its details. The test step should report **8 files / 42 tests passed**
+for the current SPM-2/SPM-13/SPM-14/SPM-86/SPM-87/SPM-20/SPM-21/SPM-88 coverage. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
 
@@ -308,3 +308,17 @@ Final verification: integration typecheck passed; the full integration suite pas
 Two integration cases exercise the real availability service against local Auth and Postgres. They verify an empty venue and staff/coordinator reads of pending and confirmed bookings plus an operational block, including distinct types and stored times. The coordinator case uses another coordinator’s booking and a staff positive control. Calendar date selection, rendering and available-all-day presentation are separately covered by VenueAvailabilityPage component tests; operating hours still apply. Integration typecheck passed; the clean disposable run passed 38/38 with 8/8 safety checks. An initially suspected cross-coordinator visibility issue was not reproduced.
 
 `pnpm check` passed after the integration run. No tests were skipped.
+
+## SPM-21 execution record — 2026-10-31
+
+Two local integration cases cover matching filters, optional filters, result details, occupied and closed venues, active requests, changed search dates without event mutation, validation, and another coordinator being denied. The full integration suite passed 40/40 with 8/8 safety checks and integration typechecking passed. `pnpm check` initially failed in the existing `venue-management.route.test.ts` 42501 mapping case with `socket hang up` while the integration suite was also running; a subsequent standalone `pnpm check` passed. The cause is not confirmed. The user subsequently requested a local commit after reviewing the mitigation. UI-only requirements remain assigned to existing component tests.
+
+The affected backend test file passed five standalone runs. An attempted diagnostic using Vitest `--repeatEach` failed before running tests because this Vitest version does not support that option; the five runs used the normal command instead. The original socket error remains unexplained.
+
+Follow-up verification: 12 further runs of the affected backend file passed during disposable integration startup; a second complete integration run passed 40/40. The original socket hang-up did not recur, but its cause remains unconfirmed.
+
+Socket mitigation: the venue-management route test now starts one loopback server and waits for it before making requests, then closes it after the file. Its 23 cases passed, as did 12 repeated runs while `pnpm check` and integration setup ran concurrently. The full `pnpm check` and 40/40 integration suite passed concurrently afterward. This reduces server start/stop churn; the original one-off error did not recur, so its precise cause and whether this change prevents it cannot be proven.
+
+## SPM-88 execution record — 2026-10-31
+
+Two integration cases exercise automatic flagging after buffer changes, staff rechecks, booking and block conflict details, status preservation, clearing, staff notification and coordinator denial. The full integration suite passed 42/42 twice from clean disposable stacks, with 8/8 safety checks each time. Integration typechecking and `pnpm check` passed. An initial integration typecheck reported two TypeScript errors in the newly written test; these were corrected before the successful checks. No tests were skipped. The earlier intermittent backend socket error and its mitigation remain documented under SPM-21.
