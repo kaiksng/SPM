@@ -204,7 +204,6 @@ export function EventRequestForm({
             step="1"
             value={values.expectedAttendance}
             onChange={(event) => setRoot("expectedAttendance", event.target.value)}
-            placeholder="Leave blank if unknown"
             aria-invalid={Boolean(errors.expectedAttendance)}
             disabled={isLocked("expectedAttendance")}
           />

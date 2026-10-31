@@ -593,6 +593,24 @@ describe("EventsPage draft controls", () => {
     },
   );
 
+  // UI: a Pending card has one main Edit request button, like the other
+  // cards' View details, with the change history as a small link below it.
+  it("shows a Pending card's Edit request as its main action, with the history link below", async () => {
+    listEventRequestsMock.mockResolvedValue([{ ...requested, id: "pending-1", title: "Pending Gala", status: "requested" }]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    const edit = await screen.findByRole("link", { name: "Edit request" });
+    expect(edit).toHaveAttribute("href", "/events/pending-1/edit");
+    const history = screen.getByRole("link", { name: "View change history" });
+    expect(edit.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Cancel Pending Gala" })).toBeInTheDocument();
+  });
+
   // Standardised cards: View details and View registrations share one row.
   it("puts View details and View registrations side by side on the organiser's card", async () => {
     listEventRequestsMock.mockResolvedValue([

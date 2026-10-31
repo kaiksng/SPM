@@ -9,16 +9,21 @@ import { buttonVariants } from "@/components/ui/button";
  * directly and doesn't compete for space with the event detail page it's
  * shown on. See routes/EventHistoryPage.tsx.
  *
- * The one change-history button: event cards and the event page top bar all
- * render this, so it looks the same everywhere.
+ * The one change-history link: event cards and the event page top bar all
+ * render this. `subtle` is the small text link under an event card's main
+ * action, so the card keeps one prominent button.
  */
-export function EventHistoryButton({ eventId }: { eventId: string }) {
+export function EventHistoryButton({ eventId, subtle = false }: { eventId: string; subtle?: boolean }) {
   return (
     <Link
       to={`/events/${eventId}/history`}
-      className={buttonVariants({ size: "sm", variant: "outline", className: "w-fit" })}
+      className={
+        subtle
+          ? "inline-flex w-fit items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-primary hover:underline"
+          : buttonVariants({ size: "sm", variant: "outline", className: "w-fit" })
+      }
     >
-      <History aria-hidden="true" /> View change history
+      <History aria-hidden="true" className={subtle ? "size-3.5" : undefined} /> View change history
     </Link>
   );
 }

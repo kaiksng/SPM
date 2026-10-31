@@ -1089,12 +1089,8 @@ function EventCard({
           </p>
         )
       )}
-      <div className="mt-auto flex flex-col gap-2">
-        {/* Later cards reach the history through View details (the event
-            page's Change history), like the coordinator's card; Draft and
-            Requested cards have no View details, so they keep it here. */}
-        {(isDraft || isRequested) && <EventHistoryButton eventId={event.id} />}
-        <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+      <div className="mt-auto flex flex-col gap-2 border-t border-slate-100 pt-4">
+        <div className="flex flex-wrap gap-2">
           {isDraft ? (
             <>
               <Link
@@ -1122,9 +1118,10 @@ function EventCard({
             </>
           ) : isRequested ? (
             <>
+              {/* One main action, the same size as the other cards' View details. */}
               <Link
                 to={`/events/${event.id}/edit`}
-                className={buttonVariants({ variant: "outline" })}
+                className={buttonVariants({ size: "lg", className: "flex-1 basis-0 justify-center" })}
               >
                 <Pencil /> Edit request
               </Link>
@@ -1140,7 +1137,7 @@ function EventCard({
                 }
                 disabled={reviewState !== undefined}
                 onClick={onCancel}
-                className="ml-auto text-red-700 hover:bg-red-50 hover:text-red-800 disabled:pointer-events-none disabled:opacity-40"
+                className="size-10 text-red-700 hover:bg-red-50 hover:text-red-800 disabled:pointer-events-none disabled:opacity-40"
               >
                 <Trash2 />
               </Button>
@@ -1154,6 +1151,11 @@ function EventCard({
             </>
           )}
         </div>
+        {/* Later cards reach the history through View details (the event
+            page's Change history), like the coordinator's card; Draft and
+            Requested cards have no View details, so it's a small link under
+            their main action. */}
+        {(isDraft || isRequested) && <EventHistoryButton eventId={event.id} subtle />}
       </div>
       <ClarificationPanel
         eventId={event.id}
