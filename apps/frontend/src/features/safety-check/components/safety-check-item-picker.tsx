@@ -27,27 +27,28 @@ function MainVenueTag() {
 /**
  * AC2: the Safety Officer selects which venue bookings and equipment
  * arrangements are affected. Same per-item shape ReadinessChecklist
- * renders for the coordinator, with a checkbox added per item — plain
- * string[] toggle state owned by the parent (the same inline-fieldset
- * pattern RequestClarificationDialog already uses for a small fixed set),
- * not a separate reusable picker component, since this list isn't reused
- * anywhere else.
+ * renders for the coordinator. The review page uses readOnly; only the
+ * Request changes dialog exposes checkboxes. Selection stays in the page
+ * so only explicitly selected arrangements are sent with that decision.
  */
 export function SafetyCheckItemPicker({
   readiness,
-  selectedBookingIds,
+  selectedBookingIds = [],
   onToggleBooking,
-  selectedRequirementIds,
+  selectedRequirementIds = [],
   onToggleRequirement,
   disabled = false,
+  readOnly = false,
 }: {
   readiness: EventReadiness;
-  selectedBookingIds: string[];
-  onToggleBooking: (bookingId: string) => void;
-  selectedRequirementIds: string[];
-  onToggleRequirement: (requirementId: string) => void;
+  selectedBookingIds?: string[];
+  onToggleBooking?: (bookingId: string) => void;
+  selectedRequirementIds?: string[];
+  onToggleRequirement?: (requirementId: string) => void;
   disabled?: boolean;
+  readOnly?: boolean;
 }) {
+  const ItemContainer = readOnly ? "div" : "label";
   return (
     <div className="mt-6 space-y-4">
       <section className="rounded-2xl border border-slate-200 bg-white p-6">
@@ -60,25 +61,25 @@ export function SafetyCheckItemPicker({
           <ul className="mt-4 divide-y divide-slate-100">
             {readiness.venues.map((booking) => (
               <li key={booking.bookingId} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
-                <label className="flex min-w-0 flex-1 items-start gap-3">
-                  <input
+                <ItemContainer className="flex min-w-0 flex-1 items-start gap-3">
+                  {!readOnly && <input
                     type="checkbox"
                     className="mt-0.5 size-4 accent-primary"
                     checked={selectedBookingIds.includes(booking.bookingId)}
-                    onChange={() => onToggleBooking(booking.bookingId)}
+                    onChange={() => onToggleBooking?.(booking.bookingId)}
                     disabled={disabled}
                     aria-label={`Flag ${booking.venueName}`}
-                  />
+                  />}
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center">
-                      <span className="truncate text-sm font-medium text-slate-800">{booking.venueName}</span>
+                    <span className="flex flex-wrap items-center gap-y-1">
+                      <span className="max-w-full break-words text-sm font-medium text-slate-800">{booking.venueName}</span>
                       {booking.isMainVenue && <MainVenueTag />}
                     </span>
                     {booking.needsReviewReason && (
                       <span className="mt-0.5 block text-xs text-orange-700">{booking.needsReviewReason}</span>
                     )}
                   </span>
-                </label>
+                </ItemContainer>
                 <ReadinessBadge status={booking.status} />
               </li>
             ))}
@@ -99,24 +100,24 @@ export function SafetyCheckItemPicker({
                 key={requirement.requirementId}
                 className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
               >
-                <label className="flex min-w-0 flex-1 items-start gap-3">
-                  <input
+                <ItemContainer className="flex min-w-0 flex-1 items-start gap-3">
+                  {!readOnly && <input
                     type="checkbox"
                     className="mt-0.5 size-4 accent-primary"
                     checked={selectedRequirementIds.includes(requirement.requirementId)}
-                    onChange={() => onToggleRequirement(requirement.requirementId)}
+                    onChange={() => onToggleRequirement?.(requirement.requirementId)}
                     disabled={disabled}
                     aria-label={`Flag ${requirement.equipmentName}`}
-                  />
+                  />}
                   <span className="min-w-0 flex-1">
-                    <span className="truncate text-sm font-medium text-slate-800">
+                    <span className="max-w-full break-words text-sm font-medium text-slate-800">
                       {requirement.equipmentName} &times; {requirement.quantity}
                     </span>
                     {requirement.needsReviewReason && (
                       <span className="mt-0.5 block text-xs text-orange-700">{requirement.needsReviewReason}</span>
                     )}
                   </span>
-                </label>
+                </ItemContainer>
                 <ReadinessBadge status={requirement.status} />
               </li>
             ))}

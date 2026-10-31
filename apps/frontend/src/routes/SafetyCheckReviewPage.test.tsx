@@ -160,7 +160,7 @@ describe("SafetyCheckReviewPage", () => {
   });
 
   // SPM-90 AC03: event information is read-only for the Safety Officer — the
-  // page offers decision buttons and flag checkboxes, never a text field or save.
+  // page offers decision buttons; correction checkboxes appear only after choosing Request changes.
   it("offers no way to edit event information", async () => {
     renderPage();
 
@@ -200,27 +200,53 @@ describe("SafetyCheckReviewPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("disables Request changes until an item is selected", async () => {
-    renderPage();
-
-    const requestChangesButton = await screen.findByRole("button", { name: "Request changes" });
-    expect(requestChangesButton).toBeDisabled();
-
+  // SPM-89 AC01/AC02: choose a decision before selecting corrections.
+  it("shows checkboxes only inside Request changes and requires a selection and reason", async () => {
     const user = userEvent.setup();
-    await user.click(screen.getByRole("checkbox", { name: "Flag Projector" }));
+    renderPage();
+    const button = await screen.findByRole("button", { name: "Request changes" });
+    expect(button).toBeEnabled();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    await user.click(button);
+    const dialog = await screen.findByRole("dialog", { name: "Request changes" });
+    const submit = within(dialog).getByRole("button", { name: "Send change request" });
+    expect(submit).toBeDisabled();
+    await user.type(within(dialog).getByLabelText("Reason"), "Move equipment away from the exit.");
+    expect(submit).toBeDisabled();
+    await user.click(within(dialog).getByRole("checkbox", { name: "Flag Projector" }));
+    expect(submit).toBeEnabled();
+    await user.clear(within(dialog).getByLabelText("Reason"));
+    expect(submit).toBeDisabled();
+    expect(decideEventSafetyCheckMock).not.toHaveBeenCalled();
+  });
 
-    expect(requestChangesButton).toBeEnabled();
+  it("discards correction selections when cancelled and keeps approval free of checkboxes", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Request changes" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("checkbox", { name: "Flag Projector" }));
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Request changes" }));
+    expect(await screen.findByRole("checkbox", { name: "Flag Projector" })).not.toBeChecked();
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+    const approval = await screen.findByRole("dialog", { name: "Approve safety arrangement" });
+    expect(within(approval).queryByRole("checkbox")).not.toBeInTheDocument();
+    await user.click(within(approval).getByRole("button", { name: "Confirm approval" }));
+    await waitFor(() => expect(decideEventSafetyCheckMock).toHaveBeenCalledWith("event-1", "approved", "", [], []));
   });
 
   it("submits Request changes with only the selected ids, then navigates to the queue", async () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("checkbox", { name: "Flag Projector" }));
-    await user.click(screen.getByRole("button", { name: "Request changes" }));
-    const dialog = screen.getByRole("dialog");
+    await user.click(await screen.findByRole("button", { name: "Request changes" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("checkbox", { name: "Flag Projector" }));
     await user.type(within(dialog).getByLabelText("Reason"), "Reposition away from the exit.");
-    await user.click(within(dialog).getByRole("button", { name: "Request changes" }));
+    await user.click(within(dialog).getByRole("button", { name: "Send change request" }));
 
     await waitFor(() =>
       expect(decideEventSafetyCheckMock).toHaveBeenCalledWith(
@@ -241,10 +267,10 @@ describe("SafetyCheckReviewPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole("button", { name: "Reject" }));
+    await user.click(await screen.findByRole("button", { name: "Reject safety arrangement" }));
     const dialog = screen.getByRole("dialog");
     await user.type(within(dialog).getByLabelText("Reason"), "Crowd plan is incomplete.");
-    await user.click(within(dialog).getByRole("button", { name: "Reject" }));
+    await user.click(within(dialog).getByRole("button", { name: "Confirm rejection" }));
 
     await waitFor(() =>
       expect(decideEventSafetyCheckMock).toHaveBeenCalledWith(
@@ -272,7 +298,7 @@ describe("SafetyCheckReviewPage", () => {
 
     await user.click(await screen.findByRole("button", { name: "Approve" }));
     const dialog = screen.getByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: "Approve" }));
+    await user.click(within(dialog).getByRole("button", { name: "Confirm approval" }));
 
     await waitFor(() =>
       expect(decideEventSafetyCheckMock).toHaveBeenCalledWith("event-1", "approved", "", [], []),
@@ -281,7 +307,7 @@ describe("SafetyCheckReviewPage", () => {
       "/safety-checks",
       expect.objectContaining({
         replace: true,
-        state: { notice: '"Alumni Homecoming Mixer" approved — it\'s now Confirmed.' },
+        state: expect.objectContaining({ notice: '"Alumni Homecoming Mixer" approved — it\'s now Confirmed.', decisionEventId: "event-1", decisionRound: 1 }),
       }),
     );
   });
@@ -293,7 +319,7 @@ describe("SafetyCheckReviewPage", () => {
     await user.click(await screen.findByRole("button", { name: "Approve" }));
     const dialog = screen.getByRole("dialog");
     await user.type(within(dialog).getByLabelText("Note (optional)"), "Looks good.");
-    await user.click(within(dialog).getByRole("button", { name: "Approve" }));
+    await user.click(within(dialog).getByRole("button", { name: "Confirm approval" }));
 
     await waitFor(() =>
       expect(decideEventSafetyCheckMock).toHaveBeenCalledWith(
@@ -327,7 +353,7 @@ describe("SafetyCheckReviewPage approving and loading", () => {
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Approve" }));
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Approve" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Confirm approval" }));
 
     expect((await screen.findAllByText("Only an event Pending Safety Check can be decided")).length).toBeGreaterThanOrEqual(1);
     expect(navigateMock).not.toHaveBeenCalled();
@@ -339,7 +365,7 @@ describe("SafetyCheckReviewPage approving and loading", () => {
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Approve" }));
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Approve" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Confirm approval" }));
 
     expect((await screen.findAllByText("This decision could not be submitted.")).length).toBeGreaterThanOrEqual(1);
   });

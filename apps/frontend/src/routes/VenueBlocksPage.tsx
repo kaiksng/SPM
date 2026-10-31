@@ -9,7 +9,7 @@ import {
 } from "@spm/shared";
 import { ArrowLeft, CalendarClock, Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ const SELECT_CLASS_NAME =
 
 export function VenueBlocksPage() {
   const { venueId } = useParams();
+  const location = useLocation();
   const { profile } = useAuth();
   const allowed = hasPermission(profile?.role ?? "attendee", "manageVenue");
   const [venueName, setVenueName] = useState("");
@@ -191,7 +192,7 @@ export function VenueBlocksPage() {
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-5xl">
-          <Link to={`/venues/${venueId}`} className={buttonVariants({ variant: "ghost", className: "-ml-2" })}>
+          <Link to={`/venues/${venueId}`} state={location.state} className={buttonVariants({ variant: "ghost", className: "-ml-2" })}>
             <ArrowLeft /> Back to venue
           </Link>
           {!allowed ? (
@@ -206,7 +207,7 @@ export function VenueBlocksPage() {
                 <p className="text-xs font-semibold tracking-[0.16em] text-primary uppercase">Venue operations</p>
                 <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Manage blocks</h1>
                 <p className="mt-2 text-sm text-slate-600">{venueName} · Maintenance, renovation and safety closures</p>
-                <Link to={`/venues/${venueId}/availability`} className={buttonVariants({ variant: "outline", size: "sm", className: "mt-4" })}>
+                <Link to={`/venues/${venueId}/availability`} state={{ venueCatalogueUrl: (location.state as { venueCatalogueUrl?: string } | null)?.venueCatalogueUrl }} className={buttonVariants({ variant: "outline", size: "sm", className: "mt-4" })}>
                   <CalendarClock /> View availability
                 </Link>
               </header>

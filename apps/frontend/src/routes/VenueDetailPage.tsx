@@ -304,11 +304,14 @@ export function VenueDetailPage() {
               <ArrowLeft /> {fromSearch ? "Back to venue search" : "Back to venue suggestions"}
             </Link>
           ) : (
-            // Go back in history (not a Link to "/venues") so the catalogue's
-            // search and filters, kept in its own URL, are still there.
+            // Use the saved catalogue URL: browser history may now point to
+            // Manage blocks or availability instead of the catalogue.
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={() => {
+                const url = (location.state as { venueCatalogueUrl?: unknown } | null)?.venueCatalogueUrl;
+                navigate(typeof url === "string" && (url === "/venues" || url.startsWith("/venues?")) ? url : "/venues");
+              }}
               className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
             >
               <ArrowLeft /> Back to venues
@@ -351,13 +354,13 @@ export function VenueDetailPage() {
                       calendar is a read view any authorised internal user needs. */}
                   <Link
                     to={`/venues/${venueId}/availability`}
-                    state={FROM_VENUE_DETAIL_STATE}
+                    state={{ ...location.state, ...FROM_VENUE_DETAIL_STATE }}
                     className={buttonVariants({ variant: "outline", size: "sm" })}
                   >
                     <CalendarClock /> View availability
                   </Link>
                   {canManageVenues && (
-                    <Link to={`/venues/${venueId}/blocks`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                    <Link to={`/venues/${venueId}/blocks`} state={location.state} className={buttonVariants({ variant: "outline", size: "sm" })}>
                       <Ban /> Manage blocks
                     </Link>
                   )}

@@ -49,7 +49,9 @@ const STATUS_COLORS = {
   // Pink, not a paler red — otherwise this reads as a faint variant of
   // Blocked instead of its own distinct status.
   reserved: { backgroundColor: "#fce7f3", borderColor: "#f9a8d4", textColor: "#be185d" },
-  blocked: { backgroundColor: "#dc2626", borderColor: "#dc2626", textColor: "#ffffff" },
+  // Month entries use a red dot and dark title, including multi-day entries.
+  // The day timeline below keeps its solid red background and white text.
+  blocked: { backgroundColor: "transparent", borderColor: "transparent", textColor: "#334155" },
 } as const satisfies Record<VenueCalendarDisplayStatus, object>;
 
 // The venue's home timezone — every other date/time display in this app
@@ -277,7 +279,8 @@ function periodsForDate(
 export function VenueAvailabilityPage() {
   const { venueId } = useParams();
   const navigate = useNavigate();
-  const cameFromVenueDetail = isFromVenueDetail(useLocation().state);
+  const location = useLocation();
+  const cameFromVenueDetail = isFromVenueDetail(location.state);
   const { user } = useAuth();
   const [venue, setVenue] = useState<VenueDetail>();
   const [periods, setPeriods] = useState<VenueAvailabilityPeriod[]>([]);
@@ -358,6 +361,7 @@ export function VenueAvailabilityPage() {
           ) : (
             <Link
               to={`/venues/${venueId}`}
+              state={location.state}
               className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
             >
               <ArrowLeft /> Back to {venue?.name ?? "venue"}

@@ -6,13 +6,13 @@ Source: `SPM List - Jira (6).csv`, read 2026-10-31. SHA-256: `384255afb34a03ec2d
 
 ## Evidence and status
 
-Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86, SPM-87, SPM-20 and SPM-81; execution results are recorded in integration-testing.md. The remaining 50 stories are planned.
+Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86, SPM-87, SPM-20, SPM-21, SPM-88, SPM-19, SPM-83 and SPM-81; execution results are recorded in integration-testing.md. The remaining 46 stories are planned.
 
 Before each later story, audit the named tests against the exact ACs, settle contradictions and obtain the next-story instruction. For each APP criterion, assert observable output and independent stored state, actor permissions, relevant history/notifications, failure invariants and cleanup. Keep presentation, navigation, highlighting and confirmation assertions in UI/E2E tests.
 
 ## Requirements decisions
 
-- **SPM-19:** BLOCKED source scenario: overlap rejection conflicts with SPM-83 AC2 and current pgTAP behaviour.
+- **SPM-19:** Source export still says reject an overlapping block; SPM-83 AC2 and the application save it and flag affected bookings. The user confirmed Jira was updated to align with the current behaviour; the supplied export predates that update.
 - **SPM-12:** REOPEN: exactly eight Jira statuses conflicts with the shared enum retaining legacy statuses. Resolve expected compatibility before writing an assertion.
 - **SPM-24:** REOPEN: verify revised occupancy states and interaction with additional bookings before implementation.
 - **SPM-85:** DECISION REQUIRED: export has 14 ACs, including required-room cascading, but booking records have no required-room flag. Resolve AC5 exactly-one-main versus AC13 loss of main, and the earlier recorded 12-AC agreement.
@@ -280,18 +280,20 @@ Gap recorded, not asserted: on a first assignment the organiser's notification s
 
 ### SPM-21 — Manual Search of Venue for Booking Request (Done)
 
+**Local evidence:** [SPM-21 integration tests](../../tests/integration/spm21-venue-search.integration.test.ts) passed. A backend test previously had an intermittent socket error; its mitigation and the remaining uncertainty are recorded in the execution record.
+
 **Real boundary to exercise:** Search service → time/filter conversion → search RPC.
 
 **Existing evidence locations:** [suggested-venues-panel.test.tsx](../../apps/frontend/src/features/event-requests/components/suggested-venues-panel.test.tsx); [manual-venue-search.test.tsx](../../apps/frontend/src/features/venues/components/manual-venue-search.test.tsx); [venue-search.test.ts](../../apps/frontend/src/features/venues/services/venue-search.test.ts); [VenueDetailPage.test.tsx](../../apps/frontend/src/routes/VenueDetailPage.test.tsx); [venue-search.test.ts](../../packages/shared/src/schemas/venue-search.test.ts); [event-choices.test.ts](../../packages/shared/src/types/event-choices.test.ts).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | An Event Coordinator can open manual search for a Planning event alongside automatic suggestions, including when the event already has an active venue request. Search inputs start from the event’s requirements and can be adjusted without changing the event. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | A valid start/end period and a positive capacity are required. The initial capacity is the greater of expected attendance and the event’s saved minimum capacity. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | When specified, location, room layout, every required facility, and accessibility needs must all match; unspecified optional filters do not restrict results. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | Results include only venues open throughout the searched period and free of overlapping Pending or Confirmed bookings and active blocks. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC05 | Each result shows the venue details relevant to suitability checking and its availability for the searched period. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC06 | Changing search dates does not change the event schedule. A venue found for different dates can be reviewed, but cannot be requested for that event through this search result. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | An Event Coordinator can open manual search for a Planning event alongside automatic suggestions, including when the event already has an active venue request. Search inputs start from the event’s requirements and can be adjusted without changing the event. | APP: real search service and local database; existing UI/component tests cover screen behaviour. |
+| AC02 | A valid start/end period and a positive capacity are required. The initial capacity is the greater of expected attendance and the event’s saved minimum capacity. | APP: real search service and local database; existing UI/component tests cover screen behaviour. |
+| AC03 | When specified, location, room layout, every required facility, and accessibility needs must all match; unspecified optional filters do not restrict results. | APP: real search service and local database; existing UI/component tests cover screen behaviour. |
+| AC04 | Results include only venues open throughout the searched period and free of overlapping Pending or Confirmed bookings and active blocks. | APP: real search service and local database; existing UI/component tests cover screen behaviour. |
+| AC05 | Each result shows the venue details relevant to suitability checking and its availability for the searched period. | APP: real search service and local database; existing UI/component tests cover screen behaviour. |
+| AC06 | Changing search dates does not change the event schedule. A venue found for different dates can be reviewed, but cannot be requested for that event through this search result. | APP: real search service and local database; existing UI/component tests cover screen behaviour. |
 
 ### SPM-72 — Automatically Suggest Suitable Venues for a Planning Event (Done)
 
@@ -420,39 +422,39 @@ Gap recorded, not asserted: on a first assignment the organiser's notification s
 
 ### SPM-88 — Identify Bookings That Conflict Under the Buffer Rule (Done)
 
-**Real boundary to exercise:** Buffer update/recheck callers → flags, readiness and notifications.
+**Real boundary exercised:** real buffer update and recheck services → Express/Auth/RPC → conflict flags, listing and staff notifications. [Integration tests](../../tests/integration/spm88-venue-conflicts.integration.test.ts).
 
 **Existing evidence locations:** [notification-bell.test.tsx](../../apps/frontend/src/features/notifications/components/notification-bell.test.tsx); [VenueDetailPage.test.tsx](../../apps/frontend/src/routes/VenueDetailPage.test.tsx); [spm88_venue_conflict_recheck.test.sql](../../supabase/tests/database/spm88_venue_conflict_recheck.test.sql).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | Venue Staff can trigger a conflict re-check for a single venue or all venues | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | Saving a change to a venue setup and turnaround time will automatically trigger a conflict check for that venue | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | A flagged booking is never deleted or cancelled, and its status is not changed. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | Given two or more Pending or Approved bookings now overlap in their effective windows, when a check runs, then every affected booking is flagged “Conflict – Needs Review”. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC05 | Given a booking is flagged, when I view the flagged bookings list, then I see its event, venue, period, and the conflicting booking or block. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC06 | Given a flagged booking no longer overlaps, when a check runs, then its flag is cleared and it no longer appears on the flagged bookings list. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | Venue Staff can trigger a conflict re-check for a single venue or all venues | APP: real services, backend and database; existing UI and pgTAP tests provide additional evidence. |
+| AC02 | Saving a change to a venue setup and turnaround time will automatically trigger a conflict check for that venue | APP: real services, backend and database; existing UI and pgTAP tests provide additional evidence. |
+| AC03 | A flagged booking is never deleted or cancelled, and its status is not changed. | APP: real services, backend and database; existing UI and pgTAP tests provide additional evidence. |
+| AC04 | Given two or more Pending or Approved bookings now overlap in their effective windows, when a check runs, then every affected booking is flagged “Conflict – Needs Review”. | APP: real services, backend and database; existing UI and pgTAP tests provide additional evidence. |
+| AC05 | Given a booking is flagged, when I view the flagged bookings list, then I see its event, venue, period, and the conflicting booking or block. | APP: real services, backend and database; existing UI and pgTAP tests provide additional evidence. |
+| AC06 | Given a flagged booking no longer overlaps, when a check runs, then its flag is cleared and it no longer appears on the flagged bookings list. | APP: real services, backend and database; existing UI and pgTAP tests provide additional evidence. |
 
 ### SPM-19 — Manage Venue Operational Blocks (Done)
 
-**Real boundary to exercise:** Block service → shared time conversion → block/history RPCs.
+**Real boundary exercised:** real block service → shared validation/time conversion → local Auth/PostgREST and database. [Integration tests](../../tests/integration/spm19-venue-blocks.integration.test.ts).
 
 **Existing evidence locations:** [venue-blocks.test.ts](../../apps/frontend/src/features/venues/services/venue-blocks.test.ts); [VenueBlocksPage.test.tsx](../../apps/frontend/src/routes/VenueBlocksPage.test.tsx); [spm19_spm21_venue_blocks_search.test.sql](../../supabase/tests/database/spm19_spm21_venue_blocks_search.test.sql).
 
-**Constraint:** BLOCKED source scenario: overlap rejection conflicts with SPM-83 AC2 and current pgTAP behaviour.
+**Source discrepancy:** The supplied export still says reject overlap. The user confirmed Jira was updated; tests cover the current SPM-83 save-and-flag behaviour. The supplied export predates that update.
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | Venue Staff can create a block with venue, reason, start time, and end time. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | Venue Staff can remove a block when it no longer applies. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | Current and past blocks remain visible in the venue's block history. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | Missing or invalid mandatory fields (venue, reason, start/end time) prevent saving and identify the affected field | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC05 | An end time earlier than or equal to the start time is rejected with a validation message | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| Scenario S01 | Given a proposed block overlaps a Pending or Confirmed booking, when Venue Staff attempt to save it, then the block is rejected and the conflict is identified. | Additional source scenario: map to AC/APP/UI outcomes before implementation. |
+| AC01 | Venue Staff can create a block with venue, reason, start time, and end time. | APP: real service and local database exercise this criterion without overlapping bookings; UI tests cover visible controls/text. |
+| AC02 | Venue Staff can remove a block when it no longer applies. | APP: real service and local database exercise this criterion without overlapping bookings; UI tests cover visible controls/text. |
+| AC03 | Current and past blocks remain visible in the venue's block history. | APP: real service and local database exercise this criterion without overlapping bookings; UI tests cover visible controls/text. |
+| AC04 | Missing or invalid mandatory fields (venue, reason, start/end time) prevent saving and identify the affected field | APP: real service and local database exercise this criterion without overlapping bookings; UI tests cover visible controls/text. |
+| AC05 | An end time earlier than or equal to the start time is rejected with a validation message | APP: real service and local database exercise this criterion without overlapping bookings; UI tests cover visible controls/text. |
+| Scenario S01 | Given a proposed block overlaps a Pending or Confirmed booking, when Venue Staff attempt to save it, then the block is rejected and the conflict is identified. | Source wording conflicts with SPM-83: integration verifies the user-requested current save-and-flag behaviour; The user confirmed the Jira amendment; the supplied export predates it. |
 
 ### SPM-83 — Mark a Venue Unavailable When Bookings Exist (Done)
 
-**Real boundary to exercise:** Block services → affected bookings, flags, readiness and notifications.
+**Real boundary exercised:** block and disruption services → local Auth/PostgREST/RPC, real Express for booking/replacement, readiness and persisted notifications. [Integration tests](../../tests/integration/spm83-venue-disruptions.integration.test.ts).
 
 **Existing evidence locations:** [notification-bell.test.tsx](../../apps/frontend/src/features/notifications/components/notification-bell.test.tsx); [affected-venue-bookings.test.tsx](../../apps/frontend/src/features/venues/components/affected-venue-bookings.test.tsx); [venue-blocks.test.ts](../../apps/frontend/src/features/venues/services/venue-blocks.test.ts); [venue-disruptions.test.ts](../../apps/frontend/src/features/venues/services/venue-disruptions.test.ts); [EventHistoryPage.test.tsx](../../apps/frontend/src/routes/EventHistoryPage.test.tsx); [EventsPage.test.tsx](../../apps/frontend/src/routes/EventsPage.test.tsx); [VenueBlocksPage.test.tsx](../../apps/frontend/src/routes/VenueBlocksPage.test.tsx); [venue-disruption.test.ts](../../packages/shared/src/domain/venue-disruption.test.ts); [venue-block.test.ts](../../packages/shared/src/schemas/venue-block.test.ts); [spm19_spm21_venue_blocks_search.test.sql](../../supabase/tests/database/spm19_spm21_venue_blocks_search.test.sql); [spm82_replacement_venue.test.sql](../../supabase/tests/database/spm82_replacement_venue.test.sql); [spm83_venue_block_disruptions.test.sql](../../supabase/tests/database/spm83_venue_block_disruptions.test.sql); [spm85_multi_venue_bookings.test.sql](../../supabase/tests/database/spm85_multi_venue_bookings.test.sql).
 
@@ -460,19 +462,19 @@ Gap recorded, not asserted: on a first assignment the organiser's notification s
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | Venue Staff can record unavailability with venue, reason category (maintenance, equipment failure, renovation, safety, other), description, start time, and end time. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | The unavailability is saved even if it overlaps Pending or Approved bookings. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | Each overlapping Pending booking, Approved booking, and active tentative hold is flagged Disrupted - Alternative Required; nothing is cancelled and event status is unchanged. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | An end date/time is required and must be after the start. Venue Staff can shorten or remove an unavailability period; any booking that no longer overlaps has its Disrupted flag cleared, and its coordinator is told the issue is cleared if no replacement has been approved. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC05 | A disrupted booking makes its event Not Ready for the safety check (enforced in SPM-33). | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC06 | Venue Staff see a list of affected bookings when saving. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC07 | A notification record is created for the assigned coordinator of each affected event. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC08 | New booking requests for the unavailable period are refused (existing rule). | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC09 | Before saving an unavailability that overlaps bookings, Venue Staff are shown the affected bookings (event, coordinator, period) and must confirm. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC10 | Overlap is determined using each booking's occupied window including its venue's setup and turnaround time. Booking, event and approval history are left unchanged. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC11 | The coordinator notification states the event, the venue, the affected period, the block reason and period, that alternative arrangements are required, and that the event has not been cancelled. It goes to the currently assigned coordinator; a coordinator with several affected events gets one per event. When the block is removed before a replacement is approved, the coordinator is told the issue is cleared. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC12 | Coordinators can see a list of their events with affected venue bookings, each showing Replacement Required, Replacement Requested or Resolved. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC13 | If a booking becomes Disrupted while its event is Pending Safety Check, the event returns to Planning and the Safety Officer is notified. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | Venue Staff can record unavailability with venue, reason category (maintenance, equipment failure, renovation, safety, other), description, start time, and end time. | APP: exercised by real application services and local database; existing UI and pgTAP tests cover their respective boundaries. |
+| AC02 | The unavailability is saved even if it overlaps Pending or Approved bookings. | APP: exercised by real application services and local database; existing UI and pgTAP tests cover their respective boundaries. |
+| AC03 | Each overlapping Pending booking, Approved booking, and active tentative hold is flagged Disrupted - Alternative Required; nothing is cancelled and event status is unchanged. | APP: exercised by real application services and local database; existing UI and pgTAP tests cover their respective boundaries. |
+| AC04 | An end date/time is required and must be after the start. Venue Staff can shorten or remove an unavailability period; any booking that no longer overlaps has its Disrupted flag cleared, and its coordinator is told the issue is cleared if no replacement has been approved. | APP: exercised by real application services and local database; existing UI and pgTAP tests cover their respective boundaries. |
+| AC05 | A disrupted booking makes its event Not Ready for the safety check (enforced in SPM-33). | APP: exercised by real application services and local database; existing UI and pgTAP tests cover their respective boundaries. |
+| AC06 | Venue Staff see a list of affected bookings when saving. | APP: exercised by real application services and local database; existing UI and pgTAP tests cover their respective boundaries. |
+| AC07 | A notification record is created for the assigned coordinator of each affected event. | APP: exercised by real application services and local database; existing UI and pgTAP tests cover their respective boundaries. |
+| AC08 | New booking requests for the unavailable period are refused (existing rule). | APP: exercised by real application services and local database; existing UI and pgTAP tests cover their respective boundaries. |
+| AC09 | Before saving an unavailability that overlaps bookings, Venue Staff are shown the affected bookings (event, coordinator, period) and must confirm. | APP: exercised by real application services and local database; existing UI and pgTAP tests cover their respective boundaries. |
+| AC10 | Overlap is determined using each booking's occupied window including its venue's setup and turnaround time. Booking, event and approval history are left unchanged. | APP: exercised by real application services and local database; existing UI and pgTAP tests cover their respective boundaries. |
+| AC11 | The coordinator notification states the event, the venue, the affected period, the block reason and period, that alternative arrangements are required, and that the event has not been cancelled. It goes to the currently assigned coordinator; a coordinator with several affected events gets one per event. When the block is removed before a replacement is approved, the coordinator is told the issue is cleared. | APP: exercised by real application services and local database; existing UI and pgTAP tests cover their respective boundaries. |
+| AC12 | Coordinators can see a list of their events with affected venue bookings, each showing Replacement Required, Replacement Requested or Resolved. | APP: exercised by real application services and local database; existing UI and pgTAP tests cover their respective boundaries. |
+| AC13 | If a booking becomes Disrupted while its event is Pending Safety Check, the event returns to Planning and the Safety Officer is notified. | APP: exercised by real application services and local database; existing UI and pgTAP tests cover their respective boundaries. |
 
 ### SPM-82 — Request a Replacement Venue for a Disrupted Booking (Done)
 

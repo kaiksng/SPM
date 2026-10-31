@@ -2409,6 +2409,15 @@ export type Database = {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: Json
       }
+      safety_check_review_history: {
+        Args: {
+          p_decision_id?: number
+          p_event_id?: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: Json
+      }
       save_event_draft: {
         Args: { draft: Json; target_event_id?: string }
         Returns: string

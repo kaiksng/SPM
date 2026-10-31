@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { singaporeLocalToIso } from "@spm/shared";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getVenueMock = vi.fn();
@@ -14,6 +14,7 @@ const listVenueBookingsForVenueMock = vi.fn();
 const checkVenueBookingAvailabilityMock = vi.fn();
 const recheckVenueConflictsMock = vi.fn();
 const navigateMock = vi.fn();
+let useRealNavigation = false;
 const authState = {
   profile: { full_name: "Joyce Coordinator", role: "event_coordinator" },
   user: { id: "coord-1" },
@@ -53,10 +54,21 @@ vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
 
 vi.mock("react-router", async () => {
   const actual = await vi.importActual<typeof import("react-router")>("react-router");
-  return { ...actual, useNavigate: () => navigateMock };
+  return { ...actual, useNavigate: () => {
+    const navigate = actual.useNavigate();
+    return useRealNavigation ? navigate : navigateMock;
+  } };
 });
 
 import { VenueDetailPage } from "./VenueDetailPage";
+import { VenueBlocksPage } from "./VenueBlocksPage";
+import { VenueCard } from "@/features/venues/components/venue-card";
+
+vi.mock("@/features/venues/services/venue-blocks", () => ({
+  listVenueBlocks: vi.fn().mockResolvedValue([]),
+  createVenueBlock: vi.fn(), previewVenueBlockImpact: vi.fn(),
+  shortenVenueBlock: vi.fn(), removeVenueBlock: vi.fn(),
+}));
 
 const venue = {
   name: "Auditorium",
@@ -99,6 +111,10 @@ const event = {
   registration: { required: false, opensAt: null, closesAt: null, capacity: null, waitlistEnabled: false },
 };
 
+function CatalogueLocation() {
+  return <p>{useLocation().search}</p>;
+}
+
 function renderPage(initialEntry: string, state?: unknown) {
   return render(
     <MemoryRouter initialEntries={[state ? { pathname: initialEntry.split("?")[0], search: `?${initialEntry.split("?")[1] ?? ""}`, state } : initialEntry]}>
@@ -120,6 +136,7 @@ beforeEach(() => {
   checkVenueBookingAvailabilityMock.mockReset().mockResolvedValue({ available: true, reason: null });
   recheckVenueConflictsMock.mockReset().mockResolvedValue({ venueId: "venue-1", flaggedCount: 0, clearedCount: 0, activeCount: 0 });
   navigateMock.mockReset();
+  useRealNavigation = false;
   authState.profile.role = "event_coordinator";
 });
 
@@ -658,13 +675,45 @@ describe("VenueDetailPage loading and requesting", () => {
     expect(screen.queryByText("Venue unavailable")).not.toBeInTheDocument();
   });
 
-  it("goes back through the browser history from the venue catalogue", async () => {
+  it("returns to the catalogue when opened directly", async () => {
     const user = userEvent.setup();
     renderPage("/venues/venue-1");
 
     await user.click(await screen.findByRole("button", { name: /Back to venues/ }));
 
-    expect(navigateMock).toHaveBeenCalledWith(-1);
+    expect(navigateMock).toHaveBeenCalledWith("/venues");
+  });
+
+  // SPM-19: returning from block management must not trap staff in history.
+  it("returns to the filtered catalogue after visiting Manage blocks twice", async () => {
+    useRealNavigation = true;
+    authState.profile.role = "venue_staff";
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/venues?search=Hall"]}><Routes>
+      <Route path="venues" element={<><h1>Filtered catalogue</h1><CatalogueLocation /><VenueCard venue={{ ...venue, id: "venue-1", areaTags: [], imageUrl: null, operatingHours: [], capacity: 250, setupTimeMinutes: 15, turnaroundTimeMinutes: 30, needsReviewCount: 0 }} canManageVenues /></>} />
+      <Route path="venues/:venueId" element={<VenueDetailPage />} />
+      <Route path="venues/:venueId/blocks" element={<VenueBlocksPage />} />
+    </Routes></MemoryRouter>);
+    await user.click(screen.getByRole("link", { name: /View details/ }));
+    for (let i = 0; i < 2; i++) {
+      await user.click(await screen.findByRole("link", { name: "Manage blocks" }));
+      await screen.findByText("Block history");
+      await user.click(screen.getByRole("link", { name: "Back to venue" }));
+    }
+    await user.click(await screen.findByRole("button", { name: "Back to venues" }));
+    expect(await screen.findByRole("heading", { name: "Filtered catalogue" })).toBeInTheDocument();
+    expect(screen.getByText("?search=Hall")).toBeInTheDocument();
+  });
+
+  it("preserves catalogue filters and rejects unrelated return destinations", async () => {
+    const user = userEvent.setup();
+    const first = renderPage("/venues/venue-1", { venueCatalogueUrl: "/venues?search=Hall&location=Bugis" });
+    await user.click(await screen.findByRole("button", { name: "Back to venues" }));
+    expect(navigateMock).toHaveBeenLastCalledWith("/venues?search=Hall&location=Bugis");
+    first.unmount();
+    renderPage("/venues/venue-1", { venueCatalogueUrl: "/events" });
+    await user.click(await screen.findByRole("button", { name: "Back to venues" }));
+    expect(navigateMock).toHaveBeenLastCalledWith("/venues");
   });
 
   // SPM-85: a notification about a cancelled booking opens the venue's Activity section.

@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listClarificationsMock = vi.fn();
@@ -1090,80 +1090,22 @@ describe("EventHistoryPage", () => {
     });
   });
 
-  // This story: the Safety Officer's history view is scoped to safety-check
-  // review rounds only, not the organiser/coordinator's full history.
+  // SPM-89 AC04: legacy links must not fetch event details after access expires.
   describe("for the Safety Officer", () => {
-    const EVENT_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
-
-    afterEach(() => {
-      authState.profile = { full_name: "Joyce Coordinator", role: "event_coordinator" };
-    });
-
-    function renderAsSafetyOfficer() {
+    afterEach(() => { authState.profile = { full_name: "Joyce Coordinator", role: "event_coordinator" }; });
+    function Destination() { return <p>SAFETY HISTORY {useLocation().search}</p>; }
+    it("redirects legacy history links to the safety-only workspace without general event reads", async () => {
       authState.profile = { full_name: "Sam Safety", role: "safety_officer" };
-      return render(
-        <MemoryRouter initialEntries={[`/events/${EVENT_ID}/history`]}>
-          <Routes>
-            <Route path="events/:eventId/history" element={<EventHistoryPage />} />
-            <Route path="safety-checks" element={<p>SAFETY CHECKS QUEUE</p>} />
-          </Routes>
-        </MemoryRouter>,
-      );
-    }
-
-    it("shows only the Safety check reviews section, not the organiser/coordinator's full history", async () => {
-      listSafetyCheckDecisionsMock.mockResolvedValue([
-        {
-          id: 1,
-          round: 1,
-          outcome: "rejected",
-          reason: "Crowd movement plan is incomplete.",
-          decidedByName: "Sam Safety",
-          decidedAt: "2026-10-18T16:05:00.000Z",
-          flaggedBookingIds: ["booking-1"],
-          flaggedRequirementIds: ["req-1"],
-        },
-      ]);
-      listEventStatusHistoryMock.mockResolvedValue([
-        {
-          id: 1,
-          fromStatus: "planning",
-          toStatus: "pending_safety_check",
-          changedByName: "Joyce",
-          changedAt: "2026-10-18T15:00:00.000Z",
-        },
-      ]);
-
-      renderAsSafetyOfficer();
-
-      expect(await screen.findByText("Round 1 · Rejected")).toBeInTheDocument();
-      expect(screen.queryByText("Lifecycle")).not.toBeInTheDocument();
-      expect(screen.queryByText("Pre-Approved")).not.toBeInTheDocument();
-      expect(screen.queryByText("Venue bookings")).not.toBeInTheDocument();
-      expect(screen.queryByRole("group", { name: "Show history" })).not.toBeInTheDocument();
-      // The other loaders are outside their RLS access once an event leaves
-      // pending_safety_check — don't call them at all for this role.
+      const id = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
+      render(<MemoryRouter initialEntries={[`/events/${id}/history`]}><Routes>
+        <Route path="events/:eventId/history" element={<EventHistoryPage />} />
+        <Route path="safety-checks" element={<Destination />} />
+      </Routes></MemoryRouter>);
+      expect(await screen.findByText(`SAFETY HISTORY ?tab=history&event=${id}`)).toBeInTheDocument();
+      expect(loadEventDetailMock).not.toHaveBeenCalled();
       expect(listEventStatusHistoryMock).not.toHaveBeenCalled();
       expect(listClarificationsMock).not.toHaveBeenCalled();
       expect(listVenueBookingsForEventMock).not.toHaveBeenCalled();
-    });
-
-    it("shows an empty state when no review round has happened yet", async () => {
-      renderAsSafetyOfficer();
-
-      expect(
-        await screen.findByText("No review rounds recorded yet for this event."),
-      ).toBeInTheDocument();
-    });
-
-    it("links back to the safety checks queue, not the events list", async () => {
-      renderAsSafetyOfficer();
-
-      await screen.findByText("No review rounds recorded yet for this event.");
-      expect(screen.getByRole("link", { name: /Back to safety checks/ })).toHaveAttribute(
-        "href",
-        "/safety-checks",
-      );
     });
   });
 

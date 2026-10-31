@@ -1,5 +1,6 @@
+import { createServer, type Server } from "node:http";
 import request from "supertest";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { rpcMock, getUserMock } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
@@ -18,8 +19,25 @@ const { createApp } = await import("../app");
 const VENUE_ID = "6f1c2a4e-3b5d-4c7e-9f8a-1b2c3d4e5f60";
 const USER_ID = "ea333cdb-21d1-4819-8fb0-ec64508d8323";
 
+let server: Server;
+
+beforeAll(async () => {
+  server = createServer(createApp());
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+});
+
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve());
+    server.closeIdleConnections();
+  });
+});
+
 function authedPost(path: string, body?: object) {
-  const req = request(createApp()).post(path).set("Authorization", "Bearer test-token");
+  const req = request(server).post(path).set("Authorization", "Bearer test-token");
   return body ? req.send(body) : req;
 }
 
@@ -54,7 +72,7 @@ describe("POST /venues/:venueId/recheck-conflicts", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp()).post(path);
+    const response = await request(server).post(path);
 
     expect(response.status).toBe(401);
     expect(rpcMock).not.toHaveBeenCalled();
@@ -102,7 +120,7 @@ describe("POST /venues/recheck-conflicts (all venues)", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp()).post(path);
+    const response = await request(server).post(path);
 
     expect(response.status).toBe(401);
     expect(rpcMock).not.toHaveBeenCalled();
@@ -149,7 +167,7 @@ describe("POST /venues/:venueId/update", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp()).post(path).send({ venue });
+    const response = await request(server).post(path).send({ venue });
 
     expect(response.status).toBe(401);
     expect(rpcMock).not.toHaveBeenCalled();
