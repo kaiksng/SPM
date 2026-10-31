@@ -6,7 +6,7 @@ Source: `SPM List - Jira (6).csv`, read 2026-10-31. SHA-256: `384255afb34a03ec2d
 
 ## Evidence and status
 
-Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13 and SPM-14; execution results are recorded in integration-testing.md. The remaining 54 stories are planned.
+Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14 and SPM-86; execution results are recorded in integration-testing.md. The remaining 53 stories are planned.
 
 Before each later story, audit the named tests against the exact ACs, settle contradictions and obtain the next-story instruction. For each APP criterion, assert observable output and independent stored state, actor permissions, relevant history/notifications, failure invariants and cleanup. Keep presentation, navigation, highlighting and confirmation assertions in UI/E2E tests.
 
@@ -318,17 +318,17 @@ Concurrency increments: SPM-81 simultaneous assignment; SPM-26 overlapping booki
 
 ### SPM-86 — Configure Venue Setup and Turnaround Time (Done)
 
-**Real boundary to exercise:** Venue update service → buffer configuration/history.
+**Real boundary exercised:** Venue service → Supabase and real Express backend → buffer configuration/history. Integration test: [SPM-86](../../tests/integration/spm86-venue-buffers.integration.test.ts).
 
 **Existing evidence locations:** [venue-card.test.tsx](../../apps/frontend/src/features/venues/components/venue-card.test.tsx); [venue-form.test.tsx](../../apps/frontend/src/features/venues/components/venue-form.test.tsx); [venues.test.ts](../../apps/frontend/src/features/venues/services/venues.test.ts); [VenueDetailPage.test.tsx](../../apps/frontend/src/routes/VenueDetailPage.test.tsx); [venue.test.ts](../../packages/shared/src/schemas/venue.test.ts); [spm86_venue_setup_turnaround.test.sql](../../supabase/tests/database/spm86_venue_setup_turnaround.test.sql).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | Venue Staff can enter setup time and turnaround time in whole minutes for each venue; both default to 0. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | Negative or non-numeric values are rejected and the affected field is identified. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | Saved values are shown on the venue details page and venue catalogue. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | Each change records the staff member, previous value, new value, and timestamp. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC05 | Only Venue Staff can change these values. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | Venue Staff can enter setup time and turnaround time in whole minutes for each venue; both default to 0. | APP: exercised through real application services, backend and local database; UI checks retain responsibility for visible controls/text. |
+| AC02 | Negative or non-numeric values are rejected and the affected field is identified. | APP: exercised through real application services, backend and local database; UI checks retain responsibility for visible controls/text. |
+| AC03 | Saved values are shown on the venue details page and venue catalogue. | APP: exercised through real application services, backend and local database; UI checks retain responsibility for visible controls/text. |
+| AC04 | Each change records the staff member, previous value, new value, and timestamp. | APP: exercised through real application services, backend and local database; UI checks retain responsibility for visible controls/text. |
+| AC05 | Only Venue Staff can change these values. | APP: exercised through real application services, backend and local database; UI checks retain responsibility for visible controls/text. |
 
 ### SPM-87 — Apply Setup and Turnaround to Availability and Conflict Checks (Done)
 

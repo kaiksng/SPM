@@ -1,8 +1,8 @@
 # Integration testing
 
 Application integration coverage currently includes **SPM-2 (drafts)**,
-**SPM-13 (sign-in)** and **SPM-14 (organiser ownership)**. The [coverage matrix](integration-coverage-matrix.md)
-tracks all 57 non-retired stories against Jira export (6). The remaining 54
+**SPM-13 (sign-in)**, **SPM-14 (organiser ownership)** and **SPM-86 (venue buffers)**. The [coverage matrix](integration-coverage-matrix.md)
+tracks all 57 non-retired stories against Jira export (6). The remaining 53
 stories need their own coverage review, walkthrough and implementation instruction.
 
 ## What these tests prove
@@ -64,8 +64,8 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **3 files / 30 tests passed**
-for the current SPM-2/SPM-13/SPM-14 coverage. A green job verifies this suite on GitHub;
+and open its details. The test step should report **4 files / 34 tests passed**
+for the current SPM-2/SPM-13/SPM-14/SPM-86 coverage. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
 
@@ -292,3 +292,7 @@ frontend chunk-size build warning remains. No production code, migration,
 hosted data or GitHub workflow was changed in this increment. No separate
 pgTAP/browser E2E/hosted UAT run was performed. Git history records the current
 commit/merge status; the existing CI job discovers the new suite when pushed.
+
+## SPM-86 execution record — 2026-10-31
+
+Four integration cases cover default and changed values, reads, audit history, invalid values, and all non-venue-staff roles plus anonymous access. UI rendering remains covered separately. The full disposable suite passed 34/34 after the final access-control assertions; eight target-safety checks passed. An earlier version also passed twice (34/34). Integration typecheck and `pnpm check` passed. The initial integration command failed before setup because the shell used Node 22; rerunning with Node 24 passed. `pnpm check` produced the existing bundle-size warning. No hosted database was used.
