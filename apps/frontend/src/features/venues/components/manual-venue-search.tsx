@@ -89,7 +89,11 @@ export function ManualVenueSearch({
     if (additional) {
       if (!label.trim()) { setErrors({ label: "Give this booking a label, for example Breakout 1" }); setResults(undefined); return; }
       if (values.startsAt && values.endsAt && !insideEvent) {
-        setErrors({ startsAt: "This booking's period must fall within the event's start and end time" }); setResults(undefined); return;
+        const message = "This booking's period must fall within the event's start and end time";
+        const next: Record<string, string> = {};
+        if (!event.startsAt || values.startsAt < isoToSingaporeLocal(event.startsAt)) next.startsAt = message;
+        if (!event.endsAt || values.endsAt > isoToSingaporeLocal(event.endsAt)) next.endsAt = message;
+        setErrors(next); setResults(undefined); return;
       }
     }
     const parsed = venueSearchSchema.safeParse(values);

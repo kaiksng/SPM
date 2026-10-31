@@ -1,6 +1,6 @@
 import { formatOperatingHours } from "@spm/shared";
 import { Building2, MapPin, Users } from "lucide-react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
 import { StatusBadge } from "@/features/event-requests/components/status-badges";
 import { getVenueLayoutImage } from "@/features/venues/utils/venue-layout-image";
@@ -20,6 +20,7 @@ export function VenueCard({
   venue: VenueSummary;
   canManageVenues: boolean;
 }) {
+  const location = useLocation();
   const cardClassName =
     "group flex min-h-56 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_45px_-38px_rgba(15,23,42,0.55)] transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_22px_50px_-34px_rgba(37,99,235,0.35)] motion-reduce:transform-none";
 
@@ -100,7 +101,7 @@ export function VenueCard({
   );
 
   return (
-    <Link to={`/venues/${venue.id}`} className={cardClassName}>
+    <Link to={`/venues/${venue.id}`} state={{ venueCatalogueUrl: `/venues${location.search}` }} className={cardClassName}>
       {content}
     </Link>
   );

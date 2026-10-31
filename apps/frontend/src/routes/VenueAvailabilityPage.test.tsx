@@ -175,6 +175,23 @@ describe("SPM-20: viewing venue availability", () => {
     );
   });
 
+  // SPM-19/SPM-20: block titles must remain readable beside the red dot.
+  it.each(["2099-04-06T08:00:00.000Z", "2099-04-08T08:00:00.000Z"])("uses dark month text for a block ending %s", async (endsAt) => {
+    listVenueAvailabilityMock.mockResolvedValue([
+      period({ type: "blocked", label: "Maintenance", endsAt, organiserName: null, coordinatorName: null, heldByName: null }),
+    ]);
+
+    const { container } = renderPage();
+    const belt = await screen.findByLabelText(/Blocked .*Maintenance/);
+    expect(belt.parentElement).toHaveClass("bg-red-600", "text-white");
+    const title = container.querySelector(".venue-calendar__month-title--blocked")!;
+    expect(title).toHaveTextContent("Maintenance");
+    expect(container.querySelector(".venue-calendar__dot--blocked")).not.toBeNull();
+    for (const bar of container.querySelectorAll(".fc-h-event")) {
+      expect((bar as HTMLElement).style.backgroundColor).toBe("transparent");
+    }
+  });
+
   // SPM-20 AC02: the viewer's own confirmed booking is told apart from someone else's.
   it("shows the viewer's own confirmed booking differently from another's", async () => {
     listVenueAvailabilityMock.mockResolvedValue([
