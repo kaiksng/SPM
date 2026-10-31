@@ -283,9 +283,8 @@ describe("ChangeRequestPanel", () => {
       isEventAssigned: false,
     });
 
-    expect(
-      await screen.findByText("Approved — assign a coordinator to apply this change."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Approved change request")).toBeInTheDocument();
+    expect(screen.getByText("Assign a coordinator to apply this change.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Apply change" })).not.toBeInTheDocument();
   });
 
@@ -390,10 +389,43 @@ describe("ChangeRequestPanel", () => {
       isEventAssigned: true,
     });
 
-    expect(await screen.findByText("Change requests")).toBeInTheDocument();
     await waitFor(() => expect(listEventChangeRequestsMock).toHaveBeenCalled());
     expect(screen.queryByRole("link", { name: "Apply change" })).not.toBeInTheDocument();
-    expect(screen.queryByText("An approved change request is waiting for you to apply it.")).not.toBeInTheDocument();
+    // Nothing left to act on, so the coordinator's note isn't shown at all.
+    expect(screen.queryByText("Approved change request")).not.toBeInTheDocument();
+  });
+
+  // The coordinator's note shows what the organiser asked for and why, with
+  // the decision buttons, instead of pointing at Change history.
+  it("shows the coordinator the requested change, the reason and when it was sent", async () => {
+    listEventChangeRequestsMock.mockResolvedValue([pendingRequest]);
+
+    renderPanel({
+      eventId: "event-1",
+      eventStatus: "planning",
+      role: "coordinator",
+      isEventAssigned: true,
+    });
+
+    expect(await screen.findByRole("heading", { name: "Change request awaiting review" })).toBeInTheDocument();
+    expect(screen.getByText("Move the start time to 2pm")).toBeInTheDocument();
+    expect(screen.getByText("Speaker rescheduled")).toBeInTheDocument();
+    expect(screen.getByText("14 Sept 2026, 4:00 pm")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+  });
+
+  it("shows the coordinator nothing when there is no request to act on", async () => {
+    listEventChangeRequestsMock.mockResolvedValue([]);
+
+    const { container } = renderPanel({
+      eventId: "event-1",
+      eventStatus: "planning",
+      role: "coordinator",
+      isEventAssigned: true,
+    });
+
+    await waitFor(() => expect(listEventChangeRequestsMock).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
   });
 
   // Only rejection requires a reason.

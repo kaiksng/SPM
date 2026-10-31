@@ -99,6 +99,7 @@ export async function loadEventDraft(eventId: string) {
         starts_at,
         ends_at,
         status,
+        banner_path,
         requirements_acknowledged,
         event_venue_requirements (
           preferred_location,
@@ -171,7 +172,7 @@ export async function loadEventDraft(eventId: string) {
     requirementsAcknowledged: data.requirements_acknowledged,
   } satisfies EventRequestFormValues;
 
-  return { values, status: data.status };
+  return { values, status: data.status, bannerPath: data.banner_path };
 }
 
 export async function saveEventDraft(

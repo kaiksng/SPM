@@ -18,6 +18,7 @@ import { ArrangementBadge, ArrangementDetails } from "@/features/equipment/compo
 import { loadEquipmentArrangementHistory } from "@/features/equipment/services/equipment-arrangement-status";
 import { EquipmentRequestDialog } from "@/features/event-requests/components/equipment-request-dialog";
 import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
+import { EquipmentPlacementSection } from "@/features/safety-check/components/equipment-placement-section";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
 import { Modal } from "@/features/event-requests/components/modal";
 import {
@@ -63,7 +64,7 @@ function formatPeriod(from: string | null, until: string | null) {
  */
 export function EventEquipmentPage() {
   const { eventId } = useParams();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [event, setEvent] = useState<EventDetail>();
   const [arrangements, setArrangements] = useState<EquipmentArrangement[]>([]);
   const [arrangementHistory, setArrangementHistory] = useState<Map<string, EquipmentArrangementEntry[]> | null>(
@@ -298,6 +299,27 @@ export function EventEquipmentPage() {
                       })}
                     </ul>
                   </section>
+                )}
+
+                {/* SPM-90: the Equipment step's safety check, at the bottom. */}
+                {profile?.role !== "event_organiser" && event.equipment.length > 0 && (
+                  <EquipmentPlacementSection
+                    eventId={event.id}
+                    equipmentPlacement={event.equipmentPlacement}
+                    flagged={event.safetyCheckFlags.includes("equipment_placement")}
+                    flagReason={event.safetyCheckFlagReason}
+                    canEdit={canEditEquipment}
+                    onSaved={(equipmentPlacement) =>
+                      setEvent({
+                        ...event,
+                        equipmentPlacement,
+                        // Saving a placement clears the Safety Officer's flag on it.
+                        safetyCheckFlags: equipmentPlacement
+                          ? event.safetyCheckFlags.filter((flag) => flag !== "equipment_placement")
+                          : event.safetyCheckFlags,
+                      })
+                    }
+                  />
                 )}
               </div>
             </div>

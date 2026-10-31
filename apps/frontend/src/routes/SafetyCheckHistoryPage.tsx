@@ -1,3 +1,4 @@
+import { isSafetyCheckFlag, SAFETY_CHECK_FLAG_LABELS } from "@spm/shared";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Link, useLocation, useParams } from "react-router";
@@ -50,6 +51,12 @@ export function SafetyCheckHistoryPage() {
       <section className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-semibold text-slate-950">{record.outcome === "approved" ? "Approval note" : "Reason for decision"}</h2>
         <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{record.reason || "No note recorded."}</p>
+        {record.flaggedSafetyChecks.length > 0 && (
+          <p className="mt-3 text-sm text-slate-700">
+            <span className="font-medium">Safety checks flagged:</span>{" "}
+            {record.flaggedSafetyChecks.map((check) => (isSafetyCheckFlag(check) ? SAFETY_CHECK_FLAG_LABELS[check] : check)).join(", ")}
+          </p>
+        )}
       </section>
       <section aria-label="Saved submission" className="mt-4 rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-semibold text-slate-950">Submission reviewed · Round {record.round}</h2>

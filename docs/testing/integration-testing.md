@@ -1,6 +1,6 @@
 # Integration testing
 
-Application integration coverage currently includes **SPM-2 (drafts), SPM-13 (sign-in), SPM-14 (organiser ownership), SPM-86 (venue buffers), SPM-87 (buffered availability), SPM-20 (availability calendar data), SPM-21 (manual venue search), SPM-88 (booking conflict flags), SPM-19 (operational blocks) and SPM-83 (venue disruptions)**. The [coverage matrix](integration-coverage-matrix.md) tracks all 57 non-retired stories against Jira export (6). The remaining 47 stories need their own coverage review and implementation instruction.
+Application integration coverage currently includes **SPM-2 (drafts), SPM-13 (sign-in), SPM-14 (organiser ownership), SPM-86 (venue buffers), SPM-87 (buffered availability), SPM-20 (availability calendar data), SPM-21 (manual venue search), SPM-88 (booking conflict flags), SPM-19 (operational blocks), SPM-83 (venue disruptions) and SPM-81 (coordinator assignment)**. The [coverage matrix](integration-coverage-matrix.md) tracks all 57 non-retired stories against Jira export (6). The remaining 46 stories need their own coverage review and implementation instruction.
 
 ## What these tests prove
 
@@ -61,8 +61,8 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **10 files / 53 tests passed**
-for the current SPM-2/SPM-13/SPM-14/SPM-86/SPM-87/SPM-20/SPM-21/SPM-88 SPM-19 and SPM-83 coverage. A green job verifies this suite on GitHub;
+and open its details. The test step should report **11 files / 63 tests passed**
+for the current SPM-2/SPM-13/SPM-14/SPM-86/SPM-87/SPM-20/SPM-21/SPM-88 SPM-19, SPM-83 and SPM-81 coverage. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
 
@@ -305,6 +305,56 @@ Final verification: integration typecheck passed; the full integration suite pas
 Two integration cases exercise the real availability service against local Auth and Postgres. They verify an empty venue and staff/coordinator reads of pending and confirmed bookings plus an operational block, including distinct types and stored times. The coordinator case uses another coordinator’s booking and a staff positive control. Calendar date selection, rendering and available-all-day presentation are separately covered by VenueAvailabilityPage component tests; operating hours still apply. Integration typecheck passed; the clean disposable run passed 38/38 with 8/8 safety checks. An initially suspected cross-coordinator visibility issue was not reproduced.
 
 `pnpm check` passed after the integration run. No tests were skipped.
+
+## SPM-81 evidence
+
+The [coordinator assignment suite](../../tests/integration/spm81-assign-coordinator.integration.test.ts)
+adds 10 cases (seven scenarios; the blocked-status scenario runs once each for
+Draft, Rejected, Cancelled and Completed). The Lead's real `assignEventCoordinator`
+service calls `reassign_event_coordinator` through local Auth/PostgREST; results
+are read back through the real Lead roster/event list, history, coordinator list
+and per-recipient notification services, and independently through SQL.
+Requested events are created by a real organiser save and the real submission
+route, so they start genuinely unassigned.
+
+| AC | Integration evidence | Separate responsibility |
+| --- | --- | --- |
+| AC01 | Lead assigns one coordinator; status stays Requested. Organiser and coordinator attempts are refused with an unchanged snapshot, then the Lead's assignment succeeds as a control | The assign control on the page |
+| AC02 | Roster contains the coordinators and excludes organiser, Lead, Safety Officer and Venue Staff; assigning each of those is refused with no change | Dropdown rendering |
+| AC03 | One open history entry: no previous coordinator, new coordinator, the Lead as changer, timestamp within the test's window | History display |
+| AC04 | Coordinator's own list returns the event; the Lead's event data moves from unassigned to assigned | Queue filtering and tabs in `EventsPage.test.tsx` |
+| AC05 | Coordinator and organiser each read one unread assignment notification in their own session; no other recipient | Bell rendering and wording |
+| AC06 | Reason-less assign to another or the same coordinator is refused; stored event, history and notifications unchanged | Directing the user to reassignment |
+| AC07 | Draft, Rejected, Cancelled and Completed each refused with unchanged snapshot | — |
+| AC08 | Counts are 2 and 0 (Cancelled/Completed excluded) and the idle coordinator's count becomes 1 after assignment. Two independently constructed Lead clients assign concurrently: exactly one succeeds, the other is refused, one history row and notifications only for the winner and organiser; the winner is not predetermined | Count display in `assign-coordinator-dialog.test.tsx` |
+
+Agreed interpretation: AC06 and the AC08 race refusal apply to an assignment
+with no reason. A Lead who supplies a reason on an already-assigned event is
+performing a valid SPM-84 reassignment, so that path is not treated as a defect.
+Gap recorded, not asserted: the organiser's first-assignment notification says
+the event "is now coordinated by a different Event Coordinator".
+
+Non-draft AC07/AC08 fixtures are administrative preparation along legal status
+edges with triggers and constraints enabled; they do not prove planning, safety,
+cancellation or completion workflows. The concurrency case builds a second
+application client and service module with `vi.resetModules()`, verifies it is
+signed in as the second Lead, and signs it out in teardown.
+
+### SPM-81 execution record — 2026-10-31
+
+| Check | Result |
+| --- | --- |
+| Integration typecheck | Passed |
+| First attempt | Exit 1 before setup: Docker daemon not running. No stack or fixtures created |
+| Clean run 1 | 7 files / 48 tests passed (10 SPM-81 + 38 existing); 8/8 safety checks; Vitest 39.30s |
+| Clean run 2 | 7 files / 48 tests passed; 8/8 safety checks; Vitest 45.76s |
+| `pnpm check` | Passed: shared 463, backend 185, frontend 1,572 tests; three typechecks and both builds |
+| Cleanup | Suite residue check passed; no dedicated containers left |
+| Documentation validation | 57 story headings and 336 AC rows retained |
+
+No test failures, skips or flakes. The existing frontend chunk-size build
+warning remains. No production code, migration, hosted data or workflow was
+changed. No separate pgTAP, browser E2E or hosted UAT run was performed.
 
 ## SPM-21 execution record — 2026-10-31
 

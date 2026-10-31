@@ -1,4 +1,4 @@
-import type { EventReadiness, SafetyReviewDetails } from "@spm/shared";
+import type { EventReadiness, SafetyCheckFlag, SafetyReviewDetails } from "@spm/shared";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 
@@ -44,6 +44,7 @@ export function SafetyCheckReviewPage() {
   const [error, setError] = useState<string>();
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
   const [selectedRequirementIds, setSelectedRequirementIds] = useState<string[]>([]);
+  const [selectedSafetyChecks, setSelectedSafetyChecks] = useState<SafetyCheckFlag[]>([]);
   const [showDialog, setShowDialog] = useState<SafetyCheckDecisionOutcome>();
   const [actionError, setActionError] = useState<string>();
 
@@ -98,11 +99,18 @@ export function SafetyCheckReviewPage() {
     );
   }
 
+  function toggleSafetyCheck(check: SafetyCheckFlag) {
+    setSelectedSafetyChecks((current) =>
+      current.includes(check) ? current.filter((item) => item !== check) : [...current, check],
+    );
+  }
+
   const closeDecision = useCallback(() => setShowDialog(undefined), []);
 
   function openDecision(decision: SafetyCheckDecisionOutcome) {
     setSelectedBookingIds([]);
     setSelectedRequirementIds([]);
+    setSelectedSafetyChecks([]);
     setActionError(undefined);
     setShowDialog(decision);
   }
@@ -115,6 +123,7 @@ export function SafetyCheckReviewPage() {
       reason,
       decision === "changes_requested" ? selectedBookingIds : [],
       decision === "changes_requested" ? selectedRequirementIds : [],
+      decision === "changes_requested" ? selectedSafetyChecks : [],
     );
     setShowDialog(undefined);
     navigate("/safety-checks", {
@@ -132,7 +141,7 @@ export function SafetyCheckReviewPage() {
     });
   }
 
-  const flaggedCount = selectedBookingIds.length + selectedRequirementIds.length;
+  const flaggedCount = selectedBookingIds.length + selectedRequirementIds.length + selectedSafetyChecks.length;
 
   return (
     <RoleGate>
@@ -241,6 +250,8 @@ export function SafetyCheckReviewPage() {
                       onToggleBooking={toggleBooking}
                       selectedRequirementIds={selectedRequirementIds}
                       onToggleRequirement={toggleRequirement}
+                      selectedSafetyChecks={selectedSafetyChecks}
+                      onToggleSafetyCheck={toggleSafetyCheck}
                     />
                   )}
                 </SafetyCheckDecisionDialog>

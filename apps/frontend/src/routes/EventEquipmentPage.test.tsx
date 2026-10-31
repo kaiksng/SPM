@@ -12,6 +12,7 @@ const authState = {
 
 vi.mock("@/context/auth-context", () => ({ useAuth: () => authState }));
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
+vi.mock("@/features/safety-check/services/safety-plan", () => ({ saveEquipmentPlacement: vi.fn() }));
 
 const loadEventDetailMock = vi.fn();
 const listEquipmentArrangementsMock = vi.fn();
@@ -99,6 +100,8 @@ beforeEach(() => {
     id: "event-1",
     title: "Spring Expo",
     status: "planning",
+    safetyCheckFlags: [],
+    safetyCheckFlagReason: null,
     equipment: [
       requirement("req-proj", "Projector", 3),
       requirement("req-mic", "Wireless microphone", 10),
@@ -441,6 +444,8 @@ describe("EventEquipmentPage (requesting equipment from Technical Support Staff)
       id: "event-1",
       title: "Spring Expo",
       status: "planning",
+      safetyCheckFlags: [],
+      safetyCheckFlagReason: null,
       assignedCoordinatorId: "coordinator-1",
       startsAt: "2099-07-01T02:00:00.000Z",
       endsAt: "2099-07-01T04:00:00.000Z",
@@ -570,5 +575,59 @@ describe("EventEquipmentPage (requesting equipment from Technical Support Staff)
     expect(await screen.findByText(/2 items have not been requested/)).toBeInTheDocument();
     expect(screen.queryByText(/Select Request equipment/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Request equipment/ })).not.toBeInTheDocument();
+  });
+});
+
+// SPM-90: the Equipment step's safety check sits at the bottom of the page.
+describe("EventEquipmentPage safety check", () => {
+  it("lets the assigned coordinator record equipment placement during Planning", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      ...(await loadEventDetailMock()),
+      assignedCoordinatorId: "coordinator-1",
+      equipmentPlacement: null,
+    });
+    renderPage();
+
+    const check = await screen.findByRole("region", { name: "Safety check" });
+    expect(within(check).getByRole("textbox", { name: "Equipment placement" })).toBeInTheDocument();
+    expect(within(check).getByRole("button", { name: "Save equipment placement" })).toBeInTheDocument();
+  });
+
+  it("shows it read-only to others", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      ...(await loadEventDetailMock()),
+      assignedCoordinatorId: "coordinator-2",
+      equipmentPlacement: "Stage left",
+    });
+    renderPage();
+
+    const check = await screen.findByRole("region", { name: "Safety check" });
+    expect(within(check).queryByRole("textbox")).not.toBeInTheDocument();
+    expect(within(check).getByText("Stage left")).toBeInTheDocument();
+  });
+
+  it("isn't shown when the event has no equipment", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...(await loadEventDetailMock()), equipment: [] });
+    renderPage();
+
+    expect(await screen.findByText("No equipment was requested for this event.")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Safety check" })).not.toBeInTheDocument();
+  });
+
+  it("shows the Safety Officer's reason when they flagged the placement", async () => {
+    loadEventDetailMock.mockResolvedValue({
+      ...(await loadEventDetailMock()),
+      assignedCoordinatorId: "coordinator-1",
+      equipmentPlacement: "Stage left",
+      safetyCheckFlags: ["equipment_placement"],
+      safetyCheckFlagReason: "Speakers block the fire exit.",
+    });
+    renderPage();
+
+    const check = await screen.findByRole("region", { name: "Safety check" });
+    expect(
+      within(check).getByText("The Safety Officer asked for this to be revised: Speakers block the fire exit."),
+    ).toBeInTheDocument();
+    expect(within(check).getByRole("textbox", { name: "Equipment placement" })).toHaveValue("Stage left");
   });
 });

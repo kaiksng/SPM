@@ -6,7 +6,7 @@ export const safetyReviewRecord: SafetyReviewHistoryRecord = {
   submittedAt: "2099-04-01T01:00:00Z", coordinatorName: "Priya Patel",
   outcome: "changes_requested", reason: "Move the projector away from the exit.",
   reviewerName: "Sam Safety", decidedAt: "2099-04-02T01:00:00Z",
-  flaggedBookingIds: [], flaggedRequirementIds: ["req-1"],
+  flaggedBookingIds: [], flaggedRequirementIds: ["req-1"], flaggedSafetyChecks: [],
   venuesSnapshot: [{ bookingId: "booking-1", venueName: "Original Auditorium", isMainVenue: true }],
   equipmentSnapshot: [{ requirementId: "req-1", equipmentName: "Projector", quantity: 2 }],
   periodSnapshot: { startsAt: "2099-04-06T02:00:00Z", endsAt: "2099-04-06T04:00:00Z" },

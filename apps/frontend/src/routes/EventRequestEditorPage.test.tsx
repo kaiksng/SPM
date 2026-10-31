@@ -11,9 +11,11 @@ const saveEventDraftMock = vi.fn();
 const listClarificationsMock = vi.fn();
 const respondToClarificationMock = vi.fn();
 const submitEventRequestMock = vi.fn();
+const setEventBannerMock = vi.fn();
 
-const authState: { profile: { full_name: string; role: string } | null } = {
+const authState: { profile: { full_name: string; role: string } | null; user: { id: string } | null } = {
   profile: { full_name: "Olivia Organiser", role: "event_organiser" },
+  user: { id: "organiser-1" },
 };
 
 vi.mock("@/context/auth-context", () => ({ useAuth: () => authState }));
@@ -28,6 +30,24 @@ vi.mock("@/features/event-requests/services/clarifications", () => ({
 }));
 vi.mock("@/features/event-requests/services/event-submissions", () => ({
   submitEventRequest: (...args: unknown[]) => submitEventRequestMock(...args),
+}));
+vi.mock("@/features/event-banners/services/event-banners", () => ({
+  setEventBanner: (...args: unknown[]) => setEventBannerMock(...args),
+}));
+// The banner card has its own tests; this stand-in shows what the page hands
+// it and lets a test pick a banner.
+vi.mock("@/features/event-banners/components/event-banner-section", () => ({
+  EventBannerSection: (props: {
+    eventId?: string;
+    bannerPath: string | null;
+    onChanged: (bannerPath: string | null) => void;
+  }) => (
+    <div>
+      <p>Banner event: {props.eventId ?? "not created yet"}</p>
+      <p>Banner: {props.bannerPath ?? "none"}</p>
+      <button type="button" onClick={() => props.onChanged("organiser-1/new.png")}>Pick banner</button>
+    </div>
+  ),
 }));
 // The form has its own tests; this stand-in exposes what the page hands it and lets a test trigger its actions.
 vi.mock("@/features/event-requests/components/event-request-form", () => ({
@@ -97,6 +117,8 @@ const savedDraft = {
 
 beforeEach(() => {
   authState.profile = { full_name: "Olivia Organiser", role: "event_organiser" };
+  authState.user = { id: "organiser-1" };
+  setEventBannerMock.mockReset().mockResolvedValue(undefined);
   loadEventDraftMock.mockReset().mockResolvedValue(savedDraft);
   saveEventDraftMock.mockReset().mockResolvedValue("event-new");
   listClarificationsMock.mockReset().mockResolvedValue([]);
@@ -372,3 +394,71 @@ describe("a response that arrives after the organiser has left the page", () => 
   });
 });
 
+
+// Event banner: an organiser can add one from the start; on a new event it is
+// attached when the event is first saved.
+describe("the event banner", () => {
+  it("offers a banner on a new event and attaches it when the Draft is saved", async () => {
+    const user = userEvent.setup();
+    renderAt("/events/new");
+
+    expect(screen.getByText("Banner event: not created yet")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Pick banner" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Events list. Notice: Draft saved.")).toBeInTheDocument();
+    expect(setEventBannerMock).toHaveBeenCalledWith("event-new", "organiser-1/new.png");
+  });
+
+  it("attaches it before submitting a new request directly", async () => {
+    const user = userEvent.setup();
+    renderAt("/events/new");
+
+    await user.click(screen.getByRole("button", { name: "Pick banner" }));
+    await user.click(screen.getByRole("button", { name: "Submit now" }));
+
+    expect(await screen.findByText("Events list. Notice: Event request submitted.")).toBeInTheDocument();
+    expect(setEventBannerMock).toHaveBeenCalledWith("event-new", "organiser-1/new.png");
+    expect(setEventBannerMock.mock.invocationCallOrder[0]!).toBeLessThan(
+      submitEventRequestMock.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("still saves the Draft, and says so, when the banner can't be attached", async () => {
+    setEventBannerMock.mockRejectedValue(new Error("The banner could not be saved. Try again."));
+    const user = userEvent.setup();
+    renderAt("/events/new");
+
+    await user.click(screen.getByRole("button", { name: "Pick banner" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(
+      await screen.findByText(
+        "Events list. Notice: Draft saved. The banner couldn't be added; add it again from the event page.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("saves a new Draft without a banner when none was picked", async () => {
+    const user = userEvent.setup();
+    renderAt("/events/new");
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Events list. Notice: Draft saved.")).toBeInTheDocument();
+    expect(setEventBannerMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a saved Draft's banner, changed on the event straight away", async () => {
+    loadEventDraftMock.mockResolvedValue({ ...savedDraft, bannerPath: "organiser-1/saved.png" });
+    const user = userEvent.setup();
+    renderAt("/events/event-1/edit");
+
+    expect(await screen.findByText("Banner: organiser-1/saved.png")).toBeInTheDocument();
+    expect(screen.getByText("Banner event: event-1")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText("Events list. Notice: Draft updated.")).toBeInTheDocument();
+    expect(setEventBannerMock).not.toHaveBeenCalled();
+  });
+});

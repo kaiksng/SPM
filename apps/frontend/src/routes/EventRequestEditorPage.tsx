@@ -13,6 +13,8 @@ import { Link, useNavigate, useParams } from "react-router";
 
 import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { EventBannerSection } from "@/features/event-banners/components/event-banner-section";
+import { setEventBanner } from "@/features/event-banners/services/event-banners";
 import { EventRequestForm } from "@/features/event-requests/components/event-request-form";
 import {
   listClarifications,
@@ -38,13 +40,16 @@ export function EventRequestEditorPage({
 }) {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [initialValues, setInitialValues] = useState<EventRequestFormValues>();
   const [currentEventId, setCurrentEventId] = useState(eventId);
   const [requestStatus, setRequestStatus] = useState<string>(
     eventId ? "" : "draft",
   );
   const [loading, setLoading] = useState(Boolean(eventId));
+  // The optional banner. On a new event it is uploaded but not attached
+  // until the event's first save creates it (attachNewEventBanner).
+  const [bannerPath, setBannerPath] = useState<string | null>(null);
   const [error, setError] = useState<string>();
   const [openClarification, setOpenClarification] = useState<{
     id: string;
@@ -67,6 +72,7 @@ export function EventRequestEditorPage({
     if (!eventId || profile?.role !== "event_organiser") {
       setCurrentEventId(undefined);
       setRequestStatus("draft");
+      setBannerPath(null);
       setInitialValues(structuredClone(emptyEventRequestFormValues));
       setLoading(false);
       return;
@@ -79,6 +85,7 @@ export function EventRequestEditorPage({
         if (active) {
           setInitialValues(draft.values);
           setRequestStatus(draft.status);
+          setBannerPath(draft.bannerPath);
         }
       })
       .catch((loadError: unknown) => {
@@ -150,6 +157,23 @@ export function EventRequestEditorPage({
     );
   }
 
+  /**
+   * Attaches a banner picked before the event existed. The event is already
+   * saved by then, so a failure only leaves it without a banner, which the
+   * organiser can add again from the event page.
+   */
+  async function attachNewEventBanner(newEventId: string): Promise<boolean> {
+    if (!bannerPath) return true;
+    try {
+      await setEventBanner(newEventId, bannerPath);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const BANNER_NOT_ATTACHED = " The banner couldn't be added; add it again from the event page.";
+
   async function handleSave(values: EventRequestFormValues) {
     if (submitting && currentEventId) {
       await submitEventRequest(currentEventId, values);
@@ -160,7 +184,8 @@ export function EventRequestEditorPage({
       return;
     }
 
-    await saveEventDraft(values, currentEventId);
+    const savedEventId = await saveEventDraft(values, currentEventId);
+    const bannerAttached = currentEventId ? true : await attachNewEventBanner(savedEventId);
 
     // Saving permitted edits while a clarification is open is itself how the
     // organiser responds — no separate typed message required (AC04 is
@@ -179,11 +204,13 @@ export function EventRequestEditorPage({
       notice = "Draft updated. Clarification addressed.";
     }
 
+    if (!bannerAttached) notice += BANNER_NOT_ATTACHED;
     navigate("/events", { replace: true, state: { notice } });
   }
 
   async function handleSubmitRequest(values: EventRequestFormValues) {
     let targetEventId = currentEventId;
+    let bannerAttached = true;
 
     // The submission endpoint operates on a stored Draft. When the organiser
     // submits directly from a brand-new form, create that Draft first and keep
@@ -191,12 +218,13 @@ export function EventRequestEditorPage({
     if (!targetEventId) {
       targetEventId = await saveEventDraft(values);
       setCurrentEventId(targetEventId);
+      bannerAttached = await attachNewEventBanner(targetEventId);
     }
 
     await submitEventRequest(targetEventId, values);
     navigate("/events", {
       replace: true,
-      state: { notice: "Event request submitted." },
+      state: { notice: `Event request submitted.${bannerAttached ? "" : BANNER_NOT_ATTACHED}` },
     });
   }
 
@@ -270,6 +298,15 @@ export function EventRequestEditorPage({
             </section>
           ) : initialValues ? (
             <div className="mt-7">
+              {user && profile?.role === "event_organiser" && (
+                <EventBannerSection
+                  eventId={currentEventId}
+                  organiserId={user.id}
+                  bannerPath={bannerPath}
+                  onChanged={setBannerPath}
+                  className="mb-6"
+                />
+              )}
               <EventRequestForm
                 key={eventId ?? "new"}
                 initialValues={initialValues}

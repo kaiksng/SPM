@@ -434,7 +434,7 @@ describe("EventHistoryPage", () => {
         decidedByName: "Sam Safety",
         decidedAt: "2026-10-20T14:40:00.000Z",
         flaggedBookingIds: [],
-        flaggedRequirementIds: [],
+        flaggedRequirementIds: [], flaggedSafetyChecks: [],
       },
       {
         id: 1,
@@ -444,7 +444,7 @@ describe("EventHistoryPage", () => {
         decidedByName: "Sam Safety",
         decidedAt: "2026-10-18T16:05:00.000Z",
         flaggedBookingIds: [],
-        flaggedRequirementIds: ["req-1"],
+        flaggedRequirementIds: ["req-1"], flaggedSafetyChecks: [],
       },
     ]);
 
@@ -470,7 +470,7 @@ describe("EventHistoryPage", () => {
         decidedByName: "Sam Safety",
         decidedAt: "2026-10-20T14:40:00.000Z",
         flaggedBookingIds: [],
-        flaggedRequirementIds: [],
+        flaggedRequirementIds: [], flaggedSafetyChecks: [],
       },
     ]);
 
