@@ -225,18 +225,25 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("link", { name: "Edit event" })).not.toBeInTheDocument();
   });
 
-  // SPM-11 AC02: the coordinator is pointed to a change request instead of an edit.
-  it.each(["confirmed", "completed", "rejected", "cancelled"])(
-    "tells either role a %s event's edits are locked, pointing to a change request",
-    async (status) => {
+  // SPM-11 AC02: a Confirmed event points to a change request; the others,
+  // which can't take one, say they can no longer be changed.
+  it.each([
+    ["confirmed", /submit a change request instead of editing it directly/],
+    ["completed", "This event has been completed. It can no longer be changed."],
+    ["rejected", "This event was rejected. It can no longer be changed."],
+    ["cancelled", "This event was cancelled. It can no longer be changed."],
+  ])(
+    "tells either role a %s event's edits are locked",
+    async (status, message) => {
       loadEventDetailMock.mockResolvedValue({ ...event, status });
 
       renderPage();
 
-      expect(
-        await screen.findByText(/submit a change request instead of editing it directly/),
-      ).toBeInTheDocument();
+      expect(await screen.findByText(message)).toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Edit event" })).not.toBeInTheDocument();
+      if (status !== "confirmed") {
+        expect(screen.queryByText(/change request/)).not.toBeInTheDocument();
+      }
     },
   );
 
@@ -931,14 +938,15 @@ describe("EventDetailPage", () => {
   describe("SPM-11: blocking direct edits on finalised events", () => {
     const finalisedStatuses = ["confirmed", "completed", "rejected", "cancelled"];
     const changeRequestMessage = /submit a change request instead of editing it directly/;
+    const lockedMessage = /submit a change request instead of editing it directly|It can no longer be changed\./;
 
     afterEach(() => {
       authState.user.id = "20000000-0000-0000-0000-000000000002";
     });
 
-    // SPM-11 AC02: the organiser sees the same change-request message.
+    // SPM-11 AC02: the organiser sees the same message as the coordinator.
     it.each(finalisedStatuses)(
-      "points the organiser of a %s event to a change request",
+      "tells the organiser of a %s event that edits are locked",
       async (status) => {
         authState.profile.role = "event_organiser";
         authState.user.id = event.organiserId;
@@ -946,7 +954,7 @@ describe("EventDetailPage", () => {
 
         renderPage();
 
-        expect(await screen.findByText(changeRequestMessage)).toBeInTheDocument();
+        expect(await screen.findByText(lockedMessage)).toBeInTheDocument();
       },
     );
 
@@ -958,7 +966,7 @@ describe("EventDetailPage", () => {
 
         renderPage();
 
-        await screen.findByText(changeRequestMessage);
+        await screen.findByText(lockedMessage);
         expect(screen.queryByRole("link", { name: "Edit event" })).not.toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
       },
@@ -966,13 +974,14 @@ describe("EventDetailPage", () => {
 
     // SPM-11 AC02: the message is only for finalised events.
     it.each(["requested", "planning", "pending_safety_check"])(
-      "does not show the change-request message for a %s event",
+      "does not show the locked message for a %s event",
       async (status) => {
         loadEventDetailMock.mockResolvedValue({ ...event, status });
 
         renderPage();
 
         await screen.findByText("Student Leadership Summit 2");
+        expect(screen.queryByText(lockedMessage)).not.toBeInTheDocument();
         expect(screen.queryByText(changeRequestMessage)).not.toBeInTheDocument();
       },
     );

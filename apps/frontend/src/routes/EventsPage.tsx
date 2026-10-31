@@ -1,6 +1,6 @@
 import {
   clarificationPermittedFieldLabels,
-  isDirectEditBlocked,
+  directEditBlockedMessage,
   isoToSingaporeLocal,
   isRegistrationSetupIncomplete,
   registrationActionNeeded,
@@ -1149,9 +1149,7 @@ function EventCard({
             <>
               <EventCardLinks event={event} />
               <span className="self-center text-sm text-slate-500">
-                {isDirectEditBlocked(event.status)
-                  ? "This event is finalised. Direct edits are locked — submit a change request instead."
-                  : "Editing is unavailable in this workflow."}
+                {directEditBlockedMessage(event.status) ?? "Editing is unavailable in this workflow."}
               </span>
             </>
           )}

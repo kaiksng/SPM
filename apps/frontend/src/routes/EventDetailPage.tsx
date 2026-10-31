@@ -1,5 +1,6 @@
 import {
   clarificationPermittedFieldLabels,
+  directEditBlockedMessage,
   isDirectEditBlocked,
   type ClarificationPermittedField,
   type EventReadiness,
@@ -324,8 +325,7 @@ export function EventDetailPage() {
                 </div>
                 {isDirectEditBlocked(event.status) && (
                   <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                    This event is finalised. Direct edits are locked to keep finalised arrangements
-                    accurate — submit a change request instead of editing it directly.
+                    {directEditBlockedMessage(event.status)}
                   </p>
                 )}
                 {/* SPM-38: the change request to decide or apply, at the top

@@ -4,6 +4,7 @@ import {
   allowedEventStatusTransitions,
   canTransitionEventStatus,
   eventStatuses,
+  directEditBlockedMessage,
   isDirectEditBlocked,
   isPlanningAllowed,
   isSubmittedEventStatus,
@@ -119,5 +120,26 @@ describe("isDirectEditBlocked", () => {
   // one of them, even though it comes after Planning.
   it("does not treat Pending Safety Check as finalised", () => {
     expect(isDirectEditBlocked("pending_safety_check")).toBe(false);
+  });
+});
+
+describe("directEditBlockedMessage", () => {
+  // SPM-11 AC02: only a Confirmed event can still take a change request.
+  it("points a Confirmed event to a change request", () => {
+    expect(directEditBlockedMessage("confirmed")).toMatch(/submit a change request instead of editing it directly/);
+  });
+
+  it.each([
+    ["completed", "This event has been completed. It can no longer be changed."],
+    ["rejected", "This event was rejected. It can no longer be changed."],
+    ["cancelled", "This event was cancelled. It can no longer be changed."],
+  ])("tells a %s event it can no longer be changed, without a change request", (status, message) => {
+    expect(directEditBlockedMessage(status)).toBe(message);
+  });
+
+  it("has no message for an event that is not finalised", () => {
+    for (const status of ["draft", "requested", "planning", "pending_safety_check"]) {
+      expect(directEditBlockedMessage(status)).toBeNull();
+    }
   });
 });

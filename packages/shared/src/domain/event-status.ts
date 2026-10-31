@@ -98,3 +98,25 @@ export function isDirectEditBlocked(status: string) {
     status === "cancelled"
   );
 }
+
+/**
+ * SPM-11 AC02: what a finalised event says instead of offering edits. Only a
+ * Confirmed event can still take a change request (submit_event_change_request
+ * accepts Pending, Planning, Pending Safety Check and Confirmed), so the other
+ * three just say the event can no longer be changed. Null for an event that
+ * is not finalised.
+ */
+export function directEditBlockedMessage(status: string): string | null {
+  switch (status) {
+    case "confirmed":
+      return "This event is finalised. Direct edits are locked to keep finalised arrangements accurate — submit a change request instead of editing it directly.";
+    case "completed":
+      return "This event has been completed. It can no longer be changed.";
+    case "rejected":
+      return "This event was rejected. It can no longer be changed.";
+    case "cancelled":
+      return "This event was cancelled. It can no longer be changed.";
+    default:
+      return null;
+  }
+}
