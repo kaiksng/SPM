@@ -9,7 +9,7 @@ let openDialogCount = 0;
  * content that needs room to scroll (the change-history dialog) — it fixes
  * the dialog to roughly half the viewport and scrolls its body while keeping
  * the title and close affordance in place; the default stays a compact
- * form-sized dialog, but never taller than the screen: a long body scrolls
+ * form-sized dialog ("wide" allows more horizontal space), but never taller than the screen: a long body scrolls
  * inside it. While any dialog is open the page behind does not scroll.
  */
 export function Modal({
@@ -23,7 +23,7 @@ export function Modal({
   title: string;
   children: React.ReactNode;
   onCancel: () => void;
-  size?: "default" | "large";
+  size?: "default" | "large" | "wide";
 }) {
   const closeButton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -57,7 +57,9 @@ export function Modal({
         className={
           size === "large"
             ? "flex h-[50vh] min-h-[420px] w-[50vw] min-w-[360px] flex-col rounded-2xl bg-white p-6 shadow-2xl"
-            : "flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col rounded-2xl bg-white p-6 shadow-2xl"
+            : size === "wide"
+              ? "flex min-w-0 max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col rounded-2xl bg-white p-6 shadow-2xl"
+              : "flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col rounded-2xl bg-white p-6 shadow-2xl"
         }
       >
         <h2 id={titleId} className="shrink-0 text-lg font-semibold text-slate-950">

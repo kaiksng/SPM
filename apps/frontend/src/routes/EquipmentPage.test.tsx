@@ -582,6 +582,20 @@ describe("EquipmentPage inventory for Technical Support Staff", () => {
 });
 
 describe("EquipmentPage unavailability (SPM-30)", () => {
+  // SPM-30 AC01: cancelling a new record must not write an outage.
+  it("visibly cancels recording unavailability without saving", async () => {
+    const user = userEvent.setup();
+    await renderUnavailability();
+    const dialog = await openRecordForm(user);
+    await user.type(within(dialog).getByLabelText("Reason"), "Unsaved maintenance");
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Unavailability records" })).toBeInTheDocument();
+    expect(service.recordEquipmentUnavailability).not.toHaveBeenCalled();
+    const reopened = await openRecordForm(user);
+    expect(within(reopened).getByLabelText("Reason")).toHaveValue("");
+  });
+
   it("identifies each missing field and does not save (AC01)", async () => {
     const user = userEvent.setup();
     await renderUnavailability();
@@ -1083,7 +1097,7 @@ describe("EquipmentPage reserving equipment", () => {
     ).toEqual(["Change quantity", "Release", "Report issue", "Add note"]);
   });
 
-  it("reserves the rest, starting from the full request", async () => {
+  it("reserves the rest by entering only the additional quantity (SPM-32 AC05)", async () => {
     listEventEquipmentAvailabilityMock.mockResolvedValue(
       eventWith([
         {
@@ -1098,11 +1112,76 @@ describe("EquipmentPage reserving equipment", () => {
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Reserve the rest" }));
-    const dialog = screen.getByRole("dialog", { name: "Change Projector reservation" });
-    expect(within(dialog).getByLabelText("Quantity to reserve")).toHaveValue(50);
-    await user.click(within(dialog).getByRole("button", { name: "Save change" }));
+    const dialog = await screen.findByRole("dialog", { name: "Reserve more Projector" });
+    expect(within(dialog).getByText("50 required · 40 already reserved · 10 remaining")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Additional quantity to reserve")).toHaveValue(10);
+    expect(within(dialog).getByText("After saving: 50 of 50 reserved.")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Reserve additional units" }));
 
     await waitFor(() => expect(changeEquipmentReservationMock).toHaveBeenCalledWith("res-1", 50));
+  });
+
+  // SPM-32 AC02/AC05: top-ups use free stock and send a new total, not a delta.
+  it.each([
+    [4, "2", 3],
+    [4, "1", 2],
+    [2, "1", 2],
+  ])("adds stock with availability %s and additional quantity %s", async (availableQuantity, additional, total) => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([{
+      ...base, requestedQuantity: 3, availableQuantity,
+      status: availableQuantity >= 3 ? "available" : "partially_available",
+      reservation: { id: "res-1", quantity: 1, needsRecheck: false, recheckReason: null, reservedByName: null, reservedAt: null },
+    }]));
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Reserve the rest" }));
+    const dialog = await screen.findByRole("dialog", { name: "Reserve more Projector" });
+    expect(within(dialog).getByText("3 required · 1 already reserved · 2 remaining")).toBeInTheDocument();
+    const input = within(dialog).getByLabelText("Additional quantity to reserve");
+    expect(input).toHaveValue(Math.min(2, availableQuantity - 1));
+    await user.clear(input);
+    await user.type(input, additional);
+    expect(within(dialog).getByText(`After saving: ${total} of 3 reserved.`)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Reserve additional units" }));
+    await waitFor(() => expect(changeEquipmentReservationMock).toHaveBeenCalledWith("res-1", total));
+    expect(reserveEquipmentMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [4, "0", "Enter a positive whole number"],
+    [4, "3", "Cannot reserve more than the 3 requested"],
+    [2, "2", "Only 1 additional unit available for this period"],
+  ])("refuses an invalid top-up with availability %s and quantity %s", async (availableQuantity, additional, message) => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([{
+      ...base, requestedQuantity: 3, availableQuantity,
+      status: availableQuantity >= 3 ? "available" : "partially_available",
+      reservation: { id: "res-1", quantity: 1, needsRecheck: false, recheckReason: null, reservedByName: null, reservedAt: null },
+    }]));
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Reserve the rest" }));
+    const dialog = await screen.findByRole("dialog", { name: "Reserve more Projector" });
+    await user.clear(within(dialog).getByLabelText("Additional quantity to reserve"));
+    await user.type(within(dialog).getByLabelText("Additional quantity to reserve"), additional);
+    await user.click(within(dialog).getByRole("button", { name: "Reserve additional units" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(message);
+    expect(changeEquipmentReservationMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a server rejection if stock changes while the top-up dialog is open", async () => {
+    listEventEquipmentAvailabilityMock.mockResolvedValue(eventWith([{
+      ...base, requestedQuantity: 3, availableQuantity: 4, status: "available",
+      reservation: { id: "res-1", quantity: 1, needsRecheck: false, recheckReason: null, reservedByName: null, reservedAt: null },
+    }]));
+    changeEquipmentReservationMock.mockRejectedValue(new Error("Only 1 available for this period"));
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Reserve the rest" }));
+    const dialog = await screen.findByRole("dialog", { name: "Reserve more Projector" });
+    await user.click(within(dialog).getByRole("button", { name: "Reserve additional units" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Only 1 available for this period");
+    expect(within(dialog).getByLabelText("Additional quantity to reserve")).toHaveValue(2);
+    expect(within(dialog).getByRole("button", { name: "Reserve additional units" })).toBeEnabled();
   });
 
   // A Confirmed event's equipment was arranged before it was confirmed.

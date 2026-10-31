@@ -13,7 +13,7 @@ const dateFormat = new Intl.DateTimeFormat("en-SG", {
   timeZone: "Asia/Singapore",
 });
 
-export type ReservationAction = "reserve" | "change" | "release";
+export type ReservationAction = "reserve" | "change" | "release" | "top_up";
 
 /**
  * Reserve a requested item, change a reservation's quantity, or release it.
@@ -24,21 +24,25 @@ export function ReservationDialog({
   action,
   eventTitle,
   result,
-  startQuantity: requestedStart,
   onCancel,
   onConfirm,
 }: {
   action: ReservationAction;
   eventTitle: string;
   result: EquipmentAvailabilityResult;
-  /** Overrides the starting quantity, e.g. "Reserve the rest" starts at the full request. */
-  startQuantity?: number;
   onCancel: () => void;
+  /** Quantity is the new total reservation, including any existing units. */
   onConfirm: (input: { quantity: number; reason: string }) => Promise<void>;
 }) {
-  const startQuantity =
-    requestedStart ??
-    (action === "change" && result.reservation
+  const toppingUp = action === "top_up";
+  const alreadyReserved = result.reservation?.quantity ?? 0;
+  const remaining = Math.max(result.requestedQuantity - alreadyReserved, 0);
+  // Availability excludes this requirement's own reservation: subtract it
+  // when presenting additional stock rather than a replacement total.
+  const additionalAvailable = Math.max(result.availableQuantity - alreadyReserved, 0);
+  const startQuantity = toppingUp
+    ? Math.min(remaining, additionalAvailable)
+    : (action === "change" && result.reservation
       ? result.reservation.quantity
       : Math.max(Math.min(result.requestedQuantity, result.availableQuantity), 1));
   const [quantity, setQuantity] = useState(String(startQuantity));
@@ -49,6 +53,8 @@ export function ReservationDialog({
     if (!busy) onCancel();
   });
 
+  const totalQuantity = (toppingUp ? alreadyReserved : 0) + Number(quantity);
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (action !== "release") {
@@ -56,15 +62,19 @@ export function ReservationDialog({
         setError("Enter a positive whole number");
         return;
       }
-      if (Number(quantity) > result.requestedQuantity) {
+      if (totalQuantity > result.requestedQuantity) {
         setError(`Cannot reserve more than the ${result.requestedQuantity} requested`);
+        return;
+      }
+      if (toppingUp && Number(quantity) > additionalAvailable) {
+        setError(`Only ${additionalAvailable} additional ${additionalAvailable === 1 ? "unit" : "units"} available for this period`);
         return;
       }
     }
     setBusy(true);
     setError(undefined);
     try {
-      await onConfirm({ quantity: Number(quantity), reason });
+      await onConfirm({ quantity: totalQuantity, reason });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "This could not be saved.");
       setBusy(false);
@@ -72,11 +82,13 @@ export function ReservationDialog({
   }
 
   const title =
-    action === "reserve"
-      ? `Reserve ${result.equipmentName}`
-      : action === "change"
-        ? `Change ${result.equipmentName} reservation`
-        : `Release ${result.equipmentName} reservation`;
+    toppingUp
+      ? `Reserve more ${result.equipmentName}`
+      : action === "reserve"
+        ? `Reserve ${result.equipmentName}`
+        : action === "change"
+          ? `Change ${result.equipmentName} reservation`
+          : `Release ${result.equipmentName} reservation`;
 
   return (
     <Modal titleId="reservation-dialog-title" title={title} onCancel={cancel}>
@@ -89,8 +101,11 @@ export function ReservationDialog({
               : "No period recorded"}
           </dd>
           <dd className="mt-1 text-slate-700">
-            {result.requestedQuantity} requested · {result.availableQuantity} available for this period
+            {toppingUp
+              ? `${result.requestedQuantity} required · ${alreadyReserved} already reserved · ${remaining} remaining`
+              : `${result.requestedQuantity} requested · ${result.availableQuantity} available for this period`}
           </dd>
+          {toppingUp && <dd className="mt-1 text-slate-700">{additionalAvailable} additional {additionalAvailable === 1 ? "unit" : "units"} available for this period</dd>}
         </dl>
 
         {action === "release" ? (
@@ -115,19 +130,22 @@ export function ReservationDialog({
         ) : (
           <div>
             <label htmlFor="reservation-quantity" className="mb-1 block font-medium text-slate-900">
-              Quantity to reserve
+              {toppingUp ? "Additional quantity to reserve" : "Quantity to reserve"}
             </label>
             <Input
               id="reservation-quantity"
               type="number"
               min="1"
-              max={result.requestedQuantity}
+              max={toppingUp ? remaining : result.requestedQuantity}
               step="1"
               className="w-32"
               value={quantity}
               aria-invalid={Boolean(error)}
               onChange={(event) => setQuantity(event.target.value)}
             />
+            {toppingUp && isPositiveWholeNumber(quantity) && totalQuantity <= result.requestedQuantity && Number(quantity) <= additionalAvailable && (
+              <p className="mt-2 text-slate-600" role="status">After saving: {totalQuantity} of {result.requestedQuantity} reserved.</p>
+            )}
           </div>
         )}
 
@@ -143,11 +161,13 @@ export function ReservationDialog({
           <Button type="submit" variant={action === "release" ? "destructive" : "default"} disabled={busy}>
             {busy
               ? "Saving…"
-              : action === "reserve"
-                ? "Reserve"
-                : action === "change"
-                  ? "Save change"
-                  : "Release"}
+              : toppingUp
+                ? "Reserve additional units"
+                : action === "reserve"
+                  ? "Reserve"
+                  : action === "change"
+                    ? "Save change"
+                    : "Release"}
           </Button>
         </div>
       </form>

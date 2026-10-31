@@ -252,7 +252,7 @@ function RecordUnavailabilityDialog({
   const close = useStableCallback(onClose);
   return (
     <Modal titleId="record-unavailability-title" title="Record equipment as unavailable" onCancel={close} size="large">
-      <EquipmentUnavailabilityForm items={items} records={records} onSave={onSave} />
+      <EquipmentUnavailabilityForm items={items} records={records} onSave={onSave} onCancel={close} />
     </Modal>
   );
 }

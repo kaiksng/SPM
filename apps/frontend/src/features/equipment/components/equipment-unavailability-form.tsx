@@ -44,6 +44,7 @@ export function EquipmentUnavailabilityForm({
   initialValues,
   submitLabel = "Record unavailability",
   onSave,
+  onCancel,
 }: {
   items: InventoryItem[];
   records: EquipmentUnavailabilityRecord[];
@@ -51,6 +52,7 @@ export function EquipmentUnavailabilityForm({
   initialValues?: Partial<EquipmentUnavailabilityFormValues>;
   submitLabel?: string;
   onSave: (values: EquipmentUnavailabilityFormValues) => Promise<void>;
+  onCancel?: () => void;
 }) {
   const startingValues = { ...emptyValues, ...initialValues };
   const [values, setValues] = useState(startingValues);
@@ -315,6 +317,11 @@ export function EquipmentUnavailabilityForm({
           <p role="alert" className="mb-3 text-sm text-red-700">
             {errors.form}
           </p>
+        )}
+        {onCancel && (
+          <Button type="button" variant="outline" size="lg" disabled={saving} onClick={onCancel} className="mr-2">
+            Cancel
+          </Button>
         )}
         <Button type="submit" size="lg" disabled={saving}>
           <Plus /> {saving ? "Saving…" : submitLabel}

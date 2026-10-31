@@ -1,5 +1,5 @@
 import type { EventReadiness, SafetyReviewDetails } from "@spm/shared";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { Button } from "@/components/ui/button";
@@ -30,9 +30,8 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
 /**
  * AC1/AC2/AC3: the Safety Officer's decision screen for one event. Reuses
  * the same event_readiness data the coordinator's pre-submission checklist
- * already shows (SafetyCheckItemPicker is a checkbox-enabled variant of
- * ReadinessChecklist), so "what to pick from" is identical to what the
- * coordinator submitted.
+ * already shows. Review is read-only; item selection belongs only to the
+ * Request changes dialog.
  */
 export function SafetyCheckReviewPage() {
   const { eventId } = useParams();
@@ -97,6 +96,15 @@ export function SafetyCheckReviewPage() {
         ? current.filter((id) => id !== requirementId)
         : [...current, requirementId],
     );
+  }
+
+  const closeDecision = useCallback(() => setShowDialog(undefined), []);
+
+  function openDecision(decision: SafetyCheckDecisionOutcome) {
+    setSelectedBookingIds([]);
+    setSelectedRequirementIds([]);
+    setActionError(undefined);
+    setShowDialog(decision);
   }
 
   async function handleDecide(decision: SafetyCheckDecisionOutcome, reason: string) {
@@ -166,13 +174,7 @@ export function SafetyCheckReviewPage() {
 
               <SafetyReviewPanel details={reviewDetails} />
 
-              <SafetyCheckItemPicker
-                readiness={readiness}
-                selectedBookingIds={selectedBookingIds}
-                onToggleBooking={toggleBooking}
-                selectedRequirementIds={selectedRequirementIds}
-                onToggleRequirement={toggleRequirement}
-              />
+              <SafetyCheckItemPicker readiness={readiness} readOnly />
 
               {actionError && (
                 <p role="alert" className="mt-4 text-sm text-red-700">
@@ -180,38 +182,39 @@ export function SafetyCheckReviewPage() {
                 </p>
               )}
 
-              <div className="mt-6 flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  className="bg-emerald-600 text-white hover:bg-emerald-700"
-                  onClick={() => setShowDialog("approved")}
-                >
-                  Approve
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="border-orange-300 bg-orange-50 text-orange-800 hover:bg-orange-100"
-                  disabled={flaggedCount === 0}
-                  onClick={() => setShowDialog("changes_requested")}
-                >
-                  Request changes
-                </Button>
-                <Button type="button" variant="destructive" onClick={() => setShowDialog("rejected")}>
-                  Reject
-                </Button>
-                {flaggedCount > 0 && (
-                  <span className="self-center text-xs text-slate-500">
-                    {flaggedCount} item{flaggedCount === 1 ? "" : "s"} selected
-                  </span>
-                )}
-              </div>
+              <section aria-labelledby="review-decision-heading" className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+                <h2 id="review-decision-heading" className="text-lg font-semibold text-slate-950">Review decision</h2>
+                <p className="mt-1 text-sm text-slate-600">Choose how this safety review should proceed.</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    className="bg-yellow-400 text-slate-950 hover:bg-yellow-500"
+                    onClick={() => openDecision("changes_requested")}
+                  >
+                    Request changes
+                  </Button>
+                  <Button
+                    type="button"
+                    className="bg-red-600 text-white hover:bg-red-700"
+                    onClick={() => openDecision("rejected")}
+                  >
+                    Reject safety arrangement
+                  </Button>
+                  <Button
+                    type="button"
+                    className="bg-emerald-600 text-white hover:bg-emerald-700 sm:ml-auto"
+                    onClick={() => openDecision("approved")}
+                  >
+                    Approve
+                  </Button>
+                </div>
+              </section>
 
               {showDialog && (
                 <SafetyCheckDecisionDialog
                   decision={showDialog}
                   flaggedCount={flaggedCount}
-                  onCancel={() => setShowDialog(undefined)}
+                  onCancel={closeDecision}
                   onSubmit={async (reason) => {
                     setActionError(undefined);
                     try {
@@ -225,7 +228,17 @@ export function SafetyCheckReviewPage() {
                       throw decideError;
                     }
                   }}
-                />
+                >
+                  {showDialog === "changes_requested" && (
+                    <SafetyCheckItemPicker
+                      readiness={readiness}
+                      selectedBookingIds={selectedBookingIds}
+                      onToggleBooking={toggleBooking}
+                      selectedRequirementIds={selectedRequirementIds}
+                      onToggleRequirement={toggleRequirement}
+                    />
+                  )}
+                </SafetyCheckDecisionDialog>
               )}
             </div>
           )}

@@ -72,8 +72,8 @@ function isArrangementMode(action: PendingAction["action"]): action is Arrangeme
 }
 
 type PendingAction = {
-  /** "top_up" is Reserve the rest: a Change that starts at the full request. */
-  action: ReservationAction | ArrangementDialogMode | "top_up";
+  /** "top_up" adds to the current reservation using an additional quantity. */
+  action: ReservationAction | ArrangementDialogMode;
   event: EventEquipmentAvailability;
   result: EquipmentAvailabilityResult;
 };
@@ -243,14 +243,9 @@ export function EventEquipmentAvailabilityList({
 
       {pending && !isArrangementMode(pending.action) && (
         <ReservationDialog
-          action={pending.action === "top_up" ? "change" : pending.action}
+          action={pending.action}
           eventTitle={pending.event.title}
           result={pending.result}
-          startQuantity={
-            pending.action === "top_up"
-              ? Math.min(pending.result.requestedQuantity, pending.result.availableQuantity)
-              : undefined
-          }
           onCancel={() => setPending(undefined)}
           onConfirm={async ({ quantity, reason }) => {
             const reservationId = pending.result.reservation?.id;
