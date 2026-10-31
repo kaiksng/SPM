@@ -14,6 +14,8 @@ BEGIN;
 
 -- Allows this file to reset a test event's assigned coordinator (blocked by a trigger otherwise).
 SET LOCAL app.coordinator_reassignment = 'on';
+-- Lets this file set when the coordinator sent the equipment request to Technical Support.
+SET LOCAL app.requesting_equipment = 'on';
 
 -- Earlier versions of these files used ids the backend rejects (not valid UUIDs). Remove any test records
 -- left under those ids (with their own requests, notifications and history) so they can't clash.
@@ -110,15 +112,18 @@ END $$;
 
 -- Equipment requirement: 2 x Projector for "Tech Fair 2026" (fixed id).
 -- Needed for the whole event: 2026-12-10 13:00 to 17:00.
+-- Sent to Technical Support by the coordinator on 4 Oct 2026 (equipment only reaches Technical Support once requested).
 INSERT INTO public.event_equipment_requirements AS r (id, event_id, equipment_item_id, equipment_name, quantity, notes,
-                                                     required_from, required_until)
-VALUES ('00000000-0000-4000-8048-000000000501', '00000000-0000-4000-8048-000000000201', (SELECT id FROM public.equipment_items WHERE lower(trim(name)) = 'projector'), 'Projector', 2, NULL, '2026-12-10 13:00:00+08', '2026-12-10 17:00:00+08')
+                                                     required_from, required_until, requested_at, requested_by)
+VALUES ('00000000-0000-4000-8048-000000000501', '00000000-0000-4000-8048-000000000201', (SELECT id FROM public.equipment_items WHERE lower(trim(name)) = 'projector'), 'Projector', 2, NULL, '2026-12-10 13:00:00+08', '2026-12-10 17:00:00+08',
+        '2026-10-04 10:00:00+08', (SELECT assigned_coordinator_id FROM public.events WHERE id = '00000000-0000-4000-8048-000000000201'))
 ON CONFLICT (id) DO UPDATE
 SET equipment_item_id = EXCLUDED.equipment_item_id, quantity = EXCLUDED.quantity, notes = NULL,
-    required_from = EXCLUDED.required_from, required_until = EXCLUDED.required_until
-WHERE (r.equipment_item_id, r.quantity, r.notes, r.required_from, r.required_until)
+    required_from = EXCLUDED.required_from, required_until = EXCLUDED.required_until,
+    requested_at = EXCLUDED.requested_at, requested_by = EXCLUDED.requested_by
+WHERE (r.equipment_item_id, r.quantity, r.notes, r.required_from, r.required_until, r.requested_at, r.requested_by)
       IS DISTINCT FROM (EXCLUDED.equipment_item_id, EXCLUDED.quantity, NULL::text,
-                        EXCLUDED.required_from, EXCLUDED.required_until);
+                        EXCLUDED.required_from, EXCLUDED.required_until, EXCLUDED.requested_at, EXCLUDED.requested_by);
 
 -- Workflow records (valid business state): what the event's status implies, as if it went through the app.
 -- Profile and role for tom@gmail.com (Event Coordinator Lead). Auth is only read, never written.
