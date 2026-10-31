@@ -70,7 +70,7 @@ export function SafetyCheckDecisionDialog({
       return;
     }
     if (decision === "changes_requested" && flaggedCount === 0) {
-      setError("Select at least one arrangement that needs changes.");
+      setError("Select at least one safety check or arrangement that needs changes.");
       return;
     }
     setSubmitting(true);

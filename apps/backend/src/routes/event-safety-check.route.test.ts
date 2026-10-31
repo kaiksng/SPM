@@ -171,6 +171,7 @@ describe("POST /events/:eventId/safety-check-decision", () => {
       p_flagged_booking_ids: [],
       p_flagged_requirement_ids: [REQUIREMENT_ID],
       p_actor_id: USER_ID,
+      p_flagged_safety_checks: [],
     });
   });
 
@@ -200,6 +201,7 @@ describe("POST /events/:eventId/safety-check-decision", () => {
       p_flagged_booking_ids: [],
       p_flagged_requirement_ids: [],
       p_actor_id: USER_ID,
+      p_flagged_safety_checks: [],
     });
   });
 
@@ -225,6 +227,42 @@ describe("POST /events/:eventId/safety-check-decision", () => {
 
   it("rejects a blank reason before calling the database", async () => {
     const response = await decisionRequest({ decision: "rejected", reason: "   " });
+
+    expect(response.status).toBe(422);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  // SPM-90: the Safety Officer can flag the coordinator's safety checks.
+  it("submits Request Changes with flagged safety checks", async () => {
+    rpcMock.mockResolvedValue({
+      data: { eventId: EVENT_ID, status: "planning", outcome: "changes_requested", flaggedSafetyCheckCount: 2 },
+      error: null,
+    });
+
+    const response = await decisionRequest({
+      decision: "changes_requested",
+      reason: "The rear exit is blocked.",
+      flaggedSafetyChecks: ["emergency_access", "equipment_placement"],
+    });
+
+    expect(response.status).toBe(200);
+    expect(rpcMock).toHaveBeenCalledWith("decide_event_safety_check", {
+      p_event_id: EVENT_ID,
+      p_decision: "changes_requested",
+      p_reason: "The rear exit is blocked.",
+      p_flagged_booking_ids: [],
+      p_flagged_requirement_ids: [],
+      p_actor_id: USER_ID,
+      p_flagged_safety_checks: ["emergency_access", "equipment_placement"],
+    });
+  });
+
+  it("rejects an unrecognised safety check before calling the database", async () => {
+    const response = await decisionRequest({
+      decision: "changes_requested",
+      reason: "Fix it",
+      flaggedSafetyChecks: ["fire_drill"],
+    });
 
     expect(response.status).toBe(422);
     expect(rpcMock).not.toHaveBeenCalled();
@@ -261,6 +299,7 @@ describe("POST /events/:eventId/safety-check-decision", () => {
       p_flagged_booking_ids: [],
       p_flagged_requirement_ids: [],
       p_actor_id: USER_ID,
+      p_flagged_safety_checks: [],
     });
   });
 
@@ -301,7 +340,7 @@ describe("POST /events/:eventId/safety-check-decision", () => {
       data: null,
       error: {
         code: "23514",
-        message: "Select at least one venue booking or equipment arrangement to flag",
+        message: "Select at least one safety check, venue booking or equipment arrangement to flag",
       },
     });
 

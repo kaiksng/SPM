@@ -22,6 +22,7 @@ import { EventStatusTimeline } from "@/features/event-requests/components/status
 import { EventBannerSection } from "@/features/event-banners/components/event-banner-section";
 import { EventDocumentsSection } from "@/features/event-documents/components/event-documents-section";
 import { VenueFacilitiesSection } from "@/features/event-requests/components/venue-facilities-section";
+import { SafetyPlanSummary } from "@/features/safety-check/components/safety-plan-summary";
 import type { ClarificationSummary } from "@/features/event-requests/services/clarifications";
 import { cancelEvent } from "@/features/event-requests/services/event-cancellation";
 import {
@@ -404,6 +405,20 @@ export function EventDetailPage() {
                   canEdit={role === "coordinator" && event.status === "planning"}
                   onSaved={(venue) => setEvent({ ...event, venue })}
                 />
+
+                {/* SPM-90: the coordinator's safety checks, recorded on the
+                    Venue and Equipment steps; summarised here. */}
+                {role !== "organiser" && (
+                  <SafetyPlanSummary
+                    eventId={event.id}
+                    emergencyAccessChecked={event.emergencyAccessChecked}
+                    restrictionsChecked={event.restrictionsChecked}
+                    crowdMovementChecked={event.crowdMovementChecked}
+                    equipmentPlacement={event.equipmentPlacement}
+                    equipmentPlacementFlagged={event.safetyCheckFlags.includes("equipment_placement")}
+                    hasEquipment={event.equipment.length > 0}
+                  />
+                )}
 
 <RegistrationSettingsSection
                   eventId={event.id}

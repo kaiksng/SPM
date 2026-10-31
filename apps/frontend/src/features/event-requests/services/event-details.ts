@@ -2,6 +2,8 @@ import {
   toEquipmentRequirements,
   type EquipmentRequirement,
 } from "@/features/event-requests/services/equipment";
+import { isSafetyCheckFlag, type SafetyCheckFlag } from "@spm/shared";
+
 import { supabase } from "@/lib/supabase-client";
 
 export type EventDetail = {
@@ -21,6 +23,17 @@ export type EventDetail = {
   assignedCoordinatorName: string | null;
   /** Optional banner image's storage path; shown only to the organiser and attendees. */
   bannerPath: string | null;
+  /** SPM-90: the coordinator's safety plan. */
+  crowdMovementPlan: string | null;
+  equipmentPlacement: string | null;
+  emergencyAccess: string | null;
+  restrictions: string | null;
+  emergencyAccessChecked: boolean;
+  restrictionsChecked: boolean;
+  crowdMovementChecked: boolean;
+  /** Safety checks the Safety Officer asked the coordinator to revise, and why. */
+  safetyCheckFlags: SafetyCheckFlag[];
+  safetyCheckFlagReason: string | null;
   venue: {
     preferredLocation: string | null;
     minimumCapacity: number | null;
@@ -62,6 +75,15 @@ export async function loadEventDetail(eventId: string) {
         status,
         submitted_at,
         banner_path,
+        crowd_movement_plan,
+        equipment_placement_notes,
+        emergency_access_notes,
+        restrictions_notes,
+        emergency_access_checked,
+        restrictions_checked,
+        crowd_movement_checked,
+        safety_check_flags,
+        safety_check_flag_reason,
         organiser_id,
         organiser:profiles!events_organiser_id_fkey (full_name),
         assigned_coordinator_id,
@@ -120,6 +142,15 @@ export async function loadEventDetail(eventId: string) {
     assignedCoordinatorId: data.assigned_coordinator_id,
     assignedCoordinatorName: data.assigned_coordinator?.full_name ?? null,
     bannerPath: data.banner_path,
+    crowdMovementPlan: data.crowd_movement_plan,
+    equipmentPlacement: data.equipment_placement_notes,
+    emergencyAccess: data.emergency_access_notes,
+    restrictions: data.restrictions_notes,
+    emergencyAccessChecked: data.emergency_access_checked,
+    restrictionsChecked: data.restrictions_checked,
+    crowdMovementChecked: data.crowd_movement_checked,
+    safetyCheckFlags: data.safety_check_flags.filter(isSafetyCheckFlag),
+    safetyCheckFlagReason: data.safety_check_flag_reason,
     venue: {
       preferredLocation: venue?.preferred_location ?? null,
       minimumCapacity: venue?.minimum_capacity ?? null,

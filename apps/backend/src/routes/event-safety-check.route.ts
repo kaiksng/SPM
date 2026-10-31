@@ -1,4 +1,4 @@
-import { safetyCheckOutstandingItemsSchema } from "@spm/shared";
+import { SAFETY_CHECK_FLAGS, safetyCheckOutstandingItemsSchema } from "@spm/shared";
 import type { PostgrestError } from "@supabase/supabase-js";
 import { Router } from "express";
 import { z } from "zod";
@@ -22,6 +22,8 @@ const decisionBodySchema = z
     reason: z.string().trim().max(2_000).optional(),
     flaggedBookingIds: z.array(z.uuid()).default([]),
     flaggedRequirementIds: z.array(z.uuid()).default([]),
+    // SPM-90: the coordinator's safety checks can be flagged too.
+    flaggedSafetyChecks: z.array(z.enum(SAFETY_CHECK_FLAGS)).default([]),
   })
   .refine((data) => data.decision === "approved" || !!data.reason, {
     message: "Explain the reason for this decision",
@@ -94,6 +96,7 @@ eventSafetyCheckRouter.post(
       p_flagged_booking_ids: body.data.flaggedBookingIds,
       p_flagged_requirement_ids: body.data.flaggedRequirementIds,
       p_actor_id: req.userId,
+      p_flagged_safety_checks: body.data.flaggedSafetyChecks,
     });
 
     if (error) throw mapSafetyCheckDecisionError(error);

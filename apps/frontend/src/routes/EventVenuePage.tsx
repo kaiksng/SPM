@@ -3,6 +3,7 @@ import { AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 
+import { useAuth } from "@/context/auth-context";
 import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
 import { SuggestedVenuesPanel } from "@/features/event-requests/components/suggested-venues-panel";
@@ -10,6 +11,7 @@ import {
   loadEventDetail,
   type EventDetail,
 } from "@/features/event-requests/services/event-details";
+import { VenueSafetyChecksSection } from "@/features/safety-check/components/venue-safety-checks-section";
 import { AdditionalVenuePanel } from "@/features/venues/components/additional-venue-panel";
 import {
   EventVenueBookings,
@@ -44,6 +46,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
  */
 export function EventVenuePage() {
   const { eventId } = useParams();
+  const { user, profile } = useAuth();
   const [event, setEvent] = useState<EventDetail>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -293,6 +296,26 @@ export function EventVenuePage() {
                         ? { bookingId: disruption.bookingId, venueId: disruption.venueId }
                         : undefined
                     }
+                  />
+                )}
+
+                {/* SPM-90: the Venue step's safety checks, at the bottom. */}
+                {profile?.role !== "event_organiser" && (
+                  <VenueSafetyChecksSection
+                    key={event.id}
+                    eventId={event.id}
+                    checks={{
+                      emergencyAccessChecked: event.emergencyAccessChecked,
+                      emergencyAccess: event.emergencyAccess,
+                      restrictionsChecked: event.restrictionsChecked,
+                      restrictions: event.restrictions,
+                      crowdMovementChecked: event.crowdMovementChecked,
+                      crowdMovementPlan: event.crowdMovementPlan,
+                    }}
+                    flags={event.safetyCheckFlags}
+                    flagReason={event.safetyCheckFlagReason}
+                    canEdit={event.assignedCoordinatorId === user?.id && event.status === "planning"}
+                    onSaved={(checks, safetyCheckFlags) => setEvent({ ...event, ...checks, safetyCheckFlags })}
                   />
                 )}
               </div>

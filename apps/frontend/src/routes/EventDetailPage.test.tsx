@@ -128,7 +128,7 @@ const event = {
   submittedAt: "2026-09-12T21:05:00.000Z",
   organiserId: "10000000-0000-0000-0000-000000000001",
   organiserName: "jasmine",
-  bannerPath: null,
+  bannerPath: null, crowdMovementPlan: null, equipmentPlacement: null, emergencyAccess: null, restrictions: null, emergencyAccessChecked: false, restrictionsChecked: false, crowdMovementChecked: false, safetyCheckFlags: [], safetyCheckFlagReason: null,
   assignedCoordinatorId: "20000000-0000-0000-0000-000000000002",
   assignedCoordinatorName: "Joyce Coordinator",
   venue: {
@@ -1235,5 +1235,26 @@ describe("EventDetailPage", () => {
     expect(screen.getByText("Move the start time to 2pm")).toBeInTheDocument();
     const overview = screen.getByRole("heading", { name: "Overview" });
     expect(note.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  // SPM-90: a small summary of the coordinator's safety checks, which are
+  // recorded on the Venue and Equipment steps; not shown to the organiser.
+  it("shows the coordinator a summary of the safety checks", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "planning", emergencyAccessChecked: true });
+    renderPage();
+
+    const summary = await screen.findByRole("region", { name: "Safety checks" });
+    expect(within(within(summary).getByText("Emergency access checked")).getByRole("img")).toHaveAccessibleName("Done");
+    expect(within(within(summary).getByText("Crowd movement planned")).getByRole("img")).toHaveAccessibleName("Not done");
+    expect(within(summary).queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("does not show the safety checks to the organiser", async () => {
+    authState.profile.role = "event_organiser";
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
+    renderPage();
+
+    await screen.findByText("Student Leadership Summit 2");
+    expect(screen.queryByRole("region", { name: "Safety checks" })).not.toBeInTheDocument();
   });
 });

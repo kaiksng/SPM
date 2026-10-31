@@ -39,7 +39,7 @@ function event(overrides: Partial<EventDetail> = {}): EventDetail {
     organiserName: "Ravi",
     assignedCoordinatorId: "coord-1",
     assignedCoordinatorName: "Mei",
-    bannerPath: null,
+    bannerPath: null, crowdMovementPlan: null, equipmentPlacement: null, emergencyAccess: null, restrictions: null, emergencyAccessChecked: false, restrictionsChecked: false, crowdMovementChecked: false, safetyCheckFlags: [], safetyCheckFlagReason: null,
     venue: { preferredLocation: null, minimumCapacity: null, accessibilityNotes: null, layoutNotes: null, facilities: [] },
     equipment: [],
     registration: { required: false, opensAt: null, closesAt: null, capacity: null, waitlistEnabled: false, withdrawalPermitted: false },

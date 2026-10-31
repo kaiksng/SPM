@@ -15,6 +15,16 @@ insert into public.events(id,organiser_id,assigned_coordinator_id,title,status,s
 ('fe110000-0000-0000-0000-0000000000e2','fe110000-0000-0000-0000-000000000001','fe110000-0000-0000-0000-000000000002','Never reviewed','planning','2099-12-11T10:00:00+08:00','2099-12-11T12:00:00+08:00',true);
 insert into public.venue_bookings(id,event_id,venue_id,requested_by,starts_at,ends_at,status,is_main_venue) values
 ('fe110000-0000-0000-0000-0000000000b1','fe110000-0000-0000-0000-0000000000e1','fe110000-0000-0000-0000-000000000010','fe110000-0000-0000-0000-000000000002','2099-12-10T10:00:00+08:00','2099-12-10T12:00:00+08:00','approved',true);
+-- SPM-90: the coordinator's safety plan, required before the safety check.
+update public.events
+set crowd_movement_plan = 'Single entrance; ushers at both exits.',
+    equipment_placement_notes = 'Stage left; cables taped down.',
+    emergency_access_notes = 'Two exits; assembly point at the car park.',
+    restrictions_notes = 'None known.',
+    emergency_access_checked = true,
+    restrictions_checked = true,
+    crowd_movement_checked = true
+where crowd_movement_plan is null;
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"fe110000-0000-0000-0000-000000000002","role":"authenticated"}',true);
 select public.submit_event_for_safety_check('fe110000-0000-0000-0000-0000000000e1');

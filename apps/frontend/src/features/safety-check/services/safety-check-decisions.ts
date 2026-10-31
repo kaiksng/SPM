@@ -1,3 +1,5 @@
+import { isSafetyCheckFlag, type SafetyCheckFlag } from "@spm/shared";
+
 import { apiFetch } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase-client";
 
@@ -102,6 +104,8 @@ export async function decideEventSafetyCheck(
   reason: string,
   flaggedBookingIds: string[] = [],
   flaggedRequirementIds: string[] = [],
+  // SPM-90: the coordinator's safety checks the Safety Officer flags.
+  flaggedSafetyChecks: SafetyCheckFlag[] = [],
 ): Promise<SafetyCheckDecisionResult> {
   const { data } = await apiFetch(`/events/${eventId}/safety-check-decision`, {
     method: "POST",
@@ -110,6 +114,7 @@ export async function decideEventSafetyCheck(
       reason,
       flaggedBookingIds,
       flaggedRequirementIds,
+      flaggedSafetyChecks,
     }),
   });
 
@@ -126,6 +131,8 @@ export type SafetyCheckDecisionHistoryEntry = {
   decidedAt: string;
   flaggedBookingIds: string[];
   flaggedRequirementIds: string[];
+  /** SPM-90: the coordinator's safety checks flagged in this round. */
+  flaggedSafetyChecks: SafetyCheckFlag[];
 };
 
 /**
@@ -140,7 +147,7 @@ export async function listSafetyCheckDecisions(
     .from("event_safety_check_decisions")
     .select(
       `
-        id, outcome, reason, decided_at, flagged_booking_ids, flagged_requirement_ids,
+        id, outcome, reason, decided_at, flagged_booking_ids, flagged_requirement_ids, flagged_safety_checks,
         decided_by_profile:profiles!event_safety_check_decisions_decided_by_fkey (full_name),
         submission:event_safety_check_submissions!event_safety_check_decisions_submission_id_fkey (round)
       `,
@@ -159,5 +166,6 @@ export async function listSafetyCheckDecisions(
     decidedAt: row.decided_at,
     flaggedBookingIds: row.flagged_booking_ids,
     flaggedRequirementIds: row.flagged_requirement_ids,
+    flaggedSafetyChecks: row.flagged_safety_checks.filter(isSafetyCheckFlag),
   }));
 }
