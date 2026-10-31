@@ -6,7 +6,7 @@ Source: `SPM List - Jira (6).csv`, read 2026-10-31. SHA-256: `384255afb34a03ec2d
 
 ## Evidence and status
 
-Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2 and SPM-13; execution results are recorded in integration-testing.md. The remaining 55 stories are planned.
+Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13 and SPM-14; execution results are recorded in integration-testing.md. The remaining 54 stories are planned.
 
 Before each later story, audit the named tests against the exact ACs, settle contradictions and obtain the next-story instruction. For each APP criterion, assert observable output and independent stored state, actor permissions, relevant history/notifications, failure invariants and cleanup. Keep presentation, navigation, highlighting and confirmation assertions in UI/E2E tests.
 
@@ -59,15 +59,18 @@ Concurrency increments: SPM-81 simultaneous assignment; SPM-26 overlapping booki
 
 ### SPM-14 — Organiser Access Restricted to Own Events (Done)
 
-**Real boundary to exercise:** Organiser services → JWT-scoped event/child queries.
+**Real boundary to exercise:** Organiser list/detail/history services → real RLS; API authentication → submission RPC; real cancellation RPC and direct ownership update protection.
+
+**Application integration:** [SPM-14 organiser access suite](../../tests/integration/spm14-organiser-access.integration.test.ts); existing SPM-2 cross-organiser draft save/delete denial.
 
 **Existing evidence locations:** [event-drafts.test.ts](../../apps/frontend/src/features/event-requests/services/event-drafts.test.ts); [EventDetailPage.test.tsx](../../apps/frontend/src/routes/EventDetailPage.test.tsx).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | An Organiser can view events they are authorised on. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | An Organiser can only act on events they are authorised on | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | An Organiser attempting to access an event they are not authorised on is denied. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | An Organiser can view events they are authorised on. | APP implemented: nonempty own lists and owner detail/requirements/history reads in eight current business states. UI rendering stays separate. |
+| AC02 | An Organiser can only act on events they are authorised on | APP implemented: owner/non-owner submission, Requested-event cancellation, actor spoofing and raw takeover checks; successful owner controls and terminal-edit denial. Other organiser actions remain with their feature stories. |
+| AC03 | An Organiser attempting to access an event they are not authorised on is denied. | APP implemented: spoofed list filter, direct-id detail/child/history denial and unchanged stored snapshots. Screen error rendering stays UI. |
+
 
 ### SPM-15 — Coordinator Access to All Events Assigned (Done)
 

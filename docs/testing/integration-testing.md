@@ -1,8 +1,8 @@
 # Integration testing
 
-Application integration coverage currently includes **SPM-2 (drafts)** and
-**SPM-13 (sign-in)**. The [coverage matrix](integration-coverage-matrix.md)
-tracks all 57 non-retired stories against Jira export (6). The remaining 55
+Application integration coverage currently includes **SPM-2 (drafts)**,
+**SPM-13 (sign-in)** and **SPM-14 (organiser ownership)**. The [coverage matrix](integration-coverage-matrix.md)
+tracks all 57 non-retired stories against Jira export (6). The remaining 54
 stories need their own coverage review, walkthrough and implementation instruction.
 
 ## What these tests prove
@@ -45,7 +45,7 @@ pnpm check
 ```
 
 - `test:integration` creates the stack, resets its database to the current
-  migrations, runs both story suites, checks fixture cleanup, then removes its
+  migrations, runs all story suites, checks fixture cleanup, then removes its
   containers and volumes. A nonzero test/setup/cleanup result fails the command.
 - `test:integration:db` performs the same isolated startup/reset, then runs the
   existing pgTAP suite **before any application fixtures**. Do not substitute
@@ -64,8 +64,8 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **2 files / 18 tests passed**
-for the current SPM-2/SPM-13 coverage. A green job verifies this suite on GitHub;
+and open its details. The test step should report **3 files / 30 tests passed**
+for the current SPM-2/SPM-13/SPM-14 coverage. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
 
@@ -232,3 +232,63 @@ record preserves its initial fixture-setup failures.
 
 This guide records tested behaviour. Use Git history to check the current
 commit and merge status of each increment.
+
+## SPM-14 evidence
+
+The [organiser access suite](../../tests/integration/spm14-organiser-access.integration.test.ts)
+adds 12 cases: eight lifecycle read cases and four list/action/ownership cases.
+It uses real organisers, services, queries, RLS, history loaders and backend
+authentication. SPM-2's existing cross-organiser draft save/delete denial is
+reused as evidence rather than copied into this suite.
+
+| AC | Integration evidence | Separate responsibility |
+| --- | --- | --- |
+| AC1 | Both organisers have nonempty own lists. Owner detail/requirements/history reads succeed in Draft, Requested, Planning, Pending Safety Check, Confirmed, Completed, Rejected and Cancelled | Screen rendering and navigation stay UI |
+| AC2 | A non-owner cannot submit a draft, cancel a Requested event, impersonate the owner or take ownership through a direct table update. The owner's permitted actions succeed as positive controls. Owning a terminal event does not permit a draft edit | Other stories cover their specific organiser actions and lifecycle rules |
+| AC3 | Spoofed list filters, direct event-id access, child requirements and field/status history queries expose no other organiser's records. Rejected reads/actions leave a full stored snapshot unchanged | UI displays the access-denial state |
+
+All lifecycle read fixtures are created as genuine drafts with related records
+and a real save generating nonempty field history. Administrative fixture setup
+then follows legal status edges with database triggers enabled and a synthetic
+assigned coordinator where required by the database constraint. These states
+are test preparation, not proof of coordinator assignment, readiness or safety
+approval workflows. The Completed fixture uses fixed past dates. Owner and
+non-owner queries use real authenticated application clients; administrative
+snapshots independently check records, history, notifications and audit rows.
+
+Cancellation here is the organiser's pre-decision Requested-event withdrawal,
+not the coordinator's whole-event cancellation under SPM-45. The acceptance
+criteria do not grant owners unrestricted actions or bypass terminal locks.
+The existing ownership and visibility rules are tested without changing them.
+
+### SPM-14 execution record — 2026-10-31
+
+| Check | Result |
+| --- | --- |
+| Corrected clean run 1 | 3 files / 30 tests passed (12 SPM-14 + 18 existing); Vitest execution 13.07s, excluding stack startup/reset |
+| Corrected clean run 2 | 3 files / 30 tests passed; Vitest execution 12.42s, excluding stack startup/reset |
+| Destination safety checks | 8/8 passed on each run |
+| Integration typecheck | Passed |
+| `pnpm check` | Passed: shared 463, backend 185, frontend 1,540 tests; three typechecks and both builds |
+| Cleanup | Fixture residue checks passed; no dedicated containers/volumes remain; normal local Supabase retained |
+| Documentation validation | All links resolve; 57 story headings and 336 AC rows retained |
+
+Initial run: 25 passes and five fixture-setup failures in
+`protects details, requirements and history for a ... event`, for **planning**,
+**pending_safety_check**, **confirmed**, **completed** and **rejected**:
+
+```text
+new row for relation "events" violates check constraint "events_assignment_after_submission"
+```
+
+Those fixtures omitted the coordinator required for these states. Fixture
+preparation was corrected to create/assign a synthetic coordinator, with the
+constraint and all triggers retained. Both subsequent clean runs passed.
+The initial failed run also completed its zero-residue cleanup check.
+These were setup errors, not timing flakes or product defects.
+
+No pilot tests were skipped and no timing flakes were observed. The existing
+frontend chunk-size build warning remains. No production code, migration,
+hosted data or GitHub workflow was changed in this increment. No separate
+pgTAP/browser E2E/hosted UAT run was performed. Git history records the current
+commit/merge status; the existing CI job discovers the new suite when pushed.
