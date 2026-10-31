@@ -6,7 +6,7 @@ Source: `SPM List - Jira (6).csv`, read 2026-10-31. SHA-256: `384255afb34a03ec2d
 
 ## Evidence and status
 
-Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86, SPM-87 and SPM-20; execution results are recorded in integration-testing.md. The remaining 51 stories are planned.
+Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86, SPM-87, SPM-20 and SPM-21; execution results are recorded in integration-testing.md. The remaining 50 stories are planned.
 
 Before each later story, audit the named tests against the exact ACs, settle contradictions and obtain the next-story instruction. For each APP criterion, assert observable output and independent stored state, actor permissions, relevant history/notifications, failure invariants and cleanup. Keep presentation, navigation, highlighting and confirmation assertions in UI/E2E tests.
 
@@ -278,18 +278,20 @@ Concurrency increments: SPM-81 simultaneous assignment; SPM-26 overlapping booki
 
 ### SPM-21 — Manual Search of Venue for Booking Request (Done)
 
+**Local evidence:** [SPM-21 integration tests](../../tests/integration/spm21-venue-search.integration.test.ts) passed. A backend test previously had an intermittent socket error; its mitigation and the remaining uncertainty are recorded in the execution record.
+
 **Real boundary to exercise:** Search service → time/filter conversion → search RPC.
 
 **Existing evidence locations:** [suggested-venues-panel.test.tsx](../../apps/frontend/src/features/event-requests/components/suggested-venues-panel.test.tsx); [manual-venue-search.test.tsx](../../apps/frontend/src/features/venues/components/manual-venue-search.test.tsx); [venue-search.test.ts](../../apps/frontend/src/features/venues/services/venue-search.test.ts); [VenueDetailPage.test.tsx](../../apps/frontend/src/routes/VenueDetailPage.test.tsx); [venue-search.test.ts](../../packages/shared/src/schemas/venue-search.test.ts); [event-choices.test.ts](../../packages/shared/src/types/event-choices.test.ts).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | An Event Coordinator can open manual search for a Planning event alongside automatic suggestions, including when the event already has an active venue request. Search inputs start from the event’s requirements and can be adjusted without changing the event. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | A valid start/end period and a positive capacity are required. The initial capacity is the greater of expected attendance and the event’s saved minimum capacity. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | When specified, location, room layout, every required facility, and accessibility needs must all match; unspecified optional filters do not restrict results. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | Results include only venues open throughout the searched period and free of overlapping Pending or Confirmed bookings and active blocks. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC05 | Each result shows the venue details relevant to suitability checking and its availability for the searched period. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC06 | Changing search dates does not change the event schedule. A venue found for different dates can be reviewed, but cannot be requested for that event through this search result. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | An Event Coordinator can open manual search for a Planning event alongside automatic suggestions, including when the event already has an active venue request. Search inputs start from the event’s requirements and can be adjusted without changing the event. | APP: real search service and local database; existing UI/component tests cover screen behaviour. |
+| AC02 | A valid start/end period and a positive capacity are required. The initial capacity is the greater of expected attendance and the event’s saved minimum capacity. | APP: real search service and local database; existing UI/component tests cover screen behaviour. |
+| AC03 | When specified, location, room layout, every required facility, and accessibility needs must all match; unspecified optional filters do not restrict results. | APP: real search service and local database; existing UI/component tests cover screen behaviour. |
+| AC04 | Results include only venues open throughout the searched period and free of overlapping Pending or Confirmed bookings and active blocks. | APP: real search service and local database; existing UI/component tests cover screen behaviour. |
+| AC05 | Each result shows the venue details relevant to suitability checking and its availability for the searched period. | APP: real search service and local database; existing UI/component tests cover screen behaviour. |
+| AC06 | Changing search dates does not change the event schedule. A venue found for different dates can be reviewed, but cannot be requested for that event through this search result. | APP: real search service and local database; existing UI/component tests cover screen behaviour. |
 
 ### SPM-72 — Automatically Suggest Suitable Venues for a Planning Event (Done)
 
