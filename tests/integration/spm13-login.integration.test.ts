@@ -112,7 +112,7 @@ describe("SPM-13: real login / Auth / profiles / protected application calls", (
     await login(undefined, credentialsForm(user.email, user.password));
     const id = await saveEventDraft({ ...structuredClone(emptyEventRequestFormValues), title: "Integration invalid-token control" });
     await supabase.auth.signOut();
-    const response = await fetch(`http://127.0.0.1:55398/events/${id}/submit`, {
+    const response = await fetch(`http://127.0.0.1:15398/events/${id}/submit`, {
       method: "POST", headers: { Authorization: "Bearer invalid-integration-token" },
     });
     expect(response.status).toBe(401);

@@ -64,7 +64,7 @@ const lock = await open(path.join(runtime, "run.lock"), "wx");
 let started = false;
 try {
   await command(["exec", "node", "--test", "scripts/integration-environment.test.mjs"]);
-  for (const port of [55320, 55321, 55322, 55324, 55398]) await requireFreePort(port);
+  for (const port of [15320, 15321, 15322, 15324, 15398]) await requireFreePort(port);
   const config = testConfig();
   const sourceConfig = await readFile(path.join(root, "supabase/config.toml"), "utf8");
   if (!sourceConfig.includes("major_version = 17")) throw new Error("Update the integration Postgres version to match the source config first.");
@@ -73,8 +73,8 @@ try {
   await writeFile(path.join(runtime, "supabase/config.toml"), config);
   await cp(path.join(root, "supabase/migrations"), path.join(runtime, "supabase/migrations"), { recursive: true });
   await cp(path.join(root, "supabase/tests"), path.join(runtime, "supabase/tests"), { recursive: true });
-  assertDedicatedTarget(apiUrl, "postgresql://postgres@127.0.0.1:55322/postgres", projectId);
-  console.log(`Starting disposable ${projectId} (API 55321, Postgres 55322).`);
+  assertDedicatedTarget(apiUrl, "postgresql://postgres@127.0.0.1:15322/postgres", projectId);
+  console.log(`Starting disposable ${projectId} (API 15321, Postgres 15322).`);
   started = true;
   await cli("start");
   const status = JSON.parse(await cli("status", "-o", "json"));
@@ -90,7 +90,7 @@ try {
         VITE_SUPABASE_URL: status.API_URL,
         VITE_SUPABASE_PUBLISHABLE_KEY: status.ANON_KEY,
         // Test-only backend listener; never use the normal dev server.
-        VITE_BACKEND_URL: "http://127.0.0.1:55398",
+        VITE_BACKEND_URL: "http://127.0.0.1:15398",
         SUPABASE_URL: status.API_URL,
         SUPABASE_SERVICE_ROLE_KEY: status.SERVICE_ROLE_KEY,
         INTEGRATION_PROJECT_ID: projectId,

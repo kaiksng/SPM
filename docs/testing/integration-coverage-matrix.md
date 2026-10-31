@@ -6,7 +6,7 @@ Source: `SPM List - Jira (6).csv`, read 2026-10-31. SHA-256: `384255afb34a03ec2d
 
 ## Evidence and status
 
-Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2 and SPM-13; execution results are recorded in integration-testing.md. The remaining 55 stories are planned.
+Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86, SPM-87 and SPM-20; execution results are recorded in integration-testing.md. The remaining 51 stories are planned.
 
 Before each later story, audit the named tests against the exact ACs, settle contradictions and obtain the next-story instruction. For each APP criterion, assert observable output and independent stored state, actor permissions, relevant history/notifications, failure invariants and cleanup. Keep presentation, navigation, highlighting and confirmation assertions in UI/E2E tests.
 
@@ -59,15 +59,18 @@ Concurrency increments: SPM-81 simultaneous assignment; SPM-26 overlapping booki
 
 ### SPM-14 — Organiser Access Restricted to Own Events (Done)
 
-**Real boundary to exercise:** Organiser services → JWT-scoped event/child queries.
+**Real boundary to exercise:** Organiser list/detail/history services → real RLS; API authentication → submission RPC; real cancellation RPC and direct ownership update protection.
+
+**Application integration:** [SPM-14 organiser access suite](../../tests/integration/spm14-organiser-access.integration.test.ts); existing SPM-2 cross-organiser draft save/delete denial.
 
 **Existing evidence locations:** [event-drafts.test.ts](../../apps/frontend/src/features/event-requests/services/event-drafts.test.ts); [EventDetailPage.test.tsx](../../apps/frontend/src/routes/EventDetailPage.test.tsx).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | An Organiser can view events they are authorised on. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | An Organiser can only act on events they are authorised on | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | An Organiser attempting to access an event they are not authorised on is denied. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | An Organiser can view events they are authorised on. | APP implemented: nonempty own lists and owner detail/requirements/history reads in eight current business states. UI rendering stays separate. |
+| AC02 | An Organiser can only act on events they are authorised on | APP implemented: owner/non-owner submission, Requested-event cancellation, actor spoofing and raw takeover checks; successful owner controls and terminal-edit denial. Other organiser actions remain with their feature stories. |
+| AC03 | An Organiser attempting to access an event they are not authorised on is denied. | APP implemented: spoofed list filter, direct-id detail/child/history denial and unchanged stored snapshots. Screen error rendering stays UI. |
+
 
 ### SPM-15 — Coordinator Access to All Events Assigned (Done)
 
@@ -302,43 +305,43 @@ Concurrency increments: SPM-81 simultaneous assignment; SPM-26 overlapping booki
 
 ### SPM-20 — View Venue Availability (Done)
 
-**Real boundary to exercise:** Availability service → occupied-window queries.
+**Real boundary exercised:** availability service → local Auth/PostgREST → bookings and blocks. [Integration tests](../../tests/integration/spm20-venue-availability.integration.test.ts).
 
 **Existing evidence locations:** [venue-availability.test.ts](../../apps/frontend/src/features/venues/services/venue-availability.test.ts); [VenueAvailabilityPage.test.tsx](../../apps/frontend/src/routes/VenueAvailabilityPage.test.tsx).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | An authorised internal user can view venue availability for a selected venue, date, and time range. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | The venue availability calendar clearly distinguishes between statuses. (E.g Available, Booked and Blocked periods) | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | Each unavailable period shows its start and end time and whether it is a booking or operational block. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | A venue with no bookings or blocks displays as fully Available across the selected range. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | An authorised internal user can view venue availability for a selected venue, date, and time range. | APP: real staff/coordinator reads and occupied-period data; UI tests cover selected date, time range, statuses and visual rendering. |
+| AC02 | The venue availability calendar clearly distinguishes between statuses. (E.g Available, Booked and Blocked periods) | APP: real staff/coordinator reads and occupied-period data; UI tests cover selected date, time range, statuses and visual rendering. |
+| AC03 | Each unavailable period shows its start and end time and whether it is a booking or operational block. | APP: real staff/coordinator reads and occupied-period data; UI tests cover selected date, time range, statuses and visual rendering. |
+| AC04 | A venue with no bookings or blocks displays as fully Available across the selected range. | APP: empty unavailable periods; UI test covers available-all-day presentation within operating hours. |
 
 ### SPM-86 — Configure Venue Setup and Turnaround Time (Done)
 
-**Real boundary to exercise:** Venue update service → buffer configuration/history.
+**Real boundary exercised:** Venue service → Supabase and real Express backend → buffer configuration/history. Integration test: [SPM-86](../../tests/integration/spm86-venue-buffers.integration.test.ts).
 
 **Existing evidence locations:** [venue-card.test.tsx](../../apps/frontend/src/features/venues/components/venue-card.test.tsx); [venue-form.test.tsx](../../apps/frontend/src/features/venues/components/venue-form.test.tsx); [venues.test.ts](../../apps/frontend/src/features/venues/services/venues.test.ts); [VenueDetailPage.test.tsx](../../apps/frontend/src/routes/VenueDetailPage.test.tsx); [venue.test.ts](../../packages/shared/src/schemas/venue.test.ts); [spm86_venue_setup_turnaround.test.sql](../../supabase/tests/database/spm86_venue_setup_turnaround.test.sql).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | Venue Staff can enter setup time and turnaround time in whole minutes for each venue; both default to 0. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | Negative or non-numeric values are rejected and the affected field is identified. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | Saved values are shown on the venue details page and venue catalogue. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | Each change records the staff member, previous value, new value, and timestamp. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC05 | Only Venue Staff can change these values. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | Venue Staff can enter setup time and turnaround time in whole minutes for each venue; both default to 0. | APP: exercised through real application services, backend and local database; UI checks retain responsibility for visible controls/text. |
+| AC02 | Negative or non-numeric values are rejected and the affected field is identified. | APP: exercised through real application services, backend and local database; UI checks retain responsibility for visible controls/text. |
+| AC03 | Saved values are shown on the venue details page and venue catalogue. | APP: exercised through real application services, backend and local database; UI checks retain responsibility for visible controls/text. |
+| AC04 | Each change records the staff member, previous value, new value, and timestamp. | APP: exercised through real application services, backend and local database; UI checks retain responsibility for visible controls/text. |
+| AC05 | Only Venue Staff can change these values. | APP: exercised through real application services, backend and local database; UI checks retain responsibility for visible controls/text. |
 
 ### SPM-87 — Apply Setup and Turnaround to Availability and Conflict Checks (Done)
 
-**Real boundary to exercise:** Search/availability/booking callers → effective-window functions.
+**Real boundary exercised:** availability service → PostgREST → effective-window functions. [Integration tests](../../tests/integration/spm87-venue-availability.integration.test.ts); search and booking operations retain separate story coverage.
 
 **Existing evidence locations:** [VenueAvailabilityPage.test.tsx](../../apps/frontend/src/routes/VenueAvailabilityPage.test.tsx); [VenueDetailPage.test.tsx](../../apps/frontend/src/routes/VenueDetailPage.test.tsx); [check_venue_booking_availability.test.sql](../../supabase/tests/database/check_venue_booking_availability.test.sql).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | A booking’s effective occupancy window runs from (event start time minus the venue’s setup time) to (event end time plus the venue’s turnaround time), based on the venue’s current setup/turnaround settings. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | Two bookings are in conflict only if their effective occupancy windows overlap. Windows that merely touch with one ending at the exact moment the other begins are not a conflict. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | A venue is only available for a period if its entire effective window with setup and turnaround included falls within that venue’s operating days and hours. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | On the availability calendar, setup and turnaround periods are shown visually distinct from the event time itself | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | A booking’s effective occupancy window runs from (event start time minus the venue’s setup time) to (event end time plus the venue’s turnaround time), based on the venue’s current setup/turnaround settings. | APP: real service and database verify this outcome; UI tests cover visible controls and text. |
+| AC02 | Two bookings are in conflict only if their effective occupancy windows overlap. Windows that merely touch with one ending at the exact moment the other begins are not a conflict. | APP: real service and database verify this outcome; UI tests cover visible controls and text. |
+| AC03 | A venue is only available for a period if its entire effective window with setup and turnaround included falls within that venue’s operating days and hours. | APP: real service and database verify this outcome; UI tests cover visible controls and text. |
+| AC04 | On the availability calendar, setup and turnaround periods are shown visually distinct from the event time itself | UI: existing VenueAvailabilityPage tests verify distinct calendar styling. |
 
 ### SPM-78 — Place a Tentative Venue Hold with Expiry (Done)
 
