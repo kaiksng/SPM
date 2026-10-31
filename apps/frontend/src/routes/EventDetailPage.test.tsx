@@ -1211,4 +1211,29 @@ describe("EventDetailPage", () => {
       expect(listVenueBookingsForEventMock).not.toHaveBeenCalled();
     });
   });
+
+  // The coordinator sees a pending change request at the top of the page,
+  // before the event's details.
+  it("shows the coordinator a pending change request before the overview", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "planning" });
+    listEventChangeRequestsMock.mockResolvedValue([
+      {
+        id: "change-request-1",
+        requestedChanges: { description: "Move the start time to 2pm" },
+        reason: "Speaker rescheduled",
+        status: "pending",
+        reviewNotes: null,
+        requestedAt: "2026-09-14T08:00:00.000Z",
+        reviewedAt: null,
+        withdrawnAt: null,
+        implementedAt: null,
+      },
+    ]);
+    renderPage();
+
+    const note = await screen.findByRole("heading", { name: "Change request awaiting review" });
+    expect(screen.getByText("Move the start time to 2pm")).toBeInTheDocument();
+    const overview = screen.getByRole("heading", { name: "Overview" });
+    expect(note.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });

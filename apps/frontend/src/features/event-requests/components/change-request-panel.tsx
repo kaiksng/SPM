@@ -10,7 +10,17 @@ import {
   withdrawEventChangeRequest,
   type EventChangeRequestSummary,
 } from "@/features/event-requests/services/change-requests";
-import { CHANGE_REQUEST_SUBMITTABLE_STATUSES } from "@/features/event-requests/utils/format-change-request";
+import {
+  CHANGE_REQUEST_SUBMITTABLE_STATUSES,
+  describeRequestedChanges,
+} from "@/features/event-requests/utils/format-change-request";
+import { cn } from "@/lib/utils";
+
+const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Singapore",
+});
 
 /**
  * SPM-38: the organiser may request a permitted change while the event is
@@ -124,12 +134,51 @@ export function ChangeRequestPanel({
     setShowDecisionDialog(undefined);
   }
 
+  // The coordinator's and Lead's view is a note at the top of the event
+  // page: what the organiser asked for and why, with the actions to take.
+  // Nothing to show when there's no request to act on.
+  const asNotice = !compact && role !== "organiser";
+  const current = pending ?? awaitingApply;
+  if (asNotice && !current && !error) return null;
+
   return (
-    <div className={className}>
-      {!compact && (
-        <h3 className="text-xs font-semibold tracking-wide text-slate-400 uppercase">
-          Change requests
-        </h3>
+    <div
+      className={cn(
+        className,
+        asNotice && "rounded-2xl border p-5",
+        asNotice && (pending ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"),
+      )}
+    >
+      {asNotice ? (
+        current && (
+          <>
+            <h2 className={cn("font-semibold", pending ? "text-amber-950" : "text-emerald-950")}>
+              {pending ? "Change request awaiting review" : "Approved change request"}
+            </h2>
+            <dl className="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
+              <dt className="font-medium text-slate-600">Requested change</dt>
+              <dd className="whitespace-pre-wrap text-slate-900">
+                {describeRequestedChanges(current.requestedChanges)}
+              </dd>
+              <dt className="font-medium text-slate-600">Reason</dt>
+              <dd className="whitespace-pre-wrap text-slate-900">{current.reason}</dd>
+              <dt className="font-medium text-slate-600">Submitted</dt>
+              <dd className="text-slate-900">{dateTimeFormatter.format(new Date(current.requestedAt))}</dd>
+              {!pending && current.reviewNotes && (
+                <>
+                  <dt className="font-medium text-slate-600">Implementation notes</dt>
+                  <dd className="whitespace-pre-wrap text-slate-900">{current.reviewNotes}</dd>
+                </>
+              )}
+            </dl>
+          </>
+        )
+      ) : (
+        !compact && (
+          <h3 className="text-xs font-semibold tracking-wide text-slate-400 uppercase">
+            Change requests
+          </h3>
+        )
       )}
       {error && (
         <p role="alert" className="mt-2 text-xs text-red-700">
@@ -139,12 +188,8 @@ export function ChangeRequestPanel({
 
       {pending ? (
         <div className="mt-2">
-          <p className="text-xs text-slate-600">
-            {canDecide
-              ? "A change request is awaiting your review — see Change history for details."
-              : "Your change request is pending review."}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          {!asNotice && <p className="text-xs text-slate-600">Your change request is pending review.</p>}
+          <div className={cn("flex flex-wrap gap-2", asNotice ? "mt-4" : "mt-2")}>
             {role === "organiser" && (
               <Button size="sm" variant="outline" disabled={withdrawing} onClick={handleWithdraw}>
                 {withdrawing ? "Withdrawing…" : "Withdraw request"}
@@ -168,17 +213,17 @@ export function ChangeRequestPanel({
         </div>
       ) : awaitingApply ? (
         <div className="mt-2">
-          <p className="text-xs text-slate-600">
+          <p className={asNotice ? "mt-3 text-sm text-emerald-900" : "text-xs text-slate-600"}>
             {role === "coordinator"
-              ? "An approved change request is waiting for you to apply it."
+              ? "It's waiting for you to apply it."
               : role === "lead"
-                ? "Approved — assign a coordinator to apply this change."
+                ? "Assign a coordinator to apply this change."
                 : "Your change request was approved and is waiting to be applied."}
           </p>
           {role === "coordinator" && (
             <Link
               to={`/events/${eventId}/change-requests/${awaitingApply.id}/apply`}
-              className={buttonVariants({ size: "sm", className: "mt-2" })}
+              className={buttonVariants({ size: "sm", className: asNotice ? "mt-3" : "mt-2" })}
             >
               Apply change
             </Link>
