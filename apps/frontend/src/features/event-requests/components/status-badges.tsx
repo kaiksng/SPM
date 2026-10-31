@@ -16,7 +16,8 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   planning: "border-teal-200 bg-teal-50 text-teal-700",
   pending_safety_check: "border-violet-200 bg-violet-50 text-violet-700",
   approved: "border-teal-200 bg-teal-50 text-teal-700",
-  confirmed: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  // Solid, so the finished state can't be mistaken for Planning's pale teal.
+  confirmed: "border-emerald-600 bg-emerald-600 text-white",
   completed: "border-indigo-200 bg-indigo-50 text-indigo-700",
   rejected: "border-red-200 bg-red-50 text-red-700",
   cancelled: "border-slate-200 bg-slate-100 text-slate-500",
