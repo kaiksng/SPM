@@ -51,8 +51,26 @@ pnpm check
   existing pgTAP suite **before any application fixtures**. Do not substitute
   the ordinary development-stack `db:test` command here.
 - `test:integration:safety` tests destination guards without Docker or network.
-- `pnpm check` keeps its existing fast, Docker-independent meaning. No CI jobs
-  have been changed. Integration typechecking is an explicit additional check.
+- `pnpm check` keeps its existing fast, Docker-independent meaning. Integration
+  typechecking is an explicit additional check.
+
+### Automatic GitHub execution
+
+The `integration` job in `.github/workflows/ci.yml` runs on pull requests and
+pushes to `main`, alongside the existing jobs. It installs locked dependencies
+with Node 24/pnpm, runs `pnpm typecheck:integration`, then `pnpm test:integration`
+on its own Ubuntu runner. Docker and the disposable Supabase stack are on that
+runner; no hosted Supabase secrets, database deployment or real team data are
+used by this job. The test runner owns setup and teardown.
+
+After pushing the workflow change to an open PR, look for **CI / integration**
+and open its details. The test step should report **2 files / 18 tests passed**
+for the current SPM-2/SPM-13 coverage. A green job verifies this suite on GitHub;
+it does not verify the hosted website or every story. Requiring that check
+before merging is a separate repository-protection setting, not configured here.
+
+The workflow addition is checked locally; its first GitHub execution must be
+verified after the workflow commit is pushed.
 
 The project identifier is `connectsphere-integration-<worktree-path-hash>`.
 The runtime directory `.integration-runtime/` is ignored and generated from
