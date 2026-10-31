@@ -1,8 +1,8 @@
 # Integration testing
 
 Application integration coverage currently includes **SPM-2 (drafts)**,
-**SPM-13 (sign-in)**, **SPM-14 (organiser ownership)** **SPM-86 (venue buffers)** and **SPM-87 (buffered availability)**. The [coverage matrix](integration-coverage-matrix.md)
-tracks all 57 non-retired stories against Jira export (6). The remaining 52
+**SPM-13 (sign-in)**, **SPM-14 (organiser ownership)** **SPM-86 (venue buffers)** **SPM-87 (buffered availability)** and **SPM-20 (availability calendar data)**. The [coverage matrix](integration-coverage-matrix.md)
+tracks all 57 non-retired stories against Jira export (6). The remaining 51
 stories need their own coverage review, walkthrough and implementation instruction.
 
 ## What these tests prove
@@ -64,8 +64,8 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **5 files / 36 tests passed**
-for the current SPM-2/SPM-13/SPM-14/SPM-86/SPM-87 coverage. A green job verifies this suite on GitHub;
+and open its details. The test step should report **6 files / 38 tests passed**
+for the current SPM-2/SPM-13/SPM-14/SPM-86/SPM-87/SPM-20 coverage. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
 
@@ -302,3 +302,9 @@ Four integration cases cover default and changed values, reads, audit history, i
 Two integration cases exercise the real availability service, local Auth and database with overlapping and exactly touching effective windows, updated buffer settings, opening/closing boundaries and closed days. Calendar appearance remains covered by VenueAvailabilityPage component tests. The integration stack ports moved to 15320–15324 and 15398 after unrelated outbound connections occupied the prior range; destination guards continue to require the exact dedicated project and loopback URLs. Two earlier startup attempts stopped before reset because ports were occupied. The prior pnpm check failed once in the existing event-completion UI test; a wait for the asynchronous call fixes that race. The full project check passed after the fix.
 
 Final verification: integration typecheck passed; the full integration suite passed 36/36 twice on clean disposable databases, with 8/8 safety checks each time. `pnpm check` passed after the asynchronous UI assertion was corrected. No tests were skipped.
+
+## SPM-20 execution record — 2026-10-31
+
+Two integration cases exercise the real availability service against local Auth and Postgres. They verify an empty venue and staff/coordinator reads of pending and confirmed bookings plus an operational block, including distinct types and stored times. The coordinator case uses another coordinator’s booking and a staff positive control. Calendar date selection, rendering and available-all-day presentation are separately covered by VenueAvailabilityPage component tests; operating hours still apply. Integration typecheck passed; the clean disposable run passed 38/38 with 8/8 safety checks. An initially suspected cross-coordinator visibility issue was not reproduced.
+
+`pnpm check` passed after the integration run. No tests were skipped.

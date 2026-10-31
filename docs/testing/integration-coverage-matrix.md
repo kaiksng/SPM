@@ -6,7 +6,7 @@ Source: `SPM List - Jira (6).csv`, read 2026-10-31. SHA-256: `384255afb34a03ec2d
 
 ## Evidence and status
 
-Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86 and SPM-87; execution results are recorded in integration-testing.md. The remaining 52 stories are planned.
+Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86, SPM-87 and SPM-20; execution results are recorded in integration-testing.md. The remaining 51 stories are planned.
 
 Before each later story, audit the named tests against the exact ACs, settle contradictions and obtain the next-story instruction. For each APP criterion, assert observable output and independent stored state, actor permissions, relevant history/notifications, failure invariants and cleanup. Keep presentation, navigation, highlighting and confirmation assertions in UI/E2E tests.
 
@@ -305,16 +305,16 @@ Concurrency increments: SPM-81 simultaneous assignment; SPM-26 overlapping booki
 
 ### SPM-20 — View Venue Availability (Done)
 
-**Real boundary to exercise:** Availability service → occupied-window queries.
+**Real boundary exercised:** availability service → local Auth/PostgREST → bookings and blocks. [Integration tests](../../tests/integration/spm20-venue-availability.integration.test.ts).
 
 **Existing evidence locations:** [venue-availability.test.ts](../../apps/frontend/src/features/venues/services/venue-availability.test.ts); [VenueAvailabilityPage.test.tsx](../../apps/frontend/src/routes/VenueAvailabilityPage.test.tsx).
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | An authorised internal user can view venue availability for a selected venue, date, and time range. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | The venue availability calendar clearly distinguishes between statuses. (E.g Available, Booked and Blocked periods) | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | Each unavailable period shows its start and end time and whether it is a booking or operational block. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | A venue with no bookings or blocks displays as fully Available across the selected range. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
+| AC01 | An authorised internal user can view venue availability for a selected venue, date, and time range. | APP: real staff/coordinator reads and occupied-period data; UI tests cover selected date, time range, statuses and visual rendering. |
+| AC02 | The venue availability calendar clearly distinguishes between statuses. (E.g Available, Booked and Blocked periods) | APP: real staff/coordinator reads and occupied-period data; UI tests cover selected date, time range, statuses and visual rendering. |
+| AC03 | Each unavailable period shows its start and end time and whether it is a booking or operational block. | APP: real staff/coordinator reads and occupied-period data; UI tests cover selected date, time range, statuses and visual rendering. |
+| AC04 | A venue with no bookings or blocks displays as fully Available across the selected range. | APP: empty unavailable periods; UI test covers available-all-day presentation within operating hours. |
 
 ### SPM-86 — Configure Venue Setup and Turnaround Time (Done)
 
