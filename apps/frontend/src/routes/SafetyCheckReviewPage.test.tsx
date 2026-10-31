@@ -307,7 +307,7 @@ describe("SafetyCheckReviewPage", () => {
       "/safety-checks",
       expect.objectContaining({
         replace: true,
-        state: { notice: '"Alumni Homecoming Mixer" approved — it\'s now Confirmed.' },
+        state: expect.objectContaining({ notice: '"Alumni Homecoming Mixer" approved — it\'s now Confirmed.', decisionEventId: "event-1", decisionRound: 1 }),
       }),
     );
   });

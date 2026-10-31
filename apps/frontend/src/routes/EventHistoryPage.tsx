@@ -1,7 +1,7 @@
 import { eventFieldHistoryLabel } from "@spm/shared";
 import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, Navigate, useParams } from "react-router";
 
 import { buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
@@ -102,39 +102,8 @@ export function EventHistoryPage() {
     if (!eventId) return;
     let active = true;
 
-    // A Safety Officer's history view is scoped to the safety-check review
-    // rounds only (see this story's plan) — every other loader here is
-    // outside their RLS access once this story's can_view_event scoping
-    // (pending_safety_check only) no longer applies, and showing the rest
-    // of this page's sections to them would be unreviewed, over-broad
-    // access beyond what reviewing an event's safety requires.
-    if (isSafetyOfficer) {
-      Promise.all([
-        loadEventDetail(eventId),
-        listSafetyCheckDecisions(eventId).catch(() => [] as SafetyCheckDecisionHistoryEntry[]),
-      ])
-        .then(([eventDetail, safetyCheckDecisionRows]) => {
-          if (!active) return;
-          setEvent(eventDetail);
-          setSafetyCheckDecisions(safetyCheckDecisionRows);
-        })
-        .catch((loadError: unknown) => {
-          if (active) {
-            setError(
-              loadError instanceof Error
-                ? loadError.message
-                : "This event is unavailable or you do not have access to it.",
-            );
-          }
-        })
-        .finally(() => {
-          if (active) setLoading(false);
-        });
-
-      return () => {
-        active = false;
-      };
-    }
+    // Legacy safety-history links now use the durable, scoped review workspace.
+    if (isSafetyOfficer) return;
 
     Promise.all([
       loadEventDetail(eventId),
@@ -234,17 +203,21 @@ export function EventHistoryPage() {
       )
     : [];
 
+  if (isSafetyOfficer) {
+    return <RoleGate><Navigate replace to={`/safety-checks?tab=history&event=${eventId}`} /></RoleGate>;
+  }
+
   return (
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-3xl">
           {/* Back to the event this history belongs to, like every other event
-              sub-page; a Safety Officer arrives from their queue instead. */}
+              sub-page. Safety Officer links redirect to the safety workspace. */}
           <Link
-            to={isSafetyOfficer ? "/safety-checks" : `/events/${eventId}`}
+            to={`/events/${eventId}`}
             className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
           >
-            <ArrowLeft /> {isSafetyOfficer ? "Back to safety checks" : "Back to event"}
+            <ArrowLeft /> Back to event
           </Link>
 
           <header className="mt-6 border-b border-slate-200 pb-7">
@@ -262,20 +235,6 @@ export function EventHistoryPage() {
                 {error ?? "This event is unavailable or you do not have access to it."}
               </p>
             </section>
-          ) : isSafetyOfficer ? (
-            <div className="mt-7 space-y-6">
-              <HistorySection title="Safety check reviews">
-                {safetyCheckDecisions.length === 0 ? (
-                  <p className="text-sm text-slate-500">No review rounds recorded yet for this event.</p>
-                ) : (
-                  <ol className="space-y-3">
-                    {safetyCheckDecisions.map((decision) => (
-                      <SafetyCheckDecisionItem key={decision.id} decision={decision} />
-                    ))}
-                  </ol>
-                )}
-              </HistorySection>
-            </div>
           ) : (
             <div className="mt-7 space-y-6">
               <div role="group" aria-label="Show history" className="flex flex-wrap gap-2">

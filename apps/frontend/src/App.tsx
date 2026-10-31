@@ -21,6 +21,7 @@ import { LoginPage } from "@/routes/LoginPage";
 import { MyRegistrationsPage } from "@/routes/MyRegistrationsPage";
 import { NotFoundPage } from "@/routes/NotFoundPage";
 import { PublicPage } from "@/routes/PublicPage";
+import { SafetyCheckHistoryPage } from "@/routes/SafetyCheckHistoryPage";
 import { SafetyChecksPage } from "@/routes/SafetyChecksPage";
 import { SafetyCheckReviewPage } from "@/routes/SafetyCheckReviewPage";
 import { SignupPage } from "@/routes/SignupPage";
@@ -88,6 +89,7 @@ export function App() {
               <Route path="browse-events/my-registrations" element={<MyRegistrationsPage />} />
               <Route path="browse-events/:eventId" element={<EventRegistrationPage />} />
               <Route path="safety-checks" element={<SafetyChecksPage />} />
+              <Route path="safety-checks/history/:decisionId" element={<SafetyCheckHistoryPage />} />
               <Route path="safety-checks/:eventId" element={<SafetyCheckReviewPage />} />
             </Route>
           </Route>

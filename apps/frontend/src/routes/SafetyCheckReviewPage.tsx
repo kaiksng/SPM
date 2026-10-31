@@ -1,8 +1,8 @@
 import type { EventReadiness, SafetyReviewDetails } from "@spm/shared";
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
 import { loadEventDetail, type EventDetail } from "@/features/event-requests/services/event-details";
 import { SafetyCheckDecisionDialog } from "@/features/safety-check/components/safety-check-decision-dialog";
@@ -120,6 +120,8 @@ export function SafetyCheckReviewPage() {
     navigate("/safety-checks", {
       replace: true,
       state: {
+        decisionEventId: eventId,
+        decisionRound: submission?.round,
         notice:
           decision === "approved"
             ? `"${event?.title}" approved — it's now Confirmed.`
@@ -136,7 +138,10 @@ export function SafetyCheckReviewPage() {
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-4xl">
-          <EventPageTopBar backTo="/safety-checks" backLabel="Back to safety checks" eventId={eventId} />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <EventPageTopBar backTo="/safety-checks" backLabel="Back to safety checks" eventId={eventId} showHistory={false} />
+            <Link to={`/safety-checks?tab=history&event=${eventId}`} className={buttonVariants({ variant: "outline", size: "sm" })}>Review history</Link>
+          </div>
 
           {loading ? (
             <div className="mt-7 h-96 animate-pulse rounded-2xl bg-slate-200/70 motion-reduce:animate-none" />
