@@ -15,6 +15,7 @@ const row = (overrides: Record<string, unknown> = {}) => ({
   ends_at: "2099-07-01T06:00:00Z",
   location: "Auditorium",
   banner_path: "org-1/summit.png",
+  registration_required: true,
   registration_opens_at: null,
   registration_closes_at: null,
   is_full: false,
@@ -49,6 +50,8 @@ describe("listPublicEvents", () => {
     ["closed", { registration_closes_at: "2099-05-01T00:00:00Z" }],
     ["full", { is_full: true }],
     ["open", { registration_opens_at: "2099-05-01T00:00:00Z", registration_closes_at: "2099-06-30T00:00:00Z" }],
+    // An event that doesn't take registrations is still listed.
+    ["not_required", { registration_required: false }],
   ])("works out registration as %s", async (state, overrides) => {
     rpcMock.mockResolvedValue({ data: [row(overrides)], error: null });
 

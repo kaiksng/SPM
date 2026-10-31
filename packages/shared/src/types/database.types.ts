@@ -2185,6 +2185,7 @@ export type Database = {
           location: string
           registration_closes_at: string
           registration_opens_at: string
+          registration_required: boolean
           starts_at: string
           title: string
         }[]

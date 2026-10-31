@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase-client";
 
 /** Where registration stands for a signed-out visitor; no live numbers. */
-export type PublicRegistrationState = "open" | "not_open" | "closed" | "full";
+export type PublicRegistrationState = "open" | "not_open" | "closed" | "full" | "not_required";
 
 export type PublicEventSummary = {
   id: string;
@@ -15,9 +15,10 @@ export type PublicEventSummary = {
 };
 
 /**
- * Upcoming confirmed events taking registrations, for the public main page.
- * public.list_public_events (202610310001) returns only what that page
- * shows, so it works before sign-in without opening events up under RLS.
+ * Upcoming confirmed events, for the public main page — including ones that
+ * don't take registrations. public.list_public_events (last 202611010001)
+ * returns only what that page shows, so it works before sign-in without
+ * opening events up under RLS.
  */
 export async function listPublicEvents(limit = 6, now: Date = new Date()): Promise<PublicEventSummary[]> {
   const { data, error } = await supabase.rpc("list_public_events", { p_limit: limit });
@@ -36,8 +37,9 @@ export async function listPublicEvents(limit = 6, now: Date = new Date()): Promi
       bannerPath: row.banner_path ?? null,
       opensAt,
       // The same order as computeRegistrationState (@spm/shared).
-      registration:
-        opensAt && now < new Date(opensAt)
+      registration: !row.registration_required
+        ? "not_required"
+        : opensAt && now < new Date(opensAt)
           ? "not_open"
           : closesAt && now > new Date(closesAt)
             ? "closed"

@@ -1,8 +1,9 @@
 begin;
 
-select plan(8);
+select plan(10);
 
--- Upcoming events on the public main page (202610310001_public_upcoming_events.sql).
+-- Upcoming events on the public main page (202610310001, last
+-- 202611010001: events that don't take registrations are listed too).
 
 insert into auth.users (id, email, raw_user_meta_data)
 values
@@ -47,13 +48,23 @@ select * from public.list_public_events(50) where title like 'Public %';
 
 select is(
   (select array_agg(title order by starts_at) from v_listed),
-  array['Public Full', 'Public Upcoming'],
-  'a signed-out visitor sees upcoming confirmed events that take registrations, soonest first'
+  array['Public Full', 'Public Upcoming', 'Public No Registration'],
+  'a signed-out visitor sees every upcoming confirmed event, soonest first'
 );
 select is(
   (select row(location, banner_path) from v_listed where title = 'Public Upcoming'),
   row('Main Hall'::text, 'bb000000-0000-0000-0000-000000000001/banner.png'::text),
   'with the location and banner'
+);
+select is(
+  (select row(registration_required, registration_opens_at, is_full) from v_listed where title = 'Public No Registration'),
+  row(false, null::timestamptz, false),
+  'an event that doesn''t take registrations says so, with no registration window'
+);
+select is(
+  (select registration_required from v_listed where title = 'Public Upcoming'),
+  true,
+  'an event that takes registrations says so'
 );
 select is(
   (select is_full from v_listed where title = 'Public Full'),

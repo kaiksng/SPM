@@ -22,9 +22,13 @@ import { ListToolbar } from "@/features/workspace/components/list-toolbar";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
-const STATUS_FILTER_OPTIONS = (
-  ["open", "full", "waitlisted", "not_open", "closed", "registered"] as const
-).map((value) => ({ value, label: registrationStateLabels[value] }));
+const STATUS_FILTER_OPTIONS = [
+  ...(["open", "full", "waitlisted", "not_open", "closed", "registered"] as const).map((value) => ({
+    value,
+    label: registrationStateLabels[value],
+  })),
+  { value: "not_required" as const, label: "No registration needed" },
+];
 
 const dateFormatter = new Intl.DateTimeFormat("en-SG", {
   dateStyle: "medium",
@@ -222,6 +226,13 @@ function EventCardCta({
     return (
       <span className="mt-4 block rounded-lg border border-primary py-2 text-center text-sm font-semibold text-primary">
         Join waiting list
+      </span>
+    );
+  }
+  if (state === "not_required") {
+    return (
+      <span className="mt-4 block rounded-lg bg-violet-50 py-2 text-center text-sm font-semibold text-violet-700">
+        No registration needed
       </span>
     );
   }

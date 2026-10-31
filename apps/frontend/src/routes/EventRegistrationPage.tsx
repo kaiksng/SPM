@@ -256,7 +256,7 @@ export function EventRegistrationPage() {
                   )}
                 </div>
 
-                {event.registration.capacity !== null && (
+                {event.registration.required && event.registration.capacity !== null && (
                   <div className="mt-4">
                     <p className="mb-1.5 text-sm text-slate-700">
                       {Math.max(event.registration.capacity - registeredCount, 0)} of{" "}
@@ -377,6 +377,8 @@ export function EventRegistrationPage() {
                     </div>
                   ) : state === "full" ? (
                     <p className="text-sm text-amber-800">This event has reached capacity.</p>
+                  ) : state === "not_required" ? (
+                    <p className="text-sm text-slate-600">No registration needed for this event. Just come along.</p>
                   ) : state === "not_open" ? (
                     <p className="text-sm text-slate-600">
                       Registration opens{" "}

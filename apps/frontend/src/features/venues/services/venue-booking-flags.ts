@@ -26,7 +26,7 @@ export type VenueBookingFlag = {
  * SPM-9: every conflict and disruption on an event's venue bookings, open
  * and cleared, for its change history. RLS limits the rows to Venue Staff,
  * the Event Coordinator Lead and the event's assigned coordinator
- * (202610120003, 202611010001); anyone else gets none.
+ * (202610120003, 202611010005); anyone else gets none.
  */
 export async function listVenueBookingFlagsForEvent(eventId: string): Promise<VenueBookingFlag[]> {
   const [conflicts, disruptions] = await Promise.all([

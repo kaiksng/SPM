@@ -28,6 +28,7 @@ function registrationLabel(event: PublicEventSummary): string {
     not_open: event.opensAt ? `Opens ${dayFormatter.format(new Date(event.opensAt))}` : "Opening soon",
     closed: "Registration closed",
     full: "Full",
+    not_required: "No registration needed",
   };
   return labels[event.registration];
 }
@@ -110,6 +111,7 @@ export function PublicEventGrid({ linkTo }: { linkTo: (eventId: string) => strin
                   "mt-4 w-fit rounded-full px-2.5 py-1 text-xs font-semibold",
                   event.registration === "open" && "bg-emerald-50 text-emerald-700",
                   event.registration === "not_open" && "bg-blue-50 text-blue-700",
+                  event.registration === "not_required" && "bg-violet-50 text-violet-700",
                   (event.registration === "full" || event.registration === "closed") && "bg-muted text-muted-foreground",
                 )}
               >
