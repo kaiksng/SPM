@@ -1,4 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { safetyReviewRecord } from "@/test/safety-review-fixtures";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,6 +12,13 @@ const authState = {
 };
 
 const listPendingSafetyCheckEventsMock = vi.fn();
+const listHistoryMock = vi.fn();
+beforeEach(() => { listHistoryMock.mockReset().mockResolvedValue([]); });
+vi.mock("@/features/safety-check/services/safety-review-history", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/features/safety-check/services/safety-review-history")>(),
+  listSafetyReviewHistory: () => listHistoryMock(),
+}));
+vi.mock("@/lib/supabase-client", () => ({ supabase: {} }));
 
 vi.mock("@/context/auth-context", () => ({ useAuth: () => authState }));
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
@@ -31,9 +40,9 @@ const PENDING_EVENT = {
   submittedAt: "2026-10-20T09:00:00.000Z",
 };
 
-function renderPage() {
+function renderPage(url = "/safety-checks") {
   return render(
-    <MemoryRouter initialEntries={["/safety-checks"]}>
+    <MemoryRouter initialEntries={[url]}>
       <SafetyChecksPage />
     </MemoryRouter>,
   );
@@ -147,3 +156,76 @@ describe("SafetyChecksPage queue details", () => {
   });
 });
 
+
+// SPM-89 AC04: past rounds remain discoverable independently of the pending queue.
+describe("Safety Checks workspace history", () => {
+  beforeEach(() => {
+    authState.profile.role = "safety_officer";
+    listPendingSafetyCheckEventsMock.mockReset().mockResolvedValue([{ ...PENDING_EVENT, round: 2 }]);
+    listHistoryMock.mockResolvedValue([safetyReviewRecord, { ...safetyReviewRecord, decisionId: 13, title: "Other event", eventId: "event-2", outcome: "approved", reviewerName: "Other Officer" }]);
+  });
+  it("keeps a resubmitted event actionable while its past decision stays in history", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByText("Resubmitted · Round 2")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: /Review history/ }));
+    expect(await screen.findAllByText("Changes requested")).toHaveLength(2);
+    expect(screen.getByRole("link", { name: /Alumni Homecoming Mixer/ })).toHaveAttribute("href", "/safety-checks/history/12");
+    expect(screen.getByText(/Reviewed by Sam Safety/)).toBeInTheDocument();
+    expect(screen.queryByText("Review event →")).not.toBeInTheDocument();
+  });
+  it("supports search and outcome filters", async () => {
+    const user = userEvent.setup();
+    renderPage("/safety-checks?tab=history");
+    await screen.findByText("Other event");
+    await user.selectOptions(screen.getByLabelText("Filter review outcome"), "approved");
+    expect(await screen.findByText("Other event")).toBeInTheDocument();
+    expect(screen.queryByText("Alumni Homecoming Mixer")).not.toBeInTheDocument();
+    await user.type(screen.getByRole("searchbox"), "missing");
+    expect(await screen.findByText("No matching reviews")).toBeInTheDocument();
+    await user.clear(screen.getByRole("searchbox"));
+    await user.selectOptions(screen.getByLabelText("Filter review outcome"), "changes_requested");
+    expect(await screen.findByText("Alumni Homecoming Mixer")).toBeInTheDocument();
+    expect(screen.getByRole("searchbox")).toHaveValue("");
+  });
+  it("links directly to the decision after acting", async () => {
+    render(<MemoryRouter initialEntries={[{ pathname: "/safety-checks", state: { notice: "Changes requested.", decisionEventId: "event-1", decisionRound: 1 } }]}><SafetyChecksPage /></MemoryRouter>);
+    expect(await screen.findByRole("link", { name: "View decision" })).toHaveAttribute("href", "/safety-checks/history/12");
+  });
+  it("keeps queue failures independent from available history", async () => {
+    listPendingSafetyCheckEventsMock.mockRejectedValue(new Error("Queue failed"));
+    renderPage("/safety-checks?tab=history");
+    expect(await screen.findByText("Other event")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+  it("reports history failures without hiding the actionable queue", async () => {
+    const user = userEvent.setup();
+    listHistoryMock.mockRejectedValue(new Error("History failed"));
+    renderPage();
+    expect(await screen.findByText("Resubmitted · Round 2")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: /Review history/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("History failed");
+    expect(screen.queryByText("No review history yet")).not.toBeInTheDocument();
+  });
+  it("supports keyboard navigation between the workspace tabs", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const awaiting = await screen.findByRole("tab", { name: /Awaiting review/ });
+    awaiting.focus();
+    await user.keyboard("{ArrowRight}");
+    const history = await screen.findByRole("tab", { name: /Review history/ });
+    expect(history).toHaveAttribute("aria-selected", "true");
+    expect(history).toHaveFocus();
+    await user.keyboard("{Home}");
+    expect(await screen.findByText("Resubmitted · Round 2")).toBeInTheDocument();
+    expect(awaiting).toHaveFocus();
+  });
+  it("opens an event-specific history filter and can show all events again", async () => {
+    const user = userEvent.setup();
+    renderPage("/safety-checks?tab=history&event=event-1");
+    await screen.findByText("Alumni Homecoming Mixer");
+    expect(screen.queryByText("Other event")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show all review history" }));
+    expect(await screen.findByText("Other event")).toBeInTheDocument();
+  });
+});

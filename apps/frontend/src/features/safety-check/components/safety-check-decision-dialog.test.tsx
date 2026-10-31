@@ -31,7 +31,7 @@ describe("SafetyCheckDecisionDialog approving", () => {
     const user = userEvent.setup();
     renderDialog("approved");
 
-    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await user.click(screen.getByRole("button", { name: "Confirm approval" }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(""));
   });
@@ -41,7 +41,7 @@ describe("SafetyCheckDecisionDialog approving", () => {
     renderDialog("approved");
 
     await user.type(screen.getByLabelText("Note (optional)"), "  All exits checked ");
-    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await user.click(screen.getByRole("button", { name: "Confirm approval" }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledWith("All exits checked"));
   });
@@ -61,11 +61,11 @@ describe("SafetyCheckDecisionDialog approving", () => {
     onSubmit.mockRejectedValueOnce(new Error("Only an event Pending Safety Check can be decided"));
     renderDialog("approved");
 
-    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await user.click(screen.getByRole("button", { name: "Confirm approval" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Only an event Pending Safety Check can be decided");
 
     onSubmit.mockRejectedValueOnce("boom");
-    await user.click(screen.getByRole("button", { name: "Approve" }));
+    await user.click(screen.getByRole("button", { name: "Confirm approval" }));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("This decision could not be submitted."));
   });
 });
@@ -73,15 +73,19 @@ describe("SafetyCheckDecisionDialog approving", () => {
 // SPM-89 (shares the dialog): the other two outcomes need a reason.
 describe("SafetyCheckDecisionDialog other outcomes", () => {
   it.each([
-    ["changes_requested", "Request changes", "Request changes"],
-    ["rejected", "Reject safety arrangement", "Reject"],
+    ["changes_requested", "Request changes", "Send change request"],
+    ["rejected", "Reject safety arrangement", "Confirm rejection"],
   ] as const)("%s asks for a reason before it is sent", async (decision, title, button) => {
     const user = userEvent.setup();
     renderDialog(decision, 2);
 
     expect(screen.getByRole("dialog", { name: title })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: button }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Explain the reason for this decision.");
+    if (decision === "changes_requested") {
+      expect(screen.getByRole("button", { name: button })).toBeDisabled();
+    } else {
+      await user.click(screen.getByRole("button", { name: button }));
+      expect(screen.getByRole("alert")).toHaveTextContent("Explain the reason for this decision.");
+    }
     expect(onSubmit).not.toHaveBeenCalled();
 
     await user.type(screen.getByLabelText("Reason"), "Exit blocked");
