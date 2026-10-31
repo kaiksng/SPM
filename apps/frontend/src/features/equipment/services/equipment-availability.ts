@@ -7,7 +7,7 @@ import {
   type EquipmentAvailabilityStatus,
 } from "@spm/shared";
 
-import { loadEquipmentArrangementStatuses } from "@/features/equipment/services/equipment-arrangement-status";
+import { loadEquipmentArrangementHistory } from "@/features/equipment/services/equipment-arrangement-status";
 import { supabase } from "@/lib/supabase-client";
 
 /**
@@ -31,7 +31,6 @@ export type EquipmentAvailabilityResult = {
   technicalRequirements: string | null;
   totalUnits: number;
   reservedQuantity: number;
-  unavailableQuantity: number;
   availableQuantity: number;
   status: EquipmentAvailabilityStatus;
   /** The live reservation for this request, if Technical Support Staff made one. */
@@ -109,9 +108,9 @@ export async function listEventEquipmentAvailability(): Promise<EventEquipmentAv
   const eventIds = events.map((event) => event.id);
   const [{ data: rows, error: checkError }, arrangements] = await Promise.all([
     supabase.rpc("check_event_equipment_availability", { p_event_ids: eventIds }),
-    // The arrangement statuses are extra detail: if they can't be loaded
-    // (e.g. the SPM-28 migration isn't applied yet), the rest still shows.
-    loadEquipmentArrangementStatuses(eventIds).catch(() => null),
+    // The arrangement history is extra detail: if it can't be loaded, the
+    // rest still shows.
+    loadEquipmentArrangementHistory(eventIds).catch(() => null),
   ]);
 
   if (checkError) throw new Error("We couldn't check equipment availability.");
@@ -131,7 +130,6 @@ export async function listEventEquipmentAvailability(): Promise<EventEquipmentAv
       technicalRequirements: row.technical_requirements,
       totalUnits: row.total_units,
       reservedQuantity: row.reserved_quantity,
-      unavailableQuantity: row.unavailable_quantity,
       availableQuantity: row.available_quantity,
       // Anything unexpected is shown as unknown rather than as available.
       status: isEquipmentAvailabilityStatus(row.status) ? row.status : "unknown",
@@ -156,7 +154,7 @@ export async function listEventEquipmentAvailability(): Promise<EventEquipmentAv
         isEquipmentReservationAllowed(eventStatusById.get(row.event_id) ?? ""),
     });
     const arrangement = arrangements
-      ? (arrangements.get(row.requirement_id) ?? currentEquipmentArrangement([], automatic))
+      ? currentEquipmentArrangement(arrangements.get(row.requirement_id) ?? [], automatic)
       : null;
     resultsByEvent.set(row.event_id, [...(resultsByEvent.get(row.event_id) ?? []), { ...result, arrangement }]);
   }

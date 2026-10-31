@@ -10,13 +10,13 @@ import {
   EquipmentFiltersPanel,
   type EquipmentFilterValues,
 } from "@/features/equipment/components/equipment-filters";
-import type { EquipmentCatalogueItem } from "@/features/equipment/services/equipment-unavailability";
+import type { EquipmentCatalogueItem } from "@/features/equipment/services/equipment-inventory";
 import { ListToolbar } from "@/features/workspace/components/list-toolbar";
 import { cn } from "@/lib/utils";
 
 /**
  * The read-only catalogue coordinators and organisers browse: name, category
- * and in-service quantity only — no per-unit or outage detail, since RLS
+ * and in-service quantity only — no per-unit detail, since RLS
  * keeps that Technical Support Staff-only (see EquipmentCatalogueItem).
  */
 export function EquipmentCatalogue({

@@ -84,7 +84,6 @@ export function App() {
               <Route path="flagged-bookings" element={<FlaggedBookingsPage />} />
               <Route path="equipment" element={<EquipmentPage />} />
               <Route path="equipment/inventory" element={<EquipmentPage section="inventory" />} />
-              <Route path="equipment/unavailability" element={<EquipmentPage section="unavailability" />} />
               <Route path="browse-events" element={<BrowseEventsPage />} />
               <Route path="browse-events/my-registrations" element={<MyRegistrationsPage />} />
               <Route path="browse-events/:eventId" element={<EventRegistrationPage />} />

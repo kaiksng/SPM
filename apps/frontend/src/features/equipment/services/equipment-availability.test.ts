@@ -2,17 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryBuilder } from "@/test/supabase-mock";
 
-const { fromMock, rpcMock, loadStatusesMock } = vi.hoisted(() => ({
+const { fromMock, rpcMock, loadHistoryMock } = vi.hoisted(() => ({
   fromMock: vi.fn(),
   rpcMock: vi.fn(),
-  loadStatusesMock: vi.fn(),
+  loadHistoryMock: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase-client", () => ({
   supabase: { from: fromMock, rpc: rpcMock },
 }));
 vi.mock("@/features/equipment/services/equipment-arrangement-status", () => ({
-  loadEquipmentArrangementStatuses: (...args: unknown[]) => loadStatusesMock(...args),
+  loadEquipmentArrangementHistory: (...args: unknown[]) => loadHistoryMock(...args),
 }));
 
 import {
@@ -35,7 +35,6 @@ const checkRow = (requirementId: string) => ({
   technical_requirements: null,
   total_units: 100,
   reserved_quantity: 0,
-  unavailable_quantity: 0,
   available_quantity: 100,
   status: "available",
   reservation_id: null,
@@ -59,7 +58,7 @@ function mockTables(events: EventRow[], orphanRows: unknown[] = []) {
 beforeEach(() => {
   fromMock.mockReset();
   rpcMock.mockReset();
-  loadStatusesMock.mockReset();
+  loadHistoryMock.mockReset();
   mockTables([{ id: "event-1", title: "Spring Expo", status: "pending_safety_check", starts_at: null, ends_at: null }]);
   rpcMock.mockResolvedValue({ data: [checkRow("req-1"), checkRow("req-2")], error: null });
 });
@@ -84,12 +83,11 @@ describe("listEventEquipmentAvailability (SPM-28)", () => {
     expect(eventsQuery.not).toHaveBeenCalledWith("event_equipment_requirements.requested_at", "is", null);
   });
 
-  // AC02: until staff set a status, it follows the reservation and availability.
-  // SPM-28 AC02: until staff set one, the status is worked out — Arranged when
-  // reserved in full, In progress when partly, Issue when it needs re-checking or
-  // cannot be reserved in full (short, unavailable, unknown, retired), otherwise
-  // Not started. A status set by hand wins.
-  it("works out each item's status until staff set one by hand", async () => {
+  // SPM-28 AC02: the status is always worked out — Arranged when reserved in
+  // full, In progress when partly, Issue when it needs re-checking or cannot be
+  // reserved in full (short, unavailable, unknown, retired), otherwise Not
+  // started. An Issue recorded in the history earlier doesn't override it.
+  it("works out each item's status from its reservation", async () => {
     mockTables([{ id: "event-1", title: "Spring Expo", status: "planning", starts_at: null, ends_at: null }]);
     const reserved = (quantity: number, needsRecheck = false) => ({
       reservation_id: "res",
@@ -110,29 +108,31 @@ describe("listEventEquipmentAvailability (SPM-28)", () => {
       ],
       error: null,
     });
-    loadStatusesMock.mockResolvedValue(
-      new Map([["set-by-hand", { status: "issue", automatic: false, note: "Faulty", updatedByName: "Sam", updatedAt: "2099-01-01T00:00:00Z", history: [] }]]),
+    loadHistoryMock.mockResolvedValue(
+      new Map([["set-by-hand", [{ id: 1, status: "issue", note: "Faulty", updatedByName: "Sam", updatedAt: "2099-01-01T00:00:00Z" }]]]),
     );
 
     const [event] = await listEventEquipmentAvailability();
 
-    expect(loadStatusesMock).toHaveBeenCalledWith(["event-1"]);
-    expect(event?.results.map((result) => [result.requirementId, result.arrangement?.status, result.arrangement?.automatic])).toEqual([
-      ["set-by-hand", "issue", false],
-      ["ready", "not_started", true],
-      ["reserved", "arranged", true],
-      ["partly", "in_progress", true],
-      ["flagged", "issue", true],
-      ["short", "issue", true],
-      ["unknown", "issue", true],
-      ["none-free", "issue", true],
-      ["retired", "issue", true],
+    expect(loadHistoryMock).toHaveBeenCalledWith(["event-1"]);
+    expect(event?.results.map((result) => [result.requirementId, result.arrangement?.status])).toEqual([
+      ["set-by-hand", "arranged"],
+      ["ready", "not_started"],
+      ["reserved", "arranged"],
+      ["partly", "in_progress"],
+      ["flagged", "issue"],
+      ["short", "issue"],
+      ["unknown", "issue"],
+      ["none-free", "issue"],
+      ["retired", "issue"],
     ]);
+    // The history is kept alongside (AC03).
+    expect(event?.results[0]?.arrangement?.history).toHaveLength(1);
   });
 
   // SPM-28 AC02: an event awaiting its safety check cannot be reserved, so it is an Issue.
   it("treats an unreserved item on a Pending Safety Check event as an issue", async () => {
-    loadStatusesMock.mockResolvedValue(new Map());
+    loadHistoryMock.mockResolvedValue(new Map());
 
     const [event] = await listEventEquipmentAvailability();
 
@@ -140,7 +140,7 @@ describe("listEventEquipmentAvailability (SPM-28)", () => {
   });
 
   it("still returns availability when the arrangement statuses can't be loaded", async () => {
-    loadStatusesMock.mockRejectedValue(new Error("We couldn't load the equipment arrangement statuses."));
+    loadHistoryMock.mockRejectedValue(new Error("We couldn't load the equipment arrangement statuses."));
 
     const [event] = await listEventEquipmentAvailability();
 
@@ -150,7 +150,7 @@ describe("listEventEquipmentAvailability (SPM-28)", () => {
 
   // AC4/AC5: a reservation left by a removed request still holds stock, so it is listed to be released.
   it("lists reservations whose request was removed, including events with no requests left", async () => {
-    loadStatusesMock.mockResolvedValue(new Map());
+    loadHistoryMock.mockResolvedValue(new Map());
     const orphan = (id: string, eventId: string, title: string, startsAt: string) => ({
       id,
       quantity: 5,
@@ -195,7 +195,7 @@ describe("reserving equipment (SPM-32)", () => {
   // quantity, the staff member and when; a flag and its reason come with it (AC04).
   it("shows each reservation with its quantity, who made it, when, and any re-check flag", async () => {
     mockTables([{ id: "event-1", title: "Spring Expo", status: "planning", starts_at: null, ends_at: null }]);
-    loadStatusesMock.mockResolvedValue(new Map());
+    loadHistoryMock.mockResolvedValue(new Map());
     rpcMock.mockResolvedValue({
       data: [
         {

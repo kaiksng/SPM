@@ -1,6 +1,6 @@
 begin;
 
-select plan(28);
+select plan(24);
 
 -- Equipment units and catalogue management
 -- (202610061000_equipment_units_and_catalogue_management.sql).
@@ -143,40 +143,6 @@ select is(
   (select row(name, category, code) from public.equipment_items where id = (select id from k_ids where name = 'fog')),
   row('Fog machine (large)'::text, 'Effects'::text, 'fog-l'::text),
   'the edit is stored'
-);
-
--- Unavailability naming specific units.
-insert into k_ids
-select 'mic-' || unit_number, id from public.equipment_units
-where equipment_item_id = (select id from k_ids where name = 'mic') and unit_number in (3, 7);
-
-select lives_ok(
-  $$insert into k_ids select 'outage', public.record_equipment_unavailability(
-      (select id from k_ids where name = 'mic'), 99, 'Battery fault',
-      now() + interval '1 day', now() + interval '2 days',
-      array[(select id from k_ids where name = 'mic-3'), (select id from k_ids where name = 'mic-7')])$$,
-  'an outage can name specific units'
-);
-select is(
-  (select quantity from public.equipment_unavailability where id = (select id from k_ids where name = 'outage')),
-  2,
-  'the quantity is the number of units named'
-);
-select throws_ok(
-  $$select public.record_equipment_unavailability(
-      (select id from k_ids where name = 'mic'), 1, 'Overlap',
-      now() + interval '36 hours', now() + interval '3 days',
-      array[(select id from k_ids where name = 'mic-3')])$$,
-  '23514', 'Already unavailable for part of this period: mic-3',
-  'a unit cannot be out twice for an overlapping period'
-);
-select throws_ok(
-  $$select public.record_equipment_unavailability(
-      (select id from k_ids where name = 'fog'), 1, 'Wrong item',
-      now() + interval '1 day', now() + interval '2 days',
-      array[(select id from k_ids where name = 'mic-3')])$$,
-  '23514', 'Choose in-service units of this equipment',
-  'units must belong to the chosen item'
 );
 
 -- Retiring an item.

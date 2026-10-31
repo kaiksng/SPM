@@ -1,6 +1,6 @@
 begin;
 
-select plan(30);
+select plan(29);
 
 -- The coordinator requests an event's equipment from Technical Support Staff
 -- (202610300007_coordinator_requests_equipment.sql).
@@ -58,11 +58,6 @@ select throws_ok(
   $$select public.reserve_equipment((select id from v_ids where name = 'first'), 1)$$,
   '23514', 'The coordinator has not requested this equipment yet',
   'unrequested equipment cannot be reserved'
-);
-select throws_ok(
-  $$select public.update_equipment_arrangement((select id from v_ids where name = 'first'), 'in_progress', null)$$,
-  '23514', 'The coordinator has not requested this equipment yet',
-  'unrequested equipment cannot have an arrangement status set'
 );
 
 -- Readiness: unrequested equipment is outstanding.
@@ -217,10 +212,12 @@ select is(
   'an item not chosen stays unrequested'
 );
 
--- Requesting again after staff flag an Issue (202610300009).
+-- Requesting again after an Issue is recorded (202610300009). Only the system
+-- records one now (e.g. a changed request, 202610290002), never staff by hand.
+insert into public.equipment_arrangement_updates (requirement_id, event_id, status, note, updated_by)
+values ((select id from v_ids where name = 'second'), 'eb000000-0000-0000-0000-0000000000e1', 'issue', 'Request changed',
+        'eb000000-0000-0000-0000-000000000001');
 set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"eb000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select public.update_equipment_arrangement((select id from v_ids where name = 'second'), 'issue', 'faulty');
 select set_config('request.jwt.claims', '{"sub":"eb000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is(
   public.request_event_equipment('eb000000-0000-0000-0000-0000000000e1', array[(select id from v_ids where name = 'second')]),

@@ -386,110 +386,6 @@ export type Database = {
           },
         ]
       }
-      equipment_unavailability: {
-        Row: {
-          ended_at: string | null
-          ended_by: string | null
-          ends_at: string
-          equipment_item_id: string
-          id: string
-          quantity: number
-          reason: string
-          recorded_at: string
-          recorded_by: string
-          removed_at: string | null
-          removed_by: string | null
-          starts_at: string
-        }
-        Insert: {
-          ended_at?: string | null
-          ended_by?: string | null
-          ends_at: string
-          equipment_item_id: string
-          id?: string
-          quantity: number
-          reason: string
-          recorded_at?: string
-          recorded_by: string
-          removed_at?: string | null
-          removed_by?: string | null
-          starts_at: string
-        }
-        Update: {
-          ended_at?: string | null
-          ended_by?: string | null
-          ends_at?: string
-          equipment_item_id?: string
-          id?: string
-          quantity?: number
-          reason?: string
-          recorded_at?: string
-          recorded_by?: string
-          removed_at?: string | null
-          removed_by?: string | null
-          starts_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "equipment_unavailability_ended_by_fkey"
-            columns: ["ended_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_unavailability_equipment_item_id_fkey"
-            columns: ["equipment_item_id"]
-            isOneToOne: false
-            referencedRelation: "equipment_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_unavailability_recorded_by_fkey"
-            columns: ["recorded_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_unavailability_removed_by_fkey"
-            columns: ["removed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      equipment_unavailability_units: {
-        Row: {
-          unavailability_id: string
-          unit_id: string
-        }
-        Insert: {
-          unavailability_id: string
-          unit_id: string
-        }
-        Update: {
-          unavailability_id?: string
-          unit_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "equipment_unavailability_units_unavailability_id_fkey"
-            columns: ["unavailability_id"]
-            isOneToOne: false
-            referencedRelation: "equipment_unavailability"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "equipment_unavailability_units_unit_id_fkey"
-            columns: ["unit_id"]
-            isOneToOne: false
-            referencedRelation: "equipment_units"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       equipment_units: {
         Row: {
           created_at: string
@@ -2028,7 +1924,6 @@ export type Database = {
           status: string
           technical_requirements: string
           total_units: number
-          unavailable_quantity: number
         }[]
       }
       check_venue_booking_availability: {
@@ -2143,10 +2038,6 @@ export type Database = {
         }
         Returns: Json
       }
-      end_equipment_unavailability: {
-        Args: { p_unavailability_id: string }
-        Returns: string
-      }
       equipment_commitment_peaks: {
         Args: {
           p_exclude_requirement_id?: string
@@ -2157,7 +2048,6 @@ export type Database = {
         Returns: {
           peak_all: number
           peak_reserved: number
-          peak_unavailable: number
         }[]
       }
       event_completion_available_at: {
@@ -2342,17 +2232,6 @@ export type Database = {
         Args: { p_actor_id?: string; p_venue_id: string }
         Returns: Json
       }
-      record_equipment_unavailability: {
-        Args: {
-          p_ends_at: string
-          p_equipment_item_id: string
-          p_quantity: number
-          p_reason: string
-          p_starts_at: string
-          p_unit_ids?: string[]
-        }
-        Returns: string
-      }
       register_for_event: {
         Args: { p_actor_id?: string; p_event_id: string }
         Returns: {
@@ -2378,10 +2257,6 @@ export type Database = {
       release_reservations_for_ended_event: {
         Args: { p_event_id: string; p_reason: string }
         Returns: undefined
-      }
-      remove_equipment_unavailability: {
-        Args: { p_unavailability_id: string }
-        Returns: string
       }
       remove_event_document: {
         Args: { p_document_id: string }
@@ -2546,10 +2421,6 @@ export type Database = {
           p_venue_id: string
         }
         Returns: string
-      }
-      update_equipment_arrangement: {
-        Args: { p_note?: string; p_requirement_id: string; p_status: string }
-        Returns: number
       }
       update_equipment_item: {
         Args: {
