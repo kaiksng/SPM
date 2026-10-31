@@ -6,13 +6,13 @@ Source: `SPM List - Jira (6).csv`, read 2026-10-31. SHA-256: `384255afb34a03ec2d
 
 ## Evidence and status
 
-Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86, SPM-87, SPM-20, SPM-21 and SPM-88; execution results are recorded in integration-testing.md. The remaining 49 stories are planned.
+Existing links identify inspected test entry points, not a claim that every AC is covered or that the files passed. Unit/component and mocked route tests isolate code; pgTAP already integrates real database functions, tables, triggers and RLS. APP means the missing real application-to-local-Supabase boundary. APP coverage is implemented for SPM-2, SPM-13, SPM-14, SPM-86, SPM-87, SPM-20, SPM-21, SPM-88 and SPM-19; execution results are recorded in integration-testing.md. The remaining 48 stories are planned.
 
 Before each later story, audit the named tests against the exact ACs, settle contradictions and obtain the next-story instruction. For each APP criterion, assert observable output and independent stored state, actor permissions, relevant history/notifications, failure invariants and cleanup. Keep presentation, navigation, highlighting and confirmation assertions in UI/E2E tests.
 
 ## Requirements decisions
 
-- **SPM-19:** BLOCKED source scenario: overlap rejection conflicts with SPM-83 AC2 and current pgTAP behaviour.
+- **SPM-19:** Source export still says reject an overlapping block; SPM-83 AC2 and the application save it and flag affected bookings. The user confirmed Jira was updated to align with the current behaviour; the supplied export predates that update.
 - **SPM-12:** REOPEN: exactly eight Jira statuses conflicts with the shared enum retaining legacy statuses. Resolve expected compatibility before writing an assertion.
 - **SPM-24:** REOPEN: verify revised occupancy states and interaction with additional bookings before implementation.
 - **SPM-85:** DECISION REQUIRED: export has 14 ACs, including required-room cascading, but booking records have no required-room flag. Resolve AC5 exactly-one-main versus AC13 loss of main, and the earlier recorded 12-AC agreement.
@@ -435,20 +435,20 @@ Concurrency increments: SPM-81 simultaneous assignment; SPM-26 overlapping booki
 
 ### SPM-19 — Manage Venue Operational Blocks (Done)
 
-**Real boundary to exercise:** Block service → shared time conversion → block/history RPCs.
+**Real boundary exercised:** real block service → shared validation/time conversion → local Auth/PostgREST and database. [Integration tests](../../tests/integration/spm19-venue-blocks.integration.test.ts).
 
 **Existing evidence locations:** [venue-blocks.test.ts](../../apps/frontend/src/features/venues/services/venue-blocks.test.ts); [VenueBlocksPage.test.tsx](../../apps/frontend/src/routes/VenueBlocksPage.test.tsx); [spm19_spm21_venue_blocks_search.test.sql](../../supabase/tests/database/spm19_spm21_venue_blocks_search.test.sql).
 
-**Constraint:** BLOCKED source scenario: overlap rejection conflicts with SPM-83 AC2 and current pgTAP behaviour.
+**Source discrepancy:** The supplied export still says reject overlap. The user confirmed Jira was updated; tests cover the current SPM-83 save-and-flag behaviour. The supplied export predates that update.
 
 | Criterion | Source requirement | Responsible layer / missing evidence |
 | --- | --- | --- |
-| AC01 | Venue Staff can create a block with venue, reason, start time, and end time. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC02 | Venue Staff can remove a block when it no longer applies. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC03 | Current and past blocks remain visible in the venue's block history. | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC04 | Missing or invalid mandatory fields (venue, reason, start/end time) prevent saving and identify the affected field | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| AC05 | An end time earlier than or equal to the start time is rejected with a validation message | APP planned: verify this outcome through the boundary above. UI checks retain responsibility for visible controls/text. |
-| Scenario S01 | Given a proposed block overlaps a Pending or Confirmed booking, when Venue Staff attempt to save it, then the block is rejected and the conflict is identified. | Additional source scenario: map to AC/APP/UI outcomes before implementation. |
+| AC01 | Venue Staff can create a block with venue, reason, start time, and end time. | APP: real service and local database exercise this criterion without overlapping bookings; UI tests cover visible controls/text. |
+| AC02 | Venue Staff can remove a block when it no longer applies. | APP: real service and local database exercise this criterion without overlapping bookings; UI tests cover visible controls/text. |
+| AC03 | Current and past blocks remain visible in the venue's block history. | APP: real service and local database exercise this criterion without overlapping bookings; UI tests cover visible controls/text. |
+| AC04 | Missing or invalid mandatory fields (venue, reason, start/end time) prevent saving and identify the affected field | APP: real service and local database exercise this criterion without overlapping bookings; UI tests cover visible controls/text. |
+| AC05 | An end time earlier than or equal to the start time is rejected with a validation message | APP: real service and local database exercise this criterion without overlapping bookings; UI tests cover visible controls/text. |
+| Scenario S01 | Given a proposed block overlaps a Pending or Confirmed booking, when Venue Staff attempt to save it, then the block is rejected and the conflict is identified. | Source wording conflicts with SPM-83: integration verifies the user-requested current save-and-flag behaviour; The user confirmed the Jira amendment; the supplied export predates it. |
 
 ### SPM-83 — Mark a Venue Unavailable When Bookings Exist (Done)
 

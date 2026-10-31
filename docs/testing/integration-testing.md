@@ -1,8 +1,8 @@
 # Integration testing
 
 Application integration coverage currently includes **SPM-2 (drafts)**,
-**SPM-13 (sign-in)**, **SPM-14 (organiser ownership)** **SPM-86 (venue buffers)** **SPM-87 (buffered availability)** **SPM-20 (availability calendar data)** **SPM-21 (manual venue search)** and **SPM-88 (booking conflict flags)**. The [coverage matrix](integration-coverage-matrix.md)
-tracks all 57 non-retired stories against Jira export (6). The remaining 49
+**SPM-13 (sign-in)**, **SPM-14 (organiser ownership)** **SPM-86 (venue buffers)** **SPM-87 (buffered availability)** **SPM-20 (availability calendar data)** **SPM-21 (manual venue search)** **SPM-88 (booking conflict flags)** and **SPM-19 (operational blocks)**. The [coverage matrix](integration-coverage-matrix.md)
+tracks all 57 non-retired stories against Jira export (6). The remaining 48
 stories need their own coverage review, walkthrough and implementation instruction.
 
 ## What these tests prove
@@ -64,8 +64,8 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **8 files / 42 tests passed**
-for the current SPM-2/SPM-13/SPM-14/SPM-86/SPM-87/SPM-20/SPM-21/SPM-88 coverage. A green job verifies this suite on GitHub;
+and open its details. The test step should report **9 files / 51 tests passed**
+for the current SPM-2/SPM-13/SPM-14/SPM-86/SPM-87/SPM-20/SPM-21/SPM-88 and SPM-19 coverage. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
 
@@ -322,3 +322,17 @@ Socket mitigation: the venue-management route test now starts one loopback serve
 ## SPM-88 execution record — 2026-10-31
 
 Two integration cases exercise automatic flagging after buffer changes, staff rechecks, booking and block conflict details, status preservation, clearing, staff notification and coordinator denial. The full integration suite passed 42/42 twice from clean disposable stacks, with 8/8 safety checks each time. Integration typechecking and `pnpm check` passed. An initial integration typecheck reported two TypeScript errors in the newly written test; these were corrected before the successful checks. No tests were skipped. The earlier intermittent backend socket error and its mitigation remain documented under SPM-21.
+
+## SPM-19 partial execution record — 2026-10-31
+
+Eight integration cases cover non-overlapping block creation and removal, current/past history, Singapore time conversion, required-field and date validation, and non-staff denial. The full integration suite passed 50/50 with 8/8 safety checks; integration typechecking passed. The source scenario requiring rejection of blocks that overlap existing bookings conflicts with SPM-83 AC2 requiring saving and disruption flags. That scenario is not implemented and the story is not counted complete pending a product decision.
+
+`pnpm check` also passed. The partial SPM-19 work is left uncommitted pending the overlap requirement decision.
+
+## SPM-19 overlap follow-up — 2026-10-31
+
+At the user’s request, an additional application integration case covers the current SPM-83 overlap behaviour: staff preview pending and approved bookings, save the block, create disruption records and notifications, and retain booking statuses. Existing VenueBlocksPage component tests cover the confirmation UI. The full suite passed 51/51 and the 8/8 target-safety checks passed. The original Jira export still has the conflicting reject-overlap scenario; the user confirmed Jira was updated; the amended export has not been supplied.
+
+The follow-up `pnpm check` passed. No tests were skipped.
+
+The user confirmed the SPM-19 Jira wording was updated to reflect the save-and-flag behaviour; the available CSV predates that update.
