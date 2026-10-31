@@ -4,9 +4,9 @@ import { Link, useLocation } from "react-router";
 import { cn } from "@/lib/utils";
 
 /**
- * The coordinator's at-a-glance lifecycle sidebar on the event detail page —
- * a coarser, three-stage view than EventStatusTimeline's literal status
- * history strip (Draft/Requested/Planning/... chips). "Reached" is derived
+ * The coordinator's at-a-glance lifecycle sidebar on the event detail page,
+ * in three stages (the literal status history is on the change history
+ * page). "Reached" is derived
  * from the event's current status only, not its full history, which is a
  * simplification for the Rejected/Cancelled branches: since either can be
  * reached from several different prior stages, this can't know exactly how

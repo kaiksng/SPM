@@ -18,7 +18,6 @@ import { ConfirmedArrangementsSection } from "@/features/event-requests/componen
 import { EventPageTopBar } from "@/features/event-requests/components/event-page-top-bar";
 import { EventPlanningTimeline } from "@/features/event-requests/components/event-planning-timeline";
 import { EventStatusBadge, StatusBadge } from "@/features/event-requests/components/status-badges";
-import { EventStatusTimeline } from "@/features/event-requests/components/status-timeline";
 import { EventBannerSection } from "@/features/event-banners/components/event-banner-section";
 import { EventDocumentsSection } from "@/features/event-documents/components/event-documents-section";
 import { VenueFacilitiesSection } from "@/features/event-requests/components/venue-facilities-section";
@@ -323,7 +322,6 @@ export function EventDetailPage() {
                     <span>Submitted {formatDateTime(event.submittedAt)}</span>
                   )}
                 </div>
-                <EventStatusTimeline eventId={event.id} />
                 {isDirectEditBlocked(event.status) && (
                   <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
                     This event is finalised. Direct edits are locked to keep finalised arrangements

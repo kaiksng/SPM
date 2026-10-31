@@ -376,7 +376,9 @@ describe("EventDetailPage", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
   });
 
-  it("shows a status timeline for the event's recorded history", async () => {
+  // The full lifecycle lives on the change history page (SPM-9 AC05); the
+  // event page shows only the current status, however many changes it had.
+  it("shows only the current status, not a strip of past statuses", async () => {
     listEventStatusHistoryMock.mockResolvedValue([
       { id: 1, fromStatus: null, toStatus: "draft", changedByName: null, changedAt: "2026-09-10T08:00:00.000Z" },
       { id: 2, fromStatus: "draft", toStatus: "requested", changedByName: null, changedAt: "2026-09-11T08:00:00.000Z" },
@@ -385,12 +387,10 @@ describe("EventDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("draft")).toBeInTheDocument();
-    // "Pending" also appears as the top-of-page status badge (the mock
-    // event's own status is "requested"), so there are two matches — this
-    // only asserts the timeline's own also renders.
-    expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
-    expect(screen.getByText("planning")).toBeInTheDocument();
+    expect(await screen.findByText("Student Leadership Summit 2")).toBeInTheDocument();
+    expect(screen.getAllByText("Pending")).toHaveLength(1);
+    expect(screen.queryByText("draft")).not.toBeInTheDocument();
+    expect(screen.queryByText("planning")).not.toBeInTheDocument();
   });
 
   it("offers Mark as completed to the coordinator only for a Confirmed event", async () => {
