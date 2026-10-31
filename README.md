@@ -93,6 +93,11 @@ pnpm test:e2e             # Run browser tests against both apps
 
 Run `pnpm --filter @spm/frontend test`, `pnpm --filter @spm/backend test`, or `pnpm --filter @spm/shared test` for unit/component tests in a specific package.
 
+For application integration tests against a separate disposable local Supabase
+stack, see [integration testing](docs/testing/integration-testing.md). Use
+`pnpm test:integration` and `pnpm typecheck:integration`; Docker is required only
+for the integration run, not for `pnpm check`.
+
 Use pnpm consistently. Do not run `npm install` or commit a `package-lock.json`.
 
 ## Git workflow
