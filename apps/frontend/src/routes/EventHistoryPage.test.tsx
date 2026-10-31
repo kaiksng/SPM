@@ -58,9 +58,9 @@ vi.mock("@/features/event-requests/services/equipment", () => ({
 }));
 
 const listVenueBookingsForEventMock = vi.fn();
-const listVenueDisruptionsMock = vi.fn();
-vi.mock("@/features/venues/services/venue-disruptions", () => ({
-  listVenueDisruptionsForCoordinator: (...args: unknown[]) => listVenueDisruptionsMock(...args),
+const listVenueBookingFlagsMock = vi.fn();
+vi.mock("@/features/venues/services/venue-booking-flags", () => ({
+  listVenueBookingFlagsForEvent: (...args: unknown[]) => listVenueBookingFlagsMock(...args),
 }));
 vi.mock("@/features/venues/services/venue-bookings", () => ({
   listVenueBookingsForEvent: (...args: unknown[]) => listVenueBookingsForEventMock(...args),
@@ -103,7 +103,7 @@ beforeEach(() => {
   listEventStatusHistoryMock.mockReset().mockResolvedValue([]);
   loadEquipmentHistoryMock.mockReset().mockResolvedValue([]);
   listVenueBookingsForEventMock.mockReset().mockResolvedValue([]);
-  listVenueDisruptionsMock.mockReset().mockResolvedValue([]);
+  listVenueBookingFlagsMock.mockReset().mockResolvedValue([]);
   listSafetyCheckDecisionsMock.mockReset().mockResolvedValue([]);
   loadEventDetailMock.mockReset().mockResolvedValue({
     assignedCoordinatorId: "20000000-0000-0000-0000-000000000002",
@@ -272,33 +272,48 @@ describe("EventHistoryPage", () => {
       expect(screen.getByText(/Replacement for the disrupted booking at Auditorium/)).toBeInTheDocument();
     });
 
+    const flag = {
+      id: "disruption-1", kind: "disruption" as const, bookingId: "booking-1", conflictingEventTitle: null,
+      blockReason: "failed mic", blockStartsAt: "2099-04-06T09:00:00.000Z", blockEndsAt: "2099-04-06T10:00:00.000Z",
+      flaggedAt: "2099-04-04T00:00:00.000Z", flaggedByName: "Daryl", clearedAt: null, clearedByName: null,
+    };
+
     // SPM-83: a venue block that disrupts a booking is part of its log.
-    it("logs a booking that is currently disrupted", async () => {
+    it("logs a booking that is currently disrupted, naming the block", async () => {
       listVenueBookingsForEventMock.mockResolvedValue([{ ...original, status: "approved" as const }]);
-      listVenueDisruptionsMock.mockResolvedValue([
-        { eventId: "event-1", bookingId: "booking-1", state: "replacement_required", flaggedAt: "2099-04-04T00:00:00.000Z" },
+      listVenueBookingFlagsMock.mockResolvedValue([flag]);
+      renderPage();
+
+      expect(await screen.findByText("Disrupted")).toBeInTheDocument();
+      expect(listVenueBookingFlagsMock).toHaveBeenCalledWith("event-1");
+      expect(screen.getByText(/The venue became unavailable for this booking because of the venue block "failed mic"/)).toBeInTheDocument();
+    });
+
+    // SPM-9: a cleared disruption or conflict stays in the history, with when it was cleared.
+    it("keeps a cleared disruption and a cleared conflict in the log", async () => {
+      listVenueBookingsForEventMock.mockResolvedValue([{ ...original, status: "approved" as const }]);
+      listVenueBookingFlagsMock.mockResolvedValue([
+        { ...flag, clearedAt: "2099-04-05T00:00:00.000Z", clearedByName: "Keith" },
+        {
+          ...flag, id: "conflict-1", kind: "conflict" as const, conflictingEventTitle: "F1 event 2",
+          blockReason: null, blockStartsAt: null, blockEndsAt: null,
+          clearedAt: "2099-04-05T00:00:00.000Z", clearedByName: "Daryl",
+        },
       ]);
       renderPage();
 
       expect(await screen.findByText("Disrupted")).toBeInTheDocument();
-      expect(screen.getByText(/The venue became unavailable/)).toBeInTheDocument();
+      expect(screen.getByText("Disruption cleared")).toBeInTheDocument();
+      expect(screen.getByText("Conflict flagged")).toBeInTheDocument();
+      expect(screen.getByText("Conflict cleared")).toBeInTheDocument();
+      expect(
+        screen.getByText('Overlaps the booking for "F1 event 2" once setup/turnaround time is applied.'),
+      ).toBeInTheDocument();
     });
 
-    it("does not log a disruption that is resolved, or one on another event", async () => {
+    it("still lists the bookings when the conflicts and disruptions cannot be loaded", async () => {
       listVenueBookingsForEventMock.mockResolvedValue([{ ...original, status: "approved" as const }]);
-      listVenueDisruptionsMock.mockResolvedValue([
-        { eventId: "event-1", bookingId: "booking-1", state: "resolved", flaggedAt: "2099-04-04T00:00:00.000Z" },
-        { eventId: "other-event", bookingId: "booking-1", state: "replacement_required", flaggedAt: "2099-04-04T00:00:00.000Z" },
-      ]);
-      renderPage();
-
-      await screen.findAllByText("Auditorium");
-      expect(screen.queryByText("Disrupted")).not.toBeInTheDocument();
-    });
-
-    it("still lists the bookings when the disruptions cannot be loaded", async () => {
-      listVenueBookingsForEventMock.mockResolvedValue([{ ...original, status: "approved" as const }]);
-      listVenueDisruptionsMock.mockRejectedValue(new Error("boom"));
+      listVenueBookingFlagsMock.mockRejectedValue(new Error("boom"));
       renderPage();
 
       expect((await screen.findAllByText("Auditorium")).length).toBeGreaterThan(0);

@@ -48,7 +48,10 @@ import {
   type SafetyCheckDecisionHistoryEntry,
 } from "@/features/safety-check/services/safety-check-decisions";
 import { BookingActivityList } from "@/features/venues/components/booking-activity-list";
-import { listVenueDisruptionsForCoordinator } from "@/features/venues/services/venue-disruptions";
+import {
+  listVenueBookingFlagsForEvent,
+  type VenueBookingFlag,
+} from "@/features/venues/services/venue-booking-flags";
 import {
   listVenueBookingsForEvent,
   type VenueBookingRequestSummary,
@@ -87,7 +90,7 @@ export function EventHistoryPage() {
   const [venueBookings, setVenueBookings] = useState<VenueBookingRequestSummary[]>([]);
   const [safetyCheckDecisions, setSafetyCheckDecisions] = useState<SafetyCheckDecisionHistoryEntry[]>([]);
   // SPM-83: bookings of this event that a venue block currently disrupts.
-  const [openDisruptions, setOpenDisruptions] = useState<{ bookingId: string; flaggedAt: string }[]>([]);
+  const [venueBookingFlags, setVenueBookingFlags] = useState<VenueBookingFlag[]>([]);
   const [filter, setFilter] = useState<HistoryFilter>("all");
   const [approvedAt, setApprovedAt] = useState<string>();
   const [event, setEvent] = useState<EventDetail>();
@@ -120,8 +123,9 @@ export function EventHistoryPage() {
         () => [] as EventCoordinatorAssignmentRecord[],
       ),
       listVenueBookingsForEvent(eventId).catch(() => [] as VenueBookingRequestSummary[]),
-      // Non-critical, and limited by access rules to the people who act on disruptions.
-      listVenueDisruptionsForCoordinator().catch(() => []),
+      // Non-critical, and limited by access rules to the people who act on
+      // conflicts and disruptions (the assigned coordinator and the Lead).
+      listVenueBookingFlagsForEvent(eventId).catch(() => [] as VenueBookingFlag[]),
       listSafetyCheckDecisions(eventId).catch(() => [] as SafetyCheckDecisionHistoryEntry[]),
     ])
       .then(
@@ -136,7 +140,7 @@ export function EventHistoryPage() {
           equipmentRows,
           assignmentRows,
           venueBookingRows,
-          disruptionRows,
+          flagRows,
           safetyCheckDecisionRows,
         ]) => {
           if (!active) return;
@@ -148,11 +152,7 @@ export function EventHistoryPage() {
           setApprovedAt(decisions.find((d) => d.decision === "approved")?.decidedAt);
           setStatusHistory(statusRows);
           setVenueBookings(venueBookingRows);
-          setOpenDisruptions(
-            disruptionRows
-              .filter((row) => row.eventId === eventId && row.state !== "resolved")
-              .map((row) => ({ bookingId: row.bookingId, flaggedAt: row.flaggedAt })),
-          );
+          setVenueBookingFlags(flagRows);
           setReassignments(reassignmentRows);
           setAssignmentHistory(assignmentRows);
           setSafetyCheckDecisions(safetyCheckDecisionRows);
@@ -366,7 +366,7 @@ export function EventHistoryPage() {
               <HistoryGroup group="venue" filter={filter}>
                 <HistorySection title="Venue bookings">
                   <BookingActivityList
-                    entries={buildBookingActivity(venueBookings, openDisruptions)}
+                    entries={buildBookingActivity(venueBookings, venueBookingFlags)}
                     emptyText="No venue booking requests made yet."
                   />
                 </HistorySection>
