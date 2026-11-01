@@ -40,6 +40,7 @@ const registration = {
   endsAt: "2026-11-28T07:00:00Z",
   location: "Exhibition Hall",
   status: "registered",
+  statusBeforeCancellation: null as string | null,
   registeredAt: "2026-11-01T00:00:00Z",
   waitlistPosition: null,
   withdrawalPermitted: false,
@@ -66,6 +67,23 @@ describe("MyRegistrationsPage", () => {
     const card = (await screen.findByText("Robotics Showcase")).closest("article")!;
     expect(within(card).getByText("Exhibition Hall")).toBeInTheDocument();
     expect(within(card).getByText("Registered")).toBeInTheDocument();
+  });
+
+  // 202611010007: a cancelled event stays listed, clearly marked, with no actions.
+  it.each([
+    ["registered", "This event was cancelled. Your place has been released."],
+    ["waitlisted", "This event was cancelled. You've been taken off the waiting list."],
+  ])("shows an event cancelled while the attendee was %s, with no actions", async (before, message) => {
+    listMyRegistrationsMock.mockResolvedValue([
+      { ...registration, status: "event_cancelled", statusBeforeCancellation: before, withdrawalPermitted: true },
+    ]);
+
+    renderPage();
+
+    const card = (await screen.findByText("Robotics Showcase")).closest("article")!;
+    expect(within(card).getByText("Event cancelled")).toBeInTheDocument();
+    expect(within(card).getByText(message)).toBeInTheDocument();
+    expect(within(card).queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("shows an error message when the registrations fail to load", async () => {

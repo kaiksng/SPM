@@ -186,20 +186,23 @@ select is(
   'AC07: the change history names the coordinator who applied it'
 );
 
--- AC01/AC08: the booking is flagged, with the effective-window conflict named.
+-- AC01 (202611010008): nothing is flagged; the coordinator updates the
+-- booking themselves, and Venue Staff are told what changed.
 select ok(
-  (select needs_review from public.venue_bookings where id = '39000000-0000-0000-0000-0000000000b1'),
-  'AC01: a time change flags the venue booking Needs Review'
+  not (select needs_review from public.venue_bookings where id = '39000000-0000-0000-0000-0000000000b1'),
+  'AC01: a time change does not flag the venue booking Needs Review'
 );
-select matches(
+select is(
   (select needs_review_reason from public.venue_bookings where id = '39000000-0000-0000-0000-0000000000b1'),
-  '^Conflict – This venue is already occupied',
-  'AC08: the new window clashes with the neighbouring booking once setup and turnaround are included'
+  null,
+  'AC01: no Conflict or other reason is recorded on the booking'
 );
-select matches(
-  (select needs_review_reason from public.venue_bookings where id = '39000000-0000-0000-0000-0000000000b1'),
-  'no longer falls within the event''s new time',
-  'AC08: the reason says the booking''s own period no longer covers the event'
+select is(
+  (select message from public.notifications
+   where recipient_id = '39000000-0000-0000-0000-000000000005' and booking_id = '39000000-0000-0000-0000-0000000000b1'
+     and type = 'venue_change_review'),
+  '"SPM39 Planning Event": An approved change request changed the event time. Its coordinator will update this booking if needed.',
+  'AC02: Venue Staff are told what the change was'
 );
 
 -- AC11: nothing is silently replaced.
@@ -216,8 +219,8 @@ select ok(
 select is(
   (select count(*)::int from public.event_equipment_requirements
    where event_id = '39000000-0000-0000-0000-0000000000e1' and needs_review),
-  2,
-  'AC01: a time change flags every equipment requirement'
+  0,
+  'AC01: a time change flags no equipment requirement'
 );
 select results_eq(
   $$select status::text, needs_recheck from public.equipment_reservations where id = '39000000-0000-0000-0000-0000000000d1'$$,
@@ -246,13 +249,14 @@ select is(
   'AC10: a Planning event stays Planning'
 );
 
--- AC09: Needs Review blocks readiness.
+-- The applied change leaves the booking unflagged, so it doesn't block
+-- readiness; the reservation awaiting re-check (SPM-32 AC04) still does.
 set local role authenticated;
 select results_eq(
   $$select (r ->> 'ready')::boolean, r ->> 'venueArrangementStatus', r ->> 'equipmentArrangementStatus'
     from (select public.event_readiness('39000000-0000-0000-0000-0000000000e1') as r) x$$,
-  $$values (false, 'needs_review'::text, 'needs_review'::text)$$,
-  'AC09: the event is not Ready to Confirm while arrangements are Needs Review'
+  $$values (false, 'complete'::text, 'needs_review'::text)$$,
+  'the venue no longer waits on a Needs Review flag; the equipment reservation awaiting re-check still blocks readiness'
 );
 
 select throws_ok(
@@ -339,9 +343,10 @@ select is(
   'AC02: Safety Officers are notified that a new safety review is needed'
 );
 select matches(
-  (select needs_review_reason from public.venue_bookings where id = '39000000-0000-0000-0000-0000000000b4'),
-  'expected attendance',
-  'AC01: an attendance change flags the venue booking'
+  (select message from public.notifications
+   where booking_id = '39000000-0000-0000-0000-0000000000b4' and type = 'venue_change_review' limit 1),
+  'changed the expected attendance',
+  'AC02: an attendance change tells Venue Staff, without flagging the booking'
 );
 select ok(
   not (select needs_review from public.event_equipment_requirements where id = '39000000-0000-0000-0000-0000000000c4'),
@@ -363,8 +368,8 @@ select is(
 select results_eq(
   $$select id, needs_review from public.event_equipment_requirements
     where event_id = '39000000-0000-0000-0000-0000000000e5' order by id$$,
-  $$values ('39000000-0000-0000-0000-0000000000c5'::uuid, true), ('39000000-0000-0000-0000-0000000000c6'::uuid, false)$$,
-  'AC01: only the changed equipment requirement is flagged'
+  $$values ('39000000-0000-0000-0000-0000000000c5'::uuid, false), ('39000000-0000-0000-0000-0000000000c6'::uuid, false)$$,
+  'AC01: an equipment change flags no equipment requirement'
 );
 
 -- AC03: unassigned event — the Lead decides, cannot apply, and assignment hands it over.

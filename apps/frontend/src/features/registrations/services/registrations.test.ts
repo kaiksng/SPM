@@ -99,6 +99,15 @@ describe("getOwnRegistrationStatus", () => {
     await expect(getOwnRegistrationStatus("event-1", "attendee-1")).resolves.toBeNull();
   });
 
+  // 202611010007: an event-cancelled row reports what the attendee was, for the event page.
+  it("returns what the attendee was when the event was cancelled", async () => {
+    fromMock.mockReturnValueOnce(
+      queryBuilder({ data: { status: "event_cancelled", status_before_cancellation: "waitlisted" }, error: null }),
+    );
+
+    await expect(getOwnRegistrationStatus("event-1", "attendee-1")).resolves.toBe("waitlisted");
+  });
+
   // SPM-43 scenario 3: a withdrawn row counts as no registration, so registering again is a new request.
   it("returns null when the attendee's row is withdrawn", async () => {
     fromMock.mockReturnValueOnce(queryBuilder({ data: { status: "withdrawn" }, error: null }));

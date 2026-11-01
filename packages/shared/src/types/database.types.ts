@@ -888,6 +888,7 @@ export type Database = {
           id: string
           registered_at: string
           status: string
+          status_before_cancellation: string | null
           withdrawal_reason: string | null
           withdrawn_at: string | null
         }
@@ -897,6 +898,7 @@ export type Database = {
           id?: string
           registered_at?: string
           status?: string
+          status_before_cancellation?: string | null
           withdrawal_reason?: string | null
           withdrawn_at?: string | null
         }
@@ -906,6 +908,7 @@ export type Database = {
           id?: string
           registered_at?: string
           status?: string
+          status_before_cancellation?: string | null
           withdrawal_reason?: string | null
           withdrawn_at?: string | null
         }
@@ -2134,6 +2137,7 @@ export type Database = {
           id: string
           registered_at: string
           status: string
+          status_before_cancellation: string | null
           withdrawal_reason: string | null
           withdrawn_at: string | null
         }
@@ -2241,6 +2245,7 @@ export type Database = {
           id: string
           registered_at: string
           status: string
+          status_before_cancellation: string | null
           withdrawal_reason: string | null
           withdrawn_at: string | null
         }

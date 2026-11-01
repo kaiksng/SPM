@@ -41,13 +41,16 @@ export async function getOwnRegistrationStatus(
 ): Promise<OwnRegistrationStatus> {
   const { data, error } = await supabase
     .from("event_registrations")
-    .select("status")
+    .select("status, status_before_cancellation")
     .eq("event_id", eventId)
     .eq("attendee_id", attendeeId)
     .maybeSingle();
 
   if (error) throw new Error("We couldn't check your registration status.");
   if (!data || data.status === "withdrawn") return null;
+  // The event was cancelled: what the attendee was when that happened, so
+  // its page can say "You were registered" (202611010007).
+  if (data.status === "event_cancelled") return data.status_before_cancellation as OwnRegistrationStatus;
   return data.status as OwnRegistrationStatus;
 }
 
@@ -104,6 +107,8 @@ export type MyRegistration = {
   endsAt: string | null;
   location: string | null;
   status: string;
+  /** For an "event_cancelled" registration: "registered" or "waitlisted" when the event was cancelled. */
+  statusBeforeCancellation: string | null;
   registeredAt: string;
   waitlistPosition: number | null;
   withdrawalPermitted: boolean;
@@ -122,6 +127,7 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
       `
         id,
         status,
+        status_before_cancellation,
         registered_at,
         event:events (
           id,
@@ -158,6 +164,7 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
       endsAt: row.event!.ends_at,
       location: row.event!.event_venue_requirements?.preferred_location ?? null,
       status: row.status,
+      statusBeforeCancellation: row.status_before_cancellation,
       registeredAt: row.registered_at,
       waitlistPosition: counts.get(eventId)?.ownWaitlistPosition ?? null,
       withdrawalPermitted: row.event!.event_registration_requirements?.withdrawal_permitted ?? false,
@@ -170,6 +177,8 @@ export type EventRegistrationEntry = {
   attendeeId: string;
   attendeeName: string | null;
   status: string;
+  /** For an "event_cancelled" registration: "registered" or "waitlisted" when the event was cancelled. */
+  statusBeforeCancellation: string | null;
   registeredAt: string;
   withdrawnAt: string | null;
   waitlistPosition: number | null;
@@ -190,7 +199,7 @@ export async function listEventRegistrations(eventId: string): Promise<EventRegi
     .from("event_registrations")
     .select(
       `
-        id, attendee_id, status, registered_at, withdrawn_at,
+        id, attendee_id, status, status_before_cancellation, registered_at, withdrawn_at,
         attendee:profiles!event_registrations_attendee_id_fkey ( full_name )
       `,
     )
@@ -207,6 +216,7 @@ export async function listEventRegistrations(eventId: string): Promise<EventRegi
     attendeeId: row.attendee_id,
     attendeeName: row.attendee?.full_name ?? null,
     status: row.status,
+    statusBeforeCancellation: row.status_before_cancellation,
     registeredAt: row.registered_at,
     withdrawnAt: row.withdrawn_at,
     waitlistPosition: waitlistPositions.get(row.id) ?? null,

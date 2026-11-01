@@ -25,18 +25,23 @@ const STATUS_FILTER_OPTIONS = [
   { value: "registered", label: "Registered" },
   { value: "waitlisted", label: "Waiting list" },
   { value: "withdrawn", label: "Withdrawn" },
+  { value: "event_cancelled", label: "Event cancelled" },
 ];
 
 const STATUS_LABELS: Record<string, string> = {
   registered: "Registered",
   waitlisted: "Waiting list",
   withdrawn: "Withdrawn",
+  // The event itself was cancelled while the attendee held a place or was
+  // waiting (202611010007).
+  event_cancelled: "Event cancelled",
 };
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   registered: "border-emerald-200 bg-emerald-50 text-emerald-700",
   waitlisted: "border-amber-200 bg-amber-50 text-amber-800",
   withdrawn: "border-slate-200 bg-slate-50 text-slate-500",
+  event_cancelled: "border-red-200 bg-red-50 text-red-700",
 };
 
 const dateFormatter = new Intl.DateTimeFormat("en-SG", {
@@ -232,6 +237,13 @@ function RegistrationRow({
         </div>
         {registration.status === "waitlisted" && registration.waitlistPosition !== null && (
           <p className="mt-1 text-xs text-amber-700">Position {registration.waitlistPosition}</p>
+        )}
+        {registration.status === "event_cancelled" && (
+          <p className="mt-1 text-xs text-red-700">
+            {registration.statusBeforeCancellation === "waitlisted"
+              ? "This event was cancelled. You've been taken off the waiting list."
+              : "This event was cancelled. Your place has been released."}
+          </p>
         )}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-2">
