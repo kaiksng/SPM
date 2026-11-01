@@ -1,5 +1,5 @@
--- SPM-39-TC-017: A room layout change flags all active venue bookings
--- Acceptance criterion: AC 1
+-- SPM-39-TC-017: A room layout change notifies Venue Staff
+-- Acceptance criterion: AC 1, AC 2
 -- Login: Event Coordinator (joyce@gmail.com) - password is in the test case's Test Data / Test accounts
 -- Inputs entered during the test (not inserted): see Test Data
 -- Source: refined Preconditions of docs/Project Planning_refined_v2.xlsx

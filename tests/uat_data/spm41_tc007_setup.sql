@@ -271,6 +271,9 @@ BEGIN
       ('2026-09-28 10:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), 'planning'::public.event_status, 'pending_safety_check'::public.event_status),
       ('2026-09-29 10:00:00+08'::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'sally@gmail.com'), 'pending_safety_check'::public.event_status, 'confirmed'::public.event_status)) f(at, who, fr, t);
   END IF;
+
+  -- Must not exist: field-change history (e.g. a tester's edit, or this file resetting one).
+  DELETE FROM public.event_field_changes WHERE event_id = '00000000-0000-4000-8041-000000000201';
 END $$;
 
 -- Registrations on "Tech Networking Night" (joseph registered; daniel registered, in queue order). Stops if a real attendee is registered.

@@ -134,7 +134,7 @@ BEGIN
 END $$;
 
 
--- Venue "Premier Room" (North, 50 pax, open Mon/Tue/Wed/Thu/Fri/Sat/Sun 00:00-23:59, setup 0 min, turnaround 0 min, layouts Theatre, facilities Projector, Wi-Fi, accessibility Wheelchair access; id 00000000-0000-4000-8021-000000000112).
+-- Venue "Premier Room" (North, 50 pax, open Mon/Tue/Wed/Thu/Fri/Sat/Sun 00:00-23:59, setup 0 min, turnaround 0 min, layouts Theatre, facilities Air conditioning, Parking, accessibility Wheelchair access; id 00000000-0000-4000-8021-000000000112).
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM public.venues WHERE lower(name) = lower('Premier Room') AND NOT (id::text LIKE '00000000-0000-4000-80%' OR id::text LIKE '00000000-0000-0000-00%')) THEN
@@ -145,14 +145,14 @@ BEGIN
   ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, location = EXCLUDED.location, area_tags = EXCLUDED.area_tags, capacity = EXCLUDED.capacity, operating_hours = EXCLUDED.operating_hours, setup_time_minutes = EXCLUDED.setup_time_minutes, turnaround_time_minutes = EXCLUDED.turnaround_time_minutes, accessibility_notes = EXCLUDED.accessibility_notes, description = EXCLUDED.description
   WHERE (ve.name, ve.location, ve.area_tags, ve.capacity, ve.operating_hours, ve.setup_time_minutes, ve.turnaround_time_minutes, ve.accessibility_notes, ve.description) IS DISTINCT FROM (EXCLUDED.name, EXCLUDED.location, EXCLUDED.area_tags, EXCLUDED.capacity, EXCLUDED.operating_hours, EXCLUDED.setup_time_minutes, EXCLUDED.turnaround_time_minutes, EXCLUDED.accessibility_notes, EXCLUDED.description);
   -- Facilities and layouts: exactly the listed ones.
-  DELETE FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000112' AND NOT (facility_name = ANY (ARRAY['Projector', 'Wi-Fi']::text[]));
-  INSERT INTO public.venue_facilities (venue_id, facility_name) SELECT '00000000-0000-4000-8021-000000000112', 'Projector' WHERE NOT EXISTS (SELECT 1 FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000112' AND facility_name = 'Projector');
-  INSERT INTO public.venue_facilities (venue_id, facility_name) SELECT '00000000-0000-4000-8021-000000000112', 'Wi-Fi' WHERE NOT EXISTS (SELECT 1 FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000112' AND facility_name = 'Wi-Fi');
+  DELETE FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000112' AND NOT (facility_name = ANY (ARRAY['Air conditioning', 'Parking']::text[]));
+  INSERT INTO public.venue_facilities (venue_id, facility_name) SELECT '00000000-0000-4000-8021-000000000112', 'Air conditioning' WHERE NOT EXISTS (SELECT 1 FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000112' AND facility_name = 'Air conditioning');
+  INSERT INTO public.venue_facilities (venue_id, facility_name) SELECT '00000000-0000-4000-8021-000000000112', 'Parking' WHERE NOT EXISTS (SELECT 1 FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000112' AND facility_name = 'Parking');
   DELETE FROM public.venue_layouts WHERE venue_id = '00000000-0000-4000-8021-000000000112' AND NOT (layout_name::text = ANY (ARRAY['Theatre']::text[]));
   INSERT INTO public.venue_layouts (venue_id, layout_name) SELECT '00000000-0000-4000-8021-000000000112', 'Theatre' WHERE NOT EXISTS (SELECT 1 FROM public.venue_layouts WHERE venue_id = '00000000-0000-4000-8021-000000000112' AND layout_name::text = 'Theatre');
 END $$;
 
--- Venue "Southgate Room" (South, 50 pax, open Mon/Tue/Wed/Thu/Fri/Sat/Sun 00:00-23:59, setup 0 min, turnaround 0 min, layouts Theatre, facilities Projector, Wi-Fi, accessibility Wheelchair access; id 00000000-0000-4000-8021-000000000113).
+-- Venue "Southgate Room" (South, 50 pax, open Mon/Tue/Wed/Thu/Fri/Sat/Sun 00:00-23:59, setup 0 min, turnaround 0 min, layouts Theatre, facilities Air conditioning, Parking, accessibility Wheelchair access; id 00000000-0000-4000-8021-000000000113).
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM public.venues WHERE lower(name) = lower('Southgate Room') AND NOT (id::text LIKE '00000000-0000-4000-80%' OR id::text LIKE '00000000-0000-0000-00%')) THEN
@@ -163,14 +163,14 @@ BEGIN
   ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, location = EXCLUDED.location, area_tags = EXCLUDED.area_tags, capacity = EXCLUDED.capacity, operating_hours = EXCLUDED.operating_hours, setup_time_minutes = EXCLUDED.setup_time_minutes, turnaround_time_minutes = EXCLUDED.turnaround_time_minutes, accessibility_notes = EXCLUDED.accessibility_notes, description = EXCLUDED.description
   WHERE (ve.name, ve.location, ve.area_tags, ve.capacity, ve.operating_hours, ve.setup_time_minutes, ve.turnaround_time_minutes, ve.accessibility_notes, ve.description) IS DISTINCT FROM (EXCLUDED.name, EXCLUDED.location, EXCLUDED.area_tags, EXCLUDED.capacity, EXCLUDED.operating_hours, EXCLUDED.setup_time_minutes, EXCLUDED.turnaround_time_minutes, EXCLUDED.accessibility_notes, EXCLUDED.description);
   -- Facilities and layouts: exactly the listed ones.
-  DELETE FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000113' AND NOT (facility_name = ANY (ARRAY['Projector', 'Wi-Fi']::text[]));
-  INSERT INTO public.venue_facilities (venue_id, facility_name) SELECT '00000000-0000-4000-8021-000000000113', 'Projector' WHERE NOT EXISTS (SELECT 1 FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000113' AND facility_name = 'Projector');
-  INSERT INTO public.venue_facilities (venue_id, facility_name) SELECT '00000000-0000-4000-8021-000000000113', 'Wi-Fi' WHERE NOT EXISTS (SELECT 1 FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000113' AND facility_name = 'Wi-Fi');
+  DELETE FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000113' AND NOT (facility_name = ANY (ARRAY['Air conditioning', 'Parking']::text[]));
+  INSERT INTO public.venue_facilities (venue_id, facility_name) SELECT '00000000-0000-4000-8021-000000000113', 'Air conditioning' WHERE NOT EXISTS (SELECT 1 FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000113' AND facility_name = 'Air conditioning');
+  INSERT INTO public.venue_facilities (venue_id, facility_name) SELECT '00000000-0000-4000-8021-000000000113', 'Parking' WHERE NOT EXISTS (SELECT 1 FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000113' AND facility_name = 'Parking');
   DELETE FROM public.venue_layouts WHERE venue_id = '00000000-0000-4000-8021-000000000113' AND NOT (layout_name::text = ANY (ARRAY['Theatre']::text[]));
   INSERT INTO public.venue_layouts (venue_id, layout_name) SELECT '00000000-0000-4000-8021-000000000113', 'Theatre' WHERE NOT EXISTS (SELECT 1 FROM public.venue_layouts WHERE venue_id = '00000000-0000-4000-8021-000000000113' AND layout_name::text = 'Theatre');
 END $$;
 
--- Venue "Northgate Room" (North, 50 pax, open Mon/Tue/Wed/Thu/Fri/Sat/Sun 00:00-23:59, setup 0 min, turnaround 0 min, layouts Theatre, facilities Projector, accessibility Wheelchair access; id 00000000-0000-4000-8021-000000000114).
+-- Venue "Northgate Room" (North, 50 pax, open Mon/Tue/Wed/Thu/Fri/Sat/Sun 00:00-23:59, setup 0 min, turnaround 0 min, layouts Theatre, facilities Air conditioning, accessibility Wheelchair access; id 00000000-0000-4000-8021-000000000114).
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM public.venues WHERE lower(name) = lower('Northgate Room') AND NOT (id::text LIKE '00000000-0000-4000-80%' OR id::text LIKE '00000000-0000-0000-00%')) THEN
@@ -181,8 +181,8 @@ BEGIN
   ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, location = EXCLUDED.location, area_tags = EXCLUDED.area_tags, capacity = EXCLUDED.capacity, operating_hours = EXCLUDED.operating_hours, setup_time_minutes = EXCLUDED.setup_time_minutes, turnaround_time_minutes = EXCLUDED.turnaround_time_minutes, accessibility_notes = EXCLUDED.accessibility_notes, description = EXCLUDED.description
   WHERE (ve.name, ve.location, ve.area_tags, ve.capacity, ve.operating_hours, ve.setup_time_minutes, ve.turnaround_time_minutes, ve.accessibility_notes, ve.description) IS DISTINCT FROM (EXCLUDED.name, EXCLUDED.location, EXCLUDED.area_tags, EXCLUDED.capacity, EXCLUDED.operating_hours, EXCLUDED.setup_time_minutes, EXCLUDED.turnaround_time_minutes, EXCLUDED.accessibility_notes, EXCLUDED.description);
   -- Facilities and layouts: exactly the listed ones.
-  DELETE FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000114' AND NOT (facility_name = ANY (ARRAY['Projector']::text[]));
-  INSERT INTO public.venue_facilities (venue_id, facility_name) SELECT '00000000-0000-4000-8021-000000000114', 'Projector' WHERE NOT EXISTS (SELECT 1 FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000114' AND facility_name = 'Projector');
+  DELETE FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000114' AND NOT (facility_name = ANY (ARRAY['Air conditioning']::text[]));
+  INSERT INTO public.venue_facilities (venue_id, facility_name) SELECT '00000000-0000-4000-8021-000000000114', 'Air conditioning' WHERE NOT EXISTS (SELECT 1 FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8021-000000000114' AND facility_name = 'Air conditioning');
   DELETE FROM public.venue_layouts WHERE venue_id = '00000000-0000-4000-8021-000000000114' AND NOT (layout_name::text = ANY (ARRAY['Theatre']::text[]));
   INSERT INTO public.venue_layouts (venue_id, layout_name) SELECT '00000000-0000-4000-8021-000000000114', 'Theatre' WHERE NOT EXISTS (SELECT 1 FROM public.venue_layouts WHERE venue_id = '00000000-0000-4000-8021-000000000114' AND layout_name::text = 'Theatre');
 END $$;
