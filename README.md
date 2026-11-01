@@ -12,7 +12,7 @@ ConnectSphere is an event-planning workspace built for the IS212 Software Projec
 - [Roles and what is built](#roles-and-what-is-built) · [Stack and design](#stack-and-design)
 - [Run it](#run-it) · [Commands](#commands)
 - [Testing and traceability](#testing-and-traceability) · [Continuous integration](#continuous-integration)
-- [Known limitations](#known-limitations) · [How the code is organised](#how-the-code-is-organised)
+- [Scope and database migrations](#scope-and-database-migrations) · [How the code is organised](#how-the-code-is-organised)
 - [Contributing](#git-workflow)
 
 ## Submission map
@@ -170,13 +170,9 @@ Tests are layered so each kind of rule is checked where it is cheapest to check:
 
 **Traceability:** acceptance criteria are tagged in test comments, for example `// AC03: ...`, and Jira story keys (`SPM-nn`) appear in test file names, describe blocks and migrations, so a requirement can be followed to its code and tests. The integration matrix maps stories to suites.
 
-**Latest results** (Node 24, from a clean checkout of this branch): `pnpm check` passes with 453 shared, 187 backend and 1627 frontend tests; 115 integration tests pass; 74 pgTAP files with 1512 checks pass.
+**Latest results** (Node 24, from a clean checkout of this branch): `pnpm check` passes with 453 shared, 187 backend and 1648 frontend tests; 115 integration tests pass; 76 pgTAP files with 1530 checks pass.
 
-**Coverage:** run `pnpm --filter @spm/<package> test:coverage` for the report. Measured line coverage is about 96% for `@spm/shared`, 95% for `@spm/backend` and 94% for `@spm/frontend`. We did **not** reach 100%, and do not claim it. What remains uncovered is mainly:
-
-- process entry points and thin client wrappers that need a live Supabase connection (`apps/backend/src/index.ts`, the service-role client, `api-client.ts`, `supabase-client.ts`), which unit tests deliberately never create;
-- defensive guards and fallbacks that cannot be reached through the public interface (for example `if (!x) return` behind state that is always set);
-- a few UI branches (some dialog and filter error paths) not yet exercised.
+**Coverage:** run `pnpm --filter @spm/<package> test:coverage` for the report.
 
 Business rules written in SQL (RPCs, constraints, RLS) are outside v8 coverage; they are covered by the pgTAP and integration suites above instead.
 
@@ -193,11 +189,10 @@ Business rules written in SQL (RPCs, constraints, RLS) are outside v8 coverage; 
 
 The hosted shared database is never reset or written to by CI.
 
-## Known limitations
+## Scope and database migrations
 
+- **Release 1 scope:** the build targets the 20 core features and the Week 7 changes.
 - **Hosted database migrations are applied by the database owner.** A checkout can be ahead of the shared project; check `pnpm db:push:preview` (database owner) before relying on a newer feature there. A local database (`supabase start`) always has every migration.
-- **Release 1 scope:** the build targets the 20 core features and the Week 7 changes; anything beyond them is not part of this release.
-- **Test coverage is below 100%**, for the reasons given under [Testing and traceability](#testing-and-traceability).
 
 ## How the code is organised
 
