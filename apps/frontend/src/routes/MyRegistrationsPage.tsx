@@ -217,12 +217,20 @@ function RegistrationRow({
   return (
     <article className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5">
       <div className="min-w-0 flex-1">
-        <Link
-          to={`/browse-events/${registration.eventId}`}
-          className="text-[15.5px] font-semibold text-slate-950 hover:text-primary"
-        >
-          {registration.title}
-        </Link>
+        {/* The status sits with the title; the right side is only for the action. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to={`/browse-events/${registration.eventId}`}
+            className="text-[15.5px] font-semibold text-slate-950 hover:text-primary"
+          >
+            {registration.title}
+          </Link>
+          <span
+            className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE_STYLES[registration.status] ?? "border-slate-200 bg-slate-50 text-slate-500"}`}
+          >
+            {STATUS_LABELS[registration.status] ?? registration.status}
+          </span>
+        </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
           <span className="flex items-center gap-1">
             <CalendarDays className="size-3.5" aria-hidden="true" />
@@ -246,12 +254,7 @@ function RegistrationRow({
           </p>
         )}
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-2">
-        <span
-          className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${STATUS_BADGE_STYLES[registration.status] ?? "border-slate-200 bg-slate-50 text-slate-500"}`}
-        >
-          {STATUS_LABELS[registration.status] ?? registration.status}
-        </span>
+      <div className="flex shrink-0 items-center">
         {registration.status === "waitlisted" && (
           <Button type="button" variant="outline" size="sm" disabled={leaving} onClick={onLeaveWaitlist}>
             {leaving ? "Leaving…" : "Leave waiting list"}

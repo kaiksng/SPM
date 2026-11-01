@@ -124,6 +124,18 @@ describe("MyRegistrationsPage", () => {
 
   // SPM-43 scenario 2: Withdraw is reachable from My Registrations, not just
   // the single-event page, and only when the organiser permits it.
+  // UI: the status sits beside the title, so the right of the card holds only
+  // the action (Withdraw), not a status pill stacked above it.
+  it("shows the status beside the title and Withdraw on its own", async () => {
+    listMyRegistrationsMock.mockResolvedValue([{ ...registration, withdrawalPermitted: true }]);
+    renderPage();
+
+    const title = await screen.findByRole("link", { name: registration.title });
+    expect(title.parentElement).toHaveTextContent("Registered");
+    const withdraw = screen.getByRole("button", { name: "Withdraw" });
+    expect(withdraw.parentElement).not.toHaveTextContent("Registered");
+  });
+
   it("hides the withdraw action when the event does not permit it", async () => {
     listMyRegistrationsMock.mockResolvedValue([registration]);
     renderPage();
