@@ -1,6 +1,6 @@
 # Integration testing
 
-Integration coverage is organised by **business workflow** (see the [coverage matrix](integration-coverage-matrix.md)). Done so far: the **intake-to-planning** (SPM-3, 6, 7, 80, 84, 15) **venue-booking-lifecycle** (SPM-72, 24, 25, 26, 78, 75, 85, 82) and **safety-and-confirmation** (SPM-33, 89, 90, 11, 35, 79, 12) and **change-cancel-complete** (SPM-38, 39, 45, 46, 76) workflows plus earlier per-story suites for SPM-2, 13, 14, 86, 87, 20, 21, 88, 19, 83 and 81. Remaining workflows: equipment-arrangements, registration, and a role-access matrix.
+Integration coverage is organised by **business workflow** (see the [coverage matrix](integration-coverage-matrix.md)). Done so far: the **intake-to-planning** (SPM-3, 6, 7, 80, 84, 15) **venue-booking-lifecycle** (SPM-72, 24, 25, 26, 78, 75, 85, 82) and **safety-and-confirmation** (SPM-33, 89, 90, 11, 35, 79, 12) **change-cancel-complete** (SPM-38, 39, 45, 46, 76) and **equipment-arrangements** (SPM-27, 28, 31, 32) workflows plus earlier per-story suites for SPM-2, 13, 14, 86, 87, 20, 21, 88, 19, 83 and 81. Remaining workflows: registration, and a role-access matrix.
 
 ## What these tests prove
 
@@ -61,7 +61,7 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **15 files / 91 tests passed**
+and open its details. The test step should report **16 files / 95 tests passed**
 for the current story suites plus the intake-to-planning, venue-booking-lifecycle and safety-and-confirmation workflows. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
@@ -455,3 +455,20 @@ Setup-only steps: the completed event's schedule is moved into the past with an 
 ### Execution record 2026-11-01
 
 Integration typecheck passed. Full run **15 files / 91 tests passed** twice on clean disposable stacks (7 new + 84 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. Earlier runs had test-assumption failures, fixed before the final pass: apply responses carry more fields than assumed, the completion error for a non-assigned coordinator is generic, and the schedule shift had to happen in Planning rather than on a Confirmed event. No product code changed. Node 24.20.0.
+
+## Workflow 3: equipment-arrangements
+
+The [suite](../../tests/integration/equipment-arrangements.workflow.integration.test.ts) has 4 tests with real services, local Auth and the database. Technical Support creates the catalogue items and units through the real inventory service (`fixture.trackEquipment` removes them and their units); coordinators record and request equipment through the real services.
+
+1. Request and reserve: a non-assigned coordinator cannot change or request another coordinator's equipment; an unrequested item cannot be reserved; Technical Support is notified of requests; availability shows the stock; the reservation records event, item, quantity, period, staff member and time; the reserved quantity is no longer available to another event; an over-reservation is refused with "Only 1 available" and nothing changes; two Technical Support users reserving the last units for different events at once leave exactly one reservation and the stock is never exceeded.
+2. Retired units are not stock: availability and the reservable quantity drop, and a reservation above what is left is refused.
+3. Status and history: the arrangement status follows the reservation (Not started, In progress, Arranged); each step is recorded with actor, time and status in order; the coordinator can read status and history but cannot reserve, change or release; the hand-set status function no longer exists; changing the requirement after reserving marks the reservation for re-check (status Issue, readiness lists it); release returns the stock and is recorded, and reserving again restores Arranged.
+4. Carried from workflow 5: cancelling an event releases its reservation (released, reason not "completed", Technical Support notified, stock returned); completing an event with fully reserved equipment releases it with the reason "The event was completed" (SPM-46 AC6).
+
+Requirement decision (2026-11-01): SPM-30 (equipment unavailability) and the hand-set parts of SPM-28 (reporting issues, notes, AC3/AC5, the manual-update refusal of AC6) were deliberately removed by migration `202610310009`. The suite follows the current code. Jira needs: SPM-30 retired; SPM-31's AC about SPM-30 unavailability deleted; SPM-28 reworded (status follows the reservation, history is automatic, nothing is set by hand). These are the user's actions.
+
+UI-only: tables, badges, shortage layout. Not covered here: SPM-27 AC2-AC8 field validation (unit and pgTAP), and reservation release by Technical Support as a separate story-level action beyond the status test.
+
+### Execution record 2026-11-01
+
+Integration typecheck passed. Full run **16 files / 95 tests passed** twice on clean disposable stacks (4 new + 91 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. The first run of the new suite passed, so no test corrections were needed. No product code changed. Node 24.20.0.

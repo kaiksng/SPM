@@ -55,6 +55,11 @@ export class IntegrationFixture {
     return id;
   }
 
+  /** Registers an equipment item created through the application so cleanup removes it and its units. */
+  trackEquipment(id: string) {
+    this.equipmentIds.push(id);
+  }
+
   /** An always-open venue large enough for the workflow events; removed in cleanup. */
   async venue(capacity = 100) {
     const id = randomUUID();
@@ -78,6 +83,7 @@ export class IntegrationFixture {
       await database.query("delete from public.events where organiser_id = any($1::uuid[])", [ids]);
       await database.query("delete from public.audit_logs where actor_id = any($1::uuid[])", [ids]);
       await database.query("delete from public.venues where id = any($1::uuid[])", [this.venueIds]);
+      await database.query("delete from public.equipment_units where equipment_item_id = any($1::uuid[])", [this.equipmentIds]);
       await database.query("delete from public.equipment_items where id = any($1::uuid[])", [this.equipmentIds]);
       for (const user of this.users) {
         const { error } = await admin.auth.admin.deleteUser(user.id);
