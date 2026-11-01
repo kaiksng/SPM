@@ -1,6 +1,6 @@
 # Integration testing
 
-Integration coverage is organised by **business workflow** (see the [coverage matrix](integration-coverage-matrix.md)). Done so far: the **intake-to-planning** (SPM-3, 6, 7, 80, 84, 15) and **venue-booking-lifecycle** (SPM-72, 24, 25, 26, 78, 75, 85, 82) workflows plus earlier per-story suites for SPM-2, 13, 14, 86, 87, 20, 21, 88, 19, 83 and 81. Remaining workflows: equipment-arrangements, safety-and-confirmation, change-cancel-complete, registration, and a role-access matrix.
+Integration coverage is organised by **business workflow** (see the [coverage matrix](integration-coverage-matrix.md)). Done so far: the **intake-to-planning** (SPM-3, 6, 7, 80, 84, 15) **venue-booking-lifecycle** (SPM-72, 24, 25, 26, 78, 75, 85, 82) and **safety-and-confirmation** (SPM-33, 89, 90, 11, 35, 79, 12) and **change-cancel-complete** (SPM-38, 39, 45, 46, 76) workflows plus earlier per-story suites for SPM-2, 13, 14, 86, 87, 20, 21, 88, 19, 83 and 81. Remaining workflows: equipment-arrangements, registration, and a role-access matrix.
 
 ## What these tests prove
 
@@ -61,8 +61,8 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **13 files / 77 tests passed**
-for the current story suites plus the intake-to-planning and venue-booking-lifecycle workflows. A green job verifies this suite on GitHub;
+and open its details. The test step should report **15 files / 91 tests passed**
+for the current story suites plus the intake-to-planning, venue-booking-lifecycle and safety-and-confirmation workflows. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
 
@@ -390,9 +390,9 @@ Two integration cases cover preview and saving blocks affecting pending/approved
 
 ## Workflow 1: intake-to-planning
 
-The [suite](../../tests/integration/intake-to-planning.workflow.integration.test.ts) has 6 tests over one event's early life, using real services, the real Express routes, local Auth and the database: a submitted request queues for the Lead and cannot be reviewed until assigned; a full clarification round (locked fields, response, blocked decision, resolution); approval with its decision record and organiser notice; rejection requiring a reason plus a refused venue request on the rejected event (with a planning-event control); reassignment (closed/open history, immediate access hand-over, open clarification kept, three notifications, refusals); coordinator lists and the Lead's active-work counts. Shared setup is in `tests/integration/support/workflow.ts`; `fixture.venue()` creates and removes venues.
+The [suite](../../tests/integration/intake-to-planning.workflow.integration.test.ts) has 7 tests over one event's early life, using real services, the real Express routes, local Auth and the database: a submitted request queues for the Lead and cannot be reviewed until assigned; a full clarification round (locked fields, response, blocked decision, resolution); approval with its decision record and organiser notice; rejection requiring a reason plus a refused venue request on the rejected event (with a planning-event control); reassignment (closed/open history, immediate access hand-over, open clarification kept, three notifications, refusals); coordinator lists and the Lead's active-work counts. Shared setup is in `tests/integration/support/workflow.ts`; `fixture.venue()` creates and removes venues.
 
-Findings, not asserted: (1) SPM-6 AC6/S04 say a decision is blocked until the coordinator explicitly closes a clarification, but `decide_event_request` blocks only an *open* round and resolves an *answered* one implicitly (pgTAP `event_decisions` asserts this). Requirement decision pending. (2) Any coordinator can read any event by design (`can_view_event`); only actions are restricted to the assigned coordinator. UI-only: queue tabs, "No unassigned events", oversight filters, wording.
+Requirement decision (2026-11-01, user): SPM-6 AC5/AC6/S04 are reworded so a decision is blocked while a clarification is open and unanswered, and deciding on an answered one closes it, matching `decide_event_request` and its pgTAP test. The suite asserts this for approve and reject; Jira still needs the wording change (the user's action). Finding: (2) Any coordinator can read any event by design (`can_view_event`); only actions are restricted to the assigned coordinator. UI-only: queue tabs, "No unassigned events", oversight filters, wording.
 
 ### Execution record 2026-11-01
 
@@ -416,3 +416,42 @@ Setup-only steps, not tested actions: staff blocks (SPM-83 covers flagging), and
 ### Execution record 2026-11-01
 
 Integration typecheck passed. Full run **13 files / 77 tests passed**, twice on clean disposable stacks (8 new + 69 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no dedicated containers left. No failures, skips or flakes were observed in this increment. Node 24.20.0.
+
+## Workflow 4: safety-and-confirmation
+
+The [suite](../../tests/integration/safety-and-confirmation.workflow.integration.test.ts) has 6 tests with real services, routes, local Auth and the database. Events reach Planning through the real flow; venue bookings are requested by the coordinator and approved by staff.
+
+1. Readiness is derived: no main venue, unticked safety checks, a Pending booking, an active hold (Needs Review) and an unreserved equipment requirement each block; a stored check cannot be set by hand; submission is refused with the outstanding items and the status unchanged; non-assigned actors are refused.
+2. Submission: round 1, coordinator, time and a snapshot of venues/period/attendance; Safety Officers notified; transition recorded; while pending, withdraw, main change, safety-check edits and a second submission are refused with a full snapshot unchanged.
+3. Approval: only a Safety Officer; review facts (capacity against headcount, the coordinator's checks); read-only for the officer; reviewer, note and time stored; Confirmed; coordinator and organiser notified; a second approval is refused.
+4. Request changes: reason and at least one flag required; only the chosen booking is flagged; back to Planning; not Ready until the coordinator resolves the flag; resubmission is round 2; history keeps both rounds.
+5. Reject: reason required; every booking flagged; back to Planning; recorded and notified.
+6. Confirmed event: edit forms and raw updates by organiser and coordinator change nothing and write no field-change audit; an invalid transition is refused; the lifecycle is recorded in order; the owner lists every booking with its own period and another organiser sees none.
+
+Observations, not defects: request changes notifies only the coordinator (the organiser is told on approve and reject; SPM-89 AC5 does not require more). After a decision the Safety Officer can no longer read the event, its status history or submission rounds (RLS admits them only while Pending Safety Check), so those are read as the coordinator; the officer's own history is the safety review history RPC. Equipment reservation is workflow 3 and the disruption return to Planning is covered by the SPM-83 suite. SPM-12's exact-eight-status AC (legacy enum values remain) is not asserted. UI-only: readiness badges, the change-request message, timeline display, review highlighting.
+
+### Execution record 2026-11-01
+
+Integration typecheck passed. Full run **14 files / 83 tests passed**, twice on clean disposable stacks (6 new + 77 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. Earlier runs had test-assumption failures, fixed before the final pass: wrong submission result shape, an assumed outstanding-item code for unreserved equipment, reads attempted as the Safety Officer after the event left Pending Safety Check, and an assumed organiser notification on request changes. No product code was changed. Node 24.20.0.
+
+### Update 2026-11-01: SPM-6 decision asserted
+
+After the requirement decision above, the intake-to-planning suite gained one test (7 total): a decision on an open, unanswered clarification is blocked with nothing changed, and a decision (approve or reject) on an answered one succeeds and closes the round, recording the coordinator who closed it. Full run **14 files / 84 tests passed** twice, safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. No product code changed.
+
+## Workflow 5: change-cancel-complete
+
+The [suite](../../tests/integration/change-cancel-complete.workflow.integration.test.ts) has 7 tests with real services, routes, local Auth and the database. Planning and Confirmed events come from the real flows of workflows 1, 2 and 4 (`confirmedEvent` in `support/workflow.ts`).
+
+1. Change request lifecycle: organiser-only submit, one pending at a time, coordinator notified, event unchanged while pending, withdraw rules, decide rules (approval needs notes, rejection a reason), organiser notified of each decision.
+2. Applying a date change on a Confirmed event: only the assigned coordinator; every active booking flagged Needs Review (the clash marked Conflict), none cancelled; Venue Staff notified per booking; back to Planning with history and Safety Officer notice; not Ready; the request becomes Implemented and cannot be applied twice.
+3. A change that does not affect arrangements leaves the event Confirmed and flags nothing.
+4. Unassigned event: the Lead is notified and can decide but not apply; after assignment the new coordinator is notified and applies it.
+5. Cancel: assigned coordinator only, reason required, pending and on-hold bookings released with actor/reason/time and kept readable, organiser/coordinator/Venue Staff notified, later booking and change requests refused; a Pending Safety Check cancellation notifies the Safety Officer; a Rejected event cannot be cancelled.
+6. Complete: not Confirmed, wrong coordinator and too early are refused (earliest time returned); completion records the coordinator in the history; bookings, safety decisions and decisions stay readable; cancel, clarification, booking, edit, assignment, change request and draft save are all refused with nothing changed.
+7. Notification centre: own notifications only, newest first, unread count, mark one and mark all, another user sees none and cannot mark them.
+
+Setup-only steps: the completed event's schedule is moved into the past with an administrative update while the event is still in Planning (a Confirmed event is locked even against direct SQL); a competing booking creates the date clash. Deferred by agreement: releasing equipment reservations and notifying registered attendees on cancellation, and the released-reservation label on completion (SPM-46 AC6), are asserted in workflows 3 and 6, which build that setup. UI-only: the bell badge, wording and click-through. A non-assigned coordinator's completion attempt returns a generic message because only check violations carry their text.
+
+### Execution record 2026-11-01
+
+Integration typecheck passed. Full run **15 files / 91 tests passed** twice on clean disposable stacks (7 new + 84 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. Earlier runs had test-assumption failures, fixed before the final pass: apply responses carry more fields than assumed, the completion error for a non-assigned coordinator is generic, and the schedule shift had to happen in Planning rather than on a Confirmed event. No product code changed. Node 24.20.0.
