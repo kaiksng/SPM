@@ -118,9 +118,8 @@ describe("Workflow: intake to planning", () => {
     await fixture.signIn(actors.coordinatorA);
     expect((await listNotifications()).filter((n) => n.eventId === id && n.type === "clarification")).toHaveLength(1);
 
-    // Not asserted: whether a decision may proceed on an ANSWERED round. The database
-    // deliberately lets it (and resolves the round); Jira SPM-6 AC6/S04 say the
-    // coordinator must explicitly close it. Requirement decision pending.
+    // An answered round may also be closed by the decision itself (see the next test);
+    // here the coordinator closes it explicitly.
 
     // AC6: only the assigned coordinator can close; then the decision is available again.
     await fixture.signIn(actors.coordinatorB);
@@ -135,6 +134,34 @@ describe("Workflow: intake to planning", () => {
     expect(await listClarifications(id)).toEqual([expect.objectContaining({
       id: round.id, response: "Attendance is now 45", status: "resolved",
     })]);
+  });
+
+  // SPM-6 AC5/AC6/S04 (as agreed): a decision is blocked while a clarification is open and
+  // unanswered; once the organiser has answered, the decision itself closes the round.
+  it("blocks a decision on an unanswered clarification and lets a decision on an answered one close it", async () => {
+    for (const decision of ["approved", "rejected"] as const) {
+      const { id } = await submitRequestedEvent(fixture, actors.organiser, `Integration answered ${decision}`);
+      await assign(id, actors.coordinatorA);
+      await fixture.signIn(actors.coordinatorA);
+      await requestClarification(id, "Please confirm the schedule", ["startsAt"]);
+      const [round] = await listClarifications(id);
+
+      // Open and unanswered: blocked, nothing changes.
+      const open = await eventSnapshot(id);
+      await expect(decideEvent(id, decision, "Reason")).rejects.toThrow(/unresolved clarification/i);
+      expect(await eventSnapshot(id)).toEqual(open);
+
+      // Answered: the decision succeeds and closes the round, recording who closed it.
+      await fixture.signIn(actors.organiser);
+      await respondToClarification(round.id, "Schedule confirmed");
+      await fixture.signIn(actors.coordinatorA);
+      await decideEvent(id, decision, "Reason");
+      expect(await eventRow(id)).toMatchObject({ status: decision === "approved" ? "planning" : "rejected" });
+      expect((await database.query("select status, resolved_by, resolved_at is not null as timed from public.clarifications where id = $1", [round.id])).rows[0])
+        .toEqual({ status: "resolved", resolved_by: actors.coordinatorA.id, timed: true });
+      expect(await getClarificationReviewState(id)).toBeUndefined();
+      expect(await listClarifications(id)).toEqual([expect.objectContaining({ id: round.id, response: "Schedule confirmed", status: "resolved" })]);
+    }
   });
 
   // SPM-7 AC1/AC2/AC5/AC6 and S03: approval, its record and the organiser's notice.

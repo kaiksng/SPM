@@ -61,7 +61,7 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **14 files / 83 tests passed**
+and open its details. The test step should report **14 files / 84 tests passed**
 for the current story suites plus the intake-to-planning, venue-booking-lifecycle and safety-and-confirmation workflows. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
@@ -390,9 +390,9 @@ Two integration cases cover preview and saving blocks affecting pending/approved
 
 ## Workflow 1: intake-to-planning
 
-The [suite](../../tests/integration/intake-to-planning.workflow.integration.test.ts) has 6 tests over one event's early life, using real services, the real Express routes, local Auth and the database: a submitted request queues for the Lead and cannot be reviewed until assigned; a full clarification round (locked fields, response, blocked decision, resolution); approval with its decision record and organiser notice; rejection requiring a reason plus a refused venue request on the rejected event (with a planning-event control); reassignment (closed/open history, immediate access hand-over, open clarification kept, three notifications, refusals); coordinator lists and the Lead's active-work counts. Shared setup is in `tests/integration/support/workflow.ts`; `fixture.venue()` creates and removes venues.
+The [suite](../../tests/integration/intake-to-planning.workflow.integration.test.ts) has 7 tests over one event's early life, using real services, the real Express routes, local Auth and the database: a submitted request queues for the Lead and cannot be reviewed until assigned; a full clarification round (locked fields, response, blocked decision, resolution); approval with its decision record and organiser notice; rejection requiring a reason plus a refused venue request on the rejected event (with a planning-event control); reassignment (closed/open history, immediate access hand-over, open clarification kept, three notifications, refusals); coordinator lists and the Lead's active-work counts. Shared setup is in `tests/integration/support/workflow.ts`; `fixture.venue()` creates and removes venues.
 
-Findings, not asserted: (1) SPM-6 AC6/S04 say a decision is blocked until the coordinator explicitly closes a clarification, but `decide_event_request` blocks only an *open* round and resolves an *answered* one implicitly (pgTAP `event_decisions` asserts this). Requirement decision pending. (2) Any coordinator can read any event by design (`can_view_event`); only actions are restricted to the assigned coordinator. UI-only: queue tabs, "No unassigned events", oversight filters, wording.
+Requirement decision (2026-11-01, user): SPM-6 AC5/AC6/S04 are reworded so a decision is blocked while a clarification is open and unanswered, and deciding on an answered one closes it, matching `decide_event_request` and its pgTAP test. The suite asserts this for approve and reject; Jira still needs the wording change (the user's action). Finding: (2) Any coordinator can read any event by design (`can_view_event`); only actions are restricted to the assigned coordinator. UI-only: queue tabs, "No unassigned events", oversight filters, wording.
 
 ### Execution record 2026-11-01
 
@@ -433,3 +433,7 @@ Observations, not defects: request changes notifies only the coordinator (the or
 ### Execution record 2026-11-01
 
 Integration typecheck passed. Full run **14 files / 83 tests passed**, twice on clean disposable stacks (6 new + 77 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. Earlier runs had test-assumption failures, fixed before the final pass: wrong submission result shape, an assumed outstanding-item code for unreserved equipment, reads attempted as the Safety Officer after the event left Pending Safety Check, and an assumed organiser notification on request changes. No product code was changed. Node 24.20.0.
+
+### Update 2026-11-01: SPM-6 decision asserted
+
+After the requirement decision above, the intake-to-planning suite gained one test (7 total): a decision on an open, unanswered clarification is blocked with nothing changed, and a decision (approve or reject) on an answered one succeeds and closes the round, recording the coordinator who closed it. Full run **14 files / 84 tests passed** twice, safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. No product code changed.
