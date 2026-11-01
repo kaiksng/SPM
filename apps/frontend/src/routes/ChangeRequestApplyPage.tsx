@@ -45,9 +45,10 @@ const ALL_BUT_REGISTRATION = [
  * SPM-39 AC07: the assigned coordinator applies an approved change request.
  * Reuses EventRequestForm like CoordinatorEventEditPage, but with every
  * section editable — the approval is what unlocks the fields Planning
- * normally locks. apply_event_change_request then flags the affected
- * arrangements (AC01) and, for a safety-relevant change on a Confirmed or
- * Pending Safety Check event, returns it to Planning (AC10).
+ * normally locks. apply_event_change_request then tells the affected staff
+ * (AC02) and, for a safety-relevant change on a Confirmed or Pending Safety
+ * Check event, returns it to Planning (AC10). Nothing is flagged: the
+ * coordinator updates the bookings and equipment themselves (AC01).
  */
 export function ChangeRequestApplyPage() {
   const { eventId, changeRequestId } = useParams();
@@ -131,7 +132,7 @@ export function ChangeRequestApplyPage() {
       state: {
         notice: result.returnedToPlanning
           ? "Change applied. The event is back in Planning and needs a new safety review."
-          : "Change applied. Any affected arrangements are marked Needs Review.",
+          : "Change applied. Update the event's venue bookings and equipment if the change affects them.",
       },
     });
   }
@@ -150,8 +151,8 @@ export function ChangeRequestApplyPage() {
               Apply change request
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              Enter the event's new details. Venue bookings and equipment affected by the change
-              are marked Needs Review — nothing is cancelled or replaced automatically.
+              Enter the event's new details. Then update its venue bookings and equipment if the
+              change affects them — nothing is cancelled or replaced automatically.
             </p>
           </header>
 
