@@ -1,5 +1,5 @@
--- SPM-39-TC-019: A registration-only change flags nothing
--- Acceptance criterion: AC 1
+-- SPM-39-TC-019: A registration-only change notifies no staff
+-- Acceptance criterion: AC 1, AC 2
 -- Login: Event Coordinator (joyce@gmail.com) - password is in the test case's Test Data / Test accounts
 -- Inputs entered during the test (not inserted): see Test Data
 -- Source: refined Preconditions of docs/Project Planning_refined_v2.xlsx

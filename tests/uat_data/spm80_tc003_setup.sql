@@ -248,7 +248,7 @@ BEGIN
                                    starts_at, ends_at, status, submitted_at, submitted_by, requirements_acknowledged, venue_id,
                                    emergency_access_checked, restrictions_checked, crowd_movement_checked, equipment_placement_notes)
   VALUES ('00000000-0000-4000-8080-000000000210', (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), NULL, 'Earth Day Cleanup', 'Meeting', 'UAT event Earth Day Cleanup.', 100,
-          ('2027-03-20 10:00:00+08')::timestamptz, ('2027-03-20 12:00:00+08')::timestamptz, 'requested', ('2026-09-20 09:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), true,
+          ('2027-03-20 10:00:00+08')::timestamptz, ('2027-03-20 12:00:00+08')::timestamptz, 'requested', ('2026-09-20 10:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), true,
           NULL, false, false, false, NULL)
   ON CONFLICT (id) DO UPDATE
   SET organiser_id = EXCLUDED.organiser_id, assigned_coordinator_id = EXCLUDED.assigned_coordinator_id, title = EXCLUDED.title,
@@ -304,11 +304,11 @@ BEGIN
   -- Status history through each allowed step, each by the person who did it.
   IF (SELECT array_agg(row(t.event_id, t.changed_at, t.changed_by, t.from_status, t.to_status)::text ORDER BY t.changed_at, row(t.event_id, t.changed_at, t.changed_by, t.from_status, t.to_status)::text) FROM public.event_status_history t WHERE t.event_id = '00000000-0000-4000-8080-000000000210') IS DISTINCT FROM (SELECT array_agg(row(v.event_id, v.changed_at, v.changed_by, v.from_status, v.to_status)::text ORDER BY v.changed_at, row(v.event_id, v.changed_at, v.changed_by, v.from_status, v.to_status)::text) FROM (VALUES
       ('00000000-0000-4000-8080-000000000210'::uuid, ('2026-09-18 09:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com')::uuid, NULL::public.event_status, 'draft'::public.event_status),
-      ('00000000-0000-4000-8080-000000000210'::uuid, ('2026-09-20 09:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com')::uuid, 'draft'::public.event_status, 'requested'::public.event_status)) v(event_id, changed_at, changed_by, from_status, to_status)) THEN
+      ('00000000-0000-4000-8080-000000000210'::uuid, ('2026-09-20 10:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com')::uuid, 'draft'::public.event_status, 'requested'::public.event_status)) v(event_id, changed_at, changed_by, from_status, to_status)) THEN
     DELETE FROM public.event_status_history t WHERE t.event_id = '00000000-0000-4000-8080-000000000210';
     INSERT INTO public.event_status_history (event_id, changed_at, changed_by, from_status, to_status) SELECT v.event_id, v.changed_at, v.changed_by, v.from_status, v.to_status FROM (VALUES
       ('00000000-0000-4000-8080-000000000210'::uuid, ('2026-09-18 09:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com')::uuid, NULL::public.event_status, 'draft'::public.event_status),
-      ('00000000-0000-4000-8080-000000000210'::uuid, ('2026-09-20 09:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com')::uuid, 'draft'::public.event_status, 'requested'::public.event_status)) v(event_id, changed_at, changed_by, from_status, to_status);
+      ('00000000-0000-4000-8080-000000000210'::uuid, ('2026-09-20 10:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com')::uuid, 'draft'::public.event_status, 'requested'::public.event_status)) v(event_id, changed_at, changed_by, from_status, to_status);
   END IF;
   -- Field-change history: exactly the listed edits.
   IF (SELECT array_agg(row(t.event_id, t.field_name, t.previous_value, t.new_value, t.changed_by, t.changed_at)::text ORDER BY t.changed_at, row(t.event_id, t.field_name, t.previous_value, t.new_value, t.changed_by, t.changed_at)::text) FROM public.event_field_changes t WHERE t.event_id = '00000000-0000-4000-8080-000000000210') IS DISTINCT FROM NULL::text[] THEN
@@ -344,7 +344,7 @@ BEGIN
                                    starts_at, ends_at, status, submitted_at, submitted_by, requirements_acknowledged, venue_id,
                                    emergency_access_checked, restrictions_checked, crowd_movement_checked, equipment_placement_notes)
   VALUES ('00000000-0000-4000-8080-000000000211', (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), NULL, 'Blood Donation Drive', 'Meeting', 'UAT event Blood Donation Drive.', 100,
-          ('2027-03-10 10:00:00+08')::timestamptz, ('2027-03-10 12:00:00+08')::timestamptz, 'requested', ('2026-09-20 09:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), true,
+          ('2027-03-10 10:00:00+08')::timestamptz, ('2027-03-10 12:00:00+08')::timestamptz, 'requested', ('2026-09-20 11:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com'), true,
           NULL, false, false, false, NULL)
   ON CONFLICT (id) DO UPDATE
   SET organiser_id = EXCLUDED.organiser_id, assigned_coordinator_id = EXCLUDED.assigned_coordinator_id, title = EXCLUDED.title,
@@ -400,11 +400,11 @@ BEGIN
   -- Status history through each allowed step, each by the person who did it.
   IF (SELECT array_agg(row(t.event_id, t.changed_at, t.changed_by, t.from_status, t.to_status)::text ORDER BY t.changed_at, row(t.event_id, t.changed_at, t.changed_by, t.from_status, t.to_status)::text) FROM public.event_status_history t WHERE t.event_id = '00000000-0000-4000-8080-000000000211') IS DISTINCT FROM (SELECT array_agg(row(v.event_id, v.changed_at, v.changed_by, v.from_status, v.to_status)::text ORDER BY v.changed_at, row(v.event_id, v.changed_at, v.changed_by, v.from_status, v.to_status)::text) FROM (VALUES
       ('00000000-0000-4000-8080-000000000211'::uuid, ('2026-09-18 09:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com')::uuid, NULL::public.event_status, 'draft'::public.event_status),
-      ('00000000-0000-4000-8080-000000000211'::uuid, ('2026-09-20 09:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com')::uuid, 'draft'::public.event_status, 'requested'::public.event_status)) v(event_id, changed_at, changed_by, from_status, to_status)) THEN
+      ('00000000-0000-4000-8080-000000000211'::uuid, ('2026-09-20 11:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com')::uuid, 'draft'::public.event_status, 'requested'::public.event_status)) v(event_id, changed_at, changed_by, from_status, to_status)) THEN
     DELETE FROM public.event_status_history t WHERE t.event_id = '00000000-0000-4000-8080-000000000211';
     INSERT INTO public.event_status_history (event_id, changed_at, changed_by, from_status, to_status) SELECT v.event_id, v.changed_at, v.changed_by, v.from_status, v.to_status FROM (VALUES
       ('00000000-0000-4000-8080-000000000211'::uuid, ('2026-09-18 09:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com')::uuid, NULL::public.event_status, 'draft'::public.event_status),
-      ('00000000-0000-4000-8080-000000000211'::uuid, ('2026-09-20 09:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com')::uuid, 'draft'::public.event_status, 'requested'::public.event_status)) v(event_id, changed_at, changed_by, from_status, to_status);
+      ('00000000-0000-4000-8080-000000000211'::uuid, ('2026-09-20 11:00:00+08')::timestamptz, (SELECT id FROM auth.users WHERE lower(email) = 'jasmine@gmail.com')::uuid, 'draft'::public.event_status, 'requested'::public.event_status)) v(event_id, changed_at, changed_by, from_status, to_status);
   END IF;
   -- Field-change history: exactly the listed edits.
   IF (SELECT array_agg(row(t.event_id, t.field_name, t.previous_value, t.new_value, t.changed_by, t.changed_at)::text ORDER BY t.changed_at, row(t.event_id, t.field_name, t.previous_value, t.new_value, t.changed_by, t.changed_at)::text) FROM public.event_field_changes t WHERE t.event_id = '00000000-0000-4000-8080-000000000211') IS DISTINCT FROM NULL::text[] THEN

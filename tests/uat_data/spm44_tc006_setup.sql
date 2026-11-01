@@ -309,6 +309,8 @@ BEGIN
   END IF;
   -- Must not exist: notifications left on this test event by an earlier run.
   DELETE FROM public.notifications WHERE event_id = '00000000-0000-4000-8044-000000000201';
+  -- Must not exist: field-change history (e.g. a tester's edit, or this file resetting one).
+  DELETE FROM public.event_field_changes WHERE event_id = '00000000-0000-4000-8044-000000000201';
 END $$;
 
 -- Registrations on "Townhall 2026": daniel registered; joseph waitlisted. Stops if a real attendee is registered.

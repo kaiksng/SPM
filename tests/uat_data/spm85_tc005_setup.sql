@@ -134,19 +134,21 @@ BEGIN
 END $$;
 
 
--- Venue "Cedar Room" (Marina Bay, 40 pax, open Mon/Tue/Wed/Thu/Fri/Sat/Sun 00:00-23:59, setup 0 min, turnaround 0 min, layouts none, facilities none, accessibility none; id 00000000-0000-4000-8085-000000000102).
+-- Venue "Cedar Room" (Marina Bay, 40 pax, open Mon/Tue/Wed/Thu/Fri/Sat/Sun 00:00-23:59, setup 0 min, turnaround 0 min, layouts Classroom, facilities Pantry, accessibility Step-free; id 00000000-0000-4000-8085-000000000102).
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM public.venues WHERE lower(name) = lower('Cedar Room') AND NOT (id::text LIKE '00000000-0000-4000-80%' OR id::text LIKE '00000000-0000-0000-00%')) THEN
     RAISE EXCEPTION 'UAT setup stopped: a real venue named "%" exists. Nothing was changed.', 'Cedar Room';
   END IF;
   INSERT INTO public.venues AS ve (id, name, location, area_tags, capacity, operating_hours, setup_time_minutes, turnaround_time_minutes, accessibility_notes, description)
-  VALUES ('00000000-0000-4000-8085-000000000102', 'Cedar Room', 'Marina Bay', ARRAY['Marina Bay'], 40, '[{"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "opensAt": "00:00", "closesAt": "23:59"}]'::jsonb, 0, 0, NULL, 'UAT test venue Cedar Room.')
+  VALUES ('00000000-0000-4000-8085-000000000102', 'Cedar Room', 'Marina Bay', ARRAY['Marina Bay'], 40, '[{"days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"], "opensAt": "00:00", "closesAt": "23:59"}]'::jsonb, 0, 0, 'Step-free', 'UAT test venue Cedar Room.')
   ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, location = EXCLUDED.location, area_tags = EXCLUDED.area_tags, capacity = EXCLUDED.capacity, operating_hours = EXCLUDED.operating_hours, setup_time_minutes = EXCLUDED.setup_time_minutes, turnaround_time_minutes = EXCLUDED.turnaround_time_minutes, accessibility_notes = EXCLUDED.accessibility_notes, description = EXCLUDED.description
   WHERE (ve.name, ve.location, ve.area_tags, ve.capacity, ve.operating_hours, ve.setup_time_minutes, ve.turnaround_time_minutes, ve.accessibility_notes, ve.description) IS DISTINCT FROM (EXCLUDED.name, EXCLUDED.location, EXCLUDED.area_tags, EXCLUDED.capacity, EXCLUDED.operating_hours, EXCLUDED.setup_time_minutes, EXCLUDED.turnaround_time_minutes, EXCLUDED.accessibility_notes, EXCLUDED.description);
   -- Facilities and layouts: exactly the listed ones.
-  DELETE FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8085-000000000102' AND NOT (facility_name = ANY (ARRAY[]::text[]));
-  DELETE FROM public.venue_layouts WHERE venue_id = '00000000-0000-4000-8085-000000000102' AND NOT (layout_name::text = ANY (ARRAY[]::text[]));
+  DELETE FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8085-000000000102' AND NOT (facility_name = ANY (ARRAY['Pantry']::text[]));
+  INSERT INTO public.venue_facilities (venue_id, facility_name) SELECT '00000000-0000-4000-8085-000000000102', 'Pantry' WHERE NOT EXISTS (SELECT 1 FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8085-000000000102' AND facility_name = 'Pantry');
+  DELETE FROM public.venue_layouts WHERE venue_id = '00000000-0000-4000-8085-000000000102' AND NOT (layout_name::text = ANY (ARRAY['Classroom']::text[]));
+  INSERT INTO public.venue_layouts (venue_id, layout_name) SELECT '00000000-0000-4000-8085-000000000102', 'Classroom' WHERE NOT EXISTS (SELECT 1 FROM public.venue_layouts WHERE venue_id = '00000000-0000-4000-8085-000000000102' AND layout_name::text = 'Classroom');
 END $$;
 
 -- Venue "Maple Room" (Marina Bay, 40 pax, open Mon/Tue/Wed/Thu/Fri/Sat/Sun 00:00-23:59, setup 0 min, turnaround 0 min, layouts none, facilities none, accessibility none; id 00000000-0000-4000-8085-000000000103).
@@ -194,7 +196,7 @@ BEGIN
   DELETE FROM public.venue_layouts WHERE venue_id = '00000000-0000-4000-8085-000000000105' AND NOT (layout_name::text = ANY (ARRAY[]::text[]));
 END $$;
 
--- Venue "Bayview Hall" (Marina Bay, 400 pax, open Mon/Tue/Wed/Thu/Fri/Sat/Sun 00:00-23:59, setup 0 min, turnaround 0 min, layouts Theatre, facilities Projector, accessibility Wheelchair access; id 00000000-0000-4000-8085-000000000101).
+-- Venue "Bayview Hall" (Marina Bay, 400 pax, open Mon/Tue/Wed/Thu/Fri/Sat/Sun 00:00-23:59, setup 0 min, turnaround 0 min, layouts Theatre, facilities Air conditioning, accessibility Wheelchair access; id 00000000-0000-4000-8085-000000000101).
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM public.venues WHERE lower(name) = lower('Bayview Hall') AND NOT (id::text LIKE '00000000-0000-4000-80%' OR id::text LIKE '00000000-0000-0000-00%')) THEN
@@ -205,8 +207,8 @@ BEGIN
   ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, location = EXCLUDED.location, area_tags = EXCLUDED.area_tags, capacity = EXCLUDED.capacity, operating_hours = EXCLUDED.operating_hours, setup_time_minutes = EXCLUDED.setup_time_minutes, turnaround_time_minutes = EXCLUDED.turnaround_time_minutes, accessibility_notes = EXCLUDED.accessibility_notes, description = EXCLUDED.description
   WHERE (ve.name, ve.location, ve.area_tags, ve.capacity, ve.operating_hours, ve.setup_time_minutes, ve.turnaround_time_minutes, ve.accessibility_notes, ve.description) IS DISTINCT FROM (EXCLUDED.name, EXCLUDED.location, EXCLUDED.area_tags, EXCLUDED.capacity, EXCLUDED.operating_hours, EXCLUDED.setup_time_minutes, EXCLUDED.turnaround_time_minutes, EXCLUDED.accessibility_notes, EXCLUDED.description);
   -- Facilities and layouts: exactly the listed ones.
-  DELETE FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8085-000000000101' AND NOT (facility_name = ANY (ARRAY['Projector']::text[]));
-  INSERT INTO public.venue_facilities (venue_id, facility_name) SELECT '00000000-0000-4000-8085-000000000101', 'Projector' WHERE NOT EXISTS (SELECT 1 FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8085-000000000101' AND facility_name = 'Projector');
+  DELETE FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8085-000000000101' AND NOT (facility_name = ANY (ARRAY['Air conditioning']::text[]));
+  INSERT INTO public.venue_facilities (venue_id, facility_name) SELECT '00000000-0000-4000-8085-000000000101', 'Air conditioning' WHERE NOT EXISTS (SELECT 1 FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8085-000000000101' AND facility_name = 'Air conditioning');
   DELETE FROM public.venue_layouts WHERE venue_id = '00000000-0000-4000-8085-000000000101' AND NOT (layout_name::text = ANY (ARRAY['Theatre']::text[]));
   INSERT INTO public.venue_layouts (venue_id, layout_name) SELECT '00000000-0000-4000-8085-000000000101', 'Theatre' WHERE NOT EXISTS (SELECT 1 FROM public.venue_layouts WHERE venue_id = '00000000-0000-4000-8085-000000000101' AND layout_name::text = 'Theatre');
 END $$;
@@ -266,9 +268,9 @@ BEGIN
       accessibility_notes = EXCLUDED.accessibility_notes, layout_notes = EXCLUDED.layout_notes
   WHERE (r.preferred_location, r.minimum_capacity, r.accessibility_notes, r.layout_notes)
         IS DISTINCT FROM (EXCLUDED.preferred_location, EXCLUDED.minimum_capacity, EXCLUDED.accessibility_notes, EXCLUDED.layout_notes);
-  -- Required facilities: exactly ['Projector'].
-  DELETE FROM public.event_required_facilities WHERE event_id = '00000000-0000-4000-8085-000000000201' AND NOT (facility_name = ANY (ARRAY['Projector']::text[]));
-  INSERT INTO public.event_required_facilities (event_id, facility_name) SELECT '00000000-0000-4000-8085-000000000201', 'Projector' WHERE NOT EXISTS (SELECT 1 FROM public.event_required_facilities WHERE event_id = '00000000-0000-4000-8085-000000000201' AND facility_name = 'Projector');
+  -- Required facilities: exactly ['Air conditioning'].
+  DELETE FROM public.event_required_facilities WHERE event_id = '00000000-0000-4000-8085-000000000201' AND NOT (facility_name = ANY (ARRAY['Air conditioning']::text[]));
+  INSERT INTO public.event_required_facilities (event_id, facility_name) SELECT '00000000-0000-4000-8085-000000000201', 'Air conditioning' WHERE NOT EXISTS (SELECT 1 FROM public.event_required_facilities WHERE event_id = '00000000-0000-4000-8085-000000000201' AND facility_name = 'Air conditioning');
   DELETE FROM public.event_registration_requirements WHERE event_id = '00000000-0000-4000-8085-000000000201';
 END $$;
 -- Records "Annual Tech Conference" has for its status, as if it went through the app (only this test event's rows are touched).
@@ -303,7 +305,7 @@ BEGIN
     RAISE EXCEPTION 'UAT setup stopped: a real booking holds "Bayview Hall" at the time of "Annual Tech Conference". Nothing was changed.';
   END IF;
   INSERT INTO public.venue_bookings AS vb (id, event_id, venue_id, starts_at, ends_at, status, is_main_venue, label, expected_headcount, layout_notes, accessibility_notes, required_facilities, requested_by, requested_at, decided_by, decided_at, decision_notes, held_by, expires_at, cancelled_at, cancelled_by, cancellation_reason, needs_review, needs_review_reason, replaces_booking_id, advisory_notes)
-  VALUES ('00000000-0000-4000-8085-000000000401', '00000000-0000-4000-8085-000000000201', '00000000-0000-4000-8085-000000000101', ('2027-06-02 09:00:00+08')::timestamptz, ('2027-06-02 17:00:00+08')::timestamptz, 'pending', true, 'Main Programme', 300, 'Theatre', 'Wheelchair access', ARRAY['Projector']::text[], (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), ('2026-09-23 10:00:00+08')::timestamptz, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, NULL, NULL, NULL)
+  VALUES ('00000000-0000-4000-8085-000000000401', '00000000-0000-4000-8085-000000000201', '00000000-0000-4000-8085-000000000101', ('2027-06-02 09:00:00+08')::timestamptz, ('2027-06-02 17:00:00+08')::timestamptz, 'pending', true, 'Main Programme', 300, 'Theatre', 'Wheelchair access', ARRAY['Air conditioning']::text[], (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com'), ('2026-09-23 10:00:00+08')::timestamptz, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, NULL, NULL, NULL)
   ON CONFLICT (id) DO UPDATE SET event_id = EXCLUDED.event_id, venue_id = EXCLUDED.venue_id, starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at, status = EXCLUDED.status, is_main_venue = EXCLUDED.is_main_venue, label = EXCLUDED.label, expected_headcount = EXCLUDED.expected_headcount, layout_notes = EXCLUDED.layout_notes, accessibility_notes = EXCLUDED.accessibility_notes, required_facilities = EXCLUDED.required_facilities, requested_by = EXCLUDED.requested_by, requested_at = EXCLUDED.requested_at, decided_by = EXCLUDED.decided_by, decided_at = EXCLUDED.decided_at, decision_notes = EXCLUDED.decision_notes, held_by = EXCLUDED.held_by, expires_at = EXCLUDED.expires_at, cancelled_at = EXCLUDED.cancelled_at, cancelled_by = EXCLUDED.cancelled_by, cancellation_reason = EXCLUDED.cancellation_reason, needs_review = EXCLUDED.needs_review, needs_review_reason = EXCLUDED.needs_review_reason, replaces_booking_id = EXCLUDED.replaces_booking_id, advisory_notes = EXCLUDED.advisory_notes
   WHERE (vb.event_id, vb.venue_id, vb.starts_at, vb.ends_at, vb.status, vb.is_main_venue, vb.label, vb.expected_headcount, vb.layout_notes, vb.accessibility_notes, vb.required_facilities, vb.requested_by, vb.requested_at, vb.decided_by, vb.decided_at, vb.decision_notes, vb.held_by, vb.expires_at, vb.cancelled_at, vb.cancelled_by, vb.cancellation_reason, vb.needs_review, vb.needs_review_reason, vb.replaces_booking_id, vb.advisory_notes) IS DISTINCT FROM (EXCLUDED.event_id, EXCLUDED.venue_id, EXCLUDED.starts_at, EXCLUDED.ends_at, EXCLUDED.status, EXCLUDED.is_main_venue, EXCLUDED.label, EXCLUDED.expected_headcount, EXCLUDED.layout_notes, EXCLUDED.accessibility_notes, EXCLUDED.required_facilities, EXCLUDED.requested_by, EXCLUDED.requested_at, EXCLUDED.decided_by, EXCLUDED.decided_at, EXCLUDED.decision_notes, EXCLUDED.held_by, EXCLUDED.expires_at, EXCLUDED.cancelled_at, EXCLUDED.cancelled_by, EXCLUDED.cancellation_reason, EXCLUDED.needs_review, EXCLUDED.needs_review_reason, EXCLUDED.replaces_booking_id, EXCLUDED.advisory_notes);
   DELETE FROM public.venue_booking_conflicts WHERE booking_id = '00000000-0000-4000-8085-000000000401';

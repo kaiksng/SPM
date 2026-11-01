@@ -4,7 +4,7 @@
 -- Inputs entered during the test (not inserted): see Test Data
 -- Source: refined Preconditions of docs/Project UAT kk_sher_refined.xlsx
 -- Records restored: none (only the test accounts' profiles)
--- Must-not-exist conditions enforced: other stories' active UAT test events assigned to jonathan (reassigned)
+-- Must-not-exist conditions enforced: other active UAT test events assigned to jonathan (moved to joyce)
 -- Defaults added: organiser Jasmine and coordinator Joyce unless the case names others; purpose, descriptions, attendance (100) and times not stated in the case; workflow dates 18 Sep - 9 Oct 2026; events that have already ended are dated 15 Oct 2026; test venues open all day unless stated
 -- Shared records: cases of a story share its test events and venues: test one story at a time.
 -- Safe to re-run: changes this case's test records only; stops without changes if real data would be affected.
@@ -134,8 +134,8 @@ BEGIN
 END $$;
 
 
--- Oversight counts: active UAT test events of other stories assigned to jonathan@gmail.com are moved to tom's pool (no coordinator
--- kept) so jonathan's group shows only this case's events; stop if a real active event is assigned to jonathan.
+-- Oversight counts: other active UAT test events assigned to jonathan@gmail.com (other stories and other SPM-80 cases) are moved
+-- to joyce@gmail.com so jonathan's group shows none; stop if a real active event is assigned to jonathan.
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM public.events WHERE assigned_coordinator_id = (SELECT id FROM auth.users WHERE lower(email) = 'jonathan@gmail.com') AND NOT (id::text LIKE '00000000-0000-4000-80%' OR id::text LIKE '00000000-0000-0000-00%') AND organiser_id NOT IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'bernard@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com'))
@@ -145,7 +145,7 @@ BEGIN
   UPDATE public.events SET assigned_coordinator_id = (SELECT id FROM auth.users WHERE lower(email) = 'joyce@gmail.com')
   WHERE assigned_coordinator_id = (SELECT id FROM auth.users WHERE lower(email) = 'jonathan@gmail.com') AND ((id::text LIKE '00000000-0000-4000-80%' OR id::text LIKE '00000000-0000-0000-00%') OR organiser_id IN (SELECT id FROM auth.users WHERE lower(email) IN ('joseph@gmail.com', 'daniel@gmail.com', 'bernard@gmail.com', 'jasmine@gmail.com', 'kenneth@gmail.com', 'joyce@gmail.com', 'jonathan@gmail.com', 'daryl@gmail.com', 'keith@gmail.com', 'andy@gmail.com', 'benny@gmail.com', 'tom@gmail.com', 'sally@gmail.com')))
     AND NOT (id = ANY (ARRAY[]::uuid[]))
-    AND status IN ('requested', 'planning', 'pending_safety_check', 'confirmed') AND id::text NOT LIKE '00000000-0000-4000-8080-%';
+    AND status IN ('requested', 'planning', 'pending_safety_check', 'confirmed');
 END $$;
 
 COMMIT;

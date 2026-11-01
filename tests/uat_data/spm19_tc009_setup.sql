@@ -4,7 +4,7 @@
 -- Inputs entered during the test (not inserted): see Test Data
 -- Source: refined Preconditions of docs/Project UAT kk_sher_refined.xlsx
 -- Records restored: venue Orchid Hall
--- Must-not-exist conditions enforced: none
+-- Must-not-exist conditions enforced: other UAT test events' active venue requests at this case's test venues
 -- Defaults added: organiser Jasmine and coordinator Joyce unless the case names others; purpose, descriptions, attendance (100) and times not stated in the case; workflow dates 18 Sep - 9 Oct 2026; events that have already ended are dated 15 Oct 2026; test venues open all day unless stated
 -- Shared records: cases of a story share its test events and venues: test one story at a time.
 -- Safe to re-run: changes this case's test records only; stops without changes if real data would be affected.
@@ -148,6 +148,14 @@ BEGIN
   DELETE FROM public.venue_facilities WHERE venue_id = '00000000-0000-4000-8019-000000000101' AND NOT (facility_name = ANY (ARRAY[]::text[]));
   DELETE FROM public.venue_layouts WHERE venue_id = '00000000-0000-4000-8019-000000000101' AND NOT (layout_name::text = ANY (ARRAY[]::text[]));
 END $$;
+
+-- Venue requests left by other cases: other UAT test events' active requests at this case's test venues are released so
+-- they can't block or distort it (cases of this story can then run in any order).
+UPDATE public.venue_bookings b SET status = 'cancelled', cancelled_at = now()
+FROM public.events x
+WHERE x.id = b.event_id AND x.status <> 'completed' AND b.status IN ('pending', 'approved', 'on_hold')
+  AND (b.event_id::text LIKE '00000000-0000-4000-80%' OR b.event_id::text LIKE '00000000-0000-0000-00%')
+  AND b.venue_id = ANY (ARRAY['00000000-0000-4000-8019-000000000101']::uuid[]);
 
 -- Blocks are put back after the bookings below (a booking can't be restored over an active block).
 UPDATE public.venue_unavailability SET removed_at = now()
