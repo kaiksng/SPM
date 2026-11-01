@@ -64,59 +64,7 @@ of every script also describes, in plain text:
 
 Read the header before running a script for the first time.
 
-## Setup files: SPM-14, 15, 16, 20, 48, 49, 76, 77 and 87
 
-Each file restores only its own case's test records. "May remove" lists what it can delete, cancel or
-mark removed besides restoring its records; the full list is in each file's header.
-
-| File | Run | Case | Test scenario | Login | May remove |
-|---|---|---|---|---|---|
-| `spm14_tc001_setup.sql` | `pnpm uat:setup spm14_tc001` | SPM-14 TC-001 | View details of an event the Organiser is authorised on | jasmine@gmail.com | none |
-| `spm14_tc002_setup.sql` | `pnpm uat:setup spm14_tc002` | SPM-14 TC-002 | View every event when authorised on more than one | jasmine@gmail.com | none |
-| `spm14_tc003_setup.sql` | `pnpm uat:setup spm14_tc003` | SPM-14 TC-003 | Perform a permitted action on an authorised event | jasmine@gmail.com | none |
-| `spm14_tc004_setup.sql` | `pnpm uat:setup spm14_tc004` | SPM-14 TC-004 | An action on an unauthorised event is denied and changes nothing | jasmine@gmail.com | none |
-| `spm14_tc005_setup.sql` | `pnpm uat:setup spm14_tc005` | SPM-14 TC-005 | Direct entry of an unauthorised event's address is denied | jasmine@gmail.com | none |
-| `spm15_tc001_setup.sql` | `pnpm uat:setup spm15_tc001` | SPM-15 TC-001 | Coordinator sees a list of assigned events | joyce@gmail.com | none |
-| `spm15_tc002_setup.sql` | `pnpm uat:setup spm15_tc002` | SPM-15 TC-002 | Events assigned to other Coordinators are not shown | joyce@gmail.com | none |
-| `spm15_tc003_setup.sql` | `pnpm uat:setup spm15_tc003` | SPM-15 TC-003 | Open an event from the list to view its details | joyce@gmail.com | none |
-| `spm16_tc001_setup.sql` | `pnpm uat:setup spm16_tc001` | SPM-16 TC-001 | View information permitted for Venue Staff | daryl@gmail.com | none |
-| `spm16_tc002_setup.sql` | `pnpm uat:setup spm16_tc002` | SPM-16 TC-002 | Access to information outside scope is denied | daryl@gmail.com | none |
-| `spm16_tc003_setup.sql` | `pnpm uat:setup spm16_tc003` | SPM-16 TC-003 | A denied attempt is handled gracefully with a clear message | daryl@gmail.com | none |
-| `spm16_tc004_setup.sql` | `pnpm uat:setup spm16_tc004` | SPM-16 TC-004 | Technical Support-only information is not accessible to Venue Staff | daryl@gmail.com | none |
-| `spm20_tc001_setup.sql` | `pnpm uat:setup spm20_tc001` | SPM-20 TC-001 | View a venue's calendar showing Available, Booked, and Blocked periods together | daryl@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
-| `spm20_tc002_setup.sql` | `pnpm uat:setup spm20_tc002` | SPM-20 TC-002 | A Booked period shows its start time, end time, and booking type | daryl@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
-| `spm20_tc003_setup.sql` | `pnpm uat:setup spm20_tc003` | SPM-20 TC-003 | A Blocked (operational) period shows its start time, end time, and block type | daryl@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
-| `spm20_tc004_setup.sql` | `pnpm uat:setup spm20_tc004` | SPM-20 TC-004 | A venue with no bookings or blocks shows as fully Available | daryl@gmail.com | removes blocks on its test venues |
-| `spm20_tc005_setup.sql` | `pnpm uat:setup spm20_tc005` | SPM-20 TC-005 | The free time before a known booking shows as Available | daryl@gmail.com | cancels other requests of its test events; removes blocks on its test venues; removes the "Aircon servicing" block |
-| `spm48_tc001_setup.sql` | `pnpm uat:setup spm48_tc001` | SPM-48 TC-001 | View information permitted for Technical Support | andy@gmail.com | none |
-| `spm48_tc002_setup.sql` | `pnpm uat:setup spm48_tc002` | SPM-48 TC-002 | Access to information outside scope is denied | andy@gmail.com | none |
-| `spm48_tc003_setup.sql` | `pnpm uat:setup spm48_tc003` | SPM-48 TC-003 | An unauthorised attempt is handled gracefully with a clear message | andy@gmail.com | none |
-| `spm48_tc004_setup.sql` | `pnpm uat:setup spm48_tc004` | SPM-48 TC-004 | Venue Staff-only information is not accessible to Technical Support | andy@gmail.com | none |
-| `spm49_tc001_setup.sql` | `pnpm uat:setup spm49_tc001` | SPM-49 TC-001 | Attendee views the attendee landing page | joseph@gmail.com | none |
-| `spm49_tc002_setup.sql` | `pnpm uat:setup spm49_tc002` | SPM-49 TC-002 | Internal planning information is not displayed to the Attendee | joseph@gmail.com | none |
-| `spm49_tc003_setup.sql` | `pnpm uat:setup spm49_tc003` | SPM-49 TC-003 | Direct entry of an internal planning page's URL is denied | joseph@gmail.com | none |
-| `spm76_tc001_setup.sql` | `pnpm uat:setup spm76_tc001` | SPM-76 TC-001 | Notification centre lists only the signed-in user's own notifications, newest first, with title/message/time | joyce@gmail.com | other notifications of joyce@gmail.com |
-| `spm76_tc002_setup.sql` | `pnpm uat:setup spm76_tc002` | SPM-76 TC-002 | Unread count badge in navigation matches the number of unread notifications | joyce@gmail.com | other notifications of joyce@gmail.com |
-| `spm76_tc003_setup.sql` | `pnpm uat:setup spm76_tc003` | SPM-76 TC-003 | Selecting a notification marks it read and decrements the unread badge | joyce@gmail.com | other notifications of joyce@gmail.com |
-| `spm76_tc005_setup.sql` | `pnpm uat:setup spm76_tc005` | SPM-76 TC-005 | Selecting a notification opens the related event when the user has access to it | joyce@gmail.com | none |
-| `spm76_tc006_setup.sql` | `pnpm uat:setup spm76_tc006` | SPM-76 TC-006 | Notification centre with zero notifications shows an empty state and no badge | joyce@gmail.com | all notifications of joyce@gmail.com |
-| `spm76_tc007_setup.sql` | `pnpm uat:setup spm76_tc007` | SPM-76 TC-007 | A user cannot view another user's notifications | jonathan@gmail.com | other notifications of jonathan@gmail.com |
-| `spm77_tc001_setup.sql` | `pnpm uat:setup spm77_tc001` | SPM-77 TC-001 | Event Coordinator Lead is routed to the Lead home page on sign-in | tom@gmail.com | none |
-| `spm77_tc002_setup.sql` | `pnpm uat:setup spm77_tc002` | SPM-77 TC-002 | Safety Officer is routed to the Safety Checks page on sign-in | sally@gmail.com | none |
-| `spm77_tc003_setup.sql` | `pnpm uat:setup spm77_tc003` | SPM-77 TC-003 | Lead can view all events and their assignments | tom@gmail.com | none |
-| `spm77_tc004_setup.sql` | `pnpm uat:setup spm77_tc004` | SPM-77 TC-004 | Lead attempting an out-of-scope action is denied with a clear message | tom@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
-| `spm77_tc005_setup.sql` | `pnpm uat:setup spm77_tc005` | SPM-77 TC-005 | Lead attempting to reach the Safety Officer's page directly is denied | tom@gmail.com | none |
-| `spm77_tc006_setup.sql` | `pnpm uat:setup spm77_tc006` | SPM-77 TC-006 | Safety Officer attempting to reach the Lead home page directly is denied | sally@gmail.com | none |
-| `spm87_tc001_setup.sql` | `pnpm uat:setup spm87_tc001` | SPM-87 TC-001 | Effective occupancy window is computed as (event start - setup) to (event end + turnaround) | jonathan@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
-| `spm87_tc002_setup.sql` | `pnpm uat:setup spm87_tc002` | SPM-87 TC-002 | Zero setup and turnaround makes the effective window equal to the raw event time | jonathan@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
-| `spm87_tc003_setup.sql` | `pnpm uat:setup spm87_tc003` | SPM-87 TC-003 | Two effective windows with a clear gap between them do not conflict | jonathan@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
-| `spm87_tc004_setup.sql` | `pnpm uat:setup spm87_tc004` | SPM-87 TC-004 | Two effective windows that only touch (one ends exactly when the other begins) do not conflict | jonathan@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
-| `spm87_tc005_setup.sql` | `pnpm uat:setup spm87_tc005` | SPM-87 TC-005 | Effective windows overlapping by the smallest margin past the touch point are a conflict | jonathan@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
-| `spm87_tc006_setup.sql` | `pnpm uat:setup spm87_tc006` | SPM-87 TC-006 | Effective windows with a substantial overlap are a conflict | jonathan@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
-| `spm87_tc007_setup.sql` | `pnpm uat:setup spm87_tc007` | SPM-87 TC-007 | A venue is available when its whole effective window falls within operating hours | jonathan@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
-| `spm87_tc008_setup.sql` | `pnpm uat:setup spm87_tc008` | SPM-87 TC-008 | A venue is available when its effective window exactly matches the operating-hours boundary | jonathan@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
-| `spm87_tc009_setup.sql` | `pnpm uat:setup spm87_tc009` | SPM-87 TC-009 | A venue is not available when its effective window extends outside operating hours | jonathan@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
-| `spm87_tc010_setup.sql` | `pnpm uat:setup spm87_tc010` | SPM-87 TC-010 | Availability calendar shows setup and turnaround periods visually distinct from the event time | jonathan@gmail.com | cancels other requests of its test events; removes blocks on its test venues |
 
 ## Reading a case's Preconditions
 
