@@ -60,39 +60,50 @@ export type CoordinatorVenueConflict = {
   bookingStartsAt: string;
   bookingEndsAt: string;
   blockReason: string | null;
-  /** Whether a replacement has been requested (202611010015). */
-  state: "replacement_required" | "replacement_requested";
+  /** Open (with or without a requested replacement, 202611010015) or resolved. */
+  state: "replacement_required" | "replacement_requested" | "resolved";
+  resolvedAt: string | null;
 };
 
 /**
  * The signed-in coordinator's bookings that have to move: requested after the
- * booking they overlap, or overlapping a venue block. RLS limits the conflicts
+ * booking they overlap, or overlapping a venue block. Open ones, and ones
+ * resolved since `resolvedSince`, like disruptions. RLS limits the conflicts
  * to the coordinator's own events (202611010005); callers keep only the
  * events currently assigned to them.
  */
-export async function listVenueConflictsForCoordinator(): Promise<CoordinatorVenueConflict[]> {
+export async function listVenueConflictsForCoordinator(resolvedSince: string): Promise<CoordinatorVenueConflict[]> {
   const { data, error } = await supabase
     .from("venue_booking_conflicts")
     .select(
       `
+        resolved_at,
         booking:venue_bookings!venue_booking_conflicts_booking_id_fkey!inner (
           id, event_id, status, starts_at, ends_at, events (title), venues (name)
         ),
         conflicting_block:venue_unavailability!venue_booking_conflicts_conflicting_block_id_fkey (reason)
       `,
     )
-    .is("resolved_at", null)
     .eq("is_responsible", true)
-    .in("booking.status", [...ACTIVE_BOOKING_STATUSES]);
+    .or(`resolved_at.is.null,resolved_at.gte.${resolvedSince}`);
 
   if (error) throw new Error("Venue conflicts are unavailable.");
 
-  // One row per booking; a block is named over another booking if it has both.
+  // One row per booking: open over resolved, a block over another booking,
+  // and the latest resolution among resolved ones.
+  const outranks = (item: CoordinatorVenueConflict, other: CoordinatorVenueConflict) => {
+    const itemOpen = item.state !== "resolved";
+    const otherOpen = other.state !== "resolved";
+    if (itemOpen !== otherOpen) return itemOpen;
+    if (itemOpen) return item.blockReason !== null && other.blockReason === null;
+    return (item.resolvedAt ?? "") > (other.resolvedAt ?? "");
+  };
   const byBooking = new Map<string, CoordinatorVenueConflict>();
   for (const row of data ?? []) {
-    const existing = byBooking.get(row.booking.id);
-    if (existing && (existing.blockReason !== null || !row.conflicting_block)) continue;
-    byBooking.set(row.booking.id, {
+    const active = (ACTIVE_BOOKING_STATUSES as readonly string[]).includes(row.booking.status);
+    // A conflict still open on a booking released by hand no longer applies.
+    if (row.resolved_at === null && !active) continue;
+    const item: CoordinatorVenueConflict = {
       bookingId: row.booking.id,
       eventId: row.booking.event_id,
       eventTitle: row.booking.events?.title ?? "Unknown event",
@@ -100,21 +111,26 @@ export async function listVenueConflictsForCoordinator(): Promise<CoordinatorVen
       bookingStartsAt: row.booking.starts_at,
       bookingEndsAt: row.booking.ends_at,
       blockReason: row.conflicting_block ? (row.conflicting_block.reason ?? "Reason not recorded") : null,
-      state: "replacement_required",
-    });
+      state: row.resolved_at === null ? "replacement_required" : "resolved",
+      resolvedAt: row.resolved_at,
+    };
+    const existing = byBooking.get(item.bookingId);
+    if (!existing || outranks(item, existing)) byBooking.set(item.bookingId, item);
   }
-  if (byBooking.size === 0) return [];
 
-  const replacements = await supabase
-    .from("venue_bookings")
-    .select("replaces_booking_id")
-    .in("replaces_booking_id", [...byBooking.keys()])
-    .in("status", [...ACTIVE_BOOKING_STATUSES]);
-  if (replacements.error) throw new Error("Venue conflicts are unavailable.");
+  const openIds = [...byBooking.values()].filter((item) => item.state !== "resolved").map((item) => item.bookingId);
+  if (openIds.length > 0) {
+    const replacements = await supabase
+      .from("venue_bookings")
+      .select("replaces_booking_id")
+      .in("replaces_booking_id", openIds)
+      .in("status", [...ACTIVE_BOOKING_STATUSES]);
+    if (replacements.error) throw new Error("Venue conflicts are unavailable.");
 
-  for (const row of replacements.data ?? []) {
-    const item = row.replaces_booking_id ? byBooking.get(row.replaces_booking_id) : undefined;
-    if (item) item.state = "replacement_requested";
+    for (const row of replacements.data ?? []) {
+      const item = row.replaces_booking_id ? byBooking.get(row.replaces_booking_id) : undefined;
+      if (item && item.state !== "resolved") item.state = "replacement_requested";
+    }
   }
 
   return [...byBooking.values()];

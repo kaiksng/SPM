@@ -125,8 +125,9 @@ function DisruptionRow({ item }: { item: VenueDisruption }) {
  * re-check. It is replaced the same way as a disrupted one (202611010015).
  */
 function ConflictRow({ item }: { item: CoordinatorVenueConflict }) {
+  const muted = item.state === "resolved";
   return (
-    <tr className="text-slate-700">
+    <tr className={muted ? "text-slate-500" : "text-slate-700"}>
       <td className="px-4 py-3 align-top font-semibold">
         <Link
           to={`/events/${item.eventId}/venue`}
@@ -149,12 +150,14 @@ function ConflictRow({ item }: { item: CoordinatorVenueConflict }) {
         <DisruptionStateBadge state={item.state} />
       </td>
       <td className="px-4 py-3 align-top whitespace-nowrap">
-        <Link
-          to={`/events/${item.eventId}/venue`}
-          className="font-medium text-primary hover:underline"
-        >
-          {item.state === "replacement_requested" ? "View request" : "Find replacement"}
-        </Link>
+        {item.state !== "resolved" && (
+          <Link
+            to={`/events/${item.eventId}/venue`}
+            className="font-medium text-primary hover:underline"
+          >
+            {item.state === "replacement_requested" ? "View request" : "Find replacement"}
+          </Link>
+        )}
       </td>
     </tr>
   );
@@ -165,8 +168,8 @@ function ConflictRow({ item }: { item: CoordinatorVenueConflict }) {
  * disrupted by a venue block. The events are not cancelled; an alternative is
  * needed. Open items are listed first; recently resolved ones are behind a
  * toggle. Nothing renders when there is nothing open or recently resolved.
- * Bookings that have to move because of a conflict are listed with the open
- * ones (they clear once fixed), so every venue problem is in one place.
+ * Bookings that have to move because of a conflict are listed the same way,
+ * so every venue problem is in one place.
  */
 export function AffectedVenueBookings({
   disruptions,
@@ -188,8 +191,11 @@ export function AffectedVenueBookings({
   }
 
   const { open, recentlyResolved } = splitVenueDisruptions(disruptions);
-  const openCount = open.length + conflicts.length;
-  if (openCount === 0 && recentlyResolved.length === 0) return null;
+  const openConflicts = conflicts.filter((item) => item.state !== "resolved");
+  const resolvedConflicts = conflicts.filter((item) => item.state === "resolved");
+  const openCount = open.length + openConflicts.length;
+  const resolvedCount = recentlyResolved.length + resolvedConflicts.length;
+  if (openCount === 0 && resolvedCount === 0) return null;
   return (
     <section aria-label="Affected venue bookings" className="mt-10">
       <div className="flex flex-wrap items-end justify-between gap-2">
@@ -208,14 +214,14 @@ export function AffectedVenueBookings({
             have not been cancelled; alternative arrangements are required.
           </p>
         </div>
-        {recentlyResolved.length > 0 && (
+        {resolvedCount > 0 && (
           <button
             type="button"
             aria-expanded={showResolved}
             onClick={() => setShowResolved((current) => !current)}
             className="text-sm font-medium text-primary hover:underline"
           >
-            {showResolved ? "Hide resolved" : `Show resolved (${recentlyResolved.length})`}
+            {showResolved ? "Hide resolved" : `Show resolved (${resolvedCount})`}
           </button>
         )}
       </div>
@@ -240,11 +246,14 @@ export function AffectedVenueBookings({
               {open.map((item) => (
                 <DisruptionRow key={item.id} item={item} />
               ))}
-              {conflicts.map((item) => (
+              {openConflicts.map((item) => (
                 <ConflictRow key={item.bookingId} item={item} />
               ))}
               {showResolved && recentlyResolved.map((item) => (
                 <DisruptionRow key={item.id} item={item} />
+              ))}
+              {showResolved && resolvedConflicts.map((item) => (
+                <ConflictRow key={item.bookingId} item={item} />
               ))}
             </tbody>
           </table>
