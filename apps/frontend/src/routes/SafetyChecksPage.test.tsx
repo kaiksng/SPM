@@ -113,7 +113,7 @@ describe("SafetyChecksPage queue details", () => {
     expect(screen.queryByText(/^Round/)).not.toBeInTheDocument();
   });
 
-  // SPM-90 AC04: after approving, the Safety Officer returns to the queue and is told the event is Confirmed.
+  // SPM-90 AC03: after approving, the Safety Officer returns to the queue and is told the event is Confirmed.
   it("shows the notice handed over after a decision", async () => {
     render(
       <MemoryRouter initialEntries={[{ pathname: "/safety-checks", state: { notice: '"Alumni Homecoming Mixer" approved — it\'s now Confirmed.' } }]}>

@@ -68,7 +68,7 @@ beforeEach(() => {
   searchAvailableVenuesMock.mockReset().mockResolvedValue([venue, otherVenue]);
 });
 
-describe("SuggestedVenuesPanel", () => {
+describe("SuggestedVenuesPanel (SPM-72)", () => {
   it("lists matching venues for the event", async () => {
     renderPanel();
 

@@ -63,7 +63,7 @@ beforeEach(() => {
 });
 
 describe("EventVenueBookings: a booking request on hold", () => {
-  it("AC01: shows the On Hold status, the confirmation deadline and a Confirm request option", () => {
+  it("SPM-75 AC01: shows the On Hold status, the confirmation deadline and a Confirm request option", () => {
     renderBookings([onHold]);
 
     const item = screen.getByRole("listitem");
@@ -74,7 +74,7 @@ describe("EventVenueBookings: a booking request on hold", () => {
     expect(within(item).getByRole("button", { name: "Confirm request" })).toBeEnabled();
   });
 
-  it("AC02: confirming sends that booking's id", async () => {
+  it("SPM-75 AC02: confirming sends that booking's id", async () => {
     const user = userEvent.setup();
     renderBookings([booking({ id: "other", status: "pending", isMainVenue: false, label: "Breakout 1" }), onHold]);
 
@@ -84,14 +84,14 @@ describe("EventVenueBookings: a booking request on hold", () => {
     expect(onConfirmHold).toHaveBeenCalledWith("b-1");
   });
 
-  it("AC02: shows the request is being confirmed and blocks a second click", () => {
+  it("SPM-75 AC02: shows the request is being confirmed and blocks a second click", () => {
     renderBookings([onHold], { busyBookingId: "b-1" });
 
     expect(screen.getByRole("button", { name: "Confirming…" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Confirm request" })).not.toBeInTheDocument();
   });
 
-  it("AC02: shows why a confirmation was refused, on that booking", () => {
+  it("SPM-75 AC02: shows why a confirmation was refused, on that booking", () => {
     renderBookings([onHold], {
       actionError: { bookingId: "b-1", message: "This hold has expired. Submit a new venue booking request." },
     });
@@ -112,7 +112,7 @@ describe("EventVenueBookings: a booking request on hold", () => {
     expect(screen.queryByText(/Confirm by/)).not.toBeInTheDocument();
   });
 
-  it("AC03: an expired hold can no longer be confirmed and tells the coordinator the venue is free again", () => {
+  it("SPM-75 AC03: an expired hold can no longer be confirmed and tells the coordinator the venue is free again", () => {
     renderBookings([booking({ status: "expired", expiresAt: "2099-04-05T02:00:00.000Z" })]);
 
     const item = screen.getByRole("listitem");
@@ -122,7 +122,7 @@ describe("EventVenueBookings: a booking request on hold", () => {
   });
 });
 
-// SPM-85 AC10: the coordinator releases one booking at a time, always giving a reason.
+// SPM-85 AC11: the coordinator releases one booking at a time, always giving a reason.
 describe("EventVenueBookings: releasing a booking", () => {
   it("withdraws a Pending booking after a reason is given, then closes the dialog", async () => {
     const user = userEvent.setup();

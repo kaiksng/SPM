@@ -88,7 +88,7 @@ async function flags(id: string) {
 }
 
 describe("Workflow: safety and confirmation", () => {
-  // SPM-33 AC1-AC4, AC6, AC10 (blockers), SPM-85 AC13: readiness is derived and blocks submission.
+  // SPM-33 AC1-AC4, AC6, AC10 (blockers), SPM-85 AC12: readiness is derived and blocks submission.
   it("derives readiness from records and refuses submission until every blocker is cleared", async () => {
     const { id } = await planning("Integration readiness event");
     const venueId = await fixture.venue(100);
@@ -185,7 +185,7 @@ describe("Workflow: safety and confirmation", () => {
     expect(await eventSnapshot(id)).toEqual(locked);
   });
 
-  // SPM-90 AC1-AC6: review facts, approval record, notifications and guards.
+  // SPM-90 AC1-AC5: review facts, approval record, notifications and guards.
   it("lets only a Safety Officer approve, confirms the event, records the review and notifies the coordinator and organiser", async () => {
     const { id } = await readyEvent("Integration approval event");
     await fixture.signIn(actors.coordinatorA);

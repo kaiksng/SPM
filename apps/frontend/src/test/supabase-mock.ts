@@ -15,6 +15,7 @@ const CHAIN_METHODS = [
   "gte",
   "order",
   "limit",
+  "range",
   "filter",
   "match",
 ] as const;

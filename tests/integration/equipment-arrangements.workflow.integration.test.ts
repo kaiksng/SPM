@@ -198,7 +198,7 @@ describe("Workflow: equipment arrangements", () => {
     expect(history.map((entry) => entry.id)).toEqual([...history.map((entry) => entry.id)].sort((a, b) => a - b));
     expect(history.at(-1)?.status).toBe("arranged");
 
-    // SPM-28 AC6/AC7: the coordinator reads status and history but cannot change the reservation;
+    // SPM-28 AC4/AC5: the coordinator reads status and history but cannot change the reservation;
     // nobody can set a status by hand.
     await fixture.signIn(actors.coordinatorA);
     expect((await loadEquipmentArrangementHistory([event.id])).get(event.requirementId)).toEqual(history);

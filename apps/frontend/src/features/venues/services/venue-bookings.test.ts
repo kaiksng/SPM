@@ -110,8 +110,8 @@ describe("submitVenueBookingRequest", () => {
     });
   });
 
-  // SPM-85 AC02: an additional booking sends its own label, period, headcount and needs.
-  it("AC02: sends an additional booking's own details", async () => {
+  // SPM-85 AC09: an additional booking sends its own label, period, headcount and needs.
+  it("SPM-85 AC09: sends an additional booking's own details", async () => {
     apiFetchMock.mockResolvedValue({ data: "booking-2" });
     const details = {
       label: "Breakout 1",
@@ -130,8 +130,8 @@ describe("submitVenueBookingRequest", () => {
 });
 
 describe("withdrawVenueBookingRequest", () => {
-  // SPM-85 AC10: a reason travels with the withdrawal or cancellation.
-  it("AC10: sends the reason to the booking's withdraw endpoint", async () => {
+  // SPM-85 AC11: a reason travels with the withdrawal or cancellation.
+  it("SPM-85 AC11: sends the reason to the booking's withdraw endpoint", async () => {
     apiFetchMock.mockResolvedValue({ data: "booking-1" });
 
     await withdrawVenueBookingRequest("booking-1", "Speaker dropped out");
@@ -144,7 +144,7 @@ describe("withdrawVenueBookingRequest", () => {
 });
 
 describe("setMainVenueBooking", () => {
-  it("AC07: asks the database to make the booking the main venue", async () => {
+  it("SPM-85 AC05: asks the database to make the booking the main venue", async () => {
     rpcMock.mockResolvedValue({ data: "booking-2", error: null });
 
     await setMainVenueBooking("booking-2");
@@ -175,7 +175,7 @@ describe("checkVenueBookingAvailability", () => {
   });
 
   // SPM-85 AC04: an additional booking is checked for its own period.
-  it("AC04: checks a booking's own period when one is given", async () => {
+  it("SPM-85 AC04: checks a booking's own period when one is given", async () => {
     rpcMock.mockResolvedValue({ data: { available: false, reason: "Occupied" }, error: null });
 
     await expect(
@@ -243,8 +243,8 @@ describe("getActiveVenueBooking", () => {
 });
 
 describe("listVenueBookingsForEvent", () => {
-  // SPM-85 AC02/AC07/AC08: each booking carries its own label, headcount and main flag.
-  it("AC08: returns every booking with its label, headcount and main-venue flag", async () => {
+  // SPM-85 AC09/AC05/AC07: each booking carries its own label, headcount and main flag.
+  it("SPM-85 AC07: returns every booking with its label, headcount and main-venue flag", async () => {
     fromMock.mockReturnValue(
       queryBuilder({
         data: [
@@ -271,7 +271,7 @@ describe("listVenueBookingsForEvent", () => {
     expect(bookings[1]?.venueAreaTags).toEqual(["Marina Bay"]);
   });
 
-  // SPM-82 AC09: the replacement carries the link and the name of the venue it replaces.
+  // SPM-82 AC08: the replacement carries the link and the name of the venue it replaces.
   it("links a replacement to the booking it replaces and names that venue", async () => {
     fromMock.mockReturnValue(
       queryBuilder({
@@ -527,7 +527,7 @@ describe("getVenueBookingRequest", () => {
 
   // SPM-85: the layout, accessibility and facilities are the booking's own, so a
   // breakout room is judged on what it needs, not on the main hall's needs.
-  it("AC02: takes the room's own layout, accessibility and facilities from the booking", async () => {
+  it("SPM-85 AC09: takes the room's own layout, accessibility and facilities from the booking", async () => {
     fromMock.mockReturnValue(
       queryBuilder({
         data: bookingRow({
@@ -610,7 +610,7 @@ describe("placing and confirming a hold", () => {
   });
 });
 
-// SPM-85 AC12: a venue's Activity log lists every booking ever made there, for Venue Staff.
+// SPM-85 AC13: a venue's Activity log lists every booking ever made there, for Venue Staff.
 describe("listVenueBookingsForVenue", () => {
   it("returns the venue's bookings newest first, capped, with the venue each replacement replaced", async () => {
     const query = queryBuilder({

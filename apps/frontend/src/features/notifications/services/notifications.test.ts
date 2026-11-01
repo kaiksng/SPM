@@ -73,9 +73,9 @@ describe("listNotifications", () => {
     ]);
   });
 
-  // Venue hold AC05: the "expires soon" reminder is inserted when the hold is
+  // SPM-75 AC05: the "expires soon" reminder is inserted when the hold is
   // placed, scheduled 24 hours before expiry, and must stay hidden until then.
-  it("AC05 (venue hold): only asks for notifications that are due by now", async () => {
+  it("SPM-75 AC05: only asks for notifications that are due by now", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2099-04-04T02:00:00.000Z"));
     try {

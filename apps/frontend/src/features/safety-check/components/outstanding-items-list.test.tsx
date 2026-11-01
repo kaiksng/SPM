@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { OutstandingItemsList } from "./outstanding-items-list";
 
 describe("OutstandingItemsList", () => {
-  // SPM-33 AC05: submission is blocked with the outstanding items listed.
+  // SPM-33 AC06: submission is blocked with the outstanding items listed.
   it("lists every outstanding item's message", () => {
     render(
       <OutstandingItemsList

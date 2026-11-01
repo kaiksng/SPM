@@ -84,7 +84,7 @@ describe("submitEventForSafetyCheck", () => {
     apiFetchMock.mockReset();
   });
 
-  // AC05.
+  // SPM-33 AC05.
   it("returns the round on success", async () => {
     apiFetchMock.mockResolvedValue({ data: { eventId: "event-1", status: "pending_safety_check", round: 2 } });
 
@@ -96,7 +96,7 @@ describe("submitEventForSafetyCheck", () => {
     expect(apiFetchMock).toHaveBeenCalledWith("/events/event-1/submit-safety-check", { method: "POST" });
   });
 
-  // AC05: outstanding items carried through as a SafetyCheckSubmissionError.
+  // SPM-33 AC06: outstanding items carried through as a SafetyCheckSubmissionError.
   it("throws a SafetyCheckSubmissionError with outstanding items on a 422", async () => {
     const fields = [{ code: "no_main_venue", message: "Choose a main venue booking before submitting." }];
     apiFetchMock.mockRejectedValue(new ApiError("This event is not ready for the safety check", 422, fields));
