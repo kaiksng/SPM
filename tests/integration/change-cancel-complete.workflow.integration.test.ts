@@ -11,7 +11,7 @@ import {
 } from "@/features/event-requests/services/change-requests";
 import { completeEvent, listEventStatusHistory, loadEventCompletionAvailableAt } from "@/features/event-requests/services/event-lifecycle";
 import { listNotifications, getUnreadNotificationCount, markAllNotificationsRead, markNotificationRead } from "@/features/notifications/services/notifications";
-import { loadEventReadiness, submitEventForSafetyCheck } from "@/features/safety-check/services/event-readiness";
+import { submitEventForSafetyCheck } from "@/features/safety-check/services/event-readiness";
 import { listSafetyCheckDecisions } from "@/features/safety-check/services/safety-check-decisions";
 import { saveVenueSafetyChecks } from "@/features/safety-check/services/safety-plan";
 import {
@@ -130,7 +130,7 @@ describe("Workflow: change, cancel, complete", () => {
   });
 
   // SPM-39 AC1, AC2, AC7-AC11 and SPM-38 AC1 (Confirmed): applying a date change.
-  it("applies a date change to a Confirmed event: flags bookings, notifies staff, returns to Planning, never releases a booking", async () => {
+  it("applies a date change to a Confirmed event: notifies staff, flags nothing, returns to Planning, never releases a booking", async () => {
     const original = await confirmed("Integration changed event", { withBreakout: true });
     // Another event holds the same venue on the new day, so the move conflicts.
     const rival = await planning("Integration rival event", { startsAt: "2099-07-02T10:00", endsAt: "2099-07-02T16:00" });
@@ -154,16 +154,13 @@ describe("Workflow: change, cancel, complete", () => {
     expect((await listEventStatusHistory(original.id)).at(-1)).toMatchObject({ fromStatus: "confirmed", toStatus: "planning", changedById: actors.coordinatorA.id });
     expect(await notificationRecipients(original.id, "safety_review_reset")).toContain(officer.id);
 
-    // AC1/AC8/AC11: every active booking is flagged, the clash is marked Conflict, nothing is cancelled.
+    // AC01/AC11: nothing is flagged or cancelled; the coordinator updates the bookings themselves (202611010008).
     const bookings = await bookingRows(original.id);
-    expect(bookings.map((row) => [row.status, row.needs_review])).toEqual([["approved", true], ["approved", true]]);
-    expect(bookings[0].needs_review_reason).toMatch(/^Conflict/);
+    expect(bookings.map((row) => [row.status, row.needs_review])).toEqual([["approved", false], ["approved", false]]);
     expect(bookings.every((row) => row.cancelled_at === null)).toBe(true);
-    // AC2: Venue Staff are notified once per flagged booking.
+    // AC02: Venue Staff are notified once per affected booking.
     expect(await notificationCount(original.id, "venue_change_review")).toBe(2);
     expect(await notificationRecipients(original.id, "venue_change_review")).toEqual([staff.id, staff.id]);
-    // AC9: the event is not Ready until the flags are resolved.
-    expect((await loadEventReadiness(original.id)).ready).toBe(false);
 
     // AC7: the request is Implemented and cannot be applied twice.
     expect((await listEventChangeRequests(original.id)).at(-1)).toMatchObject({ status: "implemented" });
@@ -177,7 +174,7 @@ describe("Workflow: change, cancel, complete", () => {
     await fixture.signIn(actors.coordinatorA);
     const { values } = await loadEventForChangeApply(event.id, ["confirmed"]);
     expect(await applyEventChangeRequest(requestId, { ...values, description: "A clearer description" }))
-      .toMatchObject({ status: "implemented", returnedToPlanning: false, eventStatus: "confirmed", flaggedBookingIds: [] });
+      .toMatchObject({ status: "implemented", returnedToPlanning: false, eventStatus: "confirmed", affectedBookingIds: [] });
     expect(await eventRow(event.id)).toMatchObject({ status: "confirmed", description: "A clearer description" });
     expect((await bookingRows(event.id)).map((row) => row.needs_review)).toEqual([false]);
     expect(await notificationCount(event.id, "venue_change_review")).toBe(0);

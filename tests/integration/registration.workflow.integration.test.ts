@@ -215,11 +215,11 @@ describe("Workflow: registration", () => {
     await joinWaitlist(event.id);
     expect(await getWaitlistPosition(event.id)).toBe(2);
 
-    // SPM-45: cancelling notifies the registered attendee only, not those waiting, withdrawn or gone.
+    // SPM-45: cancelling notifies the registered attendee and those still waiting, not those who left (202611010007).
     await fixture.signIn(actors.coordinatorA);
     await cancelEvent(event.id, "Sponsor withdrew");
     const notified = await notificationRecipients(event.id, "cancellation");
-    expect(notified).toContain(b.id);
-    for (const other of [a, c, d]) expect(notified).not.toContain(other.id);
+    for (const told of [b, a, d]) expect(notified).toContain(told.id);
+    expect(notified).not.toContain(c.id);
   });
 });
