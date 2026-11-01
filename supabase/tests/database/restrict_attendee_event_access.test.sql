@@ -2,7 +2,7 @@ begin;
 
 select plan(16);
 
--- 202611010013 (SPM-49 AC2/AC3): an attendee must not read internal planning
+-- 202611010014 (SPM-49 AC2/AC3): an attendee must not read internal planning
 -- information, even by querying the tables or calling RPCs directly. The only
 -- attendee read path is attendee_visible_events (published fields only).
 

@@ -159,7 +159,7 @@ describe("Role-access matrix: reading", () => {
   });
 
   // SPM-49 AC2/AC3: internal planning data is denied when the attendee asks for it directly,
-  // even for a Confirmed event. Closed by 202611010013 (can_view_event no longer admits attendees).
+  // even for a Confirmed event. Closed by 202611010014 (can_view_event no longer admits attendees).
   it("denies an attendee the internal planning data of a Confirmed event, even when asked directly", async () => {
     await signInAs("attendee");
     const leaked: string[] = [];

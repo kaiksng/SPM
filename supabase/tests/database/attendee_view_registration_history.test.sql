@@ -34,7 +34,7 @@ select ok(
   public.can_attendee_view_event('f9000000-0000-0000-0000-0000000000e1'),
   'an attendee can still view an event they registered for after it leaves confirmed'
 );
--- 202611010013: the events table is no longer readable by attendees; their
+-- 202611010014: the events table is no longer readable by attendees; their
 -- published view of the event comes from attendee_visible_events.
 select is(
   (select count(*) from public.attendee_visible_events(array['f9000000-0000-0000-0000-0000000000e1']::uuid[]))::int,

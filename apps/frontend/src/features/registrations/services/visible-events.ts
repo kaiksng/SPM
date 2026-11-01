@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase-client";
 /**
  * One event as an attendee may see it: published fields only. An attendee has
  * no read access to the events table (SPM-49), so every attendee screen reads
- * events through the attendee_visible_events RPC (202611010013) instead.
+ * events through the attendee_visible_events RPC (202611010014) instead.
  */
 export type VisibleEvent = {
   id: string;
