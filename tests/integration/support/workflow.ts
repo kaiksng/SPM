@@ -2,6 +2,10 @@ import { expect } from "vitest";
 import { emptyEventRequestFormValues, type EventRequestFormValues } from "@spm/shared";
 import { assignEventCoordinator } from "@/features/event-requests/services/all-events";
 import { decideEvent } from "@/features/event-requests/services/decisions";
+import { decideEventSafetyCheck } from "@/features/safety-check/services/safety-check-decisions";
+import { submitEventForSafetyCheck } from "@/features/safety-check/services/event-readiness";
+import { saveVenueSafetyChecks } from "@/features/safety-check/services/safety-plan";
+import { decideVenueBookingRequest, submitVenueBookingRequest } from "@/features/venues/services/venue-bookings";
 import { saveEventDraft } from "@/features/event-requests/services/event-drafts";
 import { submitEventRequest } from "@/features/event-requests/services/event-submissions";
 import { database, type IntegrationFixture } from "../fixtures";
@@ -91,4 +95,51 @@ export async function planningEvent(
   await decideEvent(id, "approved", "");
   expect((await database.query("select status from public.events where id = $1", [id])).rows[0].status).toBe("planning");
   return { id, values };
+}
+
+/** Safety checks a coordinator ticks so an event can be Ready. */
+export const SAFETY_CHECKS = {
+  emergencyAccessChecked: true, emergencyAccess: "Exits A and B", restrictionsChecked: true, restrictions: "No open flames",
+  crowdMovementChecked: true, crowdMovementPlan: "One-way flow",
+};
+
+/** The fixture venue's area tag, a 6-hour window and one breakout period inside it. */
+export const AREA_VENUE: Partial<EventRequestFormValues> = {
+  venue: { preferredLocation: "Central Area", minimumCapacity: "30", accessibilityNotes: "", layoutNotes: "", facilities: [] },
+};
+export const DEFAULT_WINDOW = { expectedAttendance: "60", startsAt: "2099-07-01T10:00", endsAt: "2099-07-01T16:00" };
+export const BREAKOUT = {
+  label: "Breakout 1", startsAt: "2099-07-01T12:00:00+08:00", endsAt: "2099-07-01T14:00:00+08:00", expectedHeadcount: 20,
+};
+
+/**
+ * A Confirmed event reached through the real flow: Planning, a main booking
+ * (and optionally a breakout) approved by Venue Staff, safety checks ticked,
+ * submitted by the coordinator and approved by the Safety Officer. Leaves
+ * the officer signed in.
+ */
+export async function confirmedEvent(
+  fixture: IntegrationFixture,
+  cast: { organiser: User; lead: User; coordinator: User; staff: User; officer: User },
+  title: string,
+  options: { withBreakout?: boolean; overrides?: Partial<EventRequestFormValues>; pastSchedule?: boolean } = {},
+) {
+  const { id, values } = await planningEvent(fixture, cast, title, { ...AREA_VENUE, ...DEFAULT_WINDOW, ...options.overrides });
+  if (options.pastSchedule) {
+    // Setup only, while the event is still in Planning (a Confirmed event is locked even
+    // against direct SQL): a real wait for an event to finish is impossible.
+    await database.query("update public.events set starts_at = '2020-07-01T02:00:00Z', ends_at = '2020-07-01T08:00:00Z' where id = $1", [id]);
+  }
+  const venueId = await fixture.venue(100);
+  const bookingIds = [await submitVenueBookingRequest(id, venueId)];
+  if (options.withBreakout) bookingIds.push(await submitVenueBookingRequest(id, await fixture.venue(100), BREAKOUT));
+  await fixture.signIn(cast.staff);
+  for (const booking of bookingIds) await decideVenueBookingRequest(booking, "approved", "");
+  await fixture.signIn(cast.coordinator);
+  await saveVenueSafetyChecks(id, SAFETY_CHECKS);
+  await submitEventForSafetyCheck(id);
+  await fixture.signIn(cast.officer);
+  await decideEventSafetyCheck(id, "approved", "");
+  expect((await database.query("select status from public.events where id = $1", [id])).rows[0].status).toBe("confirmed");
+  return { id, values, venueId, bookingIds };
 }

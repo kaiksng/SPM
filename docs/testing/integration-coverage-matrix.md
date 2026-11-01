@@ -14,7 +14,7 @@ Integration tests are grouped into business workflows; the per-story sections be
 | venue-booking-lifecycle | SPM-72, 24, 25, 26, 78, 75, 85, 82 | Done: 8 tests; SPM-85 uses the agreed 12 ACs; SPM-24 AC7 state names are UI-only |
 | equipment-arrangements (3 tests) | SPM-28, 30, 31, 32 | Planned |
 | safety-and-confirmation | SPM-33, 89, 90, 11, 35, 79/12 transitions | Done: 6 tests; SPM-12 exact-status-list AC not asserted (legacy enum values remain); equipment reservation is workflow 3 |
-| change-cancel-complete | SPM-38, 39, 45, 46, 76 | Planned |
+| change-cancel-complete | SPM-38, 39, 45, 46, 76 | Done: 7 tests; equipment release and attendee notification on cancel, and SPM-46 AC6, are assigned to workflows 3 and 6 |
 | registration (3 tests) | SPM-40, 41, 42, 43, 44 | Planned |
 | role-access matrix (1 table-driven test) | SPM-16, 17, 48, 49, 77 | Planned |
 | Existing per-story suites | SPM-2, 13, 14, 19, 20, 21, 81, 83, 86, 87, 88 | Done |
