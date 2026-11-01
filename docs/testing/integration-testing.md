@@ -493,7 +493,7 @@ The recurring backend route-test flakes (a 5-second timeout in `venue-booking-ho
 
 ## Workflow 7: role-access matrix
 
-The [suite](../../tests/integration/role-access-matrix.workflow.integration.test.ts) has 15 generated and written tests against the real database, backend and Auth. State is built once (a Planning event holding a booking, an equipment requirement, a clarification, a decision and a change request, plus a Confirmed event) and nine synthetic actors read it.
+The [suite](../../tests/integration/role-access-matrix.workflow.integration.test.ts) has 17 tests (16 passing and 1 expected failure) against the real database, backend and Auth. State is built once (a Planning event holding a booking, an equipment requirement, a clarification, a decision and a change request, plus a Confirmed event) and nine synthetic actors read it.
 
 - **Reading:** eight roles (owner organiser, other organiser, assigned and other coordinator, Lead, Venue Staff, Technical Support, Safety Officer) each see exactly the records their role allows, across event details, venue bookings, decisions, status history, equipment requirements, clarifications, change requests and safety review details; mismatches are listed by name. The owner and assigned coordinator are the positive controls. An attendee sees the published information of a Confirmed event and nothing of an event that is not Confirmed yet.
 - **Acting:** each of the other eight roles is refused, with the stored snapshot unchanged, and then the authorised role succeeds, for: assigning a coordinator (Lead), deciding an event (assigned coordinator), deciding a venue booking (Venue Staff), creating equipment (Technical Support) and deciding a safety check (Safety Officer).
@@ -505,4 +505,4 @@ Not covered here: landing page per role (SPM-13 suite), the coordinator's own li
 
 ### Execution record 2026-11-01
 
-Integration typecheck passed. Full run **18 files / 114 tests passed plus 1 expected failure** twice on clean disposable stacks (15 new + 99 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. The first run had two wrong expectations of mine: status history is limited to the organiser, assigned coordinator and Lead (not every coordinator, Venue Staff or Technical Support). The attendee gap was a genuine finding, not a test error. Node 24.20.0.
+Integration typecheck passed. Full run **18 files / 114 tests passed plus 1 expected failure** twice on clean disposable stacks (17 new + 98 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. The first run had two wrong expectations of mine: status history is limited to the organiser, assigned coordinator and Lead (not every coordinator, Venue Staff or Technical Support). The attendee gap was a genuine finding, not a test error. Node 24.20.0.
