@@ -1,0 +1,30 @@
+@startuml ConnectSphere_C4_Container
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+HIDE_STEREOTYPE()
+
+title ConnectSphere - C4 Container Diagram
+
+Person(user, "ConnectSphere users", "Organiser, Coordinator Lead, Coordinator, Venue Staff, Technical Support, Safety Officer, Attendee")
+
+System_Boundary(connectsphere, "ConnectSphere") {
+  Container(spa, "Frontend SPA", "React 19, Vite, TypeScript, Tailwind", "Role-gated pages; feature services are the only code that calls Supabase or the backend")
+  Container(api, "Backend API", "Node.js, Express, TypeScript", "Authenticates the caller, validates with zod, calls a Postgres function with the service-role client, maps SQLSTATE to HTTP errors")
+  Container(shared, "Shared package", "TypeScript (@spm/shared)", "Types, zod schemas and domain rules used by both apps")
+  ContainerDb(db, "PostgreSQL", "Supabase Postgres", "Schema, constraints, RLS policies and business-rule functions (RPC); the final authority")
+  Container(storage, "File storage", "Supabase Storage", "Event documents and banners, private buckets")
+}
+
+System_Ext(auth, "Supabase Auth", "Accounts and access tokens")
+
+Rel(user, spa, "Uses", "HTTPS")
+Rel(spa, db, "RLS-protected reads and writes, RPC", "supabase-js")
+Rel(spa, api, "Privileged operations", "HTTPS/JSON, bearer token")
+Rel(spa, auth, "Signs in", "supabase-js")
+Rel(spa, storage, "Uploads and downloads via signed URLs", "supabase-js")
+Rel(api, auth, "Verifies access token", "supabase-js")
+Rel(api, db, "Calls RPC with service-role key", "supabase-js")
+Rel_D(spa, shared, "Imports")
+Rel_D(api, shared, "Imports")
+
+@enduml

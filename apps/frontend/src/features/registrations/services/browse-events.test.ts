@@ -12,43 +12,50 @@ import { listBrowseEvents } from "./browse-events";
 
 const ATTENDEE_ID = "attendee-1";
 
-function eventRow(id: string, registration: Record<string, unknown> = {}) {
+function eventRow(id: string, registration: Record<string, unknown> = {}, status = "confirmed") {
   return {
     id,
     title: "Career Fair",
+    description: null,
     starts_at: "2026-11-20T01:00:00Z",
     ends_at: "2026-11-20T09:00:00Z",
-    event_venue_requirements: { preferred_location: "Auditorium" },
-    event_registration_requirements: {
-      registration_required: true,
-      registration_opens_at: null,
-      registration_closes_at: null,
-      attendee_capacity: 50,
-      ...registration,
-    },
+    status,
+    banner_path: null,
+    organiser_name: null,
+    preferred_location: "Auditorium",
+    registration_required: true,
+    registration_opens_at: null,
+    registration_closes_at: null,
+    attendee_capacity: 50,
+    waitlist_enabled: false,
+    withdrawal_permitted: false,
+    ...registration,
   };
 }
 
+type Counts = { event_id: string; registered_count: number; own_waitlist_position: number | null }[];
+
 /**
- * listBrowseEvents reads the confirmed events, then the attendee's own
- * registration rows, and gets counts from event_registration_counts.
+ * listBrowseEvents reads the visible events through attendee_visible_events,
+ * then the attendee's own registration rows, and gets counts from
+ * event_registration_counts. An attendee never reads the events table.
  */
 function given(
   events: unknown[],
   ownRows: unknown[] = [],
-  counts: { event_id: string; registered_count: number; own_waitlist_position: number | null }[] = [],
+  counts: Counts = [],
   updating: unknown[] = [],
   venues: unknown[] = [],
 ) {
-  const eventsQuery = queryBuilder({ data: events, error: null });
   const ownQuery = queryBuilder({ data: ownRows, error: null });
-  fromMock.mockImplementation((table: string) => (table === "events" ? eventsQuery : ownQuery));
-  rpcMock.mockImplementation(async (name: string) =>
-    name === "attendee_events_being_updated" || name === "attendee_event_venues"
-      ? { data: name === "attendee_event_venues" ? venues : updating, error: null }
-      : { data: counts, error: null },
-  );
-  return { eventsQuery, ownQuery: ownQuery as QueryBuilderMock };
+  fromMock.mockReturnValue(ownQuery);
+  rpcMock.mockImplementation(async (name: string) => {
+    if (name === "attendee_visible_events") return { data: events, error: null };
+    if (name === "attendee_events_being_updated") return { data: updating, error: null };
+    if (name === "attendee_event_venues") return { data: venues, error: null };
+    return { data: counts, error: null };
+  });
+  return { ownQuery: ownQuery as QueryBuilderMock };
 }
 
 describe("listBrowseEvents", () => {
@@ -70,7 +77,7 @@ describe("listBrowseEvents", () => {
   // Events that don't take registrations are listed too, without a filter on
   // registration_required, and carry no registration details.
   it("lists an event that doesn't take registrations as not needing it", async () => {
-    const { eventsQuery } = given(
+    given(
       [eventRow("event-2", { registration_required: false, attendee_capacity: 80 })],
       [],
       [{ event_id: "event-2", registered_count: 0, own_waitlist_position: null }],
@@ -79,8 +86,16 @@ describe("listBrowseEvents", () => {
     const events = await listBrowseEvents(ATTENDEE_ID);
 
     expect(events).toEqual([expect.objectContaining({ id: "event-2", state: "not_required", capacity: null })]);
-    expect(eventsQuery.eq).toHaveBeenCalledWith("status", "confirmed");
-    expect(eventsQuery.eq).not.toHaveBeenCalledWith("event_registration_requirements.registration_required", true);
+    expect(fromMock).not.toHaveBeenCalledWith("events");
+  });
+
+  // An attendee can also see events they registered for after Confirmed; browse lists only what is on.
+  it("lists only Confirmed events, not past ones the attendee registered for", async () => {
+    given([eventRow("event-1"), eventRow("event-9", {}, "completed")]);
+
+    const events = await listBrowseEvents(ATTENDEE_ID);
+
+    expect(events.map((event) => event.id)).toEqual(["event-1"]);
   });
 
   it("marks an event as full once registered count reaches capacity", async () => {
@@ -148,6 +163,7 @@ describe("listBrowseEvents", () => {
     const events = await listBrowseEvents(ATTENDEE_ID);
 
     expect(fromMock).toHaveBeenCalledWith("event_registrations");
+    expect(fromMock).not.toHaveBeenCalledWith("events");
     expect(ownQuery.select).toHaveBeenCalledWith("event_id, status");
     expect(ownQuery.eq).toHaveBeenCalledWith("attendee_id", ATTENDEE_ID);
     expect(rpcMock).toHaveBeenCalledWith("event_registration_counts", { p_event_ids: ["event-1", "event-2"] });
@@ -155,13 +171,12 @@ describe("listBrowseEvents", () => {
   });
 
   it("returns an empty list without further queries when there are no events", async () => {
-    fromMock.mockReturnValueOnce(queryBuilder({ data: [], error: null }));
-    rpcMock.mockResolvedValue({ data: [], error: null });
+    given([]);
 
     const events = await listBrowseEvents(ATTENDEE_ID);
 
     expect(events).toEqual([]);
-    expect(fromMock).toHaveBeenCalledTimes(1);
+    expect(fromMock).not.toHaveBeenCalled();
     expect(rpcMock).not.toHaveBeenCalledWith("event_registration_counts", expect.anything());
   });
 
@@ -197,14 +212,18 @@ describe("listBrowseEvents", () => {
   });
 
   it("throws a friendly error when the events query fails", async () => {
-    fromMock.mockReturnValueOnce(queryBuilder({ data: null, error: { message: "boom" } }));
+    rpcMock.mockResolvedValue({ data: null, error: { message: "boom" } });
 
     await expect(listBrowseEvents(ATTENDEE_ID)).rejects.toThrow("We couldn't load events.");
   });
 
   it("throws a friendly error when the counts cannot be read", async () => {
-    given([eventRow("event-1")]);
-    rpcMock.mockResolvedValue({ data: null, error: { message: "boom" } });
+    rpcMock.mockImplementation(async (name: string) =>
+      name === "event_registration_counts"
+        ? { data: null, error: { message: "boom" } }
+        : { data: name === "attendee_visible_events" ? [eventRow("event-1")] : [], error: null },
+    );
+    fromMock.mockReturnValue(queryBuilder({ data: [], error: null }));
 
     await expect(listBrowseEvents(ATTENDEE_ID)).rejects.toThrow("We couldn't load events.");
   });

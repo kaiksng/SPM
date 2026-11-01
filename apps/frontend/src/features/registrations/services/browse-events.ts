@@ -7,6 +7,7 @@ import {
 import { formatAttendeeVenue, listAttendeeEventVenues } from "@/features/registrations/services/attendee-event";
 import { loadRegistrationCounts } from "@/features/registrations/services/registrations";
 import { supabase } from "@/lib/supabase-client";
+import { loadVisibleEvents } from "@/features/registrations/services/visible-events";
 
 export type BrowseEventSummary = {
   id: string;
@@ -28,35 +29,13 @@ export type BrowseEventSummary = {
 };
 
 /**
- * Every confirmed event — RLS (can_view_event) scopes visibility for the
- * attendee role to events with status = 'confirmed'. Events that don't take
+ * Every confirmed event, read through attendee_visible_events (an attendee
+ * has no direct read access to the events table). Events that don't take
  * registrations are included too (state "not_required"), so attendees see
  * everything that's on, the same list as the public main page.
  */
 export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventSummary[]> {
-  const { data, error } = await supabase
-    .from("events")
-    .select(
-      `
-        id,
-        title,
-        banner_path,
-        starts_at,
-        ends_at,
-        event_venue_requirements ( preferred_location ),
-        event_registration_requirements (
-          registration_required,
-          registration_opens_at,
-          registration_closes_at,
-          attendee_capacity,
-          waitlist_enabled
-        )
-      `,
-    )
-    .eq("status", "confirmed")
-    .order("starts_at", { ascending: true });
-
-  if (error) throw new Error("We couldn't load events.");
+  const data = (await loadVisibleEvents()).filter((event) => event.status === "confirmed");
 
   // Confirmed events now back under review (a venue change, a change
   // request): read through a function that returns only attendee-safe fields.
@@ -88,29 +67,28 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
   }
 
   const confirmed = data.map((event): BrowseEventSummary => {
-    const req = event.event_registration_requirements;
     const registeredCount = counts.get(event.id)?.registeredCount ?? 0;
-    const required = req?.registration_required ?? false;
+    const required = event.registrationRequired ?? false;
     // Registration details only mean something when the event takes them.
     const availability = {
       required,
-      opensAt: required ? (req?.registration_opens_at ?? null) : null,
-      closesAt: required ? (req?.registration_closes_at ?? null) : null,
-      capacity: required ? (req?.attendee_capacity ?? null) : null,
+      opensAt: required ? event.registrationOpensAt : null,
+      closesAt: required ? event.registrationClosesAt : null,
+      capacity: required ? event.attendeeCapacity : null,
     };
     return {
       id: event.id,
       title: event.title,
-      bannerPath: event.banner_path,
-      startsAt: event.starts_at,
-      endsAt: event.ends_at,
+      bannerPath: event.bannerPath,
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
       // The booked main venue once Confirmed; else the organiser's preferred area.
-      location: mainVenueLocation(venues.get(event.id)) ?? event.event_venue_requirements?.preferred_location ?? null,
+      location: mainVenueLocation(venues.get(event.id)) ?? event.preferredLocation,
       opensAt: availability.opensAt,
       closesAt: availability.closesAt,
       capacity: availability.capacity,
       registeredCount,
-      waitlistEnabled: req?.waitlist_enabled ?? false,
+      waitlistEnabled: event.waitlistEnabled ?? false,
       waitlistPosition: counts.get(event.id)?.ownWaitlistPosition ?? null,
       state: computeRegistrationState(
         availability,

@@ -16,7 +16,7 @@ Integration tests are grouped into business workflows; the per-story sections be
 | safety-and-confirmation | SPM-33, 89, 90, 11, 35, 79/12 transitions | Done: 6 tests; SPM-12 exact-status-list AC not asserted (legacy enum values remain); equipment reservation is workflow 3 |
 | change-cancel-complete | SPM-38, 39, 45, 46, 76 | Done: 7 tests; equipment release and attendee notification on cancel, and SPM-46 AC6, are assigned to workflows 3 and 6 |
 | registration (3 tests) | SPM-40, 41, 42, 43, 44 | Done; SPM-40 AC8 stays with pgTAP, SPM-49 goes to the role-access matrix |
-| role-access matrix (generated per role) | SPM-15, 16, 17, 48, 49, 77 | Done; SPM-49 AC2/AC3 has a KNOWN PRODUCT GAP, asserted with `it.fails` (attendees can read internal data of a Confirmed event directly) |
+| role-access matrix (generated per role) | SPM-15, 16, 17, 48, 49, 77 | Done; found and fixed a real gap: attendees could read internal data of a Confirmed event directly (migration 202611010014) |
 | Existing per-story suites | SPM-2, 13, 14, 19, 20, 21, 81, 83, 86, 87, 88 | Done |
 
 UI-only: SPM-17 message text, SPM-74 filter UI, redirect/highlighting ACs. SPM-37 (documents) needs real Storage and is a later optional add-on.

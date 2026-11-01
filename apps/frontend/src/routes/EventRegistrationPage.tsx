@@ -34,8 +34,8 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
 
 /**
  * An attendee can now reach this page for an event they're (or were)
- * registered for even after it leaves 'confirmed' — see can_view_event's
- * attendee branch. Previously this page only ever rendered for confirmed
+ * registered for even after it leaves 'confirmed' — see
+ * can_attendee_view_event (202611010014). Previously this page only ever rendered for confirmed
  * events, so the hero pill hardcoded "Confirmed" and the whole action area
  * assumed registration was still possible; both need to reflect the real
  * status once that's no longer guaranteed.

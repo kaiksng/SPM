@@ -1,6 +1,6 @@
 begin;
 
-select plan(11);
+select plan(12);
 
 -- A Confirmed event sent back for re-review stays visible to attendees,
 -- marked as being updated (202611010011_attendee_events_being_updated.sql).
@@ -73,12 +73,18 @@ select throws_ok(
   'new registrations are refused while it is being updated'
 );
 
--- The registered attendee still reaches their own event.
+-- The registered attendee still reaches their own event, through the
+-- attendee-safe read (SPM-49: attendees have no access to the events table).
 select set_config('request.jwt.claims', '{"sub":"ab000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select is(
-  (select count(*)::int from public.events where id = 'ab000000-0000-0000-0000-0000000000e1'),
+  (select count(*)::int from public.attendee_visible_events(array['ab000000-0000-0000-0000-0000000000e1'::uuid])),
   1,
   'a registered attendee can still open the event'
+);
+select is(
+  (select count(*)::int from public.events where id = 'ab000000-0000-0000-0000-0000000000e1'),
+  0,
+  'but still not through the events table itself'
 );
 
 -- Signed out: the public main page lists it, flagged.
