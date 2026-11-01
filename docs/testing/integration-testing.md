@@ -1,6 +1,6 @@
 # Integration testing
 
-Integration coverage is organised by **business workflow** (see the [coverage matrix](integration-coverage-matrix.md)). Done so far: the **intake-to-planning** (SPM-3, 6, 7, 80, 84, 15) **venue-booking-lifecycle** (SPM-72, 24, 25, 26, 78, 75, 85, 82) and **safety-and-confirmation** (SPM-33, 89, 90, 11, 35, 79, 12) **change-cancel-complete** (SPM-38, 39, 45, 46, 76) and **equipment-arrangements** (SPM-27, 28, 31, 32) workflows plus earlier per-story suites for SPM-2, 13, 14, 86, 87, 20, 21, 88, 19, 83 and 81. Remaining workflows: registration, and a role-access matrix.
+Integration coverage is organised by **business workflow** (see the [coverage matrix](integration-coverage-matrix.md)). Done so far: the **intake-to-planning** (SPM-3, 6, 7, 80, 84, 15) **venue-booking-lifecycle** (SPM-72, 24, 25, 26, 78, 75, 85, 82) and **safety-and-confirmation** (SPM-33, 89, 90, 11, 35, 79, 12) **change-cancel-complete** (SPM-38, 39, 45, 46, 76) and **equipment-arrangements** (SPM-27, 28, 31, 32) and **registration** (SPM-40, 41, 42, 43, 44) workflows plus earlier per-story suites for SPM-2, 13, 14, 86, 87, 20, 21, 88, 19, 83 and 81. Remaining workflow: the role-access matrix.
 
 ## What these tests prove
 
@@ -61,7 +61,7 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **16 files / 95 tests passed**
+and open its details. The test step should report **17 files / 98 tests passed**
 for the current story suites plus the intake-to-planning, venue-booking-lifecycle and safety-and-confirmation workflows. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
@@ -472,3 +472,17 @@ UI-only: tables, badges, shortage layout. Not covered here: SPM-27 AC2-AC8 field
 ### Execution record 2026-11-01
 
 Integration typecheck passed. Full run **16 files / 95 tests passed** twice on clean disposable stacks (4 new + 91 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. The first run of the new suite passed, so no test corrections were needed. No product code changed. Node 24.20.0.
+
+## Workflow 6: registration
+
+The [suite](../../tests/integration/registration.workflow.integration.test.ts) has 3 tests with real services, routes, local Auth and the database. Confirmed events come from the real flow (`confirmedEvent`); the organiser sets the registration rules in Planning through a hook before the safety check.
+
+1. Rules, registering and roster: an invalid window is refused and nothing is saved; only the owner can configure; attendees cannot register before the event is Confirmed; settings lock after the safety check; registering inside the window works and a duplicate creates nothing; before opening and after closing are refused with the count unchanged; the organiser, assigned coordinator and Lead see the roster (name, status, time) and a second organiser, another coordinator and an attendee see none.
+2. Last place and waiting list: joining the list before the event is full is refused; two attendees registering for the last place at once leave exactly one registered and the other refused as full; the loser joins at position 1; the winner and a repeat joiner are refused.
+3. Withdraw, promote, leave, cancel: A registered, B/C/D at list positions 1/2/3; A's withdrawal (with reason) sets Withdrawn, promotes B automatically with a notice and moves C and D up; C leaving moves D to position 1; A registering again is evaluated afresh (full, so A joins the list); cancelling notifies only the registered attendee.
+
+Clock note: registration must be open now, so the window is built from the real current time (opened a day ago, closing in 30 days) while the events stay in 2099. The window is moved with an administrative update to test "not yet open" and "closed" (setup only; it worked, so no gap). Observation: organiser `registration_update` notices are for registration setup and a smaller venue being approved, not for each withdrawal; SPM-43 does not require one. Not covered here: SPM-40 AC8 capacity against the main venue (pgTAP `lock_event_registration_capacity`), SPM-49 attendee access (role-access matrix), UI display (registration panel, remaining places, My Registrations).
+
+### Execution record 2026-11-01
+
+Integration typecheck passed. Full run **17 files / 98 tests passed** twice on clean disposable stacks (3 new + 95 existing), safety guards 8/8, no containers left. `pnpm check` passed on rerun (shared 450, backend 187, frontend 1,613). One earlier run failed in the existing `venue-booking-hold.route.test.ts` (a 5-second timeout in a mocked route test, run straight after a heavy integration run); the file then passed 3 of 3 alone and the full check passed, so it is a recurring timing flake, not caused by this increment. A first run of the new suite had one wrong assumption (an organiser notice on withdrawal), corrected before the final pass. No product code changed. Node 24.20.0.
