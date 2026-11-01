@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { EventVenueConflict } from "@/features/venues/services/event-venue-conflicts";
 import type { VenueBookingRequestSummary } from "@/features/venues/services/venue-bookings";
 
 import { EventVenueBookings } from "./event-venue-bookings";
@@ -36,7 +37,11 @@ const onHold = booking({ status: "on_hold", expiresAt: "2099-04-05T02:00:00.000Z
 
 function renderBookings(
   bookings: VenueBookingRequestSummary[],
-  props: Partial<{ busyBookingId: string; actionError: { bookingId: string; message: string } }> = {},
+  props: Partial<{
+    busyBookingId: string;
+    actionError: { bookingId: string; message: string };
+    conflicts: EventVenueConflict[];
+  }> = {},
 ) {
   return render(
     <EventVenueBookings
@@ -181,3 +186,56 @@ describe("EventVenueBookings: a rejected booking", () => {
   });
 });
 
+function conflict(overrides: Partial<EventVenueConflict> = {}): EventVenueConflict {
+  return {
+    bookingId: "b-1", mustMove: true, conflictingEventTitle: "F1 Event Part 1",
+    conflictingStartsAt: "2099-04-06T00:00:00.000Z", conflictingEndsAt: "2099-04-06T01:45:00.000Z",
+    blockReason: null, blockStartsAt: null, blockEndsAt: null, flaggedAt: "2099-04-02T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+// 202611010010: of two overlapping bookings the later one moves and the one
+// booked first stays; a booking overlapping a venue block always moves.
+describe("EventVenueBookings: a venue conflict", () => {
+  const approved = booking({ status: "approved" });
+
+  it("tells the coordinator of the later booking what it clashes with and that it must move", () => {
+    renderBookings([approved], { conflicts: [conflict()] });
+
+    expect(screen.getByText("Conflict")).toBeInTheDocument();
+    const notice = screen.getByRole("alert");
+    expect(notice).toHaveTextContent('Clashes with "F1 Event Part 1" (6 Apr 2099, 8:00 am – 6 Apr 2099, 9:45 am)');
+    expect(notice).toHaveTextContent("That booking was made first, so this one needs to move.");
+    expect(notice).toHaveTextContent("Cancel this booking and book another venue, or change the event time.");
+  });
+
+  it("tells the coordinator of the booking made first that no action is needed", () => {
+    renderBookings([approved], {
+      conflicts: [conflict({ mustMove: false, conflictingEventTitle: "F1 Event Part 2" })],
+    });
+
+    expect(screen.queryByText("Conflict")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText(/That booking was made later, so it is the one expected to move\. No action is needed from you\./))
+      .toBeInTheDocument();
+  });
+
+  it("names the venue block a booking overlaps", () => {
+    renderBookings([approved], {
+      conflicts: [conflict({
+        conflictingEventTitle: null, conflictingStartsAt: null, conflictingEndsAt: null,
+        blockReason: "Failed mic", blockStartsAt: "2099-04-06T01:50:00.000Z", blockEndsAt: "2099-04-06T02:00:00.000Z",
+      })],
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent('Overlaps the venue block "Failed mic"');
+  });
+
+  it("shows nothing for a booking that is no longer active", () => {
+    renderBookings([booking({ status: "cancelled" })], { conflicts: [conflict()] });
+
+    expect(screen.queryByText("Conflict")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});

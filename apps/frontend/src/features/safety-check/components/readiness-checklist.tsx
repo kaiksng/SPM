@@ -1,6 +1,7 @@
 import { READINESS_STATUS_LABELS, type EventReadiness } from "@spm/shared";
+import { Link } from "react-router";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { READINESS_ITEM_BADGE_CLASSES } from "@/features/safety-check/services/event-readiness";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,8 @@ function ReadinessBadge({ status }: { status: keyof typeof READINESS_STATUS_LABE
  * writable action is the assigned coordinator resolving a Needs Review item
  * once they've addressed it (resolve_arrangement_flag, 202610200010),
  * surfaced only when canResolve is true and a resolve handler is given.
+ * A venue booking held up by a conflict, disruption or hold cannot be marked
+ * resolved; it is fixed on the Venue step, so it links there instead.
  */
 export function ReadinessChecklist({
   readiness,
@@ -31,6 +34,7 @@ export function ReadinessChecklist({
   resolvingId,
   onResolveBooking,
   onResolveRequirement,
+  venueStepHref,
 }: {
   readiness: EventReadiness;
   canResolve?: boolean;
@@ -38,6 +42,7 @@ export function ReadinessChecklist({
   resolvingId?: string;
   onResolveBooking?: (bookingId: string) => void;
   onResolveRequirement?: (requirementId: string) => void;
+  venueStepHref?: string;
 }) {
   return (
     <div className="mt-6 space-y-4">
@@ -64,7 +69,7 @@ export function ReadinessChecklist({
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   <ReadinessBadge status={booking.status} />
-                  {canResolve && booking.status === "needs_review" && onResolveBooking && (
+                  {canResolve && booking.status === "needs_review" && booking.canMarkResolved && onResolveBooking && (
                     <Button
                       type="button"
                       variant="outline"
@@ -74,6 +79,11 @@ export function ReadinessChecklist({
                     >
                       {resolvingId === booking.bookingId ? "Resolving…" : "Mark resolved"}
                     </Button>
+                  )}
+                  {canResolve && booking.status === "needs_review" && !booking.canMarkResolved && venueStepHref && (
+                    <Link to={venueStepHref} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                      Go to Venue step
+                    </Link>
                   )}
                 </span>
               </li>

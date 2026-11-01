@@ -10,6 +10,7 @@ const confirmVenueBookingHoldMock = vi.fn();
 const setMainVenueBookingMock = vi.fn();
 const listSuggestedVenuesMock = vi.fn();
 const listVenueDisruptionsMock = vi.fn();
+const listEventVenueConflictsMock = vi.fn();
 const authState = {
   profile: { full_name: "Joyce Coordinator", role: "event_coordinator" },
   user: { id: "coord-1" },
@@ -34,6 +35,10 @@ vi.mock("@/features/venues/services/venue-bookings", () => ({
 
 vi.mock("@/features/venues/services/venue-disruptions", () => ({
   listVenueDisruptionsForCoordinator: (...args: unknown[]) => listVenueDisruptionsMock(...args),
+}));
+
+vi.mock("@/features/venues/services/event-venue-conflicts", () => ({
+  listEventVenueConflicts: (...args: unknown[]) => listEventVenueConflictsMock(...args),
 }));
 
 vi.mock("@/features/venues/services/venues", () => ({
@@ -148,6 +153,7 @@ beforeEach(() => {
   withdrawVenueBookingRequestMock.mockReset().mockResolvedValue(undefined);
   listSuggestedVenuesMock.mockReset().mockResolvedValue([]);
   listVenueDisruptionsMock.mockReset().mockResolvedValue([]);
+  listEventVenueConflictsMock.mockReset().mockResolvedValue([]);
 });
 
 describe("EventVenuePage", () => {
@@ -228,6 +234,28 @@ describe("EventVenuePage", () => {
     expect(await screen.findByText("Confirmed Booking")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Withdraw request" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancel booking" })).toBeInTheDocument();
+  });
+
+  // 202611010010: the coordinator sees what their booking clashes with and
+  // that it was booked later, so it is theirs to move.
+  it("shows a booking's conflict and what to do about it", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([booking({ status: "approved" })]);
+    listEventVenueConflictsMock.mockResolvedValue([
+      {
+        bookingId: "booking-1", mustMove: true, conflictingEventTitle: "F1 Event Part 1",
+        conflictingStartsAt: "2099-04-06T00:00:00.000Z", conflictingEndsAt: "2099-04-06T01:45:00.000Z",
+        blockReason: null, blockStartsAt: null, blockEndsAt: null, flaggedAt: "2099-04-02T00:00:00.000Z",
+      },
+    ]);
+
+    renderPage();
+
+    const list = await screen.findByRole("region", { name: "Venue bookings" });
+    expect(await within(list).findByText("Conflict")).toBeInTheDocument();
+    expect(within(list).getByRole("alert")).toHaveTextContent(
+      'Clashes with "F1 Event Part 1" (6 Apr 2099, 8:00 am – 6 Apr 2099, 9:45 am)',
+    );
+    expect(listEventVenueConflictsMock).toHaveBeenCalledWith("event-1");
   });
 
   // SPM-46 AC07: a Completed event's bookings stay visible, but none can be

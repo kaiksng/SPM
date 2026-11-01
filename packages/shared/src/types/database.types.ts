@@ -2099,6 +2099,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      event_venue_conflicts: {
+        Args: { p_event_id: string }
+        Returns: {
+          block_ends_at: string
+          block_reason: string
+          block_starts_at: string
+          booking_id: string
+          conflicting_ends_at: string
+          conflicting_event_title: string
+          conflicting_starts_at: string
+          flagged_at: string
+          must_move: boolean
+        }[]
+      }
       expire_stale_event_hold: {
         Args: { p_event_id: string }
         Returns: undefined

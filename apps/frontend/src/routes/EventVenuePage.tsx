@@ -14,6 +14,10 @@ import {
 import { VenueSafetyChecksSection } from "@/features/safety-check/components/venue-safety-checks-section";
 import { AdditionalVenuePanel } from "@/features/venues/components/additional-venue-panel";
 import {
+  listEventVenueConflicts,
+  type EventVenueConflict,
+} from "@/features/venues/services/event-venue-conflicts";
+import {
   EventVenueBookings,
   isActiveVenueBooking,
 } from "@/features/venues/components/event-venue-bookings";
@@ -54,6 +58,8 @@ export function EventVenuePage() {
   const [bookings, setBookings] = useState<VenueBookingRequestSummary[]>([]);
   // SPM-82: this event's disrupted venue booking, if one still needs a replacement.
   const [disruption, setDisruption] = useState<VenueDisruption>();
+  // Open conflicts on the event's bookings, and which side has to move.
+  const [conflicts, setConflicts] = useState<EventVenueConflict[]>([]);
   const [busyBookingId, setBusyBookingId] = useState<string>();
   const [actionError, setActionError] = useState<{ bookingId: string; message: string }>();
 
@@ -67,11 +73,14 @@ export function EventVenuePage() {
       listVenueBookingsForEvent(id),
       // Non-critical: without it the page simply behaves as it did before SPM-82.
       listVenueDisruptionsForCoordinator().catch(() => [] as VenueDisruption[]),
+      // Non-critical too: without it the bookings simply show no conflict.
+      listEventVenueConflicts(id).catch(() => [] as EventVenueConflict[]),
     ])
-      .then(([detail, venueBookings, disruptions]) => {
+      .then(([detail, venueBookings, disruptions, venueConflicts]) => {
         if (!active) return;
         setEvent(detail);
         setBookings(venueBookings);
+        setConflicts(venueConflicts);
         setDisruption(
           disruptions.find((item) => item.eventId === id && item.state !== "resolved"),
         );
@@ -272,6 +281,7 @@ export function EventVenuePage() {
                 {bookings.length > 0 && (
                   <EventVenueBookings
                     bookings={bookings}
+                    conflicts={conflicts}
                     busyBookingId={busyBookingId}
                     actionError={actionError}
                     canChangeMain={event.status === "planning"}
