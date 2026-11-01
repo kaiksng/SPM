@@ -1,13 +1,21 @@
 ---
 name: spm-integration-testing
-description: "Plan, implement and verify ConnectSphere application integration tests for one Jira story using the existing disposable local Supabase harness. Use for IS212 SPM integration coverage and AC traceability, not manual UAT or hosted database setup."
+description: "Plan, implement and verify ConnectSphere application integration tests for one business WORKFLOW (a group of related Jira stories) using the existing disposable local Supabase harness. Use for IS212 SPM integration coverage and AC traceability, not manual UAT or hosted database setup."
 ---
 
 # ConnectSphere integration testing
 
 Test real collaborating components, following Week 9's controlled-boundary
 approach. Reuse the existing harness; do not build a parallel test framework.
-One story can need several cases, and a case can support several stories.
+
+**Test workflows, not stories.** One suite covers one business workflow that
+spans several stories (for example intake-to-planning: SPM-3, 6, 7, 80, 84,
+15). Do not create a file per story: that is slow, repeats setup and misses the
+hand-offs between features. A case can support several stories; tag it with all
+of them. Integration tests prove cross-feature hand-offs, permissions and
+failure/race invariants. Validation rules, rendering and single-function SQL
+rules already have unit and pgTAP tests, so do not repeat them. The workflow
+list and status are in the [coverage matrix](../../../docs/testing/integration-coverage-matrix.md).
 
 ## Ground the request
 
@@ -15,8 +23,8 @@ One story can need several cases, and a case can support several stories.
    `AGENTS.md`, applicable local overrides, and the current human's instructions.
    Read `.claude/project-knowledge.md` only if present; it is private local
    context, not a prerequisite teammates must copy or commit.
-2. Obtain one story key and the latest supplied Jira export with descriptions
-   and acceptance criteria. If either is missing, ask one focused question.
+2. Obtain one workflow (its story keys) and the latest supplied Jira export
+   with descriptions and acceptance criteria. If either is missing, ask one focused question.
    An export without Description cannot establish the ACs. Preserve explicit
    AC numbering; number unnumbered acceptance bullets in source order and
    retain separately labelled scenarios.
@@ -34,7 +42,7 @@ One story can need several cases, and a case can support several stories.
 
 ## Agree the story before coding
 
-Present the story goal, current code, ACs by theme, interactions with other
+Present the workflow goal, the stories it covers, current code, ACs by theme, interactions with other
 stories, contradictions/gaps with recommendations, and decisions needed.
 Then give numbered business-use-case steps and wait for approval, as required
 by the repository. Reuse an approval already given for this specific scope.
@@ -74,9 +82,14 @@ briefing or Week 7 requirements. Resolve the affected scope with the user.
 
 ## Implement meaningful cases
 
-Use `tests/integration/spm<key>-<behaviour>.integration.test.ts`; the config and
-CI job discover that suffix automatically. Tag each case with the exact story
-and AC, for example `// SPM-15 AC2: ...`.
+Use `tests/integration/<workflow>.workflow.integration.test.ts`; the config and
+CI job discover the `.integration.test.ts` suffix automatically (older
+`spm<key>-*.integration.test.ts` story files remain valid). Tag each case with
+every story and AC it proves, for example `// SPM-7 AC2, SPM-6 AC5: ...`.
+Reuse [support/workflow.ts](../../../tests/integration/support/workflow.ts)
+(actors, real-route event submission, snapshot oracle, notification recipients)
+and `fixture.venue()`; extend it rather than copying setup into each suite.
+Prefer a few ordered business-step tests per suite over many tiny ones.
 
 Keep the components across the tested boundary real:
 
@@ -110,7 +123,8 @@ removal. For concurrency requirements, use independent clients and assert
 invariants such as one remaining place or no overlapping commitment, not a
 predetermined winner. Wait for conditions instead of arbitrary sleeps.
 
-Inspect [SPM-2](../../../tests/integration/spm2-drafts.integration.test.ts) for
+Inspect the [intake-to-planning workflow](../../../tests/integration/intake-to-planning.workflow.integration.test.ts)
+first as the model suite, then [SPM-2](../../../tests/integration/spm2-drafts.integration.test.ts) for
 persistence and cleanup, [SPM-13](../../../tests/integration/spm13-login.integration.test.ts)
 for real login/backend controls, and [SPM-14](../../../tests/integration/spm14-organiser-access.integration.test.ts)
 for cross-user access and stored-state snapshots, when those examples exist
@@ -156,4 +170,4 @@ Pushes, PR creation, merges into `main`, deployment and hosted verification
 are separate actions requiring their own authorization. Local success is not
 proof of GitHub/Linux success or hosted correctness. Tell the user which
 branch contains the work, its commit state, actual test counts, unresolved
-items and the next human action. Stop before starting another story.
+items and the next human action. Stop before starting another workflow.
