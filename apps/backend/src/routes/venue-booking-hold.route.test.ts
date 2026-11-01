@@ -1,5 +1,6 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAppServer } from "../test/app-server";
 
 const { rpcMock, getUserMock } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
@@ -14,6 +15,7 @@ vi.mock("../lib/supabase-service-client", () => ({
 }));
 
 const { createApp } = await import("../app");
+const server = useAppServer(createApp);
 
 const BOOKING_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
 const USER_ID = "ea333cdb-21d1-4819-8fb0-ec64508d8323";
@@ -21,7 +23,7 @@ const USER_ID = "ea333cdb-21d1-4819-8fb0-ec64508d8323";
 const EXPIRES_AT = "2026-10-20T01:00:00.000Z";
 
 function authedPost(path: string, body?: object) {
-  const req = request(createApp()).post(path).set("Authorization", "Bearer test-token");
+  const req = request(server()).post(path).set("Authorization", "Bearer test-token");
   return body ? req.send(body) : req;
 }
 
@@ -64,7 +66,7 @@ describe("POST /venue-bookings/:bookingId/hold", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp()).post(path).send({ expiresAt: EXPIRES_AT });
+    const response = await request(server()).post(path).send({ expiresAt: EXPIRES_AT });
 
     expect(response.status).toBe(401);
     expect(rpcMock).not.toHaveBeenCalled();
@@ -145,7 +147,7 @@ describe("POST /venue-bookings/:bookingId/confirm-hold", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp()).post(path);
+    const response = await request(server()).post(path);
 
     expect(response.status).toBe(401);
     expect(rpcMock).not.toHaveBeenCalled();
