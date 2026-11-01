@@ -207,28 +207,45 @@ describe("getWaitlistPosition", () => {
 });
 
 describe("listMyRegistrations", () => {
-  beforeEach(() => fromMock.mockReset());
+  beforeEach(() => {
+    fromMock.mockReset();
+    rpcMock.mockReset();
+  });
+
+  const visibleEvent = (overrides: Record<string, unknown> = {}) => ({
+    id: "event-1",
+    title: "Robotics Showcase",
+    description: null,
+    starts_at: "2026-11-28T03:00:00Z",
+    ends_at: "2026-11-28T07:00:00Z",
+    status: "confirmed",
+    banner_path: null,
+    organiser_name: null,
+    preferred_location: "Exhibition Hall",
+    registration_required: true,
+    registration_opens_at: null,
+    registration_closes_at: null,
+    attendee_capacity: 50,
+    waitlist_enabled: false,
+    withdrawal_permitted: true,
+    ...overrides,
+  });
+
+  /** Registration rows come from event_registrations; events come from attendee_visible_events. */
+  function given(rows: unknown[], events: unknown[], counts: unknown[] = []) {
+    const query = queryBuilder({ data: rows, error: null });
+    fromMock.mockReturnValue(query);
+    rpcMock.mockImplementation(async (name: string) =>
+      name === "attendee_visible_events" ? { data: events, error: null } : { data: counts, error: null },
+    );
+    return query;
+  }
 
   it("maps each row's event into a flat registration summary, filtered to this attendee", async () => {
-    const query = queryBuilder({
-      data: [
-        {
-          id: "reg-1",
-          status: "registered",
-          registered_at: "2026-11-01T00:00:00Z",
-          event: {
-            id: "event-1",
-            title: "Robotics Showcase",
-            starts_at: "2026-11-28T03:00:00Z",
-            ends_at: "2026-11-28T07:00:00Z",
-            event_venue_requirements: { preferred_location: "Exhibition Hall" },
-            event_registration_requirements: { withdrawal_permitted: true },
-          },
-        },
-      ],
-      error: null,
-    });
-    fromMock.mockReturnValueOnce(query);
+    const query = given(
+      [{ id: "reg-1", event_id: "event-1", status: "registered", registered_at: "2026-11-01T00:00:00Z", status_before_cancellation: null }],
+      [visibleEvent()],
+    );
 
     await expect(listMyRegistrations("attendee-1")).resolves.toEqual([
       {
@@ -239,6 +256,7 @@ describe("listMyRegistrations", () => {
         endsAt: "2026-11-28T07:00:00Z",
         location: "Exhibition Hall",
         status: "registered",
+        statusBeforeCancellation: null,
         registeredAt: "2026-11-01T00:00:00Z",
         waitlistPosition: null,
         withdrawalPermitted: true,
@@ -247,58 +265,43 @@ describe("listMyRegistrations", () => {
     // Keeps it "my registrations" for any signed-in user, including an
     // organiser or coordinator who can also read the rows of events they manage.
     expect(query.eq).toHaveBeenCalledWith("attendee_id", "attendee-1");
+    // SPM-49: events come from the attendee RPC, never the events table.
+    expect(fromMock).not.toHaveBeenCalledWith("events");
+    expect(rpcMock).toHaveBeenCalledWith("attendee_visible_events", { p_event_ids: ["event-1"] });
   });
 
   it("skips a row whose event is no longer visible", async () => {
-    fromMock.mockReturnValueOnce(
-      queryBuilder({
-        data: [
-          {
-            id: "reg-1",
-            status: "registered",
-            registered_at: "2026-11-01T00:00:00Z",
-            event: null,
-          },
-        ],
-        error: null,
-      }),
-    );
+    given([{ id: "reg-1", event_id: "event-1", status: "registered", registered_at: "2026-11-01T00:00:00Z" }], []);
 
     await expect(listMyRegistrations("attendee-1")).resolves.toEqual([]);
   });
 
   it("includes the attendee's waiting-list position for a waitlisted row", async () => {
-    rpcMock.mockReset().mockResolvedValue({
-      data: [{ event_id: "event-1", registered_count: 20, own_waitlist_position: 2 }],
-      error: null,
-    });
-    fromMock
-      .mockReturnValueOnce(
-        queryBuilder({
-          data: [
-            {
-              id: "reg-1",
-              status: "waitlisted",
-              registered_at: "2026-11-01T00:00:00Z",
-              event: {
-                id: "event-1",
-                title: "Career Fair",
-                starts_at: "2026-11-20T01:00:00Z",
-                ends_at: "2026-11-20T09:00:00Z",
-                event_venue_requirements: null,
-              },
-            },
-          ],
-          error: null,
-        }),
-      );
+    given(
+      [{ id: "reg-1", event_id: "event-1", status: "waitlisted", registered_at: "2026-11-01T00:00:00Z" }],
+      [visibleEvent({ title: "Career Fair", preferred_location: null, withdrawal_permitted: null })],
+      [{ event_id: "event-1", registered_count: 20, own_waitlist_position: 2 }],
+    );
 
     const result = await listMyRegistrations("attendee-1");
 
     expect(result[0]?.waitlistPosition).toBe(2);
+    expect(result[0]).toMatchObject({ location: null, withdrawalPermitted: false });
     // SPM-44: the position comes from the counts function, not other attendees' rows.
     expect(rpcMock).toHaveBeenCalledWith("event_registration_counts", { p_event_ids: ["event-1"] });
     expect(fromMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws a friendly error when the events cannot be loaded", async () => {
+    fromMock.mockReturnValue(
+      queryBuilder({
+        data: [{ id: "reg-1", event_id: "event-1", status: "registered", registered_at: "2026-11-01T00:00:00Z" }],
+        error: null,
+      }),
+    );
+    rpcMock.mockResolvedValue({ data: null, error: { message: "boom" } });
+
+    await expect(listMyRegistrations("attendee-1")).rejects.toThrow("We couldn't load your registrations.");
   });
 });
 

@@ -61,7 +61,7 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **18 files / 114 tests passed (plus 1 expected failure)**
+and open its details. The test step should report **18 files / 115 tests passed**
 for the current story suites plus the intake-to-planning, venue-booking-lifecycle and safety-and-confirmation workflows. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
@@ -493,16 +493,18 @@ The recurring backend route-test flakes (a 5-second timeout in `venue-booking-ho
 
 ## Workflow 7: role-access matrix
 
-The [suite](../../tests/integration/role-access-matrix.workflow.integration.test.ts) has 17 tests (16 passing and 1 expected failure) against the real database, backend and Auth. State is built once (a Planning event holding a booking, an equipment requirement, a clarification, a decision and a change request, plus a Confirmed event) and nine synthetic actors read it.
+The [suite](../../tests/integration/role-access-matrix.workflow.integration.test.ts) has 17 tests, all passing against the real database, backend and Auth. State is built once (a Planning event holding a booking, an equipment requirement, a clarification, a decision and a change request, plus a Confirmed event) and nine synthetic actors read it.
 
 - **Reading:** eight roles (owner organiser, other organiser, assigned and other coordinator, Lead, Venue Staff, Technical Support, Safety Officer) each see exactly the records their role allows, across event details, venue bookings, decisions, status history, equipment requirements, clarifications, change requests and safety review details; mismatches are listed by name. The owner and assigned coordinator are the positive controls. An attendee sees the published information of a Confirmed event and nothing of an event that is not Confirmed yet.
 - **Acting:** each of the other eight roles is refused, with the stored snapshot unchanged, and then the authorised role succeeds, for: assigning a coordinator (Lead), deciding an event (assigned coordinator), deciding a venue booking (Venue Staff), creating equipment (Technical Support) and deciding a safety check (Safety Officer).
 - **Expectations:** current `can_view_event` rules for the owner, coordinators, Lead, Venue Staff and Technical Support; the change history is narrower (organiser, assigned coordinator, Lead, SPM-12 AC02); other organisers, the Safety Officer outside Pending Safety Check, and attendees follow the acceptance criteria.
 
-**KNOWN PRODUCT GAP, confirmed 2026-11-01 (SPM-49 AC2/AC3):** once an event is Confirmed, the policies that use `can_view_event` admit an attendee, so an attendee calling the API directly can read the full event row (including expected attendance and the safety plan), the event's venue bookings, its decisions and its safety review details. The attendee screen never asks for these, which hides the gap. The test that asserts the criterion is marked `it.fails`, so the suite stays green and the gap stays visible; when the policies are tightened that test will pass, `it.fails` will report it, and `.fails` should then be removed. This increment did not change any policy or product code. Fixing it means tightening the policies on `events`, `venue_bookings`, `event_decisions` and `safety_check_review_details` (a new migration), which needs its own plan and team agreement.
+**Product gap found and fixed (SPM-49 AC2/AC3):** this suite found that once an event was Confirmed, the policies built on `can_view_event` admitted an attendee, so an attendee calling the API directly could read the full event row, bookings, decisions and safety review details. Migration `202611010010_restrict_attendee_event_access.sql` removed the attendee branch from `can_view_event` and gave attendees a single published-fields read path (`attendee_visible_events`). The test that asserts the criterion is now an ordinary passing test, and `restrict_attendee_event_access.test.sql` covers it in pgTAP.
 
 Not covered here: landing page per role (SPM-13 suite), the coordinator's own list (intake-to-planning), the message and redirect for denied pages (UI), and registering for an event as a non-attendee role.
 
 ### Execution record 2026-11-01
 
 Integration typecheck passed. Full run **18 files / 114 tests passed plus 1 expected failure** twice on clean disposable stacks (17 new + 98 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. The first run had two wrong expectations of mine: status history is limited to the organiser, assigned coordinator and Lead (not every coordinator, Venue Staff or Technical Support). The attendee gap was a genuine finding, not a test error. Node 24.20.0.
+
+After migration `202611010010` closed that gap, the suite passes **18 files / 115 tests with no expected failure**, pgTAP passes 74 files / 1,512 checks, and `pnpm check` passes (shared 453, backend 187, frontend 1,627).

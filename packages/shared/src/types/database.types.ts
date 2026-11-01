@@ -1878,7 +1878,35 @@ export type Database = {
         Returns: Json
       }
       assert_technical_support_staff: { Args: never; Returns: undefined }
+      attendee_visible_events: {
+        Args: { p_event_ids?: string[] }
+        Returns: {
+          attendee_capacity: number
+          banner_path: string
+          description: string
+          ends_at: string
+          id: string
+          organiser_name: string
+          preferred_location: string
+          registration_closes_at: string
+          registration_opens_at: string
+          registration_required: boolean
+          starts_at: string
+          status: Database["public"]["Enums"]["event_status"]
+          title: string
+          waitlist_enabled: boolean
+          withdrawal_permitted: boolean
+        }[]
+      }
       can_access_event_documents: {
+        Args: { target_event_id: string }
+        Returns: boolean
+      }
+      can_attendee_register_for_event: {
+        Args: { target_event_id: string }
+        Returns: boolean
+      }
+      can_attendee_view_event: {
         Args: { target_event_id: string }
         Returns: boolean
       }

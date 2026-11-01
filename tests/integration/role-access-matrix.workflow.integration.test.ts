@@ -158,16 +158,9 @@ describe("Role-access matrix: reading", () => {
     expect(leaked).toEqual([]);
   });
 
-  // SPM-49 AC2/AC3: internal planning data is denied when the attendee asks for it directly.
-  // KNOWN PRODUCT GAP (confirmed 2026-11-01): the policies on events, venue_bookings,
-  // event_decisions and safety_check_review_details admit an attendee through
-  // can_view_event once an event is Confirmed, so an attendee calling the API directly can
-  // read the full event row (including expected attendance and the safety plan), its venue
-  // bookings, its decisions and its safety review details. The attendee screen never asks
-  // for these, which hides the gap. `it.fails` keeps the criterion asserted and the suite
-  // green; when the policies are tightened this test starts passing, `it.fails` then
-  // reports it, and `.fails` should be removed.
-  it.fails("denies an attendee the internal planning data of a Confirmed event, even when asked directly", async () => {
+  // SPM-49 AC2/AC3: internal planning data is denied when the attendee asks for it directly,
+  // even for a Confirmed event. Closed by 202611010010 (can_view_event no longer admits attendees).
+  it("denies an attendee the internal planning data of a Confirmed event, even when asked directly", async () => {
     await signInAs("attendee");
     const leaked: string[] = [];
     for (const probe of PROBES.filter((item) => item.events.includes("confirmed"))) {

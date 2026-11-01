@@ -1,10 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { queryBuilder } from "@/test/supabase-mock";
+const { rpcMock } = vi.hoisted(() => ({ rpcMock: vi.fn() }));
 
-const { fromMock } = vi.hoisted(() => ({ fromMock: vi.fn() }));
-
-vi.mock("@/lib/supabase-client", () => ({ supabase: { from: fromMock } }));
+vi.mock("@/lib/supabase-client", () => ({ supabase: { rpc: rpcMock } }));
 
 import { loadAttendeeEventDetail } from "./attendee-event";
 
@@ -15,26 +13,24 @@ const row = {
   starts_at: "2099-11-12T02:00:00Z",
   ends_at: "2099-11-12T08:00:00Z",
   status: "confirmed",
-  organiser: { full_name: "Student Life Office" },
-  event_venue_requirements: { preferred_location: "Auditorium" },
-  event_registration_requirements: {
-    registration_required: true,
-    registration_opens_at: null,
-    registration_closes_at: "2099-11-10T00:00:00Z",
-    attendee_capacity: 50,
-    waitlist_enabled: true,
-    withdrawal_permitted: false,
-  },
+  banner_path: null,
+  organiser_name: "Student Life Office",
+  preferred_location: "Auditorium",
+  registration_required: true,
+  registration_opens_at: null,
+  registration_closes_at: "2099-11-10T00:00:00Z",
+  attendee_capacity: 50,
+  waitlist_enabled: true,
+  withdrawal_permitted: false,
 };
 
 beforeEach(() => {
-  fromMock.mockReset();
+  rpcMock.mockReset();
 });
 
 describe("loadAttendeeEventDetail", () => {
   it("maps the event's public details and registration settings", async () => {
-    const query = queryBuilder({ data: row, error: null });
-    fromMock.mockReturnValue(query);
+    rpcMock.mockResolvedValue({ data: [row], error: null });
 
     await expect(loadAttendeeEventDetail("event-1")).resolves.toEqual({
       id: "event-1",
@@ -44,6 +40,7 @@ describe("loadAttendeeEventDetail", () => {
       endsAt: "2099-11-12T08:00:00Z",
       status: "confirmed",
       organiserName: "Student Life Office",
+      bannerPath: null,
       venue: { preferredLocation: "Auditorium" },
       registration: {
         required: true,
@@ -54,39 +51,37 @@ describe("loadAttendeeEventDetail", () => {
         withdrawalPermitted: false,
       },
     });
-    expect(fromMock).toHaveBeenCalledWith("events");
-    expect(query.eq).toHaveBeenCalledWith("id", "event-1");
+    expect(rpcMock).toHaveBeenCalledWith("attendee_visible_events", { p_event_ids: ["event-1"] });
   });
 
-  // SPM-44 AC05: internal venue and equipment details are never even requested.
-  it("never asks for equipment, facilities, venue notes or other internal planning fields", async () => {
-    const query = queryBuilder({ data: row, error: null });
-    fromMock.mockReturnValue(query);
+  // SPM-44 AC05 / SPM-49 AC2: the attendee never reads the events table or any internal field.
+  it("reads only through the attendee RPC, never the events table or internal fields", async () => {
+    rpcMock.mockResolvedValue({ data: [row], error: null });
 
-    await loadAttendeeEventDetail("event-1");
+    const detail = await loadAttendeeEventDetail("event-1");
 
-    const selected = String(query.select.mock.calls[0]?.[0]);
-    for (const internal of [
-      "event_equipment_requirements",
-      "event_required_facilities",
-      "accessibility_notes",
-      "layout_notes",
-      "minimum_capacity",
-      "purpose",
-      "expected_attendance",
-      "assigned_coordinator",
-    ]) {
-      expect(selected).not.toContain(internal);
-    }
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+    expect(rpcMock.mock.calls[0]?.[0]).toBe("attendee_visible_events");
+    expect(Object.keys(detail).join(" ")).not.toMatch(/equipment|facilit|notes|purpose|attendance|coordinator/i);
   });
 
   it("falls back to defaults when the event has no venue or registration rows", async () => {
-    fromMock.mockReturnValue(
-      queryBuilder({
-        data: { ...row, organiser: null, event_venue_requirements: null, event_registration_requirements: null },
-        error: null,
-      }),
-    );
+    rpcMock.mockResolvedValue({
+      data: [
+        {
+          ...row,
+          organiser_name: null,
+          preferred_location: null,
+          registration_required: null,
+          registration_opens_at: null,
+          registration_closes_at: null,
+          attendee_capacity: null,
+          waitlist_enabled: null,
+          withdrawal_permitted: null,
+        },
+      ],
+      error: null,
+    });
 
     await expect(loadAttendeeEventDetail("event-1")).resolves.toMatchObject({
       organiserName: null,
@@ -96,10 +91,10 @@ describe("loadAttendeeEventDetail", () => {
   });
 
   it.each([
-    ["no event is visible", { data: null, error: null }],
+    ["no event is visible", { data: [], error: null }],
     ["the read fails", { data: null, error: { message: "boom" } }],
   ])("throws the access message when %s", async (_label, result) => {
-    fromMock.mockReturnValue(queryBuilder(result));
+    rpcMock.mockResolvedValue(result);
 
     await expect(loadAttendeeEventDetail("event-1")).rejects.toThrow(
       "This event is unavailable or you do not have access to it.",

@@ -170,7 +170,7 @@ Tests are layered so each kind of rule is checked where it is cheapest to check:
 
 **Traceability:** acceptance criteria are tagged in test comments, for example `// AC03: ...`, and Jira story keys (`SPM-nn`) appear in test file names, describe blocks and migrations, so a requirement can be followed to its code and tests. The integration matrix maps stories to suites.
 
-**Latest results** (Node 24, from a clean checkout of this branch): `pnpm check` passes with 453 shared, 187 backend and 1613 frontend tests; 114 integration tests pass (plus 1 expected failure, see [Known limitations](#known-limitations)); 72 pgTAP files with 1486 checks pass.
+**Latest results** (Node 24, from a clean checkout of this branch): `pnpm check` passes with 453 shared, 187 backend and 1627 frontend tests; 115 integration tests pass; 74 pgTAP files with 1512 checks pass.
 
 **Coverage:** run `pnpm --filter @spm/<package> test:coverage` for the report. Measured line coverage is about 96% for `@spm/shared`, 95% for `@spm/backend` and 94% for `@spm/frontend`. We did **not** reach 100%, and do not claim it. What remains uncovered is mainly:
 
@@ -195,7 +195,6 @@ The hosted shared database is never reset or written to by CI.
 
 ## Known limitations
 
-- **Attendee read access to a Confirmed event is wider than intended.** Row Level Security policies built on `can_view_event` admit attendees of a Confirmed event, so an attendee calling the API directly (not through the app) can read internal planning data such as expected attendance, venue bookings and decisions. The attendee screens never request it. The role-access matrix test records this as an expected failure (`it.fails`); the fix is a migration that tightens those policies.
 - **Hosted database migrations are applied by the database owner.** A checkout can be ahead of the shared project; check `pnpm db:push:preview` (database owner) before relying on a newer feature there. A local database (`supabase start`) always has every migration.
 - **Release 1 scope:** the build targets the 20 core features and the Week 7 changes; anything beyond them is not part of this release.
 - **Test coverage is below 100%**, for the reasons given under [Testing and traceability](#testing-and-traceability).
