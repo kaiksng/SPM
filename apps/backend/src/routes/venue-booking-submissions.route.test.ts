@@ -1,5 +1,6 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAppServer } from "../test/app-server";
 
 const { rpcMock, getUserMock } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
@@ -14,13 +15,14 @@ vi.mock("../lib/supabase-service-client", () => ({
 }));
 
 const { createApp } = await import("../app");
+const server = useAppServer(createApp);
 
 const EVENT_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
 const VENUE_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 const USER_ID = "ea333cdb-21d1-4819-8fb0-ec64508d8323";
 
 function authedRequest(body: unknown) {
-  return request(createApp())
+  return request(server())
     .post("/venue-bookings/submit")
     .set("Authorization", "Bearer test-token")
     .send(body as object);
@@ -96,7 +98,7 @@ describe("POST /venue-bookings/submit", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp())
+    const response = await request(server())
       .post("/venue-bookings/submit")
       .send({ eventId: EVENT_ID, venueId: VENUE_ID });
 
@@ -155,7 +157,7 @@ describe("POST /venue-bookings/submit", () => {
 const BOOKING_ID = "5b9f1c24-7a3e-4d5b-9c11-2f6a8d3e4b70";
 
 function replacementRequest(body: unknown, bookingId: string = BOOKING_ID) {
-  return request(createApp())
+  return request(server())
     .post(`/venue-bookings/${bookingId}/replacement`)
     .set("Authorization", "Bearer test-token")
     .send(body as object);
@@ -184,7 +186,7 @@ describe("POST /venue-bookings/:bookingId/replacement", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp())
+    const response = await request(server())
       .post(`/venue-bookings/${BOOKING_ID}/replacement`)
       .send({ venueId: VENUE_ID });
 
@@ -246,7 +248,7 @@ describe("POST /venue-bookings/:bookingId/replacement", () => {
 // SPM-85 AC10: withdraw a Pending booking or cancel an Approved one, with a reason.
 describe("POST /venue-bookings/:bookingId/withdraw", () => {
   function withdrawRequest(body: unknown) {
-    return request(createApp())
+    return request(server())
       .post(`/venue-bookings/${BOOKING_ID}/withdraw`)
       .set("Authorization", "Bearer test-token")
       .send(body as object);
@@ -272,7 +274,7 @@ describe("POST /venue-bookings/:bookingId/withdraw", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp())
+    const response = await request(server())
       .post(`/venue-bookings/${BOOKING_ID}/withdraw`)
       .send({ reason: "x" });
 
@@ -282,7 +284,7 @@ describe("POST /venue-bookings/:bookingId/withdraw", () => {
 
   // SPM-85 AC10: a malformed booking id never reaches the database.
   it("rejects a booking id that is not valid before calling the database", async () => {
-    const response = await request(createApp())
+    const response = await request(server())
       .post("/venue-bookings/not-a-booking/withdraw")
       .set("Authorization", "Bearer test-token")
       .send({ reason: "Not needed" });

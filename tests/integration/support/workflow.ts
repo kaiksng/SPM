@@ -122,7 +122,13 @@ export async function confirmedEvent(
   fixture: IntegrationFixture,
   cast: { organiser: User; lead: User; coordinator: User; staff: User; officer: User },
   title: string,
-  options: { withBreakout?: boolean; overrides?: Partial<EventRequestFormValues>; pastSchedule?: boolean } = {},
+  options: {
+    withBreakout?: boolean;
+    overrides?: Partial<EventRequestFormValues>;
+    pastSchedule?: boolean;
+    /** Runs after the bookings are approved, before the safety checks (e.g. to arrange equipment). */
+    beforeSafetyCheck?: (eventId: string) => Promise<void>;
+  } = {},
 ) {
   const { id, values } = await planningEvent(fixture, cast, title, { ...AREA_VENUE, ...DEFAULT_WINDOW, ...options.overrides });
   if (options.pastSchedule) {
@@ -135,6 +141,8 @@ export async function confirmedEvent(
   if (options.withBreakout) bookingIds.push(await submitVenueBookingRequest(id, await fixture.venue(100), BREAKOUT));
   await fixture.signIn(cast.staff);
   for (const booking of bookingIds) await decideVenueBookingRequest(booking, "approved", "");
+  await fixture.signIn(cast.coordinator);
+  await options.beforeSafetyCheck?.(id);
   await fixture.signIn(cast.coordinator);
   await saveVenueSafetyChecks(id, SAFETY_CHECKS);
   await submitEventForSafetyCheck(id);

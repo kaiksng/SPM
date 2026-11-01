@@ -1,5 +1,6 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAppServer } from "../test/app-server";
 
 const { rpcMock, getUserMock } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
@@ -14,12 +15,13 @@ vi.mock("../lib/supabase-service-client", () => ({
 }));
 
 const { createApp } = await import("../app");
+const server = useAppServer(createApp);
 
 const EVENT_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
 const USER_ID = "ea333cdb-21d1-4819-8fb0-ec64508d8323";
 
 function authedRequest() {
-  return request(createApp())
+  return request(server())
     .post(`/events/${EVENT_ID}/submit`)
     .set("Authorization", "Bearer test-token");
 }
@@ -54,7 +56,7 @@ describe("POST /events/:eventId/submit", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp()).post(
+    const response = await request(server()).post(
       `/events/${EVENT_ID}/submit`,
     );
 
@@ -63,7 +65,7 @@ describe("POST /events/:eventId/submit", () => {
   });
 
   it("rejects an invalid event id before calling the database", async () => {
-    const response = await request(createApp())
+    const response = await request(server())
       .post("/events/not-a-uuid/submit")
       .set("Authorization", "Bearer test-token");
 

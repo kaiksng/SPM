@@ -1,5 +1,6 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAppServer } from "../test/app-server";
 
 const { rpcMock, getUserMock } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
@@ -14,12 +15,13 @@ vi.mock("../lib/supabase-service-client", () => ({
 }));
 
 const { createApp } = await import("../app");
+const server = useAppServer(createApp);
 
 const BOOKING_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
 const USER_ID = "ea333cdb-21d1-4819-8fb0-ec64508d8323";
 
 function authedRequest(body: unknown) {
-  return request(createApp())
+  return request(server())
     .post(`/venue-bookings/${BOOKING_ID}/decide`)
     .set("Authorization", "Bearer test-token")
     .send(body as object);
@@ -54,7 +56,7 @@ describe("POST /venue-bookings/:bookingId/decide", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp())
+    const response = await request(server())
       .post(`/venue-bookings/${BOOKING_ID}/decide`)
       .send({ decision: "approved", reason: "" });
 
@@ -64,7 +66,7 @@ describe("POST /venue-bookings/:bookingId/decide", () => {
 
   // SPM-82: approving or rejecting a replacement names the booking by id; a malformed id never reaches the database.
   it("rejects a booking id that is not valid before calling the database", async () => {
-    const response = await request(createApp())
+    const response = await request(server())
       .post("/venue-bookings/not-a-booking/decide")
       .set("Authorization", "Bearer test-token")
       .send({ decision: "approved", reason: "" });
