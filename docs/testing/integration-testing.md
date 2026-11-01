@@ -1,6 +1,6 @@
 # Integration testing
 
-Application integration coverage currently includes **SPM-2 (drafts), SPM-13 (sign-in), SPM-14 (organiser ownership), SPM-86 (venue buffers), SPM-87 (buffered availability), SPM-20 (availability calendar data), SPM-21 (manual venue search), SPM-88 (booking conflict flags), SPM-19 (operational blocks), SPM-83 (venue disruptions) and SPM-81 (coordinator assignment)**. The [coverage matrix](integration-coverage-matrix.md) tracks all 57 non-retired stories against Jira export (6). The remaining 46 stories need their own coverage review and implementation instruction.
+Integration coverage is organised by **business workflow** (see the [coverage matrix](integration-coverage-matrix.md)). Done so far: the **intake-to-planning** (SPM-3, 6, 7, 80, 84, 15) and **venue-booking-lifecycle** (SPM-72, 24, 25, 26, 78, 75, 85, 82) workflows plus earlier per-story suites for SPM-2, 13, 14, 86, 87, 20, 21, 88, 19, 83 and 81. Remaining workflows: equipment-arrangements, safety-and-confirmation, change-cancel-complete, registration, and a role-access matrix.
 
 ## What these tests prove
 
@@ -61,8 +61,8 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **11 files / 63 tests passed**
-for the current SPM-2/SPM-13/SPM-14/SPM-86/SPM-87/SPM-20/SPM-21/SPM-88 SPM-19, SPM-83 and SPM-81 coverage. A green job verifies this suite on GitHub;
+and open its details. The test step should report **13 files / 77 tests passed**
+for the current story suites plus the intake-to-planning and venue-booking-lifecycle workflows. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
 
@@ -387,3 +387,32 @@ The user confirmed the SPM-19 Jira wording was updated to reflect the save-and-f
 ## SPM-83 execution record — 2026-10-31
 
 Two integration cases cover preview and saving blocks affecting pending/approved bookings and an active hold, buffered overlap, persistent disruptions, booking and existing approval-history preservation, coordinator notifications and permissions, readiness, rejection of a new request in an otherwise-free blocked period, replacement-request state, shortening/removal, clearance notifications, and the pending-safety-check transition and notification. Existing UI tests cover the confirmation screen; lifecycle states and historical approval data are prepared fixtures and do not prove their separate business workflows. Three clean integration runs passed 53/53 as assertions were expanded; the final run passed 8/8 safety checks and integration typecheck. `pnpm check` passed. No tests were skipped.
+
+## Workflow 1: intake-to-planning
+
+The [suite](../../tests/integration/intake-to-planning.workflow.integration.test.ts) has 6 tests over one event's early life, using real services, the real Express routes, local Auth and the database: a submitted request queues for the Lead and cannot be reviewed until assigned; a full clarification round (locked fields, response, blocked decision, resolution); approval with its decision record and organiser notice; rejection requiring a reason plus a refused venue request on the rejected event (with a planning-event control); reassignment (closed/open history, immediate access hand-over, open clarification kept, three notifications, refusals); coordinator lists and the Lead's active-work counts. Shared setup is in `tests/integration/support/workflow.ts`; `fixture.venue()` creates and removes venues.
+
+Findings, not asserted: (1) SPM-6 AC6/S04 say a decision is blocked until the coordinator explicitly closes a clarification, but `decide_event_request` blocks only an *open* round and resolves an *answered* one implicitly (pgTAP `event_decisions` asserts this). Requirement decision pending. (2) Any coordinator can read any event by design (`can_view_event`); only actions are restricted to the assigned coordinator. UI-only: queue tabs, "No unassigned events", oversight filters, wording.
+
+### Execution record 2026-11-01
+
+Integration typecheck passed. Full run **12 files / 69 tests passed** (6 new + 63 existing), safety guards 8/8, no dedicated containers left, `pnpm check` passed (shared 450, backend 187, frontend 1,613). Two earlier failed runs were test errors, corrected before the final pass: an assumed coordinator read restriction that the product deliberately does not have, and an incorrect notification count (assignment notifications accumulate across the first assignment and the handover). The first run used the shell's Node 22; later runs used Node 24.20.0.
+
+## Workflow 2: venue-booking-lifecycle
+
+The [suite](../../tests/integration/venue-booking-lifecycle.workflow.integration.test.ts) has 8 tests, using real services, the real Express routes, local Auth and the database. Events reach Planning through the real submit, assign and approve flow.
+
+1. Suggestions list only matching venues (an oversized event gets none); a request makes a Pending booking with the event's period, headcount and main flag, and tells Venue Staff.
+2. Overlapping Pending and blocked requests are refused with no record; an exactly-touching period is allowed; two coordinators requesting one free slot at once leave exactly one commitment.
+3. Only Venue Staff decide; rejection needs a reason and releases the period; decision, actor and time are stored and the coordinator is notified.
+4. Holds: staff-only, expiry must be future and before the period; an On Hold period refuses another request; expiring-soon notice; only the requesting coordinator confirms; a past-due hold is released for another event and stays in history.
+5. Multi-venue (agreed 12 ACs): additional venues, period inside the event, capacity below headcount refused, same venue overlapping refused but a later period allowed, independent decisions, main moves, withdraw and cancel need a reason and release only that booking.
+6. Replacement approved: only the assigned coordinator, only a Disrupted booking, one pending replacement, linked, the original cancelled, the other booking untouched.
+7. Replacement rejected or withdrawn: the original stays Disrupted and another try is allowed.
+8. Actor rules: organiser and other coordinators refused for request, withdraw and replace; non-staff refused for decisions; each with an assigned-coordinator success control.
+
+Setup-only steps, not tested actions: staff blocks (SPM-83 covers flagging), and one test moves a hold's deadline into the past because a real wait is impossible. Not asserted: the SPM-33 "designate another main before Ready" rule (workflow 4), whole-event cancellation (workflow 5), and a Pending/On Hold booking overlapping an active block, which cannot be approved (known limit). The Jira export lists 14 SPM-85 ACs; the agreed 12 are used. UI-only: calendar colours, dialogs, wording.
+
+### Execution record 2026-11-01
+
+Integration typecheck passed. Full run **13 files / 77 tests passed**, twice on clean disposable stacks (8 new + 69 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no dedicated containers left. No failures, skips or flakes were observed in this increment. Node 24.20.0.

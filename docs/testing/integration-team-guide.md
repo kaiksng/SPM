@@ -1,14 +1,15 @@
 # Integration testing: teammate instructions
 
-As of 2026-10-31, this checkout has 30 application integration cases for SPM-2,
-SPM-13 and SPM-14. Of the 57 non-retired stories in Jira export (6), **54 still
-need their integration coverage assessed**. This is a story count, not a
-promise that exactly 54 more tests are needed. Some ACs belong to UI tests;
-one integration case may also support multiple stories. Use the current
-[coverage matrix](integration-coverage-matrix.md) when work starts.
-
-The next story in the agreed roadmap is SPM-15. Coordinate with the team so
-two people do not unknowingly implement the same increment.
+**Integration tests are organised by business workflow, not by Jira story.**
+One suite proves a journey that crosses features (for example intake to
+planning, covering SPM-3, 6, 7, 80, 84 and 15). The agreed workflows are:
+intake-to-planning (done), venue-booking-lifecycle, equipment-arrangements,
+safety-and-confirmation, change-cancel-complete, registration, and one
+role-access matrix. The older per-story suites (SPM-2, 13, 14, 19, 20, 21, 81,
+83, 86, 87, 88) stay as they are. See the [coverage matrix](integration-coverage-matrix.md)
+for which stories each workflow proves, and copy the structure of
+[intake-to-planning](../../tests/integration/intake-to-planning.workflow.integration.test.ts).
+Coordinate with the team so two people do not build the same workflow.
 
 1. **Get the shared testing code and skill.** Use the team's agreed branch/ref
    containing the harness and this guide. If they are not in `main` yet, ask
@@ -30,8 +31,8 @@ two people do not unknowingly implement the same increment.
    `git merge origin/main` and `pnpm install` instructions. Do not switch to
    someone else's branch or create a worktree unless that is your agreed setup.
 
-3. **Choose one story and provide current requirements.** Give the agent the
-   exact Jira key and your latest CSV path. The export must include Description
+3. **Choose one workflow and provide current requirements.** Give the agent the
+   workflow name, its Jira keys and your latest CSV path. The export must include Description
    and the acceptance criteria. Story title/status alone is insufficient.
    Avoid pasting credentials or using real attendee data as fixtures.
 
@@ -42,16 +43,17 @@ two people do not unknowingly implement the same increment.
    evidence the agent actually followed it: its response should identify the
    skill and the inspected story/code.
 
-   Example prompt (replace the story and CSV path):
+   Example prompt (replace the workflow, its stories and the CSV path):
 
    ```text
-   Use $spm-integration-testing for SPM-15 in this ConnectSphere repository.
+   Use $spm-integration-testing for the venue-booking-lifecycle workflow
+   (SPM-72, 24, 25, 26, 78, 75, 85, 82) in this ConnectSphere repository.
    Latest Jira CSV: /path/to/latest-jira.csv
    Use my current branch; do not create or switch branches unless I ask.
    Inspect the code and existing coverage, explain the ACs and business
    steps, and wait for my scope approval before writing tests.
    Reuse the disposable local Supabase harness. Do not use hosted test data.
-   After approval, implement only this story. If all scoped checks pass
+   After approval, implement only this workflow. If all scoped checks pass
    and there are no unresolved issues, commit to my current branch.
    Do not push, create a PR, or merge into main or another person's branch.
    ```
@@ -60,7 +62,7 @@ two people do not unknowingly implement the same increment.
 
    ```text
    Read .agents/skills/spm-integration-testing/SKILL.md and follow it for
-   SPM-15. My latest Jira CSV is /path/to/latest-jira.csv. Present the story
+   the venue-booking-lifecycle workflow. My latest Jira CSV is /path/to/latest-jira.csv. Present the workflow
    walkthrough and business steps before coding. Use my current branch.
    Do not push, create a PR, or change hosted Supabase.
    ```
@@ -70,14 +72,14 @@ two people do not unknowingly implement the same increment.
    personal branch needs your own authorization. Kai's permission to merge
    into `staging-kk` does not authorize that on every teammate's machine.
 
-5. **Review and approve the walkthrough.** Check the story goal, current
+5. **Review and approve the walkthrough.** Check the workflow goal, current
    behaviour, AC mapping, collaborating components, dependencies and gaps.
    Resolve requirement conflicts before implementing the affected criteria.
    Approve the numbered business steps when they match what the team agreed.
    Do not approve changing an assertion merely to match a known product bug.
 
 6. **Let the agent add tests through real application paths.** Files go under
-   `tests/integration/` and end in `.integration.test.ts`. Cases carry story/AC
+   `tests/integration/` and end in `.workflow.integration.test.ts`. Cases carry story/AC
    comments. Reuse the fixtures and optional real backend helper, with synthetic
    accounts and independent data. Check owner/allowed success as well as
    denial, and inspect persisted records and relevant history/notifications.
@@ -107,10 +109,10 @@ two people do not unknowingly implement the same increment.
    product defects; record both rather than rerunning unchanged code until
    green. Resolve unexplained failures/flakes before merging.
 
-9. **Update evidence for your story.** The agent updates the coverage matrix
+9. **Update evidence for your workflow.** The agent updates the coverage matrix
    and [results guide](integration-testing.md) with actual counts, AC evidence,
    exclusions, failures and fixes. Existing histories are preserved. The
-   remaining story count decreases when that story's scoped coverage is
+   remaining workflow list shrinks when that workflow's scoped coverage is
    implemented and validated, not when a file or Jira Done status appears.
    Other resources/roles may still need tests under their own stories.
 
@@ -133,7 +135,7 @@ two people do not unknowingly implement the same increment.
     the tested paths against disposable infrastructure. Checking deployed
     settings/migrations and performing agreed hosted UAT are separate tasks.
     Never point this reset/fixture suite at the shared Supabase project. Then
-    choose the next story with the team and repeat from the current evidence.
+    choose the next workflow with the team and repeat from the current evidence.
 
 Codex repository discovery and invocation reference:
 [official OpenAI skill documentation](https://learn.chatgpt.com/docs/build-skills).

@@ -18,6 +18,7 @@ const admin = createClient<Database>(process.env.VITE_SUPABASE_URL!, process.env
 export class IntegrationFixture {
   private users: Array<{ id: string; email: string; password: string }> = [];
   private equipmentIds: string[] = [];
+  private venueIds: string[] = [];
 
   async organiser() {
     return this.user("event_organiser");
@@ -54,6 +55,19 @@ export class IntegrationFixture {
     return id;
   }
 
+  /** An always-open venue large enough for the workflow events; removed in cleanup. */
+  async venue(capacity = 100) {
+    const id = randomUUID();
+    this.venueIds.push(id);
+    await database.query(
+      `insert into public.venues (id, name, location, area_tags, capacity, operating_hours)
+       values ($1, $2, 'Integration Block', array['Central Area'], $3,
+         '[{"days":["mon","tue","wed","thu","fri","sat","sun"],"opensAt":"00:00","closesAt":"23:59"}]'::jsonb)`,
+      [id, `Integration workflow venue ${id}`, capacity],
+    );
+    return id;
+  }
+
   async cleanup() {
     try {
       await supabase.auth.signOut();
@@ -63,6 +77,7 @@ export class IntegrationFixture {
       // Events first: dependent requirements/history/notifications cascade.
       await database.query("delete from public.events where organiser_id = any($1::uuid[])", [ids]);
       await database.query("delete from public.audit_logs where actor_id = any($1::uuid[])", [ids]);
+      await database.query("delete from public.venues where id = any($1::uuid[])", [this.venueIds]);
       await database.query("delete from public.equipment_items where id = any($1::uuid[])", [this.equipmentIds]);
       for (const user of this.users) {
         const { error } = await admin.auth.admin.deleteUser(user.id);
@@ -81,8 +96,9 @@ export async function assertNoFixtureResidue() {
     select
       (select count(*)::int from auth.users where email like 'integration-%@example.test') as users,
       (select count(*)::int from public.equipment_items where category = 'Integration') as equipment,
-      (select count(*)::int from public.events where title like 'Integration %') as events
+      (select count(*)::int from public.events where title like 'Integration %') as events,
+      (select count(*)::int from public.venues where name like 'Integration workflow venue %') as venues
   `);
   if (Object.values(rows[0]).some((count) => count !== 0)) throw new Error("Integration fixture residue detected.");
-  console.log("Dedicated fixture cleanup verified: zero accounts, events or equipment left behind.");
+  console.log("Dedicated fixture cleanup verified: zero accounts, events, venues or equipment left behind.");
 }
