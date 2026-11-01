@@ -1,6 +1,6 @@
 # Integration testing
 
-Integration coverage is organised by **business workflow** (see the [coverage matrix](integration-coverage-matrix.md)). Done so far: the **intake-to-planning** (SPM-3, 6, 7, 80, 84, 15) **venue-booking-lifecycle** (SPM-72, 24, 25, 26, 78, 75, 85, 82) and **safety-and-confirmation** (SPM-33, 89, 90, 11, 35, 79, 12) **change-cancel-complete** (SPM-38, 39, 45, 46, 76) and **equipment-arrangements** (SPM-27, 28, 31, 32) and **registration** (SPM-40, 41, 42, 43, 44) workflows plus earlier per-story suites for SPM-2, 13, 14, 86, 87, 20, 21, 88, 19, 83 and 81. Remaining workflow: the role-access matrix.
+Integration coverage is organised by **business workflow** (see the [coverage matrix](integration-coverage-matrix.md)). Done so far: the **intake-to-planning** (SPM-3, 6, 7, 80, 84, 15) **venue-booking-lifecycle** (SPM-72, 24, 25, 26, 78, 75, 85, 82) and **safety-and-confirmation** (SPM-33, 89, 90, 11, 35, 79, 12) **change-cancel-complete** (SPM-38, 39, 45, 46, 76) and **equipment-arrangements** (SPM-27, 28, 31, 32) **registration** (SPM-40, 41, 42, 43, 44) and **role-access matrix** (SPM-15, 16, 17, 48, 49, 77) workflows plus earlier per-story suites for SPM-2, 13, 14, 86, 87, 20, 21, 88, 19, 83 and 81. All planned workflows are built.
 
 ## What these tests prove
 
@@ -61,7 +61,7 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **17 files / 98 tests passed**
+and open its details. The test step should report **18 files / 114 tests passed (plus 1 expected failure)**
 for the current story suites plus the intake-to-planning, venue-booking-lifecycle and safety-and-confirmation workflows. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
@@ -490,3 +490,19 @@ Integration typecheck passed. Full run **17 files / 98 tests passed** twice on c
 ### Update 2026-11-01: backend route test flake fixed
 
 The recurring backend route-test flakes (a 5-second timeout in `venue-booking-hold.route.test.ts`, earlier `socket hang up` and `Parse Error`) came from `request(createApp())`, which builds an app and opens a new server for every request; under load that churn exceeded the limits. All 11 route test files that still used it now share one loopback server per file through `apps/backend/src/test/app-server.ts` (`useAppServer`), the approach `venue-management.route.test.ts` already used. Verified: backend tests passed 3 of 3 alone and 6 of 6 while the Docker integration suite was running, the integration suite passed (17 files / 98 tests), and `pnpm check` passed. The earlier flakes were never reproduced on demand, so this removes the identified cause and cannot be proven to remove every possible cause.
+
+## Workflow 7: role-access matrix
+
+The [suite](../../tests/integration/role-access-matrix.workflow.integration.test.ts) has 15 generated and written tests against the real database, backend and Auth. State is built once (a Planning event holding a booking, an equipment requirement, a clarification, a decision and a change request, plus a Confirmed event) and nine synthetic actors read it.
+
+- **Reading:** eight roles (owner organiser, other organiser, assigned and other coordinator, Lead, Venue Staff, Technical Support, Safety Officer) each see exactly the records their role allows, across event details, venue bookings, decisions, status history, equipment requirements, clarifications, change requests and safety review details; mismatches are listed by name. The owner and assigned coordinator are the positive controls. An attendee sees the published information of a Confirmed event and nothing of an event that is not Confirmed yet.
+- **Acting:** each of the other eight roles is refused, with the stored snapshot unchanged, and then the authorised role succeeds, for: assigning a coordinator (Lead), deciding an event (assigned coordinator), deciding a venue booking (Venue Staff), creating equipment (Technical Support) and deciding a safety check (Safety Officer).
+- **Expectations:** current `can_view_event` rules for the owner, coordinators, Lead, Venue Staff and Technical Support; the change history is narrower (organiser, assigned coordinator, Lead, SPM-12 AC02); other organisers, the Safety Officer outside Pending Safety Check, and attendees follow the acceptance criteria.
+
+**KNOWN PRODUCT GAP, confirmed 2026-11-01 (SPM-49 AC2/AC3):** once an event is Confirmed, the policies that use `can_view_event` admit an attendee, so an attendee calling the API directly can read the full event row (including expected attendance and the safety plan), the event's venue bookings, its decisions and its safety review details. The attendee screen never asks for these, which hides the gap. The test that asserts the criterion is marked `it.fails`, so the suite stays green and the gap stays visible; when the policies are tightened that test will pass, `it.fails` will report it, and `.fails` should then be removed. This increment did not change any policy or product code. Fixing it means tightening the policies on `events`, `venue_bookings`, `event_decisions` and `safety_check_review_details` (a new migration), which needs its own plan and team agreement.
+
+Not covered here: landing page per role (SPM-13 suite), the coordinator's own list (intake-to-planning), the message and redirect for denied pages (UI), and registering for an event as a non-attendee role.
+
+### Execution record 2026-11-01
+
+Integration typecheck passed. Full run **18 files / 114 tests passed plus 1 expected failure** twice on clean disposable stacks (15 new + 99 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. The first run had two wrong expectations of mine: status history is limited to the organiser, assigned coordinator and Lead (not every coordinator, Venue Staff or Technical Support). The attendee gap was a genuine finding, not a test error. Node 24.20.0.
