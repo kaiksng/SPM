@@ -1878,6 +1878,30 @@ export type Database = {
         Returns: Json
       }
       assert_technical_support_staff: { Args: never; Returns: undefined }
+      attendee_event_venues: {
+        Args: { p_event_ids: string[] }
+        Returns: {
+          event_id: string
+          is_main_venue: boolean
+          label: string
+          venue_location: string
+          venue_name: string
+        }[]
+      }
+      attendee_events_being_updated: {
+        Args: { p_event_id?: string }
+        Returns: {
+          banner_path: string
+          description: string
+          ends_at: string
+          id: string
+          location: string
+          registration_required: boolean
+          starts_at: string
+          title: string
+          withdrawal_permitted: boolean
+        }[]
+      }
       attendee_visible_events: {
         Args: { p_event_ids?: string[] }
         Returns: {
@@ -2103,6 +2127,7 @@ export type Database = {
         Args: { object_name: string }
         Returns: string
       }
+      event_is_being_updated: { Args: { p_event_id: string }; Returns: boolean }
       event_main_venue_capacity: {
         Args: { p_event_id: string }
         Returns: number
@@ -2211,6 +2236,7 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: {
           banner_path: string
+          being_updated: boolean
           ends_at: string
           id: string
           is_full: boolean
@@ -2220,6 +2246,8 @@ export type Database = {
           registration_required: boolean
           starts_at: string
           title: string
+          venue_location: string
+          venue_name: string
         }[]
       }
       lock_requirement_for_reservation: {
@@ -2569,6 +2597,7 @@ export type Database = {
         | "waitlist_promoted"
         | "equipment_requested"
         | "event_awaiting_assignment"
+        | "event_arrangements_updating"
       request_status:
         | "pending"
         | "approved"
@@ -2779,6 +2808,7 @@ export const Constants = {
         "waitlist_promoted",
         "equipment_requested",
         "event_awaiting_assignment",
+        "event_arrangements_updating",
       ],
       request_status: [
         "pending",

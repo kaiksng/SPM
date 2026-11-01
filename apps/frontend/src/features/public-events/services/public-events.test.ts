@@ -52,6 +52,8 @@ describe("listPublicEvents", () => {
     ["open", { registration_opens_at: "2099-05-01T00:00:00Z", registration_closes_at: "2099-06-30T00:00:00Z" }],
     // An event that doesn't take registrations is still listed.
     ["not_required", { registration_required: false }],
+    // A Confirmed event back under review: venue to be confirmed.
+    ["being_updated", { being_updated: true }],
   ])("works out registration as %s", async (state, overrides) => {
     rpcMock.mockResolvedValue({ data: [row(overrides)], error: null });
 

@@ -42,6 +42,7 @@ beforeEach(() => {
     { ...summit, id: "event-2", title: "Career Fair", bannerPath: null, location: null, registration: "not_open", opensAt: "2099-06-10T00:00:00Z" },
     { ...summit, id: "event-3", title: "Hack Night", registration: "full" },
     { ...summit, id: "event-4", title: "Movie Night", registration: "not_required" },
+    { ...summit, id: "event-5", title: "Updating Gala", registration: "being_updated" },
   ]);
 });
 
@@ -56,6 +57,7 @@ describe("PublicPage upcoming events", () => {
     expect(screen.getByText("Career Fair").closest("a")).toHaveTextContent("Opens 10 Jun");
     expect(screen.getByText("Hack Night").closest("a")).toHaveTextContent("Full");
     expect(screen.getByText("Movie Night").closest("a")).toHaveTextContent("No registration needed");
+    expect(screen.getByText("Updating Gala").closest("a")).toHaveTextContent("Venue to be confirmed");
   });
 
   it("sends a signed-out visitor to sign in, then to the event", async () => {

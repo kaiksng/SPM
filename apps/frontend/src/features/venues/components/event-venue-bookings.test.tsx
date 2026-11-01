@@ -36,7 +36,11 @@ const onHold = booking({ status: "on_hold", expiresAt: "2099-04-05T02:00:00.000Z
 
 function renderBookings(
   bookings: VenueBookingRequestSummary[],
-  props: Partial<{ busyBookingId: string; actionError: { bookingId: string; message: string } }> = {},
+  props: Partial<{
+    busyBookingId: string;
+    actionError: { bookingId: string; message: string };
+    disruptedBookingId: string;
+  }> = {},
 ) {
   return render(
     <EventVenueBookings
@@ -181,3 +185,31 @@ describe("EventVenueBookings: a rejected booking", () => {
   });
 });
 
+// SPM-82/83: a booking whose venue became unavailable is kept until its
+// replacement is approved, so it can't be cancelled or withdrawn by hand.
+describe("EventVenueBookings: a disrupted booking", () => {
+  it("offers no Cancel booking on the disrupted booking, and says why", () => {
+    renderBookings([booking({ status: "approved" })], { disruptedBookingId: "b-1" });
+
+    expect(screen.queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
+    expect(screen.getByText(/stays until its replacement is approved/)).toBeInTheDocument();
+  });
+
+  it("offers no Withdraw request on a disrupted pending booking", () => {
+    renderBookings([booking({ status: "pending" })], { disruptedBookingId: "b-1" });
+
+    expect(screen.queryByRole("button", { name: "Withdraw request" })).not.toBeInTheDocument();
+  });
+
+  it("still lets the event's other bookings be cancelled", () => {
+    renderBookings(
+      [
+        booking({ status: "approved" }),
+        booking({ id: "b-2", status: "approved", isMainVenue: false, label: "Breakout", venueName: "Room 2.02" }),
+      ],
+      { disruptedBookingId: "b-1" },
+    );
+
+    expect(screen.getAllByRole("button", { name: "Cancel booking" })).toHaveLength(1);
+  });
+});

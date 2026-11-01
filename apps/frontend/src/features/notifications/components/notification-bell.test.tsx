@@ -327,6 +327,22 @@ describe("NotificationBell", () => {
     expect(navigateMock).toHaveBeenCalledWith(destination);
   });
 
+  // SPM-90: a Safety Officer can't open /events/:id, so a safety check request
+  // opens that event's review page.
+  it("routes a safety check request to the event's review page", async () => {
+    listNotificationsMock.mockResolvedValue([
+      { ...UNREAD, id: "n12", type: "safety_check_requested", title: "Safety check requested", eventId: "event-9" },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("Safety check requested"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/safety-checks/event-9");
+  });
+
   // This story: an attendee has no "events" nav section, so their own
   // event lives at /browse-events/:id, not /events/:id.
   it("routes a waitlist-promotion notification to the attendee's registration page", async () => {
@@ -347,6 +363,21 @@ describe("NotificationBell", () => {
     await user.click(await screen.findByText("You're registered!"));
 
     expect(navigateMock).toHaveBeenCalledWith("/browse-events/e13");
+  });
+
+  // An attendee told their event is being updated opens its attendee page.
+  it("routes an arrangements-updating notification to the attendee's event page", async () => {
+    listNotificationsMock.mockResolvedValue([
+      { ...UNREAD, id: "n14", type: "event_arrangements_updating" as const, title: "Event arrangements being updated", eventId: "e14" },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("Event arrangements being updated"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/browse-events/e14");
   });
 
   // The organiser's registration set-up / over-capacity notice opens the

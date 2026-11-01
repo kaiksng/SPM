@@ -76,6 +76,19 @@ describe("BrowseEventsPage", () => {
     expect(card).not.toHaveTextContent(/spots left/);
   });
 
+  it("keeps an event being updated listed, venue to be confirmed, registration paused", async () => {
+    listBrowseEventsMock.mockResolvedValue([
+      { ...openEvent, id: "event-8", title: "Updating Gala", state: "closed", beingUpdated: true },
+    ]);
+    renderPage();
+
+    const card = (await screen.findByText("Updating Gala")).closest("a")!;
+    expect(card).toHaveTextContent("Being updated");
+    expect(card).toHaveTextContent("Venue to be confirmed");
+    expect(card).toHaveTextContent("Registration paused");
+    expect(card).not.toHaveTextContent("Register");
+  });
+
   // Event banner: each card shows the organiser's banner, or a placeholder.
   it("shows each event's banner, or a placeholder when it has none", async () => {
     listBrowseEventsMock.mockResolvedValue([

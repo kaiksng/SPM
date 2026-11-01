@@ -507,4 +507,4 @@ Not covered here: landing page per role (SPM-13 suite), the coordinator's own li
 
 Integration typecheck passed. Full run **18 files / 114 tests passed plus 1 expected failure** twice on clean disposable stacks (17 new + 98 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. The first run had two wrong expectations of mine: status history is limited to the organiser, assigned coordinator and Lead (not every coordinator, Venue Staff or Technical Support). The attendee gap was a genuine finding, not a test error. Node 24.20.0.
 
-After migration `202611010013` closed that gap, the suite passes **18 files / 115 tests with no expected failure**, pgTAP passes 74 files / 1,512 checks, and `pnpm check` passes (shared 453, backend 187, frontend 1,627).
+After migration `202611010013` closed that gap, the suite passes **18 files / 115 tests with no expected failure**, pgTAP passes 76 files / 1,530 checks, and `pnpm check` passes (shared 453, backend 187, frontend 1,648).

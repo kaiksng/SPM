@@ -1,5 +1,6 @@
 import type { OwnRegistrationStatus } from "@spm/shared";
 
+import { formatAttendeeVenue, listAttendeeEventVenues } from "@/features/registrations/services/attendee-event";
 import { apiFetch } from "@/lib/api-client";
 import { loadVisibleEvents } from "@/features/registrations/services/visible-events";
 import { supabase } from "@/lib/supabase-client";
@@ -113,6 +114,8 @@ export type MyRegistration = {
   registeredAt: string;
   waitlistPosition: number | null;
   withdrawalPermitted: boolean;
+  /** A Confirmed event back under review: venue to be confirmed. */
+  eventBeingUpdated: boolean;
 };
 
 /**
@@ -143,9 +146,12 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
     .filter((row) => row.status === "waitlisted")
     .map((row) => row.event_id);
 
-  const counts = await loadRegistrationCounts(waitlistedEventIds).catch(() => {
-    throw new Error("We couldn't check the waiting list.");
-  });
+  const [counts, venues] = await Promise.all([
+    loadRegistrationCounts(waitlistedEventIds).catch(() => {
+      throw new Error("We couldn't check the waiting list.");
+    }),
+    listAttendeeEventVenues(ownRows.map((row) => row.event_id)),
+  ]);
 
   return ownRows.map((row) => {
     const event = events.get(row.event_id)!;
@@ -155,12 +161,16 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
       title: event.title,
       startsAt: event.startsAt,
       endsAt: event.endsAt,
-      location: event.preferredLocation,
+      // The booked main venue once Confirmed; else the organiser's preferred area.
+      location: mainVenue(venues.get(event.id)) ?? event.preferredLocation,
       status: row.status,
       statusBeforeCancellation: row.status_before_cancellation,
       registeredAt: row.registered_at,
       waitlistPosition: counts.get(event.id)?.ownWaitlistPosition ?? null,
       withdrawalPermitted: event.withdrawalPermitted ?? false,
+      // A registration only exists once an event was Confirmed, so Planning
+      // or Pending Safety Check here means it is being updated.
+      eventBeingUpdated: event.status === "planning" || event.status === "pending_safety_check",
     };
   });
 }
@@ -214,4 +224,9 @@ export async function listEventRegistrations(eventId: string): Promise<EventRegi
     withdrawnAt: row.withdrawn_at,
     waitlistPosition: waitlistPositions.get(row.id) ?? null,
   }));
+}
+
+function mainVenue(venues: { name: string; location: string; isMainVenue: boolean }[] | undefined) {
+  const main = venues?.find((venue) => venue.isMainVenue) ?? venues?.[0];
+  return main ? formatAttendeeVenue(main) : null;
 }
