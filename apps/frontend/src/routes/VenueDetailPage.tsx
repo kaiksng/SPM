@@ -31,7 +31,7 @@ import {
 } from "@/features/venues/services/venues";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
-import { FROM_VENUE_DETAIL_STATE } from "@/features/venues/utils/venue-detail-navigation";
+import { venueDetailReturnState } from "@/features/venues/utils/venue-detail-navigation";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
   dateStyle: "medium",
@@ -354,7 +354,7 @@ export function VenueDetailPage() {
                       calendar is a read view any authorised internal user needs. */}
                   <Link
                     to={`/venues/${venueId}/availability`}
-                    state={{ ...location.state, ...FROM_VENUE_DETAIL_STATE }}
+                    state={{ ...location.state, ...venueDetailReturnState(location.pathname, location.search) }}
                     className={buttonVariants({ variant: "outline", size: "sm" })}
                   >
                     <CalendarClock /> View availability

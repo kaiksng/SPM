@@ -28,7 +28,7 @@ vi.mock("@/features/venues/services/venue-availability", () => ({
 
 vi.mock("@/hooks/use-page-title", () => ({ usePageTitle: vi.fn() }));
 
-import { FROM_VENUE_DETAIL_STATE } from "@/features/venues/utils/venue-detail-navigation";
+import { venueDetailReturnState } from "@/features/venues/utils/venue-detail-navigation";
 import { VenueAvailabilityPage } from "./VenueAvailabilityPage";
 
 const venue = {
@@ -187,8 +187,28 @@ describe("SPM-20: viewing venue availability", () => {
     const title = container.querySelector(".venue-calendar__month-title--blocked")!;
     expect(title).toHaveTextContent("Maintenance");
     expect(container.querySelector(".venue-calendar__dot--blocked")).not.toBeNull();
-    for (const bar of container.querySelectorAll(".fc-h-event")) {
-      expect((bar as HTMLElement).style.backgroundColor).toBe("transparent");
+  });
+
+  // A block over several days is drawn as a pale-red bar across every day it
+  // runs, not just a dot on its first day.
+  it("draws a multi-day block as a visible bar across its days", async () => {
+    listVenueAvailabilityMock.mockResolvedValue([
+      period({
+        type: "blocked",
+        label: "Air con maintenance",
+        endsAt: "2099-04-08T08:00:00.000Z",
+        organiserName: null,
+        coordinatorName: null,
+        heldByName: null,
+      }),
+    ]);
+
+    const { container } = renderPage();
+    await screen.findByLabelText(/Blocked .*Air con maintenance/);
+    const bars = container.querySelectorAll(".fc-h-event");
+    expect(bars.length).toBeGreaterThan(0);
+    for (const bar of bars) {
+      expect((bar as HTMLElement).style.backgroundColor).toBe("rgb(254, 242, 242)");
     }
   });
 
@@ -388,7 +408,10 @@ describe("Back to the venue", () => {
       <MemoryRouter
         initialEntries={[
           "/venues/venue-1?forEvent=event-1",
-          { pathname: "/venues/venue-1/availability", state: FROM_VENUE_DETAIL_STATE },
+          {
+            pathname: "/venues/venue-1/availability",
+            state: venueDetailReturnState("/venues/venue-1", "?forEvent=event-1"),
+          },
         ]}
         initialIndex={1}
       >
@@ -399,9 +422,51 @@ describe("Back to the venue", () => {
       </MemoryRouter>,
     );
 
-    await user.click(await screen.findByRole("button", { name: "Back to Seminar Room" }));
+    await user.click(await screen.findByRole("link", { name: "Back to Seminar Room" }));
 
     expect(await screen.findByText("VENUE PAGE /venues/venue-1?forEvent=event-1")).toBeInTheDocument();
+  });
+
+  // Venue Staff: whatever is in browser history (e.g. the catalogue), Back
+  // goes to the venue page, not one step back.
+  it("goes to the venue page even when the previous history entry is the catalogue", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/venues",
+          { pathname: "/venues/venue-1/availability", state: venueDetailReturnState("/venues/venue-1", "") },
+        ]}
+        initialIndex={1}
+      >
+        <Routes>
+          <Route path="venues" element={<p>CATALOGUE</p>} />
+          <Route path="venues/:venueId" element={<VenueProbe />} />
+          <Route path="venues/:venueId/availability" element={<VenueAvailabilityPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await user.click(await screen.findByRole("link", { name: "Back to Seminar Room" }));
+
+    expect(await screen.findByText("VENUE PAGE /venues/venue-1")).toBeInTheDocument();
+    expect(screen.queryByText("CATALOGUE")).not.toBeInTheDocument();
+  });
+
+  it("ignores a return address for a different venue", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          { pathname: "/venues/venue-1/availability", state: venueDetailReturnState("/venues/venue-2", "") },
+        ]}
+      >
+        <Routes>
+          <Route path="venues/:venueId/availability" element={<VenueAvailabilityPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("link", { name: "Back to Seminar Room" })).toHaveAttribute("href", "/venues/venue-1");
   });
 
   it("links to the venue page when opened directly", async () => {
