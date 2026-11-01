@@ -9,6 +9,7 @@ import { eventBannerUrl } from "@/features/event-banners/services/event-banners"
 import { RegistrationStatusBadge } from "@/features/registrations/components/registration-status-badge";
 import { WithdrawRegistrationDialog } from "@/features/registrations/components/withdraw-registration-dialog";
 import {
+  isAttendeeEventBeingUpdated,
   loadAttendeeEventDetail,
   type AttendeeEventDetail,
 } from "@/features/registrations/services/attendee-event";
@@ -170,6 +171,9 @@ export function EventRegistrationPage() {
   }
 
   const isConfirmed = event?.status === "confirmed";
+  // A Confirmed event back under review: still shown, venue to be confirmed,
+  // new registrations paused (the database refuses them), withdrawals allowed.
+  const isBeingUpdated = Boolean(event && isAttendeeEventBeingUpdated(event.status));
 
   const state = event
     ? computeRegistrationState(
@@ -209,6 +213,17 @@ export function EventRegistrationPage() {
             <div className="mt-6 flex flex-col gap-4">
               {/* Opened from My Registrations or the cancellation notification:
                   say so first, not only beside the registration actions. */}
+              {isBeingUpdated && (
+                <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                  <h2 className="font-semibold text-amber-900">Venue to be confirmed</h2>
+                  <p className="mt-1 text-sm text-amber-800">
+                    This event's arrangements are being updated, for example its venue.
+                    {ownStatus === "registered" || ownStatus === "waitlisted"
+                      ? " Your place is kept; the confirmed details will show here once they are settled."
+                      : " Registration reopens once the new arrangements are confirmed."}
+                  </p>
+                </section>
+              )}
               {event.status === "cancelled" && (
                 <section className="rounded-2xl border border-red-200 bg-red-50 p-5">
                   <h2 className="font-semibold text-red-900">This event was cancelled</h2>
@@ -231,7 +246,7 @@ export function EventRegistrationPage() {
                   }
                 >
                   <span className="w-fit rounded-full border border-white/40 bg-white/15 px-2.5 py-1 text-xs font-semibold text-white">
-                    {EVENT_STATUS_LABELS[event.status] ?? event.status}
+                    {isBeingUpdated ? "Being updated" : (EVENT_STATUS_LABELS[event.status] ?? event.status)}
                   </span>
                   <h1 className="text-2xl font-semibold tracking-tight text-white">{event.title}</h1>
                 </div>
@@ -242,11 +257,18 @@ export function EventRegistrationPage() {
                       ? `${dateTimeFormatter.format(new Date(event.startsAt))} – ${dateTimeFormatter.format(new Date(event.endsAt))}`
                       : "Schedule not set"}
                   </span>
-                  {event.venue.preferredLocation && (
+                  {isBeingUpdated ? (
                     <span className="flex items-center gap-2">
                       <MapPin className="size-4 text-primary" aria-hidden="true" />
-                      {event.venue.preferredLocation}
+                      Venue to be confirmed
                     </span>
+                  ) : (
+                    event.venue.preferredLocation && (
+                      <span className="flex items-center gap-2">
+                        <MapPin className="size-4 text-primary" aria-hidden="true" />
+                        {event.venue.preferredLocation}
+                      </span>
+                    )
                   )}
                   {event.organiserName && (
                     <span className="flex items-center gap-2">
@@ -313,7 +335,12 @@ export function EventRegistrationPage() {
                 )}
 
                 <div className="mt-5 border-t border-slate-100 pt-5">
-                  {!isConfirmed ? (
+                  {isBeingUpdated && state !== "registered" && state !== "waitlisted" ? (
+                    <p className="text-sm text-slate-600">
+                      Registration is paused while this event's arrangements are updated. It reopens once
+                      they are confirmed.
+                    </p>
+                  ) : !isConfirmed && !isBeingUpdated ? (
                     <p className="text-sm text-slate-600">
                       {event.status === "completed" ? (
                         <>

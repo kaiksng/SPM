@@ -22,6 +22,8 @@ export type BrowseEventSummary = {
   waitlistEnabled: boolean;
   waitlistPosition: number | null;
   state: RegistrationState;
+  /** A Confirmed event back under review: venue to be confirmed, registration paused. */
+  beingUpdated: boolean;
 };
 
 /**
@@ -55,7 +57,12 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
 
   if (error) throw new Error("We couldn't load events.");
 
-  const eventIds = data.map((event) => event.id);
+  // Confirmed events now back under review (a venue change, a change
+  // request): read through a function that returns only attendee-safe fields.
+  const { data: updating, error: updatingError } = await supabase.rpc("attendee_events_being_updated", {});
+  if (updatingError) throw new Error("We couldn't load events.");
+
+  const eventIds = [...data.map((event) => event.id), ...(updating ?? []).map((event) => event.id)];
   if (eventIds.length === 0) return [];
 
   // SPM-44: only the attendee's own rows are readable; places taken and the
@@ -78,7 +85,7 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
     }
   }
 
-  return data.map((event): BrowseEventSummary => {
+  const confirmed = data.map((event): BrowseEventSummary => {
     const req = event.event_registration_requirements;
     const registeredCount = counts.get(event.id)?.registeredCount ?? 0;
     const required = req?.registration_required ?? false;
@@ -107,6 +114,32 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
         registeredCount,
         ownStatusByEvent.get(event.id) ?? null,
       ),
+      beingUpdated: false,
     };
   });
+
+  const beingUpdated = (updating ?? []).map((event): BrowseEventSummary => {
+    const ownStatus = ownStatusByEvent.get(event.id) ?? null;
+    return {
+      id: event.id,
+      title: event.title,
+      bannerPath: event.banner_path ?? null,
+      startsAt: event.starts_at ?? null,
+      endsAt: event.ends_at ?? null,
+      location: event.location ?? null,
+      opensAt: null,
+      closesAt: null,
+      capacity: null,
+      registeredCount: 0,
+      waitlistEnabled: false,
+      waitlistPosition: counts.get(event.id)?.ownWaitlistPosition ?? null,
+      // Registration is paused; the attendee's own place still shows.
+      state: ownStatus ?? (event.registration_required ? "closed" : "not_required"),
+      beingUpdated: true,
+    };
+  });
+
+  return [...confirmed, ...beingUpdated].sort((left, right) =>
+    (left.startsAt ?? "\uffff").localeCompare(right.startsAt ?? "\uffff"),
+  );
 }

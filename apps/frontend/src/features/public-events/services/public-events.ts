@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase-client";
 
 /** Where registration stands for a signed-out visitor; no live numbers. */
-export type PublicRegistrationState = "open" | "not_open" | "closed" | "full" | "not_required";
+export type PublicRegistrationState = "open" | "not_open" | "closed" | "full" | "not_required" | "being_updated";
 
 export type PublicEventSummary = {
   id: string;
@@ -37,7 +37,10 @@ export async function listPublicEvents(limit = 6, now: Date = new Date()): Promi
       bannerPath: row.banner_path ?? null,
       opensAt,
       // The same order as computeRegistrationState (@spm/shared).
-      registration: !row.registration_required
+      // A Confirmed event back under review: its venue is to be confirmed.
+      registration: row.being_updated
+        ? "being_updated"
+        : !row.registration_required
         ? "not_required"
         : opensAt && now < new Date(opensAt)
           ? "not_open"

@@ -55,9 +55,12 @@ export async function loadAttendeeEventDetail(eventId: string): Promise<Attendee
     .eq("id", eventId)
     .maybeSingle();
 
-  if (error || !data) {
+  if (error) {
     throw new Error("This event is unavailable or you do not have access to it.");
   }
+  // Not readable directly: it may be a Confirmed event back under review,
+  // which attendees still see through its attendee-safe details.
+  if (!data) return loadEventBeingUpdated(eventId);
 
   const registration = data.event_registration_requirements;
 
@@ -78,6 +81,39 @@ export async function loadAttendeeEventDetail(eventId: string): Promise<Attendee
       capacity: registration?.attendee_capacity ?? null,
       waitlistEnabled: registration?.waitlist_enabled ?? false,
       withdrawalPermitted: registration?.withdrawal_permitted ?? false,
+    },
+  };
+}
+
+/** True when a Confirmed event is back under review: Planning or Pending Safety Check. */
+export function isAttendeeEventBeingUpdated(status: string) {
+  return status === "planning" || status === "pending_safety_check";
+}
+
+async function loadEventBeingUpdated(eventId: string): Promise<AttendeeEventDetail> {
+  const { data, error } = await supabase.rpc("attendee_events_being_updated", { p_event_id: eventId });
+  const event = data?.[0];
+  if (error || !event) {
+    throw new Error("This event is unavailable or you do not have access to it.");
+  }
+  return {
+    id: event.id,
+    title: event.title,
+    description: event.description ?? null,
+    startsAt: event.starts_at ?? null,
+    endsAt: event.ends_at ?? null,
+    // Any re-review status reads the same to an attendee.
+    status: "planning",
+    organiserName: null,
+    bannerPath: event.banner_path ?? null,
+    venue: { preferredLocation: event.location ?? null },
+    registration: {
+      required: event.registration_required,
+      opensAt: null,
+      closesAt: null,
+      capacity: null,
+      waitlistEnabled: false,
+      withdrawalPermitted: event.withdrawal_permitted,
     },
   };
 }

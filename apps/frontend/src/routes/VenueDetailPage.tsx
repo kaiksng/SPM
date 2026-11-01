@@ -8,6 +8,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from "reac
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { eventStatusLabel } from "@/features/event-requests/components/status-badges";
 import { loadEventDetail, type EventDetail } from "@/features/event-requests/services/event-details";
 import { BookingActivityList } from "@/features/venues/components/booking-activity-list";
 import {
@@ -201,8 +202,16 @@ export function VenueDetailPage() {
         // returns the event to Planning); a new request only for Planning.
         const requestableStatus =
           detail.status === "planning" || (Boolean(replacesBookingId) && detail.status === "confirmed");
-        if (!requestableStatus || !detail.startsAt || !detail.endsAt) {
-          setAvailabilityError("This event is not ready for a venue request.");
+        // Say which rule stops the request: it's about the event, not
+        // this venue, which otherwise reads as "the venue isn't available".
+        if (!requestableStatus) {
+          setAvailabilityError(
+            `This event is ${eventStatusLabel(detail.status)}. Venues can only be requested while it is in Planning.`,
+          );
+          return;
+        }
+        if (!detail.startsAt || !detail.endsAt) {
+          setAvailabilityError("Add the event's start and end time before requesting a venue.");
           return;
         }
         // Same function submitVenueBookingRequest/decideVenueBookingRequest

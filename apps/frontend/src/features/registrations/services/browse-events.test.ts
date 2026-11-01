@@ -37,11 +37,14 @@ function given(
   events: unknown[],
   ownRows: unknown[] = [],
   counts: { event_id: string; registered_count: number; own_waitlist_position: number | null }[] = [],
+  updating: unknown[] = [],
 ) {
   const eventsQuery = queryBuilder({ data: events, error: null });
   const ownQuery = queryBuilder({ data: ownRows, error: null });
   fromMock.mockImplementation((table: string) => (table === "events" ? eventsQuery : ownQuery));
-  rpcMock.mockResolvedValue({ data: counts, error: null });
+  rpcMock.mockImplementation(async (name: string) =>
+    name === "attendee_events_being_updated" ? { data: updating, error: null } : { data: counts, error: null },
+  );
   return { eventsQuery, ownQuery: ownQuery as QueryBuilderMock };
 }
 
@@ -148,14 +151,46 @@ describe("listBrowseEvents", () => {
     expect(events.map((event) => event.registeredCount)).toEqual([12, 3]);
   });
 
-  it("returns an empty list without a second query when there are no events", async () => {
+  it("returns an empty list without further queries when there are no events", async () => {
     fromMock.mockReturnValueOnce(queryBuilder({ data: [], error: null }));
+    rpcMock.mockResolvedValue({ data: [], error: null });
 
     const events = await listBrowseEvents(ATTENDEE_ID);
 
     expect(events).toEqual([]);
     expect(fromMock).toHaveBeenCalledTimes(1);
-    expect(rpcMock).not.toHaveBeenCalled();
+    expect(rpcMock).not.toHaveBeenCalledWith("event_registration_counts", expect.anything());
+  });
+
+  // A Confirmed event back under review stays listed, marked as being
+  // updated, with the attendee's own place still shown.
+  it("lists events being updated, keeping the attendee's own registration", async () => {
+    given(
+      [eventRow("event-1")],
+      [{ event_id: "event-9", status: "registered" }],
+      [{ event_id: "event-1", registered_count: 0, own_waitlist_position: null }],
+      [
+        {
+          id: "event-9",
+          title: "Updating Gala",
+          description: null,
+          starts_at: "2026-11-25T01:00:00Z",
+          ends_at: "2026-11-25T05:00:00Z",
+          location: "Marina Bay",
+          banner_path: null,
+          registration_required: true,
+          withdrawal_permitted: true,
+        },
+      ],
+    );
+
+    const events = await listBrowseEvents(ATTENDEE_ID);
+
+    expect(events.map((event) => [event.id, event.beingUpdated])).toEqual([
+      ["event-1", false],
+      ["event-9", true],
+    ]);
+    expect(events[1]).toMatchObject({ state: "registered", capacity: null });
   });
 
   it("throws a friendly error when the events query fails", async () => {

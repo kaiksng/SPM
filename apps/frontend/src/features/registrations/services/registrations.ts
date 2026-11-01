@@ -112,6 +112,8 @@ export type MyRegistration = {
   registeredAt: string;
   waitlistPosition: number | null;
   withdrawalPermitted: boolean;
+  /** A Confirmed event back under review: venue to be confirmed. */
+  eventBeingUpdated: boolean;
 };
 
 /**
@@ -132,6 +134,7 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
         event:events (
           id,
           title,
+          status,
           starts_at,
           ends_at,
           event_venue_requirements ( preferred_location ),
@@ -168,6 +171,9 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
       registeredAt: row.registered_at,
       waitlistPosition: counts.get(eventId)?.ownWaitlistPosition ?? null,
       withdrawalPermitted: row.event!.event_registration_requirements?.withdrawal_permitted ?? false,
+      // A registration only exists once an event was Confirmed, so Planning
+      // or Pending Safety Check here means it is being updated.
+      eventBeingUpdated: row.event!.status === "planning" || row.event!.status === "pending_safety_check",
     };
   });
 }

@@ -365,6 +365,21 @@ describe("NotificationBell", () => {
     expect(navigateMock).toHaveBeenCalledWith("/browse-events/e13");
   });
 
+  // An attendee told their event is being updated opens its attendee page.
+  it("routes an arrangements-updating notification to the attendee's event page", async () => {
+    listNotificationsMock.mockResolvedValue([
+      { ...UNREAD, id: "n14", type: "event_arrangements_updating" as const, title: "Event arrangements being updated", eventId: "e14" },
+    ]);
+    getUnreadNotificationCountMock.mockResolvedValue(1);
+    const user = userEvent.setup();
+
+    renderBell();
+    await user.click(await screen.findByRole("button", { name: "Notifications, 1 unread" }));
+    await user.click(await screen.findByText("Event arrangements being updated"));
+
+    expect(navigateMock).toHaveBeenCalledWith("/browse-events/e14");
+  });
+
   // The organiser's registration set-up / over-capacity notice opens the
   // event's Registration section, where they fix it.
   it("routes a registration notification to the event's Registration section", async () => {

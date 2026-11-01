@@ -243,6 +243,9 @@ function RegistrationRow({
             </span>
           )}
         </div>
+        {registration.eventBeingUpdated && (registration.status === "registered" || registration.status === "waitlisted") && (
+          <p className="mt-1 text-xs font-medium text-amber-800">Venue to be confirmed — arrangements are being updated. Your place is kept.</p>
+        )}
         {registration.status === "waitlisted" && registration.waitlistPosition !== null && (
           <p className="mt-1 text-xs text-amber-700">Position {registration.waitlistPosition}</p>
         )}

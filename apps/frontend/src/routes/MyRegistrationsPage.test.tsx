@@ -136,6 +136,13 @@ describe("MyRegistrationsPage", () => {
     expect(withdraw.parentElement).not.toHaveTextContent("Registered");
   });
 
+  it("notes that an event being updated keeps the attendee's place", async () => {
+    listMyRegistrationsMock.mockResolvedValue([{ ...registration, eventBeingUpdated: true }]);
+    renderPage();
+
+    expect(await screen.findByText(/Venue to be confirmed.*Your place is kept/)).toBeInTheDocument();
+  });
+
   it("hides the withdraw action when the event does not permit it", async () => {
     listMyRegistrationsMock.mockResolvedValue([registration]);
     renderPage();
