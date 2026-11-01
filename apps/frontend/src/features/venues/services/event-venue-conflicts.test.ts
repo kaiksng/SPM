@@ -6,7 +6,7 @@ const { rpcMock, fromMock } = vi.hoisted(() => ({ rpcMock: vi.fn(), fromMock: vi
 
 vi.mock("@/lib/supabase-client", () => ({ supabase: { rpc: rpcMock, from: fromMock } }));
 
-import { listEventIdsWithVenueConflict, listEventVenueConflicts } from "./event-venue-conflicts";
+import { listEventVenueConflicts, listVenueConflictsForCoordinator } from "./event-venue-conflicts";
 
 beforeEach(() => {
   rpcMock.mockReset();
@@ -58,28 +58,50 @@ describe("listEventVenueConflicts", () => {
   });
 });
 
-describe("listEventIdsWithVenueConflict", () => {
-  // The coordinator's events whose booking has to move, once each.
-  it("returns each event with an open conflict it has to move for", async () => {
-    const builder = queryBuilder({
-      data: [
-        { booking: { event_id: "event-1", status: "approved" } },
-        { booking: { event_id: "event-1", status: "approved" } },
-        { booking: { event_id: "event-2", status: "pending" } },
-      ],
-      error: null,
-    });
-    fromMock.mockReturnValue(builder);
+describe("listVenueConflictsForCoordinator", () => {
+  function row(bookingId: string, blockReason: string | null) {
+    return {
+      booking: {
+        id: bookingId, event_id: `event-${bookingId}`, status: "approved",
+        starts_at: "2099-04-06T02:00:00.000Z", ends_at: "2099-04-06T04:00:00.000Z",
+        events: { title: `Event ${bookingId}` }, venues: { name: "SMU Connex" },
+      },
+      conflicting_block: blockReason === null ? null : { reason: blockReason },
+    };
+  }
 
-    await expect(listEventIdsWithVenueConflict()).resolves.toEqual(["event-1", "event-2"]);
-    expect(fromMock).toHaveBeenCalledWith("venue_booking_conflicts");
-    expect(builder.is).toHaveBeenCalledWith("resolved_at", null);
-    expect(builder.eq).toHaveBeenCalledWith("is_responsible", true);
+  // One row per booking that has to move, with whether a replacement is in.
+  it("returns each booking that has to move, once, with its replacement state", async () => {
+    const conflicts = queryBuilder({ data: [row("b-1", null), row("b-1", "Failed mic"), row("b-2", null)], error: null });
+    const replacements = queryBuilder({ data: [{ replaces_booking_id: "b-2" }], error: null });
+    fromMock.mockImplementation((table: string) => (table === "venue_booking_conflicts" ? conflicts : replacements));
+
+    await expect(listVenueConflictsForCoordinator()).resolves.toEqual([
+      {
+        bookingId: "b-1", eventId: "event-b-1", eventTitle: "Event b-1", venueName: "SMU Connex",
+        bookingStartsAt: "2099-04-06T02:00:00.000Z", bookingEndsAt: "2099-04-06T04:00:00.000Z",
+        blockReason: "Failed mic", state: "replacement_required",
+      },
+      {
+        bookingId: "b-2", eventId: "event-b-2", eventTitle: "Event b-2", venueName: "SMU Connex",
+        bookingStartsAt: "2099-04-06T02:00:00.000Z", bookingEndsAt: "2099-04-06T04:00:00.000Z",
+        blockReason: null, state: "replacement_requested",
+      },
+    ]);
+    expect(conflicts.is).toHaveBeenCalledWith("resolved_at", null);
+    expect(conflicts.eq).toHaveBeenCalledWith("is_responsible", true);
+  });
+
+  it("returns nothing without looking for replacements when nothing has to move", async () => {
+    fromMock.mockReturnValue(queryBuilder({ data: [], error: null }));
+
+    await expect(listVenueConflictsForCoordinator()).resolves.toEqual([]);
+    expect(fromMock).toHaveBeenCalledTimes(1);
   });
 
   it("throws a readable error when the conflicts cannot be loaded", async () => {
     fromMock.mockReturnValue(queryBuilder({ data: null, error: { message: "boom" } }));
 
-    await expect(listEventIdsWithVenueConflict()).rejects.toThrow("Venue conflicts are unavailable.");
+    await expect(listVenueConflictsForCoordinator()).rejects.toThrow("Venue conflicts are unavailable.");
   });
 });

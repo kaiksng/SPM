@@ -204,7 +204,7 @@ describe("EventVenueBookings: a venue conflict", () => {
   it("keeps a booking that has to move until its replacement is approved", () => {
     renderBookings([approved], { conflicts: [conflict()] });
 
-    expect(screen.getByText("Conflict")).toBeInTheDocument();
+    expect(screen.getByText("Venue issue")).toBeInTheDocument();
     expect(screen.getByText(/This venue clashes with another booking\. The booking stays until its replacement is approved/))
       .toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
@@ -221,7 +221,7 @@ describe("EventVenueBookings: a venue conflict", () => {
       conflicts: [conflict({ mustMove: false, conflictingEventTitle: "F1 Event Part 2" })],
     });
 
-    expect(screen.queryByText("Conflict")).not.toBeInTheDocument();
+    expect(screen.queryByText("Venue issue")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByText(/That booking was made later, so it is the one expected to move\. No action is needed from you\./))
       .toBeInTheDocument();
@@ -230,7 +230,7 @@ describe("EventVenueBookings: a venue conflict", () => {
   it("shows nothing for a booking that is no longer active", () => {
     renderBookings([booking({ status: "cancelled" })], { conflicts: [conflict()] });
 
-    expect(screen.queryByText("Conflict")).not.toBeInTheDocument();
+    expect(screen.queryByText("Venue issue")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

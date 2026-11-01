@@ -74,7 +74,10 @@ import {
   splitVenueDisruptions,
   useVenueDisruptions,
 } from "@/features/venues/components/affected-venue-bookings";
-import { listEventIdsWithVenueConflict } from "@/features/venues/services/event-venue-conflicts";
+import {
+  listVenueConflictsForCoordinator,
+  type CoordinatorVenueConflict,
+} from "@/features/venues/services/event-venue-conflicts";
 import { loadMainVenueCapacity } from "@/features/registrations/services/registration-settings";
 import { PagePlaceholder } from "@/features/workspace/components/page-placeholder";
 import { ListToolbar } from "@/features/workspace/components/list-toolbar";
@@ -293,8 +296,8 @@ function CoordinatorEventsView() {
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") ?? "");
   const [filters, setFilters] = useState<EventFilterValues>(() => eventFiltersFromParams(searchParams));
   const { disruptions, error: disruptionError } = useVenueDisruptions();
-  // Events with a venue booking that has to move because of a conflict.
-  const [eventsWithVenueConflict, setEventsWithVenueConflict] = useState<Set<string>>(new Set());
+  // Bookings that have to move because of a conflict: a venue issue too.
+  const [venueConflicts, setVenueConflicts] = useState<CoordinatorVenueConflict[]>([]);
 
   // Kept in the URL so it's still there when the user goes back from a detail page.
   useEffect(() => {
@@ -303,17 +306,20 @@ function CoordinatorEventsView() {
     setSearchParams(eventParamsFromFilters(searchQuery, filters), { replace: true, state });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, filters]);
-  // Events with a venue disruption that still needs attention get a badge.
-  const eventsWithVenueIssue = new Set(
-    splitVenueDisruptions(disruptions).open.map((item) => item.eventId),
-  );
+  // Only conflicts on events still assigned to this coordinator.
+  const assignedConflicts = venueConflicts.filter((item) => events.some((event) => event.id === item.eventId));
+  // Events with a venue disruption or conflict that still needs attention get a badge.
+  const eventsWithVenueIssue = new Set([
+    ...splitVenueDisruptions(disruptions).open.map((item) => item.eventId),
+    ...assignedConflicts.map((item) => item.eventId),
+  ]);
 
   useEffect(() => {
     let active = true;
-    // Non-critical: without it the cards simply show no conflict badge.
-    listEventIdsWithVenueConflict()
-      .then((ids) => {
-        if (active) setEventsWithVenueConflict(new Set(ids));
+    // Non-critical: without it the page simply shows disruptions alone.
+    listVenueConflictsForCoordinator()
+      .then((items) => {
+        if (active) setVenueConflicts(items);
       })
       .catch(() => undefined);
     return () => {
@@ -431,7 +437,6 @@ function CoordinatorEventsView() {
                         key={event.id}
                         event={event}
                         venueIssue={eventsWithVenueIssue.has(event.id)}
-                        venueConflict={eventsWithVenueConflict.has(event.id)}
                       />
                     ))}
                   </div>
@@ -453,7 +458,6 @@ function CoordinatorEventsView() {
                         key={event.id}
                         event={event}
                         venueIssue={eventsWithVenueIssue.has(event.id)}
-                        venueConflict={eventsWithVenueConflict.has(event.id)}
                       />
                     ))}
                   </div>
@@ -462,7 +466,7 @@ function CoordinatorEventsView() {
             </>
           )}
 
-          <AffectedVenueBookings disruptions={disruptions} error={disruptionError} />
+          <AffectedVenueBookings disruptions={disruptions} conflicts={assignedConflicts} error={disruptionError} />
         </div>
       </div>
     </RoleGate>
@@ -1222,12 +1226,9 @@ function EventCard({
 function AssignedEventCard({
   event,
   venueIssue = false,
-  venueConflict = false,
 }: {
   event: AssignedEventSummary;
   venueIssue?: boolean;
-  /** A booking has to move: booked after the one it overlaps, or over a venue block. */
-  venueConflict?: boolean;
 }) {
   const [reviewState, setReviewState] = useState<{
     status: "open" | "answered";
@@ -1259,11 +1260,6 @@ function AssignedEventCard({
           {venueIssue && (
             <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800">
               Venue issue
-            </span>
-          )}
-          {venueConflict && (
-            <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
-              Venue conflict
             </span>
           )}
         </div>

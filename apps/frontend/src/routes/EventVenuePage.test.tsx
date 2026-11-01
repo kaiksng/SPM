@@ -522,7 +522,7 @@ describe("EventVenuePage", () => {
     expect(within(card).getByText(/no longer suitable for the event/)).toBeInTheDocument();
 
     const bookingsList = screen.getByRole("region", { name: "Venue bookings" });
-    expect(within(bookingsList).getByText("Conflict")).toBeInTheDocument();
+    expect(within(bookingsList).getByText("Venue issue")).toBeInTheDocument();
     expect(within(bookingsList).getByText(/clashes with another booking\. The booking stays until its replacement is approved/))
       .toBeInTheDocument();
     expect(within(bookingsList).queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();

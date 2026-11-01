@@ -44,21 +44,78 @@ export async function listEventVenueConflicts(eventId: string): Promise<EventVen
   }));
 }
 
+const ACTIVE_BOOKING_STATUSES = ["pending", "approved", "on_hold"] as const;
+
 /**
- * The signed-in coordinator's events with a venue booking that has to move:
- * it was booked after the booking it overlaps, or it overlaps a venue block.
- * For the badge on their events list. RLS limits the conflicts to the
- * coordinator's own events (202611010005), so this needs no extra filter.
+ * One of the signed-in coordinator's venue bookings that has to move because
+ * of a conflict, for the Venue issue badge and the Affected venue bookings
+ * table, next to disruptions. `blockReason` is set when it overlaps a venue
+ * block; otherwise it overlaps a booking made first.
  */
-export async function listEventIdsWithVenueConflict(): Promise<string[]> {
+export type CoordinatorVenueConflict = {
+  bookingId: string;
+  eventId: string;
+  eventTitle: string;
+  venueName: string;
+  bookingStartsAt: string;
+  bookingEndsAt: string;
+  blockReason: string | null;
+  /** Whether a replacement has been requested (202611010015). */
+  state: "replacement_required" | "replacement_requested";
+};
+
+/**
+ * The signed-in coordinator's bookings that have to move: requested after the
+ * booking they overlap, or overlapping a venue block. RLS limits the conflicts
+ * to the coordinator's own events (202611010005); callers keep only the
+ * events currently assigned to them.
+ */
+export async function listVenueConflictsForCoordinator(): Promise<CoordinatorVenueConflict[]> {
   const { data, error } = await supabase
     .from("venue_booking_conflicts")
-    .select("booking:venue_bookings!venue_booking_conflicts_booking_id_fkey!inner (event_id, status)")
+    .select(
+      `
+        booking:venue_bookings!venue_booking_conflicts_booking_id_fkey!inner (
+          id, event_id, status, starts_at, ends_at, events (title), venues (name)
+        ),
+        conflicting_block:venue_unavailability!venue_booking_conflicts_conflicting_block_id_fkey (reason)
+      `,
+    )
     .is("resolved_at", null)
     .eq("is_responsible", true)
-    .in("booking.status", ["pending", "approved", "on_hold"]);
+    .in("booking.status", [...ACTIVE_BOOKING_STATUSES]);
 
   if (error) throw new Error("Venue conflicts are unavailable.");
 
-  return [...new Set((data ?? []).map((row) => row.booking.event_id))];
+  // One row per booking; a block is named over another booking if it has both.
+  const byBooking = new Map<string, CoordinatorVenueConflict>();
+  for (const row of data ?? []) {
+    const existing = byBooking.get(row.booking.id);
+    if (existing && (existing.blockReason !== null || !row.conflicting_block)) continue;
+    byBooking.set(row.booking.id, {
+      bookingId: row.booking.id,
+      eventId: row.booking.event_id,
+      eventTitle: row.booking.events?.title ?? "Unknown event",
+      venueName: row.booking.venues?.name ?? "Unknown venue",
+      bookingStartsAt: row.booking.starts_at,
+      bookingEndsAt: row.booking.ends_at,
+      blockReason: row.conflicting_block ? (row.conflicting_block.reason ?? "Reason not recorded") : null,
+      state: "replacement_required",
+    });
+  }
+  if (byBooking.size === 0) return [];
+
+  const replacements = await supabase
+    .from("venue_bookings")
+    .select("replaces_booking_id")
+    .in("replaces_booking_id", [...byBooking.keys()])
+    .in("status", [...ACTIVE_BOOKING_STATUSES]);
+  if (replacements.error) throw new Error("Venue conflicts are unavailable.");
+
+  for (const row of replacements.data ?? []) {
+    const item = row.replaces_booking_id ? byBooking.get(row.replaces_booking_id) : undefined;
+    if (item) item.state = "replacement_requested";
+  }
+
+  return [...byBooking.values()];
 }

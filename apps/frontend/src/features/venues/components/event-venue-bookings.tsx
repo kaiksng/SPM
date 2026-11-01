@@ -116,8 +116,8 @@ export function EventVenueBookings({
                 )}
                 <VenueBookingStatusBadge status={booking.status} />
                 {mustMove && (
-                  <span className="inline-block rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-amber-800">
-                    Conflict
+                  <span className="inline-block rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-red-800">
+                    Venue issue
                   </span>
                 )}
               </div>
