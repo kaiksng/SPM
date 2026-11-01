@@ -1,417 +1,711 @@
-# ConnectSphere manual E2E journeys
+# ConnectSphere: follow-along testing guide
 
-Start with E2E-01, then E2E-02 through E2E-06: failures here can expose another user's information, double-commit resources, lose arrangements, or allow an unsafe event to proceed. E2E-07 through E2E-09 cover the next most useful extensions. E2E-00 is a quick signed-out smoke check.
+This guide walks you through **five critical end-to-end journeys** on the ConnectSphere website. You do not need to have used the site before. Each part tells you which person to sign in as, what to click, and what you should see.
 
-Prepared 31 October 2026 from `staging-kk`, HEAD `624da4c5c5f59483bbfb1b5a64ce9fcf1264b70a`, **including the working-tree safety-history changes**. This is an inspection-based specification, not an execution report. No application, tests, setup scripts, accounts or database operations were run. No existing UAT records were changed. Main was not fetched/merged and dependencies were not installed because this request explicitly limits work to inspection/documentation. Deployment parity with this checkout is unverified.
+## What end-to-end testing means here
 
-## Requirements and evidence
+An end-to-end (E2E) test uses the real website, backend and database, the way real people do. Several people with different roles hand work to each other, and you check that every handoff gives the result the requirements promise. It is different from a unit test, which checks one piece of code, and from an integration test, which checks the backend and database without a browser.
 
-The user confirmed `/Users/kaiks/Downloads/SPM List - Jira (6).csv` as the latest export. Its SHA-256 is `384255afb34a03ec2dac08f28242f15e7e702af5414f117c3336b5fc421926ae`. Read `Issue key`, `Summary` and the complete `Description`, rather than inferring requirements from Jira status. Explicit AC IDs below retain the source numbering. For unnumbered criteria, `AC: ...` identifies the requirement by wording; it does **not** introduce new AC numbers.
+The expected results in this guide come from the **requirements** (the Jira stories and the Week 7 customer changes), not from what the code happens to do. Each check names the story it proves, such as `(SPM-87 AC02)`. If the website behaves differently from the expected result, that is a failure to report even if it looks reasonable.
 
-The Week 7 customer PDF at `/Users/kaiks/Library/CloudStorage/OneDrive-SingaporeManagementUniversity/Y3/Y3S1/IS212 Software Project Management/Project/Week 7 Customer Changes IS212.pdf` independently requires buffers, disruption recovery, multiple venues, expiring holds, lead assignment and safety review (pages 1–2). The original customer briefing gives the connected business process; it is broader than Release 1 and is not used to add unrequested features. Local `.claude/project-knowledge.md` supplies pointers only; current Jira, migrations and source were inspected separately.
+| Journey | Business flow | Main requirements it proves |
+| --- | --- | --- |
+| [1. Plan an event and register an attendee](#flow-1-plan-an-event-and-register-an-attendee) | Request → assignment → venue and equipment → safety approval → registration | SPM-2, 3, 7, 24, 25, 27, 32, 33, 40, 41, 80, 81, 90 |
+| [2. Buffer conflict](#flow-2-buffer-conflict--setup-and-turnaround-time-block-a-second-booking) | Setup and turnaround time block a second booking; cancelling frees it | SPM-20, 26, 45, 86, 87 |
+| [3. Change a confirmed event](#flow-3-change-a-confirmed-event) | Request a change → review → apply → safety approval again | SPM-38, 39, 33, 90 |
+| [4. Replace an unavailable venue](#flow-4-replace-an-unavailable-venue) | Record a venue problem → arrange a replacement → safety approval again | SPM-19, 82, 83 |
+| [5. Cancel an event](#flow-5-cancel-an-event) | Cancel → release resources → inform the affected people | SPM-45, 76, 11 |
 
-Repository evidence to revisit if labels or behaviour change:
+All five are high priority. They test whether a complete business process works across different people, rather than every field or button.
 
-| Area | Execution path and supporting evidence, all inspected statically |
+**These journeys have not been executed.** Ask Kai Kin for the shared password, then follow the journeys in order. You do not need to set up the database or create accounts yourself.
+
+## Rules for the shared staging site
+
+These journeys run on the team's **shared staging site**, which uses the shared database. Other teammates' work lives there, so be careful.
+
+- **Use the exact event names in the table below.** Type them exactly as written, with the same capital letters and spacing. They are fixed so everyone follows the same script and your records are easy to recognise.
+- **Check the name is free first.** Before creating an event, open **Events** and look for that name. If a previous run left one behind, add ` 2` to the end (for example `Year-End Team Planning Meeting 2`) and use that longer name everywhere in the journey, including searches.
+- **Only touch the events you created in this run.** Never edit, cancel or remove anything else, even if its name looks similar.
+- **Never create accounts** in the website or the database. Use the supplied accounts only.
+- **Use only the venues and equipment named in the Fixed test data table.** Never change a venue's setup/turnaround time, capacity or equipment stock.
+- **Clean up at the end of every journey** with the steps in its Finish section. Cancelling frees the venue and equipment, but history stays. Record anything you could not clean up.
+- **Do not run database commands** (`supabase db push`, migration repair, SQL). If the website looks out of date or a page errors in a way that suggests a missing update, mark the step **Blocked** and tell the team.
+- **Do not run two testers on the same venue and date.** Agree separate dates first. Each journey has its own date so they do not clash.
+
+### Event names to type
+
+| Journey | Type this in **Event name** | Notes |
+| --- | --- | --- |
+| 1 | `Year-End Team Planning Meeting` | Registration required, 20 people |
+| 2, first event | `Product Launch Briefing` | 10:00–12:00 |
+| 2, second event | `Sales Kickoff Workshop` | 12:30–14:00, later moved to 13:15–15:00 |
+| 3 | `Quarterly Strategy Review` | Attendance 20, later changed to 30 |
+| 4 | `Department Planning Retreat` | Also used in the maintenance block reason |
+| 5 | `Customer Feedback Roundtable` | One attendee registers |
+
+In every journey, use the same **Description** unless the step says otherwise: `Meeting arranged for end-to-end testing of ConnectSphere.`
+
+### Fixed test data
+
+These were checked against the staging database on 1 November 2026 (see `e2e-preflight-check.sql`). Use them exactly. Every journey uses the same venue on a **different date**, so journeys never clash with each other.
+
+| Item | Use this |
 | --- | --- |
-| Routes and role navigation | [App.tsx](../../apps/frontend/src/App.tsx), [navigation.ts](../../packages/shared/src/domain/navigation.ts), [RoleGate.tsx](../../apps/frontend/src/routes/RoleGate.tsx) |
-| Intake, assignment and review | [EventsPage.tsx](../../apps/frontend/src/routes/EventsPage.tsx), [EventRequestEditorPage.tsx](../../apps/frontend/src/routes/EventRequestEditorPage.tsx), [clarification-panel.tsx](../../apps/frontend/src/features/event-requests/components/clarification-panel.tsx), [assign-coordinator-dialog.tsx](../../apps/frontend/src/features/event-requests/components/assign-coordinator-dialog.tsx); migrations `202610050003`, `202610050005`, `202610300012`; pgTAP `spm81_assign_event_coordinator`, `spm84_reassign_event_coordinator`, `spm7_approve_reject_event_request` |
-| Venue selection and decisions | [EventVenuePage.tsx](../../apps/frontend/src/routes/EventVenuePage.tsx), [VenueDetailPage.tsx](../../apps/frontend/src/routes/VenueDetailPage.tsx), [VenueRequestsPage.tsx](../../apps/frontend/src/routes/VenueRequestsPage.tsx), [venue-bookings.ts](../../apps/frontend/src/features/venues/services/venue-bookings.ts); backend `venue-booking-submissions.route.ts`, `venue-booking-decisions.route.ts`, `venue-booking-hold.route.ts`; migrations `202610100003`–`202610100006`, `202610170002`, `202610170004`, `202610310003`; pgTAP `spm26_prevent_venue_booking_conflicts`, `spm85_multi_venue_bookings`, `venue_booking_hold` |
-| Disruption and replacement | [VenueBlocksPage.tsx](../../apps/frontend/src/routes/VenueBlocksPage.tsx), [suggested-venues-panel.tsx](../../apps/frontend/src/features/event-requests/components/suggested-venues-panel.tsx); migrations `202610120004`, `202610140002`, `202610140003`, `202610190006`; pgTAP `spm83_venue_block_disruptions`, `spm82_replacement_venue` |
-| Equipment to safety | [EventEquipmentPage.tsx](../../apps/frontend/src/routes/EventEquipmentPage.tsx), [event-equipment-availability.tsx](../../apps/frontend/src/features/equipment/components/event-equipment-availability.tsx), [EventSafetyCheckPage.tsx](../../apps/frontend/src/routes/EventSafetyCheckPage.tsx), [SafetyCheckReviewPage.tsx](../../apps/frontend/src/routes/SafetyCheckReviewPage.tsx); backend `event-safety-check.route.ts`; migrations `202610300007`–`202610300009`, `202610190004`, `202610200010`, `202610250002`; pgTAP `coordinator_requests_equipment`, `reserve_equipment`, `submit_event_for_safety_check`, `approve_event_safety_check` |
-| Registration, changes, cancellation | [EventRegistrationPage.tsx](../../apps/frontend/src/routes/EventRegistrationPage.tsx), [registration-settings-section.tsx](../../apps/frontend/src/features/registrations/components/registration-settings-section.tsx), [change-request-panel.tsx](../../apps/frontend/src/features/event-requests/components/change-request-panel.tsx), [ChangeRequestApplyPage.tsx](../../apps/frontend/src/routes/ChangeRequestApplyPage.tsx); backend `event-registrations.route.ts`, `event-change-requests.route.ts`, `event-cancellation.route.ts`; migrations `202610200011`, `202610230005`, `202610240002`, `202610270005`, `202610300004`, `202610300005`; pgTAP `event_waitlist`, `spm39_apply_event_change_request`, `spm45_cancel_event` |
-| Safety history, local changes | [SafetyChecksPage.tsx](../../apps/frontend/src/routes/SafetyChecksPage.tsx), [SafetyCheckHistoryPage.tsx](../../apps/frontend/src/routes/SafetyCheckHistoryPage.tsx), [202610310004_safety_review_history.sql](../../supabase/migrations/202610310004_safety_review_history.sql), [safety_review_history.test.sql](../../supabase/tests/database/safety_review_history.test.sql) |
+| Main venue (all journeys) | **Grand Auditorium** (City Hall, capacity 500, Theatre layout, step-free, setup 30 min, turnaround 45 min, open 08:00–22:00 every day) |
+| Replacement venue (Journey 4) | **Central Civic Hall** (Central Area, capacity 300, Theatre layout, step-free, open 08:00–22:00 every day) |
+| Equipment (Journeys 1, 3, 4, 5) | **Projector** (category Visual, 100 units in service) |
+| Event form: Preferred location | `City Hall` |
+| Event form: Room layout | `Theatre` |
+| Event form: Accessibility needs | `Step-free access` |
+| Journey 1 date | Monday 16 November 2026 |
+| Journey 2 date | Tuesday 17 November 2026 |
+| Journey 3 date | Wednesday 18 November 2026 |
+| Journey 4 date | Thursday 19 November 2026 |
+| Journey 5 date | Friday 20 November 2026 |
+| Registration **Opens** (Journeys 1 and 5) | One hour before the moment you click **Save**, today's date, Singapore time (at 14:30 type 13:30) |
+| Registration **Closes** (Journeys 1 and 5) | 09:00 on that journey's event date |
 
-Migration identifiers above are filename prefixes in [supabase/migrations](../../supabase/migrations); database-test names identify `.test.sql` files in [supabase/tests/database](../../supabase/tests/database). Frontend component and mocked backend tests support the controls/error paths, but do not prove the real multi-role journey. See also the [integration coverage matrix](integration-coverage-matrix.md), whose recorded results were not rerun for this task.
+**If you run a journey a second time,** add 7 days to its date (for example Journey 1 moves to Monday 23 November) so it cannot clash with the first run's leftover bookings. If someone else has already booked Grand Auditorium on your date, the venue page will say it is already occupied; move to the same weekday one week later.
 
-## Readiness and decisions
+## Before you start
 
-**No authenticated journey is verified ready for execution today.** Accounts, passwords, data, running URLs and applied migrations were deliberately not checked against a database. The specifications are concrete after the manifest below is completed. Missing prerequisites mean **Blocked**, not Fail. All journeys remain **Not Executed** until a tester starts them.
+### Get the website and accounts
 
-| Journey | Priority | Design readiness / execution blocker |
-| --- | --- | --- |
-| E2E-00 | P1 | Ready as a read-only smoke design; requires a running approved local frontend URL only |
-| E2E-01 | P0 | Core path specified; requires all seven roles and dedicated venue/equipment; historical assignment/confirmation conflicts D1–D2 explained below |
-| E2E-02 | P0 | Specified; requires a second organiser and coordinator; optional-reason discrepancy D4 remains separate |
-| E2E-03 | P0 | Specified; requires exclusive buffered venue and two fresh Planning events |
-| E2E-04 | P0 | Specified; requires a fresh Confirmed event with registrations and resources |
-| E2E-05 | P0 | Main-venue replacement specified; D3 remains a contradictory older scenario; breakout replacement is blocked by D5 |
-| E2E-06 | P0 | Change and safety re-review specified; safety-history portion additionally requires local migration `202610310004` |
-| E2E-07 | P1 | Specified; requires two distinct attendees and capacity-one event |
-| E2E-08 | P1 | Independent-room subset specified; required-room cascade/full-history acceptance blocked by D5 |
-| E2E-09 | P1 | Specified; requires two fresh holds and controlled real expiry time; latest expiry availability migration required |
+Website to use: ____________________
 
-Requirements conflicts must remain visible; code is not the acceptance oracle:
+Use exactly these accounts. **The password is the same for every account and is not written in this file: ask Kai Kin for it.** Do not paste it into screenshots, tickets or chat channels.
 
-| ID | Conflict and recommendation |
+| Role | Responsibility in these journeys | Account email | Name shown in the system |
+| --- | --- | --- | --- |
+| Event Organiser | Requests the event and any changes | jasmine@gmail.com | Jasmine |
+| Event Coordinator Lead | Assigns the event to a coordinator | tom@gmail.com | Tom |
+| Event Coordinator | Plans and manages the event | joyce@gmail.com | Joyce |
+| Venue Staff | Approves bookings and records venue problems | daryl@gmail.com | Daryl |
+| Technical Support Staff | Reserves equipment | andy@gmail.com | Andy |
+| Safety Officer | Reviews and approves the event's arrangements | sally@gmail.com | Sally |
+| Attendee | Registers for the event | joseph@gmail.com | Joseph |
+
+Use these in every journey, including the Lead's **Coordinator** choice (pick **Joyce**). The name in the last column is how you should see the person's name in the initials-button menu and in dropdowns; if it is written differently (for example with a surname), it is still the same person as long as the email matches.
+
+Spare accounts, only if the guide tells you to use a second person or an account is in use by another teammate: organiser kenneth@gmail.com, coordinator jonathan@gmail.com, venue staff keith@gmail.com, technical support benny@gmail.com, attendees daniel@gmail.com and bernard@gmail.com. Two teammates must never be signed in to the same account at the same time in different journeys, so agree who uses which journey first (one tester per journey date).
+
+### Keep each person's login separate
+
+Use a separate browser profile or separate browser for each account. Label them with the role names above. **Two tabs in the same browser profile share a login**, so do not use them for different roles.
+
+To sign in:
+
+1. Open the supplied website in that person's browser profile.
+2. Open the sign-in page. If necessary, add `/login` to the website address.
+3. Enter the supplied email and password.
+4. Click **Sign in**.
+5. Open the round initials button. Check that the displayed name, email and role match the person you intend to use.
+
+Whenever this guide says **Switch to...**, move to that person's browser profile and check their identity. You can leave the other profiles signed in.
+
+To sign out, open the initials button and click **Sign out**. To refresh a page, use the browser's reload button.
+
+### Get a starting sheet for each journey
+
+Copy and fill in this sheet **separately for each journey**. Blank values mean the journey is not ready to start. Use the event name for that journey from the **Event names to type** table.
+
+| Information | Value for this journey |
 | --- | --- |
-| D1 | SPM-5 still says automatic coordinator assignment; Week 7 page 2 and SPM-80/81 explicitly require an unassigned queue and Lead assignment. The existing matrix treats SPM-5/66/67 as retired. These journeys follow the explicit customer revision and SPM-80/81; reconcile the old Jira row rather than expecting automatic assignment. |
-| D2 | SPM-34 still describes coordinator confirmation; Week 7 and SPM-79/90 require Safety Officer approval before preparation. Follow SPM-90's approval → Confirmed transition, as the later requirement. No coordinator bypass is accepted. |
-| D3 | SPM-19's scenario rejects an overlapping block, whereas Week 7 page 1 and SPM-83 require saving it and flagging disruption. The matrix records a prior user decision to align Jira, but `(6).csv` still contains the old text. E2E-05 uses the explicit revised requirement. Reconcile SPM-19; do not test both contradictory outcomes as valid. SPM-83's usual unchanged-status rule has an explicit Pending Safety Check → Planning exception in its last criterion. |
-| D4 | SPM-84 says reassignment reason is optional; both `assign-coordinator-dialog.tsx` and migration `202610050005` require it. E2E-02 uses a reason so the handoff can be tested. Optional-reason acceptance remains a requirement/code conflict, not a passed AC. Recommendation: support omission or formally revise Jira. |
-| D5 | SPM-85 still has 14 criteria, including required-room cascading, but the booking model has no required-room flag. Exactly-one-main also needs interpretation while main is lost. Do not claim that full story passes from E2E-08. In addition, SPM-85's per-room period/headcount conflicts with SPM-82 AC04's event-wide attendance and the replacement flow's event-wide defaults/schedule restriction. Use a main booking matching the whole event in E2E-05; do not substitute a breakout and silently change its requirements. Agree a per-room replacement contract first. |
-| D6 | SPM-6 says unresolved clarification blocks decision until explicitly resolved. The UI enables decision after an answer and decision code can close the round. E2E-01 explicitly closes the open round before approval, satisfying the conservative requirement. Answer-then-decide without a separate close needs agreement; it is not claimed covered. |
-| D7 | SPM-38's direct-edit reference to SPM-10 conflicts with SPM-10's coordinator-only Planning scope. Use the explicit change-request path in E2E-06. Do not infer extra organiser edit rights. SPM-12's eight supported lifecycle states also coexist with legacy database enum values; this pack checks observable current transitions, not removal of legacy enum values. |
+| Journey number | |
+| Exact test event name (copy from the table; add ` 2` if the name was already taken) | |
+| Event date (from the Fixed test data table; add 7 days if re-running) | |
+| Registration opens and closes (Journeys 1 and 5; from the Fixed test data table) | |
+| Grand Auditorium availability page link: **Venues → Grand Auditorium → View availability** | |
+| Grand Auditorium Manage blocks page link (Journey 4 only): **Venues → Grand Auditorium → Manage blocks** | |
 
-## Environment and setup manifest — user to prepare separately
+As you open the event's pages, copy their addresses here. These links make it easy to return to the right event in each person's browser.
 
-Use an isolated **local** environment. Do not use the shared hosted project `qqyvnlznjgupmxfqutff` for these write journeys. The README's sample URLs and normal app env files can point at hosted Supabase. Before execution, the environment owner must confirm frontend `VITE_SUPABASE_URL`, backend `SUPABASE_URL` and backend credentials all belong to the same local instance; `VITE_BACKEND_URL`, backend `PORT` and `FRONTEND_ORIGIN` must match the chosen app URLs. Keep secret values out of this document/evidence. Use a separate frontend/backend instance when the normal instance targets hosted data. No setup commands are executed or supplied as a runner here.
-
-The environment owner must separately review/apply the checkout's migrations locally, including `202610310003_expired_venue_holds_availability.sql` and, for history, `202610310004_safety_review_history.sql`. A migration file or generated type does not prove installation. Never repair hosted migration history as part of this exercise.
-
-Fill these fields before a write journey. Aliases are **role slots**, not invented users or a claim any account exists. Obtain passwords privately through the team's approved channel. Do not use emails from synthetic unit/pgTAP fixtures as real logins.
-
-| Alias | Required role | Verified login email / display name / local profile ID |
-| --- | --- | --- |
-| O1 | Event Organiser, owns the journey event | |
-| O2 | Different Event Organiser, no relationship to O1's event | |
-| L | Event Coordinator Lead | |
-| C1 | Event Coordinator | |
-| C2 | Different Event Coordinator | |
-| V | Venue Staff | |
-| T | Technical Support Staff | |
-| S | Safety Officer | |
-| A1 | Attendee | |
-| A2 | Different Attendee | |
-
-- Frontend base URL `BASE`: __________; backend URL: __________; local Supabase URL: __________.
-- Tested commit/working-tree version and installed migration confirmation: __________.
-- Session mapping: one browser **profile/context per account**, labelled with its alias. Two tabs in the same profile share authentication; two incognito windows may also share it. Use different browsers/profiles or separately isolated contexts. Keep a separate signed-out context U. Confirm the user menu's identity before every write.
-- Run tag `R`: __________ (unique tester/date/time suffix). All proposed new names below use `Manual-E2E-R-<journey>-<suffix>`. These names describe records to create, **not existing fixtures**.
-- Record exact event, booking, block, change-request and registration IDs/URLs in a run ledger as created. Never clean up by title substring alone.
-- Choose a future local date `D` at least 14 days after execution starts; enter it as `YYYY-MM-DD`: __________. All times are **Singapore time (UTC+08)**. Each journey gets an independent free date/venue allocation; record the actual date if it differs from D. Do not share state from a previous journey.
-
-Resource slots must be selected from verified local records or prepared separately by the owner:
-
-| Slot | Exact setup contract; record actual name and ID before starting |
+| Link to save during preparation/execution | Page address |
 | --- | --- |
-| VA | Dedicated venue, capacity 40, supported layout Classroom, area North, step-free accessibility recorded, operating on the chosen date 08:00–18:00; setup 30 min and turnaround 45 min. No bookings, holds, blocks or review flags in the journey's occupied windows except records explicitly created by that journey. Name/ID: __________ |
-| VB | Second dedicated venue, capacity 40, same layout/area/accessibility/hours/buffers as VA; free for replacement. Name/ID: __________ |
-| VC | Additional-room venue, capacity 10, same area/layout/hours/accessibility, setup 30 min/turnaround 45 min; free 10:30–12:15. Name/ID: __________ |
-| EQ | Active catalogue item selectable by organiser/coordinator, 4 in-service units, no overlapping reservations or unavailability for 09:30–12:45 on the journey date. Record category/name/ID: __________ |
+| Event details | |
+| Event's Venue page | |
+| Event's Equipment page | |
+| Event's Safety Check page | |
+| Attendee's event page | |
 
-If actual resources have different characteristics, revise the data plan **before** execution; do not silently loosen expected outcomes. Provisioning users, catalogue resources and clean local data is setup for the owner, not part of this documentation task. Avoid changing a venue's buffers or stock that other journeys use.
+**Before the first journey, one person confirms:**
 
-### Independent event preparation recipes
+- [ ] The staging website is running the latest code, and the database updates it needs are installed. Nobody has run `db push` or repaired migration history to make this true.
+- [ ] The accounts in the table above sign in and show the stated role.
+- [ ] **Grand Auditorium** still shows setup **30** and turnaround **45** minutes, and has no bookings, holds or blocks on the journey's date. **Central Civic Hall** is free on Journey 4's date.
+- [ ] The **Projector** still has at least 4 units in service and none reserved by other events on the journey's date.
+- [ ] Nobody has started creating events with the six names in the table. If someone has, the " 2" rule applies.
+- [ ] Re-run `e2e-preflight-check.sql` if more than a few days have passed since 1 November 2026.
+- [ ] Each journey has its own new event(s) and a non-conflicting venue and date allocation.
+- [ ] The team knows who will remove or archive the leftover test records afterwards.
 
-These are explicit prerequisites for later journeys, not a dependency on having passed E2E-01. Either perform the recipe anew for that journey, recording all steps as setup, or have the owner supply a fresh local fixture with the same contract. If setup cannot reach the required state, mark that journey Blocked and link the upstream defect. Do not directly change statuses to bypass the workflow.
+If setup is missing, mark **Blocked — setup needed** and return the sheet to the preparer. Do not choose a random replacement account or venue.
 
-**P — fresh Planning event:** O1 opens `BASE/events/new`; enters name `Manual-E2E-R-<journey>`, Purpose `Meeting`, Description `Manual journey <journey>`, Expected attendance `20`, Starts `D 10:00`, Ends `D 12:00`, Preferred location `North`, Room layout `Classroom`, Accessibility needs `Step-free access`; leaves facilities empty, equipment empty and registration unchecked unless the journey specifies otherwise. Select **Submit request**. L opens **Events → Unassigned queue**, finds that exact title, selects **Assign coordinator**, chooses C1's verified display name in **Coordinator**, then **Assign coordinator**. C1 opens the event from **Events**, selects **Approve**, then **Approve event**. Required state: Planning, owned by O1, assigned only to C1, no clarifications or downstream arrangements. Record its ID as E.
+### If something goes wrong
 
-**V — approved main venue:** starting from a fresh P, C1 opens `BASE/events/E/venue` (lifecycle **Venue**), chooses VA's **View details** in **Suggested venues**; if necessary uses **Search venues** with the unchanged event period and requirements. Verify venue/period/headcount, then **Request venue**. V opens **Requests** (`/venue-requests`), selects the exact event/VA request, **Approve → Approve request**. Required result: approved main booking BVA, event still Planning. Record booking ID and venue ID. The calendar's confirmed-booking label is distinct from the event's Confirmed lifecycle state.
+Stop at the first unexpected result. Take a screenshot and record the **journey, part, step number, account role and visible message**. Do not try to force the event into the next stage.
 
-**F — fresh Confirmed event:** start with independent P + V. For equipment, C1 opens `BASE/events/E/equipment`, **Add equipment**, selects EQ, Quantity `2`, Technical requirements `Place beside the presentation area without blocking access`, saves with **Add equipment**; then **Request equipment**, selects EQ and **Request 1 item**. T opens **Event requests** (`/equipment`), searches the exact title and reserves quantity `2` using **Reserve → Reserve**. If registration is required, O1 opens the event's **Registration → Edit**, sets required on, opens at execution time minus 1 hour, closes at D 09:00, capacity as specified by the journey (default `20`), **Waiting list: Yes**, **Attendees may withdraw: Yes**, then **Save**. Record the exact opening/closing times. C1 opens **Safety Check** (`/events/E/safety-check`), verifies Ready and **Submit for Safety Check**. S opens **Safety Checks → Awaiting review**, selects the title/**Review event**, verifies the arrangements, **Approve → Confirm approval**. Required state: Confirmed, approved unflagged main venue, EQ 2 reserved, no outstanding changes. Registration, when enabled, is open and has zero registrations/waiters. Record E/BVA/EQ requirement/reservation IDs. A fixture without equipment can be used only where a journey explicitly says so.
+Use **Fail** when the prepared system behaves incorrectly, or **Blocked** when missing setup/access prevents execution. A step you did not perform has not passed. Keep passwords and unrelated people's information out of screenshots.
 
-In any recipe, a missing button, different label or failed write is evidence to capture, not permission to invent a workaround. Setup is not evidence that the journey under test passed.
+## Flow 1: Plan an event and register an attendee
 
-### Common evidence, results and cleanup contract
+**Purpose:** Take one event from a draft request to a Confirmed event with a Registered attendee.
 
-For every journey capture the exact title/ID, actor alias, Singapore timestamp, starting state, decisive before/after state, each relevant role's view, refresh/sign-in persistence, and visible error/notification. Use the bell labelled **Notifications** (possibly with unread count) to inspect relevant records. Match by event and timestamp, not global unread count. Do not require an email or push message: requirements here call for in-app notification records. Redact passwords, tokens and unrelated users' data.
+**Before starting:** complete the starting sheet. Use the name `Year-End Team Planning Meeting`. There must not already be an event with that name. You will use all seven roles.
 
-After verification, sign out through the user menu's **Sign out** in each used context. App cleanup can release commitments but often retains audit history; it is **not physical deletion**. Submitted/Rejected/Completed events have no general delete UI. For full removal, the local environment owner needs a separately reviewed, ID-scoped cleanup procedure covering only this run's event children, notifications/audit and any storage objects. None is executed or invented here. If that procedure is unavailable, record **Cleanup pending** and keep the exact ID ledger; do not delete users, shared resources or reset a database that contains others' work. A local reset is appropriate only if the owner verifies the entire instance is exclusively disposable for this run.
+### Part A — Organiser: create and submit the request
 
-Each journey includes blank fields. Set Status to exactly one of `Pass`, `Fail`, `Blocked`, `Not Executed` during execution. Empty means no execution recorded. Expected results below are not actual results.
+1. Switch to **Event Organiser**.
+2. Click **Events** in the navigation.
+3. Click **New event**.
+4. Type `Year-End Team Planning Meeting` in **Event name**.
+5. Click **Save draft**.\
+   **You should see:** your event in Events with a **Draft** label.
+6. Refresh the page, then click **Continue editing** on that event.\
+   **You should see:** the saved event name is still there.
+7. Complete the form:
 
-## E2E-01 — Request to safe, confirmed, registerable event
+   | Field | What to enter |
+   | --- | --- |
+   | Purpose | Meeting |
+   | Description | Meeting arranged for end-to-end testing of ConnectSphere. |
+   | Expected attendance | 20 |
+   | Starts | Journey 1 date (Monday 16 November 2026), 10:00 |
+   | Ends | The same date, 12:00 |
+   | Preferred location | City Hall |
+   | Room layout | Theatre |
+   | Required facilities | Leave empty |
+   | Accessibility needs | Step-free access |
+   | Equipment requirements | Leave empty for now |
+   | Attendee registration is required | Tick this box |
 
-**Priority/purpose:** P0. Prove the complete handoff through Organiser → Lead → Coordinator → Venue Staff/Technical Support → Safety Officer → Attendee.
+8. Click **Submit request**.\
+   **You should see:** **Requested**, a submission date/time, and a message that the event is awaiting coordinator assignment. A coordinator should not already be assigned automatically.
+9. Click **View details** on your event. Save this page address on the starting sheet.\
+   **You should see:** the name, attendance, date and times you entered.
 
-**Traceability:** SPM-2 AC1–3; SPM-3 AC: valid submission, venue requirements, submission time/status; SPM-80 AC: unassigned queue and awaiting assignment; SPM-81 AC: single assignment/history/notifications; SPM-6 AC: request, permitted fields and unresolved decision lock; SPM-7 AC: approval → Planning and decision notification; SPM-24/25 AC: request and venue decision; SPM-27 AC01–05/09; SPM-32 AC: requested-item reservation; SPM-33 AC: readiness, submission and freeze; SPM-90 AC1–6; SPM-40 AC01–03/07–09; SPM-41 AC1–2/5. D1, D2 and D6 apply; this does not claim every AC of these stories.
+**Capture:** a screenshot of the Requested event awaiting assignment.
 
-**Preconditions:** BASE/local migrations, O1/L/C1/V/T/S/A1 separate sessions, VA/EQ verified. Fresh name `Manual-E2E-R-01`, D 10:00–12:00; no record with that run ID. Registration period as F, capacity 20. Environment/setup blocked until manifest complete.
+### Part B — Lead: assign a coordinator
 
-| Step | Account and manual action | Expected observable result |
+1. Switch to **Event Coordinator Lead**.
+2. Click **Events**.
+3. Click **Unassigned queue**. The tab may also show a count.
+4. Find `Year-End Team Planning Meeting` and click **Assign coordinator** on it.
+5. In **Coordinator**, choose the coordinator's display name from the account table.
+6. Click **Assign coordinator** in the dialog.\
+   **You should see:** the event leaves the unassigned queue.
+7. Click **Oversight** and find the event.\
+   **You should see:** the event under the coordinator you selected.
+
+### Part C — Coordinator: approve the request for planning
+
+1. Switch to **Event Coordinator**.
+2. Click **Events**, find your event and click **View details**.\
+   **You should see:** the Requested event, assigned to you, with the organiser's details.
+3. Click **Approve** in the request review area.
+4. Click **Approve event** in the dialog. Optional notes can be left empty.\
+   **You should see:** **Planning**. The event is not yet Confirmed.
+5. Switch to **Event Organiser** and refresh the saved event page.\
+   **You should see:** Planning and the correct coordinator.
+6. Open the **Notifications** bell.\
+   **You should see:** an approval notification for your event.
+
+### Part D — Organiser: set registration rules
+
+1. Stay in the **Event Organiser** profile and open the saved event page.
+2. Scroll to **Registration** and click **Edit** in that section.
+3. Enter these settings:
+
+   | Setting | What to enter |
+   | --- | --- |
+   | Attendee registration is required | Ticked |
+   | Opens (Singapore time) | One hour before you click **Save**, today's date (for example 13:30 if it is 14:30) |
+   | Closes (Singapore time) | 16 November 2026, 09:00 |
+   | Capacity | 20 |
+   | Waiting list | Yes |
+   | Attendees may withdraw | Yes |
+
+4. Click **Save** in the Registration section.
+5. Refresh the page.\
+   **You should see:** the saved settings. The event remains Planning.
+
+### Part E — Coordinator and Venue Staff: arrange the venue
+
+1. Switch to **Event Coordinator** and open the saved event page.
+2. Click **Venue** in the event's planning navigation. Save this page address on the starting sheet.
+3. Under **Suggested venues**, find **Grand Auditorium** and click its **View details**.
+
+   If it is not shown, click **Search venues**. Keep the event's date, 10:00–12:00, minimum capacity 20, Location City Hall and Room layout Theatre. Click **Search venues**, then open **Grand Auditorium**'s **View details**. If it is still unavailable, stop and report it.
+
+4. Check the venue name and requested event period, then click **Request venue**.\
+   **You should see:** a **Pending** request for your event and Grand Auditorium.
+5. Switch to **Venue Staff**.
+6. Click **Requests** in the navigation.
+7. Find and select the request for `Year-End Team Planning Meeting` and Grand Auditorium.
+8. Click **Approve**.
+9. Click **Approve request** in the dialog.\
+   **You should see:** the venue request is approved.
+10. Switch back to **Event Coordinator** and refresh the saved Venue page.\
+    **You should see:** the approved booking, marked as the main venue. The event itself remains Planning.
+
+**Capture:** the approved main venue booking. Venue approval and event confirmation are different stages.
+
+### Part F — Coordinator and Technical Support: arrange equipment
+
+1. In the **Event Coordinator** profile, click **Equipment** in the event navigation. Save this page address.
+2. Click **Add equipment**.
+3. Select **Projector**.
+4. Set **Quantity** to `2`.
+5. Enter **Technical requirements** as `Place beside the presentation area without blocking access`.
+6. Check that **Required period** is Journey 1's date (Monday 16 November 2026), 10:00–12:00.
+7. Click **Add equipment** in the dialog.\
+   **You should see:** the item on the event, but it has not yet been requested from Technical Support.
+8. Click **Request equipment**.
+9. Select the checkbox for your equipment item.
+10. Click **Request 1 item**.\
+    **You should see:** the item is now requested. Adding it alone did not send it to Technical Support.
+11. Switch to **Technical Support Staff**.
+12. Click **Event requests** and search for `Year-End Team Planning Meeting`.
+13. On that equipment row, click **Reserve**.
+14. Set **Quantity to reserve** to `2`.
+15. Click **Reserve** in the dialog.\
+    **You should see:** 2 units reserved and the arrangement marked **Arranged**.
+16. Switch back to **Event Coordinator** and refresh the saved Equipment page.\
+    **You should see:** the same item and 2 reserved units.
+
+**Capture:** the equipment and reserved quantity as seen by the coordinator.
+
+### Part G — Coordinator and Safety Officer: confirm the event
+
+1. In the **Event Coordinator** profile, click **Safety Check**. Save this page address.
+2. Read the readiness list.\
+   **You should see:** the main venue and equipment are complete, registration settings are complete, and the event is **Ready**. Stop if an outstanding problem is listed.
+3. Click **Submit for Safety Check**.\
+   **You should see:** **Pending Safety Check**.
+4. Switch to **Safety Officer**.
+5. Click **Safety Checks**, then **Awaiting review**.
+6. Find your event and click **Review event**.
+7. Read the arrangements.\
+   **You should see:** attendance 20, venue capacity 500, layout/accessibility information, and the requested equipment/placement note. These event facts are read-only for the Safety Officer.
+8. Click **Approve**.
+9. Enter `Reviewed for the manual event journey` in **Note (optional)**.
+10. Click **Confirm approval**.\
+    **You should see:** the decision succeeds and the event leaves the awaiting-review queue.
+11. Switch to **Event Coordinator** and refresh the saved event page.\
+    **You should see:** **Confirmed**.
+12. Switch to **Event Organiser** and refresh the saved event page.\
+    **You should see:** the same Confirmed event, schedule and arrangements.
+13. In each of those two accounts, open **Notifications**.\
+    **You should see:** the safety approval/confirmation notification for this event.
+
+**Capture:** the Confirmed event and its arrangements.
+
+### Part H — Attendee: register and check the saved result
+
+1. Switch to **Attendee**.
+2. Click **Browse Event** in the navigation.
+3. Find `Year-End Team Planning Meeting` and open its event page. Save this page address.
+4. Read the details.\
+   **You should see:** the confirmed date, times and venue. Registration is open with 20 remaining places.
+5. Click **Register**.\
+   **You should see:** **You're registered**, with 19 remaining places.
+6. Click **My Registrations**.\
+   **You should see:** your event listed as Registered, once.
+7. Refresh the page.\
+   **You should see:** the same registration, without a duplicate.
+8. Sign out, sign back in as the same attendee, and open **My Registrations** again.\
+   **You should see:** the saved registration.
+9. Switch to **Event Organiser**.
+10. Click **Events** and find this event.
+11. Click its **View registrations**.\
+    **You should see:** the attendee listed once as Registered.
+12. Switch to **Event Coordinator** and open this event's **View registrations**.\
+    **You should see:** the same attendee and count.
+
+**Capture:** the attendee's saved registration and the organiser's registration list.
+
+### Finish Flow 1
+
+The final business result is **one Confirmed event**, its approved main venue, 2 reserved equipment units, and one Registered attendee.
+
+Record the result below before cleanup. Then:
+
+1. As the attendee, open the saved attendee event page and click **Withdraw registration**.
+2. Click **Withdraw** in the dialog.
+3. As the coordinator, open the saved event page and click **Cancel event**.
+4. Enter `Manual flow 1 finished` in **Reason for cancelling**.
+5. Click **Confirm cancellation**.
+6. Give this flow's event link to the preparer for removal of only its test records. Cancellation releases commitments but keeps history.
+
+| Record your result | Fill in after execution |
+| --- | --- |
+| Actual result | |
+| Status — Pass / Fail / Blocked / Not Executed | |
+| First failing part/step | |
+| Screenshots / evidence links | |
+| Defect reference | |
+| Cleanup completed / still needed | |
+
+## Flow 2: Buffer conflict — setup and turnaround time block a second booking
+
+**Purpose:** Prove a venue is treated as occupied from event start **minus setup time** to event end **plus turnaround time**, not just for the advertised event hours. This is a customer change from Week 7. It also proves that two bookings which only touch at the edge of those windows are allowed, and that cancelling releases the time.
+
+**What you will prove:** the main venue has **30 minutes setup** and **45 minutes turnaround**. Event A at **10:00–12:00** therefore occupies the venue from **09:30 to 12:45**.
+
+| Event | Advertised time | Occupies the venue (with setup/turnaround) | Expected result |
+| --- | --- | --- | --- |
+| A | 10:00–12:00 | 09:30–12:45 | Booked and approved |
+| B, first attempt | 12:30–14:00 | 12:00–14:45 | **Refused**: overlaps A's 09:30–12:45 even though 12:30 is after A's advertised end |
+| B, second attempt | 13:15–15:00 | 12:45–15:45 | **Allowed**: starts exactly when A's turnaround ends, so the windows only touch |
+
+**Starting point:** two **new events in Planning**, both on Tuesday 17 November 2026, both attendance 20, **no registration required**, no venue booked yet.
+
+- **Event A**: type `Product Launch Briefing` in **Event name**, **Starts** 10:00, **Ends** 12:00.
+- **Event B**: type `Sales Kickoff Workshop` in **Event name**, **Starts** 12:30, **Ends** 14:00.
+
+**Preparation:** for each of the two events, follow Flow 1 Parts A–C, typing the event name above and the Description from the names table instead of Flow 1's name (create, submit, assign, approve), using the times above, **Attendance 20**, Preferred location City Hall, Room layout Theatre, and leaving **Attendee registration is required unticked**. Both events must use the same coordinator. Skip Flow 1 Part D onward. The date is **Tuesday 17 November 2026** and the venue is **Grand Auditorium** (30/45 minute buffers). Do not edit the venue's buffer values on the shared site.
+
+### Part A — Venue Staff: check the buffers are recorded
+
+1. Switch to **Venue Staff**.
+2. Click **Venues** and open **Grand Auditorium**.\
+   **You should see:** **Setup time** 30 min and **Turnaround time** 45 min on the venue details. (SPM-86 AC03)
+3. Do not edit them. Staff can change these values, but this shared venue must stay as set up.
+
+### Part B — Coordinator and Venue Staff: book Event A
+
+1. Switch to **Event Coordinator** and open **Event A**'s Venue page (**Events → View details → Venue**).
+2. Under **Suggested venues**, find **Grand Auditorium** and click **View details**. If it is not listed, click **Search venues**, keep the event's date and 10:00–12:00, then search and open it.
+3. Click **Request venue**.\
+   **You should see:** a **Pending** request for Event A.
+4. Switch to **Venue Staff**, click **Requests**, select Event A's request, click **Approve**, then **Approve request**.\
+   **You should see:** the request is approved. (SPM-25)
+
+### Part C — Check how the calendar shows the buffers
+
+1. As **Event Coordinator**, click **Venues**, open **Grand Auditorium**, then click **View availability**.
+2. Select Tuesday 17 November 2026.\
+   **You should see:** Event A's booked period 10:00–12:00, with a visibly different **Setup / turnaround** band from 09:30 to 10:00 and from 12:00 to 12:45. (SPM-87 AC04, SPM-20)
+3. Look at the legend above the calendar.\
+   **You should see:** separate labels for Available, Booked, Blocked and Setup / turnaround. (SPM-20)
+
+**Capture:** the calendar day with Event A and its setup/turnaround bands.
+
+### Part D — Coordinator: Event B is refused because of the buffer
+
+1. Open **Event B**'s Venue page.
+2. Find **Grand Auditorium**, using **Search venues** with Event B's date and 12:30–14:00 if it is not suggested, and click **View details**.
+3. Read the **Request this venue** box at the bottom of the page.\
+   **You should see:** the **Request venue** button is greyed out, and the message reads *This venue is already occupied from 9:30 AM … to 12:45 PM … (including setup and turnaround), which overlaps your requested period.* The message must show the setup/turnaround times, not just 10:00–12:00. (SPM-87 AC01/AC02, SPM-26 AC01)
+4. Switch to **Venue Staff** and open **Requests**, then select **All**.\
+   **You should see:** only Event A's request. **No request exists for Event B**, even a rejected one. (SPM-26 AC04)
+
+**Capture:** the disabled button and the occupied-period message for Event B.
+
+### Part E — Coordinator: touching windows are allowed
+
+1. Switch to **Event Coordinator** and open **Event B**.
+2. Click **Edit event**.
+3. Change **Starts** to 13:15 and **Ends** to 15:00 on the same date.
+4. Click **Save changes**.\
+   **You should see:** the event now shows 13:15–15:00 and is still in Planning.
+5. Open **Event B**'s Venue page, open **Grand Auditorium**'s **View details**.\
+   **You should see:** the **Request venue** button is now enabled. Event B's setup starts at 12:45, exactly when Event A's turnaround ends. (SPM-87 AC02, SPM-26 AC03)
+6. Click **Request venue**.\
+   **You should see:** a **Pending** request for Event B.
+7. Switch to **Venue Staff**, open **Requests**, and select **All**.\
+   **You should see:** Event A approved and Event B pending, with no conflict flag on either. Leave Event B pending.
+
+### Part F — Cancelling Event A frees its time
+
+1. Switch to **Event Coordinator** and open **Event A**.
+2. Click **Cancel event**, enter `Flow 2 finished` in **Reason for cancelling**, and click **Confirm cancellation**.
+3. Open **Grand Auditorium**'s **View availability** and select Tuesday 17 November 2026.\
+   **You should see:** Event A's booking and its 09:30–12:45 bands are gone from the calendar; Event B's pending request still shows. (SPM-45)
+
+### Finish Flow 2
+
+Record the result. As the coordinator, open **Event B**, click **Cancel event**, enter `Flow 2 finished` and click **Confirm cancellation**. Event B's pending venue request should then show as cancelled in Venue Staff's **Requests → All**. Give only these two event links to the preparer.
+
+| Record your result | Fill in after execution |
+| --- | --- |
+| Actual result | |
+| Status — Pass / Fail / Blocked / Not Executed | |
+| First failing part/step | |
+| Screenshots / evidence links | |
+| Defect reference | |
+| Cleanup completed / still needed | |
+
+## Flow 3: Change a confirmed event
+
+**Purpose:** Increase attendance through a reviewed change, then obtain safety approval again.
+
+**Starting point:** a **separate new Confirmed event**, attendance 20, the approved main venue, Grand Auditorium, and 2 reserved equipment units. No registration is required and there are no attendees.
+
+**Preparation:** use a new starting sheet and follow Flow 1 Parts A–G for this new event, typing `Quarterly Strategy Review` in **Event name** at Part A step 4. Use **Wednesday 18 November 2026** instead of Flow 1's date everywhere, venue **Grand Auditorium** and equipment **Projector**. Leave **Attendee registration is required unticked** and skip Part D. Do not do Part H or Flow 1 cleanup. The preparer can complete this in advance. Do not reuse a cancelled event.
+
+### Part A — Organiser: request the change
+
+1. Switch to **Event Organiser** and open this flow's saved event page.\
+   **Check:** Confirmed, attendance 20.
+2. Click **Request a change**.
+3. In **What change are you requesting?**, enter `Increase expected attendance from 20 to 30. Keep the same date, venue and equipment.`
+4. In **Reason**, enter `Ten more participants would like to attend`.
+5. Click **Send request**.\
+   **Check:** the request is Pending Review.
+6. Refresh the event.\
+   **Check:** attendance is still 20 and the event is still Confirmed. Requesting a change has not applied it.
+
+### Part B — Coordinator: review and apply the change
+
+1. Switch to **Event Coordinator** and open this flow's event.
+2. Open **Notifications**.\
+   **Check:** the change-request notification identifies this event.
+3. Click **View change history** to read the request.
+4. Return to the saved event page.
+5. In **Change requests**, click **Approve**.
+6. Enter `Increase attendance to 30 and recheck the venue arrangements` in **Implementation notes**.
+7. Click **Approve request**.\
+   **Check:** it is approved and waiting to be applied; attendance is still 20.
+8. Click **Apply change**.
+9. Change **Expected attendance** to `30`. Leave everything else unchanged.
+10. Click **Apply change** at the bottom of the form.\
+    **Check:** attendance is 30, the request is Implemented, and the event returns to Planning. The venue/equipment have not been cancelled or replaced.
+11. Open **Safety Check**.\
+    **Check:** the venue needs review and the event cannot yet be submitted. The unchanged equipment remains reserved.
+
+**Capture:** attendance 30, Planning status and the venue's review flag.
+
+### Part C — Review and approve the event again
+
+1. Switch to **Venue Staff** and find the main venue booking in **Requests**. Select **Decided** or **All** to include approved bookings.\
+   **Check:** the same venue remains approved and its capacity of 500 accommodates 30 people.
+2. Switch to **Event Coordinator** and open the saved Safety Check page.
+3. After reviewing the venue arrangement, click **Mark resolved** beside the venue.\
+   **Check:** the review flag clears and the event becomes Ready. Stop if another problem remains.
+4. Click **Submit for Safety Check**.\
+   **Check:** Pending Safety Check again.
+5. Switch to **Safety Officer**.
+6. Open **Safety Checks**, then **Awaiting review**, and this event's **Review event**.
+7. Read the details.\
+   **Check:** attendance is now 30, with the same venue/equipment.
+8. Click **Approve**.
+9. Click **Confirm approval** in the dialog.
+10. Switch to **Event Organiser** and refresh the saved event page.\
+    **Check:** Confirmed again, with attendance 30.
+11. Sign out and back in as the organiser, then reopen the event.\
+    **Check:** attendance 30 and Confirmed status remain saved.
+12. Switch to **Event Coordinator** and open **View change history**.\
+    **Check:** the request, decision and applied attendance change are retained.
+
+**Capture:** the final Confirmed event and its recorded change. The final result is the changed event approved again, with its original resource commitments preserved.
+
+### Finish Flow 3
+
+Record the result. As the coordinator, open this flow's event, click **Cancel event**, enter `Manual flow 3 finished`, and click **Confirm cancellation**. Give only this flow's event link to the preparer for test-data removal.
+
+| Record your result | Fill in after execution |
+| --- | --- |
+| Actual result | |
+| Status — Pass / Fail / Blocked / Not Executed | |
+| First failing part/step | |
+| Screenshots / evidence links | |
+| Defect reference | |
+| Cleanup completed / still needed | |
+
+## Flow 4: Replace an unavailable venue
+
+**Purpose:** Continue an event after a venue problem, preserving its original details until a replacement is approved.
+
+**Starting point:** another **new Confirmed event**, 20 people, 10:00–12:00, with its approved main venue and 2 reserved equipment units. No registration is required. **Central Civic Hall** (replacement) is available for the same period. Use the full-event main venue, not a breakout room.
+
+**Preparation:** use a new starting sheet and follow Flow 1 Parts A–G, typing `Department Planning Retreat` in **Event name** at Part A step 4, leaving registration unticked and skipping Part D. Do not do Part H or cleanup. The event date is **Thursday 19 November 2026**; the main venue is **Grand Auditorium** (45-minute turnaround) and the replacement is **Central Civic Hall**. Choose **Projector** for the equipment.
+
+### Part A — Venue Staff: record the problem
+
+1. Switch to **Venue Staff**.
+2. Click **Venues**, open **Grand Auditorium**, then click **Manage blocks**.
+3. Complete **New operational block**:
+
+   | Field | What to enter |
+   | --- | --- |
+   | Venue | Check this is Grand Auditorium |
+   | Reason category | Maintenance |
+   | Reason | `Air-conditioning maintenance for Department Planning Retreat` |
+   | Start date and time | 19 November 2026, 12:15 |
+   | End date and time | 19 November 2026, 13:00 |
+
+4. Click **Save block**.\
+   **Check:** **This block affects existing bookings** lists your event and coordinator. The event ends at 12:00 but needs turnaround until 12:45, so the maintenance overlaps its occupied time.
+5. Take a screenshot of the affected-bookings dialog.
+6. Click **Save block anyway**.\
+   **Check:** the block is saved and the booking is flagged **Disrupted - Alternative Required**. The event has not been cancelled.
+
+### Part B — Coordinator: request a replacement
+
+1. Switch to **Event Coordinator**.
+2. Open **Notifications**.\
+   **Check:** your event's notification identifies the venue problem and says alternative arrangements are needed.
+3. Open this flow's saved Venue page.\
+   **Check:** the original booking and disruption reason are still visible.
+4. Click **Search venues** in the replacement selection area.
+5. Check the search details.\
+   **Check:** the date is unchanged, the period is 10:00–12:00, and attendance is 20. The disrupted venue is excluded as a replacement.
+6. Click **Search venues** to run the search.
+7. Find **Central Civic Hall** and click **View details**.
+8. Check its name, capacity and event period.
+9. Click **Request replacement**.\
+   **Check:** a Pending replacement is shown. The original booking has not yet been cancelled.
+
+### Part C — Venue Staff: approve the replacement
+
+1. Switch to **Venue Staff**.
+2. Click **Requests**.
+3. Find this event's replacement request. Check the old and new venue names.
+4. Click **Approve** for the replacement.
+5. Click **Approve request** in the dialog.\
+   **Check:** the replacement is approved; the old booking is cancelled as part of the replacement. Their link remains visible in booking activity.
+6. Switch to **Event Coordinator** and refresh this flow's Venue page.\
+   **Check:** the replacement is now the approved main venue. The event's date, times and attendance are unchanged. It returns to Planning because the changed venue needs a new safety review.
+
+### Part D — Approve the new arrangements
+
+1. As **Event Coordinator**, open **Safety Check**.\
+   **Check:** the replacement main venue and existing equipment are shown. The old cancelled booking is not an outstanding active booking.
+2. If Ready, click **Submit for Safety Check**. If a problem remains, stop and record it.
+3. Switch to **Safety Officer**.
+4. Open **Safety Checks**, then **Awaiting review**, and open this event.
+5. Read the review.\
+   **Check:** it shows the replacement venue with the original schedule and attendance.
+6. Click **Approve**.
+7. Click **Confirm approval**.
+8. Switch to **Event Organiser** and refresh the event page.\
+   **Check:** Confirmed with the replacement venue.
+9. Sign out and back in as the organiser, then reopen the event.\
+   **Check:** the replacement and Confirmed status remain saved.
+10. Switch to **Event Coordinator** and open **View change history**.\
+    **Check:** the original and replacement bookings remain traceable.
+
+**Capture:** the old/new booking activity and final Confirmed event. The final result is the same event proceeding with a replacement venue and a new safety approval.
+
+### Finish Flow 4
+
+Record the result first.
+
+1. As the coordinator, cancel only this event using **Cancel event**, reason `Manual flow 4 finished`, then **Confirm cancellation**.
+2. Switch to **Venue Staff** and click **Venues**, open **Grand Auditorium** and click **Manage blocks**.
+3. Find the block whose reason is `Air-conditioning maintenance for Department Planning Retreat`.
+4. Click **Remove block** on that block.
+5. Click **Remove block** in the confirmation. **Check:** it is marked removed in block history.
+6. Give this event link and the specific block details to the preparer. Do not remove other blocks or either venue.
+
+| Record your result | Fill in after execution |
+| --- | --- |
+| Actual result | |
+| Status — Pass / Fail / Blocked / Not Executed | |
+| First failing part/step | |
+| Screenshots / evidence links | |
+| Defect reference | |
+| Cleanup completed / still needed | |
+
+## Flow 5: Cancel an event
+
+**Purpose:** Cancel a confirmed event, release its venue/equipment commitments, and inform affected people.
+
+**Starting point:** a **new Confirmed event with one Registered attendee**, an approved main venue and 2 reserved equipment units. Use a separate event from the earlier flows.
+
+**Preparation:** use a new starting sheet and complete Flow 1 Parts A–H for this event, typing `Customer Feedback Roundtable` in **Event name** at Part A step 4. Use **Friday 20 November 2026** instead of Flow 1's date everywhere (registration closes 20 November 2026, 09:00), venue **Grand Auditorium** and equipment **Projector**. Stop before its cleanup. The preparer can do this in advance.
+
+### Part A — Check the event before cancelling
+
+1. As **Event Organiser**, open this flow's event.\
+   **Check:** it is Confirmed with the agreed schedule and arrangements.
+2. As **Attendee**, open **My Registrations**.\
+   **Check:** this event is Registered.
+3. As **Event Coordinator**, open this flow's Venue and Equipment pages.\
+   **Check:** the main venue is approved and 2 equipment units are reserved. Capture the starting state.
+
+### Part B — Coordinator: cancel the whole event
+
+1. Stay in the **Event Coordinator** profile and open the event page.
+2. Click **Cancel event**.
+3. Enter `The organiser can no longer hold this meeting` in **Reason for cancelling**.
+4. Click **Confirm cancellation**.\
+   **Check:** the event becomes **Cancelled**.
+5. Click **View change history**.\
+   **Check:** the cancellation records the reason, coordinator and time.
+
+### Part C — Check resource release and notifications
+
+1. Switch to **Venue Staff** and click **Venues**, open **Grand Auditorium** and click **View availability**.
+2. Select Friday 20 November 2026.\
+   **Check:** this event no longer occupies 09:30–12:45, including its setup/turnaround time.
+3. Click **Requests**, select **All**, and find this event.\
+   **Check:** its booking remains in the history as cancelled.
+4. Switch to **Event Coordinator**, open this flow's saved Equipment page, and scroll to **Released reservations**.\
+   **Check:** the item and quantity 2 are listed as **Released**, with the old details/history still available. Disappearance alone is not proof that stock was released.
+5. Switch to **Event Organiser** and refresh the event page.\
+   **Check:** Cancelled.
+6. In the organiser profile, open **Notifications**.\
+   **Check:** a cancellation notification identifies this event.
+7. Check **Notifications** in each of the **Event Coordinator**, **Venue Staff** and **Technical Support Staff** profiles.\
+   **Check:** each affected role has a cancellation notification for this event.
+
+### Part D — Attendee: check the cancellation is saved
+
+1. Switch to **Attendee** and open **My Registrations**.
+2. Open this event.\
+   **Check:** the event is cancelled and no new registration can be made. The old registration need not automatically become Withdrawn; cancellation and withdrawal are different actions.
+3. Open **Notifications**.\
+   **Check:** a cancellation notification identifies this event.
+4. Sign out, sign back in as the attendee, and reopen the saved attendee event page.\
+   **Check:** cancellation remains visible and registration remains closed.
+5. Switch to **Event Organiser**, sign out and back in, then reopen the event.\
+   **Check:** Cancelled remains saved.
+6. Switch to **Event Coordinator** and reopen this event's Venue, Equipment and Safety Check pages.\
+   **Check:** retained records can be inspected, but no new planning arrangement or safety submission can be made for this cancelled event.
+
+**Capture:** cancellation history, released resource records and the attendee cancellation message. The final result is a cancelled event with released commitments and informed users.
+
+### Finish Flow 5
+
+Record the result. The event is already cancelled, so do not cancel it again or withdraw registrations to tidy its history. Give this flow's event link to the preparer for removal of only its test data.
+
+| Record your result | Fill in after execution |
+| --- | --- |
+| Actual result | |
+| Status — Pass / Fail / Blocked / Not Executed | |
+| First failing part/step | |
+| Screenshots / evidence links | |
+| Defect reference | |
+| Cleanup completed / still needed | |
+
+## Final checklist
+
+- [ ] Record a result for each journey attempted; leave unperformed journeys Not Executed.
+- [ ] Save screenshots with the journey number and exact event name.
+- [ ] Report failures/blocked steps with the account role, part/step number and message.
+- [ ] Release only your own test events' commitments and remove only Journey 4's own maintenance block.
+- [ ] Every event you created uses a name from the **Event names to type** table. Give the event links to the team so the leftover test records can be removed or archived. Cancelling or removing a block keeps history; it does not delete every test record.
+- [ ] Record **Cleanup still needed** if safe removal is unavailable. Do not delete accounts, venues, equipment or other people's records.
+- [ ] Sign out of every browser profile.
+
+## Background for the preparer or reviewer
+
+The tester can stop reading here. The [technical reference](manual-e2e-reference.md) keeps the earlier source evidence, detailed acceptance-criterion mappings and unresolved requirement/code conflicts. Its broader E2E-00..09 catalogue is background material. **The five journeys in this guide are the current execution scope.**
+
+| Journey | Main story relationships | Coverage limit |
 | --- | --- | --- |
-| 1 | O1: `/events/new`, enter only Event name; **Save draft**. Refresh Events; **Continue editing** on that card. | Draft persists with the name and incomplete fields. L's queue and C1's assigned list do not include it. |
-| 2 | O1: fill the P fields, add EQ quantity 2 with Required from D 09:30, Required until D 12:45 and placement note from F; check **Attendee registration is required**; **Save draft**. Reopen once. | Latest values persist as Draft. Registration needs are recorded without demanding the Planning registration settings yet. |
-| 3 | O1: use the draft card's **Submit request** and the editor's **Submit request**. | Requested and submission timestamp appear; organiser sees **Awaiting coordinator assignment**. No automatic coordinator appears. |
-| 4 | L: Events → **Unassigned queue**, find title; inspect organiser, schedule, attendance and submission; **Assign coordinator**, choose C1, **Assign coordinator**. | Event leaves queue and appears under C1 in **Oversight** and C1's list. O1 sees C1; O1/C1 receive assignment notifications. |
-| 5 | C1: open event, **Request clarification**; enter `Confirm that the accessible entrance is needed`; allow only **Venue requirements**; **Send request**. O1 opens **Respond** without submitting a response. | Clarification is visible, lifecycle remains Requested; Approve/Reject disabled while open. Venue requirements are editable for O1; unpermitted sections are locked. Permission is granted by section, not an individual accessibility field. |
-| 6 | C1: **Close clarification** (explicitly resolves this round), then **Approve → Approve event**. | Event becomes Planning; O1 sees decision notification. Change history retains question, actor/time and closed round. No automatic venue approval or event confirmation. |
-| 7 | O1: event **Registration → Edit**, set F's open period, capacity 20, Waiting list Yes, Attendees may withdraw Yes; **Save**. Refresh. | Settings persist, other event details remain locked for O1 in Planning. Attendees still cannot register before Confirmed. |
-| 8 | C1/V: perform recipe V for this event. | Exact VA booking is Pending then approved; VA availability reflects occupied 09:30–12:45. C1 sees venue decision/notification; event remains Planning. |
-| 9 | C1: **Equipment → Request equipment**, select the saved EQ row; **Request 1 item**. T: **Event requests**, locate title, **Reserve**, Quantity to reserve 2, **Reserve**. | T can see the explicitly requested item and required period; 2 units reserved, arrangement becomes Arranged. C1 sees full quantity and history. Saving requirements alone is insufficient. |
-| 10 | C1: **Safety Check**, inspect all arrangements and **Submit for Safety Check**. | Ready only after approved unflagged main venue, full equipment and valid registration settings. Status becomes Pending Safety Check; S notified. C1 cannot change venue/equipment while pending. |
-| 11 | S: Safety Checks → Awaiting review → event. Read capacity/headcount, layout, accessibility/restrictions and equipment notes; **Approve**, optional note `Reviewed for manual journey 01`, **Confirm approval**. | Read-only facts; decision records reviewer/note/time; event becomes Confirmed, O1/C1 notified. No extra coordinator confirmation is needed. |
-| 12 | A1: **Browse Event** (`/browse-events`), find exact title and open it; compare confirmed schedule/venue and remaining places; **Register**. Open **My Registrations**. | Registered confirmation on event and My Registrations; registered count increases once, places fall from 20 to 19. No second Register action creates another place. |
-| 13 | O1/C1/L: open `/events/E/registrations`. O1/C1 refresh event; A1 signs out and back in, opens My Registrations. S uses **Review history → View decision**. | Authorised roles see A1 once; confirmed arrangements persist; A1 stays Registered. S sees saved decision/snapshot after approval when history migration is installed. |
+| 1 | SPM-2 draft; SPM-3 submission; SPM-80/81 assignment; SPM-7 approval; SPM-24/25 venue; SPM-27/32 equipment; SPM-33 readiness; SPM-90 safety; SPM-40/41 registration | Main successful path; no clarification, rejection or permission alternatives |
+| 2 | Week 7 buffer rule; SPM-86 configure; SPM-87 availability and conflict; SPM-26 prevent conflict; SPM-20 availability calendar; SPM-45 release | One buffered venue, one refused and one touching booking; does not cover the SPM-88 flagged-bookings re-check |
+| 3 | SPM-38 request; SPM-39 review/application; SPM-33/90 renewed safety review | Attendance change only; no schedule/stock conflicts or rejected change |
+| 4 | Week 7 venue disruption; SPM-83 disruption; SPM-82 replacement; SPM-33/90 renewed safety review | Full-event main venue only; no breakout replacement or rejected replacement |
+| 5 | SPM-45 cancellation/release/notification/audit; SPM-11 locked finalised records | Confirmed event with a Registered attendee; not cancellation during other lifecycle stages |
 
-**Final outcome/evidence:** one accountable coordinator, one approved main venue, 2 EQ reserved, safety approval and Confirmed event, one registration; retain Draft/Requested/Planning/Pending Safety Check/Confirmed screenshots and cross-role notifications. If history migration is absent, mark that step Blocked separately, not a full Pass.
+The requirement sources are the Jira export `SPM List - Jira (7).csv` and the Week 7 customer changes. Revised requirements explicitly call for Lead assignment and Safety Officer approval. Older contradictory automatic-assignment, coordinator-confirmation and overlapping-block wording needs backlog reconciliation; see D1-D3 in the reference. Do not silently substitute those older expectations. Journey 2 was written against `SPM-86`, `87` and `26` in export (7), and SPM-12 and SPM-24 are marked Reopen there, so treat any disagreement on lifecycle status or venue requests as a possible requirement issue, not just a test failure.
 
-**Cleanup:** A1 **Withdraw registration → Withdraw** first; C1 **Cancel event**, reason `Manual journey 01 complete`, **Confirm cancellation** to release this event's resources. Owner removes only ledger IDs under the common contract; do not remove VA/EQ/accounts.
+Permissions/reassignment, validation, tentative holds, multiple rooms, waiting lists, concurrency, equipment shortages, documents and completion are deliberate gaps in this smaller set. A successful run does not establish complete acceptance-criterion coverage. Equipment release is checked through the coordinator's retained records; proving the newly freed stock can be reserved for a different event is a further resource-reuse test.
 
-Actual result: __________  
-Status (Pass / Fail / Blocked / Not Executed): __________  
-Defect reference: __________  
-Evidence links / run ledger / cleanup result: __________
-
-## E2E-02 — Reassignment transfers responsibility and revokes old access
-
-**Priority/purpose:** P0. Prevent leaked event data and conflicting management after a handoff.
-
-**Traceability:** SPM-84 AC: new/closed assignment, immediate access transfer, preserved arrangements, notifications; SPM-15 AC: assigned events only; SPM-9 AC01/02/04; SPM-14 AC: own events only; SPM-49 AC: no attendee planning access; SPM-17 AC: graceful denial. Optional reason remains D4.
-
-**Preconditions:** independent P + V event `...-02`, fresh EQ requirement requested to T but not reserved, no other pending decisions. O1/O2/L/C1/C2/V/T/A1 sessions. Save E, BVA, requirement ID and C1's event/venue/equipment/history URLs. O2 and C2 have no authorisation initially.
-
-| Step | Account and manual action | Expected observable result |
-| --- | --- | --- |
-| 1 | O1/C1: open event and history; record approved main booking and pending equipment. C2/O2: paste `/events/E` and `/events/E/history`. | O1/C1 can read. C2/O2 cannot read protected event facts or history; no record appears in their Events lists. Same-role denial may say Event unavailable rather than RoleGate's message. |
-| 2 | A1: paste `/events/E/venue`; T: paste `/events/E/history`; V: paste `/events/E/equipment`. | Wrong-role routes display **You don't have access to this page** with no planning details. |
-| 3 | L: Events → Oversight, find title → **Reassign**; choose C2, Reason `Manual handoff 02`, **Reassign event**. | Exactly C2 becomes accountable. C1's assignment closes; history retains both coordinators, Lead and timestamp. O1/C1/C2 receive relevant notifications. |
-| 4 | C1: refresh previously open event and each saved child/history URL; try to return through Events. | Event disappears from C1's assigned list; protected event/arrangement/history data cannot be reloaded. Capture any stale action that remains and the server's refusal if clicked; hidden UI alone does not prove all API authorisation. |
-| 5 | C2: open event/venue/equipment/history; T refreshes Event requests. | Same E/BVA/requirement IDs and values remain, no recreated bookings; equipment responsibility remains with T. C2 can manage; O1 sees C2. |
-| 6 | C2: request the pending EQ if not already sent; T reserves 2. C2 refreshes Safety Check; L views oversight/history read-only. | New coordinator's workflow advances; old coordinator cannot participate. Lead can supervise without acquiring coordinator planning controls. |
-| 7 | C1/C2/O1: sign out/back in and repeat their event URLs. | Revocation/new access/owner visibility persist across sessions. |
-
-**Final outcome/evidence:** complete handoff without changing resource IDs. Capture denied deep links, before/after assignment history and three notification recipients. This is a browser permission journey, not exhaustive direct API/RLS testing.
-
-**Cleanup:** C2 cancels this event with reason `Manual journey 02 complete`; owner removes only E and ledger children. Do not reassign unrelated events or delete either coordinator.
-
-Actual result: __________  
-Status (Pass / Fail / Blocked / Not Executed): __________  
-Defect reference: __________  
-Evidence links / run ledger / cleanup result: __________
-
-## E2E-03 — Buffered venue conflict blocks a second commitment
-
-**Priority/purpose:** P0. Detect overlapping occupied time even when advertised event times do not overlap.
-
-**Traceability:** SPM-86 AC: configurable setup/turnaround; SPM-87 AC: effective windows in search/conflict; SPM-20 AC: availability; SPM-24 AC01/02/03/06; SPM-26 AC: prevent overlapping active bookings. Only already-configured buffers are exercised here, not buffer editing/history.
-
-**Preconditions:** O1/L/C1/V, VA exact 30/45 buffers; independent P events `...-03-first` (D 10:00–12:00) and `...-03-second` (D 12:30–14:00), both registration/equipment off. VA initially free 09:30–14:45. VA is suitable for both. Record E1/E2 separately; inspect E2's request-mode URL `BASE/venues/VA-ID?forEvent=E2` before E1 books, without submitting.
-
-| Step | Account and manual action | Expected observable result |
-| --- | --- | --- |
-| 1 | C1: on E1 Venue, **View details → Request venue** for VA. Leave Pending. | One pending request occupies 09:30–12:45; V sees it in Requests. |
-| 2 | C1: E2 Venue → Search venues for unchanged 12:30–14:00; inspect suggestions too. Reload the saved VA request-mode URL. | VA cannot be requested: E2 occupies 12:00–14:45, overlapping E1. Search excludes it or suggestions identify its unavailable state; Request venue is blocked with a reason. No E2 Pending request/notification appears. |
-| 3 | V: approve E1 via **Approve → Approve request**. C1 repeat E2 check. | Conflict remains after approval; changing Pending to approved does not release occupancy or confirm the event. |
-| 4 | C1: E1 Venue → VA **Cancel booking**, enter Reason `Release conflict fixture 03`, **Confirm cancellation**. | Only BVA of E1 is released; cancellation reason/history retained. |
-| 5 | C1: E2 Venue, search again unchanged, VA View details → **Request venue**. V approves it. | E2 now obtains one approved booking; E1 remains Planning with cancelled venue history. |
-| 6 | V: `/venues/VA-ID/availability`; C1 reloads both event Venue pages and signs in again. | E1 no longer occupies time, E2 occupies 12:00–14:45; histories persist and no duplicate E2 request was created by the denied attempt. |
-
-**Final outcome/evidence:** before/after calendar, buffer settings, exact times, disabled/refused E2 request, one surviving approved booking. Sequential stale-page checking does not prove simultaneous-transaction safety; that is a gap below.
-
-**Cleanup:** C1 cancels E1 and E2 (whole event) separately with journey-specific reason. Owner removes only the two events and their ledger children, retaining VA.
-
-Actual result: __________  
-Status (Pass / Fail / Blocked / Not Executed): __________  
-Defect reference: __________  
-Evidence links / run ledger / cleanup result: __________
-
-## E2E-04 — Cancel a confirmed event and release commitments
-
-**Priority/purpose:** P0. Stop a cancelled event occupying resources or accepting attendees while preserving accountability.
-
-**Traceability:** SPM-45 AC: assigned coordinator only, mandatory reason, Cancelled/history, all resources released, recipient notifications, future actions blocked, retained audit; SPM-11 AC01–03; SPM-41/43 AC: registration visibility/withdrawal. Pending-safety cancellation and active-hold release are additional gaps, not assumed covered by this confirmed-event case.
-
-**Preconditions:** independent F event `...-04`, registration capacity 20; A1 already Registered through Register; EQ 2 reserved, VA approved. O1/L/C1/V/T/S/A1. Capture baseline availability and exact registrations/resources. No attendee withdrawal before cancellation.
-
-| Step | Account and manual action | Expected observable result |
-| --- | --- | --- |
-| 1 | O1/C1/V/T/A1: inspect this event's confirmed details, booking, reserved quantity and A1 registration. | All views agree on E, D 10:00–12:00 and arrangement IDs. |
-| 2 | C1: event **Cancel event**, enter Reason for cancelling `Operational cancellation for manual journey 04`, **Confirm cancellation**. | Event becomes Cancelled; actor/reason/time recorded. |
-| 3 | V: inspect Requests/history and VA availability. T: Event requests, inspect retained reservation/history and available stock for 09:30–12:45. | VA no longer occupied by E; 2 units returned to available pool (4 if no other activity). Original resource records retained as released/cancelled history, not silently deleted. |
-| 4 | O1/C1/V/T/A1: Notifications, find this cancellation. A1: My Registrations → event. | Required affected roles have cancellation records. Attendee sees cancelled event information; do not assume registration status becomes Withdrawn, as Jira does not require that. |
-| 5 | C1: reopen venue/equipment/safety pages; A1 reload `/browse-events/E`; O1 inspect change controls. | No new booking/reservation/planning/registration action succeeds; event/history remain readable to authorised roles. |
-| 6 | O1/C1/A1 sign out/back in; L open event/history; V/T recheck release. | Cancelled status, reason, retained arrangements and released resource availability persist; Lead retains permitted audit visibility. |
-
-**Final outcome/evidence:** same event/resources before and after; cancellation notifications for specified affected accounts, released capacity and blocked actions. Do not infer S receives a cancellation notification for a Confirmed event; S notification is explicitly required for Pending Safety Check cancellation.
-
-**Cleanup:** no further event mutation needed; owner removes only E and ledger children via the reviewed local procedure. Never delete attendee profiles or resource catalogue records.
-
-Actual result: __________  
-Status (Pass / Fail / Blocked / Not Executed): __________  
-Defect reference: __________  
-Evidence links / run ledger / cleanup result: __________
-
-## E2E-05 — Disrupt an approved venue and replace it without losing the event
-
-**Priority/purpose:** P0. Keep an event viable after operational unavailability and avoid releasing its original booking before a replacement is accepted.
-
-**Traceability:** SPM-83 AC: overlap save/preview/confirmation, buffered disruption, coordinator notification, Not Ready, new requests refused; SPM-82 AC01–06/08; SPM-25 AC: rejection reason and decision notification. Week 7 page 1 resolves the intended revised behaviour; D3/D5 still require backlog reconciliation.
-
-**Preconditions:** independent P + V event `...-05` with main VA covering the **whole event** and headcount 20; no EQ/registration. VB free/suitable. O1/C1/V; record E/BVA and event details. Do not use a breakout booking for this journey. D 10:00–12:00, buffers 30/45.
-
-| Step | Account and manual action | Expected observable result |
-| --- | --- | --- |
-| 1 | V: VA details → **Manage blocks** (`/venues/VA-ID/blocks`); Reason category **Maintenance**, Reason `Manual-E2E-R-05 disruption`, Start D 12:15, End D 13:00; **Save block**. | **This block affects existing bookings** lists E, C1 and period even though raw event ended 12:00: turnaround overlaps. No block saved before confirmation. |
-| 2 | V: **Save block anyway**. | Block saved; BVA flagged Disrupted - Alternative Required; original approval/history retained; E remains Planning and is not Cancelled. |
-| 3 | C1: Notifications → E, then Venue and Safety Check. O1 refresh event. | Notification identifies event/venue/affected period/reason and alternatives needed. Original event details retained; readiness blocked by disruption. |
-| 4 | C1: disrupted booking's venue selection → **Search venues**; verify original period/requirements and absence of VA; VB **View details → Request replacement**. | New linked Pending replacement; original remains approved and Disrupted with reason visible; no premature release of original. |
-| 5 | V: Requests, select linked replacement → **Reject**, Reason for rejecting `Manual replacement rejection 05`, **Reject request**. | Only replacement rejected. C1 sees reason/notification; original remains Disrupted and can be replaced again. |
-| 6 | C1: repeat VB replacement request (VB is free again). V: **Approve → Approve request**. | New replacement approved; original automatically cancelled and linked; disruption resolved. E preserved; no unrelated bookings removed. |
-| 7 | C1/O1: refresh event, Venue and Change history; V inspect VA/VB calendars and request activity. C1 signs out/back in. | Original/rejected/approved replacement chain persists; event schedule remains D 10:00–12:00, VB now approved main. VA's operational block still applies; do not mistake old booking release for removal of the block. |
-
-**Final outcome/evidence:** overlap preview, saved block, original record before approval, rejection recovery, linked replacement/history and C1 notification. This does not cover the Pending Safety Check disruption exception, block shortening, or withdrawal of a pending replacement.
-
-**Cleanup:** C1 cancels only E. V opens this journey's exact block → **Remove block → Remove block**; verify removed history and released window. Owner physically removes only E, replacement children and this block ID if required; keep VA/VB and other blocks untouched.
-
-Actual result: __________  
-Status (Pass / Fail / Blocked / Not Executed): __________  
-Defect reference: __________  
-Evidence links / run ledger / cleanup result: __________
-
-## E2E-06 — Apply a significant change, rework safety and reconfirm
-
-**Priority/purpose:** P0. Ensure an approved change cannot bypass arrangement review or preserve an obsolete safety approval.
-
-**Traceability:** SPM-38 AC: request/reason/Pending Review/current arrangements retained; SPM-39 AC01/02/04/05/07/09–11; SPM-33 AC: derived readiness and new submission round; SPM-89 AC1–5; SPM-90 AC4–6. No registration-setting changes are requested.
-
-**Preconditions:** independent F `...-06` with registration **off**, no attendees; VA capacity 40, attendance 20, EQ 2 reserved. O1/C1/V/T/S separate sessions. Installed safety-history migration required for S's retained-history assertions. Record approved baseline and original safety round/decision IDs.
-
-| Step | Account and manual action | Expected observable result |
-| --- | --- | --- |
-| 1 | O1: event **Request a change**. What change are you requesting? `Increase expected attendance from 20 to 30; retain schedule and resources`. Reason `Additional participants for manual journey 06`; **Send request**. | Pending Review visible; C1 notified. Event remains Confirmed, attendance stays 20, same venue/equipment commitments. |
-| 2 | C1: open E → **Change history** to read the request, then return to `/events/E`; in **Change requests** select **Approve**; Implementation notes `Set attendance to 30 and recheck venue safety`; **Approve request**. | Approved request awaiting application; attendance still 20. O1 notified. Approval alone changes no arrangement. |
-| 3 | C1: **Apply change**, change only Expected attendance to 30, **Apply change**. | Request becomes Implemented; attendance 30; event returns to Planning; venue flagged Needs Review and relevant staff/Safety notified. EQ unchanged because this change affects attendance only. No reservation/booking silently cancelled. |
-| 4 | C1: Safety Check; V verifies VA still seats 30 and its layout/access information is suitable. C1: venue item **Mark resolved** after that review, **Submit for Safety Check**. | Before resolving: Not Ready and submission blocked. After resolving: new submission round with attendance 30; Pending Safety Check. Original approved round retained. |
-| 5 | S: Awaiting review → E → **Request changes**; select **only VA's venue booking**, Reason `Reconfirm emergency access for the larger group`, **Send change request**. | Event returns to Planning; selected booking Needs Review; EQ unflagged. Decision has reason/reviewer/time and C1 notification. This is not a rejected or cancelled event. |
-| 6 | C1/V: verify access information and arrange the stated correction outside the system if needed; C1 **Mark resolved** on that booking, **Submit for Safety Check**. S: next review → **Reject safety arrangement**, Reason `Recheck all arrangements for manual journey 06`, **Confirm rejection**. | Another round recorded. All active venue/equipment arrangements flagged Needs Review, event returns to Planning. Prior approvals/changes remain in history; resources are not released by this rejection. |
-| 7 | C1/V/T: check the flagged arrangements; C1 marks the venue and equipment flags resolved on Safety Check only after correction/review. Submit again. S: **Approve → Confirm approval**. | Readiness requires all outstanding flags resolved, not manual override of Ready. Event Confirmed; latest approval recorded, O1/C1 notified. |
-| 8 | S: Review history, filter/search exact event and open each **View decision**. O1/C1 inspect Change history; refresh and sign in again. | Original approval, changes-requested, rejection and final approval each retain round/outcome/reviewer/time. Saved snapshots distinguish earlier attendance 20 from later 30. Implementation recorded once; no second Apply action succeeds. |
-
-**Final outcome/evidence:** pending versus applied values, Implemented request, return to Planning, selected versus all flags, blocked readiness, resubmission rounds, final Confirmed state. Capture missing history as Blocked if migration is absent. Historical layout/accessibility/placement facts are not all saved in current snapshots; do not substitute live facts as historical evidence.
-
-**Cleanup:** C1 cancels only E with reason `Manual journey 06 complete`; owner removes its change requests, decisions, snapshots, notifications and other ledger children by exact IDs. Preserve resource/catalogue/account records.
-
-Actual result: __________  
-Status (Pass / Fail / Blocked / Not Executed): __________  
-Defect reference: __________  
-Evidence links / run ledger / cleanup result: __________
-
-## E2E-07 — Full event, waiting list and automatic promotion
-
-**Priority/purpose:** P1. Ensure a released attendee place reaches the next waiting attendee exactly once.
-
-**Traceability:** SPM-40 AC03/07–09; SPM-41 AC1/2/4/5; SPM-42 AC1–4; SPM-43 AC: withdrawal/released place/new-registration evaluation; SPM-44 AC: authorised registration visibility.
-
-**Preconditions:** independent F `...-07`, capacity **1**, Waiting list Yes, Attendees may withdraw Yes, open registration period through D 09:00, zero registered/waiting. A1/A2 must be different attendee IDs in isolated sessions; O1/C1/L available. VA capacity 40 does not require registration capacity to equal 40.
-
-| Step | Account and manual action | Expected observable result |
-| --- | --- | --- |
-| 1 | A1: Browse Event → exact event → **Register**. | Registered; registered count 1, remaining places 0; My Registrations agrees. |
-| 2 | A2: reload event → **Join waiting list**. | Waiting list position 1; no extra Registered place, count stays 1. No duplicate Join action while already waiting. |
-| 3 | O1/C1/L: `/events/E/registrations`; compare A1/A2 statuses. | Authorised roles see one Registered and one waiting, distinct users. |
-| 4 | A1: event → **Withdraw registration**, optional reason `Manual promotion journey 07`, **Withdraw**. | A1 Withdrawn with confirmation; released place triggers automatic promotion. |
-| 5 | A2: reload event and My Registrations without selecting Register. Inspect Notifications. | A2 automatically Registered, no waiting position, promotion notification; count remains 1. |
-| 6 | A1: reload event; O1/C1 refresh registrations; A2 sign out/back in. | A1 remains Withdrawn; A2 Registered once. A1 cannot take another Registered place while full; may join the waiting list as a newly evaluated request if choosing to do so (do not do so in this base journey). |
-
-**Final outcome/evidence:** both identities before/after, position 1, withdrawal confirmation, automatic promotion notification and stable count. Queue ordering among 3+ people and leaving a waiting list are gaps, not claimed covered.
-
-**Cleanup:** A2 withdraws; A1 already withdrawn. Verify no waiter remains, then C1 cancels E. Owner removes only this event's ledger records; do not remove attendee accounts.
-
-Actual result: __________  
-Status (Pass / Fail / Blocked / Not Executed): __________  
-Defect reference: __________  
-Evidence links / run ledger / cleanup result: __________
-
-## E2E-08 — Multiple rooms receive independent decisions and release
-
-**Priority/purpose:** P1. Prevent one room's rejection/cancellation from losing the event's other rooms.
-
-**Traceability:** SPM-85 source criteria: additional request, independent checks, per-room period/headcount/needs, listing, independent decisions, selective release; SPM-25 AC: approval/rejection. D5 blocks full acceptance of required-room cascading and complete booking-change history. This journey intentionally covers ordinary independent rooms only; a Pass cannot close SPM-85 in full.
-
-**Preconditions:** independent P + V `...-08`, approved main VA 10:00–12:00/headcount20; VC free/suitable for 10 people 11:00–11:30 (occupied 10:30–12:15), layout Classroom, area North. C1/V/O1; no required-room designation assumed or fabricated.
-
-| Step | Account and manual action | Expected observable result |
-| --- | --- | --- |
-| 1 | C1: Venue → **Add another venue**. Booking label `Breakout 1`, Start D 11:00, End D 11:30, Number of people 10, Location North, Room layout Classroom; no facilities; Accessibility keywords matching VC; **Search venues**. | VC is assessed using this room's 10-person need, despite event attendance 20; period remains inside whole event. |
-| 2 | C1: VC **View details → Request additional venue**. V: Requests, select Breakout 1, **Reject**, reason `Manual room rejection 08`, **Reject request**. | Only Breakout 1 rejected; main VA remains approved/main; event remains Planning. |
-| 3 | C1: repeat additional-room search/request with label `Breakout 1 retry` and same period/needs. V: **Approve → Approve request**. | Two approved active rooms: VA main and VC additional, with distinct periods/headcounts/labels. |
-| 4 | C1: on VC's exact approved row **Cancel booking**, Reason `Breakout no longer needed 08`, **Confirm cancellation**. | VC released and reason retained; VA remains approved/main. Staff notified; no whole-event cancellation. |
-| 5 | O1/C1: refresh Venue/Change history; V inspect both calendars and request activity. C1 sign in again. | Main room retained; rejected and cancelled additional bookings remain traceable. Report missing label/action history against D5 rather than treating current derived activity as complete audit. |
-
-**Final outcome/evidence:** per-room needs/search, independent decision outcomes, VC release and unchanged VA. Changing main repeatedly, cancelling the only main, required rooms and breakout replacement are deliberately excluded pending decisions.
-
-**Cleanup:** C1 cancels E (releasing VA only; VC already released). Owner removes only E and its room-booking ledger children, keeping VA/VC intact.
-
-Actual result: __________  
-Status (Pass / Fail / Blocked / Not Executed): __________  
-Defect reference: __________  
-Evidence links / run ledger / cleanup result: __________
-
-## E2E-09 — Confirm a tentative hold and let a separate hold expire
-
-**Priority/purpose:** P1. Prove a hold is temporary and confirmation returns it to venue decision rather than confirming the event.
-
-**Traceability:** SPM-78 AC1–4; SPM-75 AC1–5; SPM-33 AC: holds never complete readiness. Two independent fresh events are required for the mutually exclusive confirmation/expiry outcomes.
-
-**Preconditions:** P events `...-09-confirm` and `...-09-expire`, with free **different** venue/date allocations satisfying VA's contract. C1/V; both requests Pending. Record expiry H at least 5 minutes after placing each hold, still before the event's occupied period. For expiry leg, allow real time to pass; no changing database or operating-system clock. Record exact H/timezone. Latest `202610310003` must be installed. This is setup blocked until safe hold timing is allocated.
-
-| Step | Account and manual action | Expected observable result |
-| --- | --- | --- |
-| 1 | V: Requests, confirm-leg request → **Place on hold**; fill expiry H → **Place on hold**. | On Hold with event, venue, period, deadline; calendar marks On hold. C1 gets applicable hold/expiry-soon notification (less than 24 hours remain). |
-| 2 | C1: event Venue before H → **Confirm request**. | Booking returns to Pending for V, not approved. Event remains Planning; readiness still incomplete. |
-| 3 | V: approve this request through **Approve → Approve request**. | Approved booking, hold no longer active; event still requires remaining readiness/safety steps. |
-| 4 | V: expiry-leg Pending request → Place on hold with its recorded H. C1 view it, but do not confirm. | Same On Hold/deadline/notification visibility; calendar occupied until expiry. |
-| 5 | After actual time passes H, C1/V refresh Venue and availability pages; inspect Notifications and Change history. | Hold shown expired, no Confirm request action can restore the old hold; window becomes available; expired history retained. Reads may derive effective expiry before a later write updates stored status: require observable release, not an immediate raw-row change. |
-| 6 | C1: on expiry event choose the same venue again from refreshed search, **Request venue**. V inspect Requests. | New Pending booking permitted when no other conflict; old expired request retained. No expired hold is an approved booking or completed readiness item. |
-| 7 | C1/V sign out/back in, reopen both event Venue pages. | Confirmation leg approved; expiry leg has expired original plus one new Pending request; no phantom hold reappears. |
-
-**Final outcome/evidence:** deadlines, actual observation time, On Hold/Pending/approved/expired states, relevant notification and release/re-request. No promise of email delivery, exact background-job latency or stored-state sweep timing is inferred.
-
-**Cleanup:** C1 cancels both own events with reason `Manual journey 09 complete`, releasing approved/new pending bookings. Owner removes only the two event ledgers and children, not venue records.
-
-Actual result: __________  
-Status (Pass / Fail / Blocked / Not Executed): __________  
-Defect reference: __________  
-Evidence links / run ledger / cleanup result: __________
-
-## E2E-00 — Signed-out access boundary smoke check
-
-**Priority/purpose:** P1, quick preflight. Ensure an unauthenticated visitor cannot enter the protected workspace. This is supplemental to the connected journeys, not a complete auth/security test.
-
-**Traceability:** SPM-13 AC: unauthenticated protected access denied. No account/data fixture needed. BASE must be running; use U, a fresh isolated context without an existing session.
-
-| Step | Manual action | Expected observable result |
-| --- | --- | --- |
-| 1 | U: open `BASE/`. | Public page renders; public event information is allowed. No internal planning UI appears. |
-| 2 | Open `BASE/events`, then `BASE/venue-requests`, then `BASE/equipment/inventory`. | Each protected route redirects to `/login` showing **Sign in**, Email and Password; protected content is absent. |
-| 3 | Refresh and reopen `BASE/events`. | Still signed out; no protected data appears after refresh. |
-
-**Final outcome/evidence:** public page and login redirects with visible URL. Authenticated role destinations are exercised by the account sessions in other journeys, not claimed proven here.
-
-**Cleanup:** close U. No records created or removed.
-
-Actual result: __________  
-Status (Pass / Fail / Blocked / Not Executed): __________  
-Defect reference: __________  
-Evidence links / run ledger / cleanup result: __________
-
-## Short execution checklist
-
-- [ ] Confirm latest requirements/version and review D1–D7; record any approved resolution without silently changing this oracle.
-- [ ] Environment owner confirms local frontend/backend/database alignment, applied migrations and reviewed cleanup mechanism. Do not use normal hosted-targeting instances.
-- [ ] Fill account/resource/date manifest; confirm roles privately, separate auth contexts and exclusive fixture ownership. No passwords in evidence.
-- [ ] Prepare a fresh event set per journey using the recipes; record setup failure as Blocked. Do not reuse a cancelled/rejected fixture or prior run's status.
-- [ ] Run E2E-00 preflight, then P0 journeys in order; run P1 extensions when their prerequisites are ready. Capture actual results separately from predictions.
-- [ ] Refresh relevant pages at handoffs; complete sign-out/sign-in persistence steps and other-role visibility checks before marking Pass.
-- [ ] Record defect links and the first failing step; preserve evidence before cleanup. Distinguish data/setup failure from a product defect and a requirement decision.
-- [ ] Release only this run's commitments, review ledger-scoped removal with the local owner, record any cleanup pending and close sessions.
-
-## Coverage and meaningful gaps
-
-| Business flow / roles | Journeys | Coverage limit |
-| --- | --- | --- |
-| Draft → Requested → Lead assignment → approval; O/L/C | 01 | Explicit clarification close covered; organiser response/edit rounds, draft deletion and initial event rejection not executed here |
-| Venue and equipment → safety → Confirmed → attendee; O/L/C/V/T/S/A | 01 | Full resource handoff and one registration; no exhaustive validation assertions |
-| Ownership and reassignment; O1/O2/L/C1/C2/V/T/A | 02 | Browser deep links and persisted access transfer; no fabricated API attack or proof of all server-side denials |
-| Buffered availability/conflict and release; C/V | 03 | Pending and approved occupancy; not simultaneous submission or buffer-edit rechecks |
-| Cancellation and resource release; O/L/C/V/T/A | 04 | Confirmed event with main/equipment/Registered attendee; no active-hold or pending-safety cancellation fixture |
-| Disruption → rejected replacement → approved replacement; O/C/V | 05 | Whole-event main booking; excludes breakout replacement, block shortening/removal recovery before approval and pending-safety disruption exception |
-| Approved change → readiness flags → safety changes/reject/resubmit; O/C/V/T/S | 06 | Attendance change; does not establish date/time conflict rechecks, equipment change re-reservation, registration change locking, rejected/withdrawn change requests |
-| Full event → waiting list → withdrawal → promotion; O/L/C/A1/A2 | 07 | One waiter; no three-person queue reordering or simultaneous last-place race |
-| Additional room → rejection → retry → selective cancellation; O/C/V | 08 | Ordinary rooms only; D5 blocks required-room behaviour/full story acceptance |
-| Tentative hold → confirm or expire → new request; C/V | 09 | Observable expiry and notifications; not simultaneous hold contention or delivery timing guarantees |
-| Signed-out workspace boundary; unauthenticated | 00 | Does not validate invalid-password messaging, sign-up or all role permissions |
-
-Further deliberate gaps: completion after event end **plus turnaround** (SPM-46) needs a separately allocated elapsed-event fixture or a real-time scheduled run; no clock/status manipulation should be invented. Supporting document upload/removal (SPM-37), banners/images and storage cleanup need a dedicated file/storage fixture; none is created here. Equipment shortages/unavailability and partial top-up (SPM-30/31/32), retired equipment and change re-checks deserve a later resource-recovery journey. True concurrent assignment, venue booking, stock reservation and last-place registration need independent simultaneous clients and invariant checks; these sequential manual journeys do not prove race safety. Mobile usability, performance, export/reporting and exhaustive field boundaries are outside this manageable set.
-
-### Existing browser tests: useful pointers, not completion evidence
-
-- [auth.spec.ts](../../tests/e2e/auth.spec.ts) and [home.spec.ts](../../tests/e2e/home.spec.ts) cover form/public/redirect/health smoke checks, not the connected planning process.
-- [pb02-shared.spec.ts](../../tests/e2e/pb02-shared.spec.ts) is credential-gated, uses free-text Equipment/Technical notes assumptions that differ from today's catalogue/period fields, and has a hard-coded 2026-10-25 date. Drafts may permit past dates, so the date alone is not proof of failure; it is unsuitable as a future submission fixture. Its cleanup attempts confirmed Draft deletion only.
-- [pb03-shared.spec.ts](../../tests/e2e/pb03-shared.spec.ts) is credential-gated and asserts automatic assignment plus an optional-requirements acknowledgement control removed from the current form. Its comment that no coordinator-facing page exists is stale. Its `finally` only warns about a remaining Requested event; it does not remove it. Do not run it as a cleanup-safe shared test or adopt those expectations.
-- [playwright.config.ts](../../playwright.config.ts) reuses local servers outside CI and does not itself guarantee an isolated database. Credential-gated skipping, test presence, historical green results and Jira Done never establish a successful manual run. No test was run or skip state observed in this task.
-
-No business outcome above is reported as verified execution. The blank results and independently prepared local fixtures are the starting point for the tester's evidence.
+Screen labels were checked against repository source, not a live execution. The preparer must verify the running version, actual account access and resource availability on the staging site. No tests were run, no accounts or events were created, and no database was accessed while writing this guide. All result boxes remain blank.

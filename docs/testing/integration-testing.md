@@ -1,6 +1,6 @@
 # Integration testing
 
-Integration coverage is organised by **business workflow** (see the [coverage matrix](integration-coverage-matrix.md)). Done so far: the **intake-to-planning** (SPM-3, 6, 7, 80, 84, 15) and **venue-booking-lifecycle** (SPM-72, 24, 25, 26, 78, 75, 85, 82) workflows plus earlier per-story suites for SPM-2, 13, 14, 86, 87, 20, 21, 88, 19, 83 and 81. Remaining workflows: equipment-arrangements, safety-and-confirmation, change-cancel-complete, registration, and a role-access matrix.
+Integration coverage is organised by **business workflow** (see the [coverage matrix](integration-coverage-matrix.md)). Done so far: the **intake-to-planning** (SPM-3, 6, 7, 80, 84, 15) **venue-booking-lifecycle** (SPM-72, 24, 25, 26, 78, 75, 85, 82) and **safety-and-confirmation** (SPM-33, 89, 90, 11, 35, 79, 12) workflows plus earlier per-story suites for SPM-2, 13, 14, 86, 87, 20, 21, 88, 19, 83 and 81. Remaining workflows: equipment-arrangements, change-cancel-complete, registration, and a role-access matrix.
 
 ## What these tests prove
 
@@ -61,8 +61,8 @@ runner; no hosted Supabase secrets, database deployment or real team data are
 used by this job. The test runner owns setup and teardown.
 
 After pushing the workflow change to an open PR, look for **CI / integration**
-and open its details. The test step should report **13 files / 77 tests passed**
-for the current story suites plus the intake-to-planning and venue-booking-lifecycle workflows. A green job verifies this suite on GitHub;
+and open its details. The test step should report **14 files / 83 tests passed**
+for the current story suites plus the intake-to-planning, venue-booking-lifecycle and safety-and-confirmation workflows. A green job verifies this suite on GitHub;
 it does not verify the hosted website or every story. Requiring that check
 before merging is a separate repository-protection setting, not configured here.
 
@@ -416,3 +416,20 @@ Setup-only steps, not tested actions: staff blocks (SPM-83 covers flagging), and
 ### Execution record 2026-11-01
 
 Integration typecheck passed. Full run **13 files / 77 tests passed**, twice on clean disposable stacks (8 new + 69 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no dedicated containers left. No failures, skips or flakes were observed in this increment. Node 24.20.0.
+
+## Workflow 4: safety-and-confirmation
+
+The [suite](../../tests/integration/safety-and-confirmation.workflow.integration.test.ts) has 6 tests with real services, routes, local Auth and the database. Events reach Planning through the real flow; venue bookings are requested by the coordinator and approved by staff.
+
+1. Readiness is derived: no main venue, unticked safety checks, a Pending booking, an active hold (Needs Review) and an unreserved equipment requirement each block; a stored check cannot be set by hand; submission is refused with the outstanding items and the status unchanged; non-assigned actors are refused.
+2. Submission: round 1, coordinator, time and a snapshot of venues/period/attendance; Safety Officers notified; transition recorded; while pending, withdraw, main change, safety-check edits and a second submission are refused with a full snapshot unchanged.
+3. Approval: only a Safety Officer; review facts (capacity against headcount, the coordinator's checks); read-only for the officer; reviewer, note and time stored; Confirmed; coordinator and organiser notified; a second approval is refused.
+4. Request changes: reason and at least one flag required; only the chosen booking is flagged; back to Planning; not Ready until the coordinator resolves the flag; resubmission is round 2; history keeps both rounds.
+5. Reject: reason required; every booking flagged; back to Planning; recorded and notified.
+6. Confirmed event: edit forms and raw updates by organiser and coordinator change nothing and write no field-change audit; an invalid transition is refused; the lifecycle is recorded in order; the owner lists every booking with its own period and another organiser sees none.
+
+Observations, not defects: request changes notifies only the coordinator (the organiser is told on approve and reject; SPM-89 AC5 does not require more). After a decision the Safety Officer can no longer read the event, its status history or submission rounds (RLS admits them only while Pending Safety Check), so those are read as the coordinator; the officer's own history is the safety review history RPC. Equipment reservation is workflow 3 and the disruption return to Planning is covered by the SPM-83 suite. SPM-12's exact-eight-status AC (legacy enum values remain) is not asserted. UI-only: readiness badges, the change-request message, timeline display, review highlighting.
+
+### Execution record 2026-11-01
+
+Integration typecheck passed. Full run **14 files / 83 tests passed**, twice on clean disposable stacks (6 new + 77 existing), safety guards 8/8, `pnpm check` passed (shared 450, backend 187, frontend 1,613), no containers left. Earlier runs had test-assumption failures, fixed before the final pass: wrong submission result shape, an assumed outstanding-item code for unreserved equipment, reads attempted as the Safety Officer after the event left Pending Safety Check, and an assumed organiser notification on request changes. No product code was changed. Node 24.20.0.
