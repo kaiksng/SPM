@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { EventReadiness } from "@spm/shared";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import { ReadinessChecklist } from "./readiness-checklist";
@@ -67,7 +68,7 @@ describe("ReadinessChecklist", () => {
       <ReadinessChecklist
         readiness={readiness({
           venues: [
-            { bookingId: "booking-1", venueName: "Main Hall", isMainVenue: true, status: "needs_review", needsReviewReason: "Conflict detected." },
+            { bookingId: "booking-1", venueName: "Main Hall", isMainVenue: true, status: "needs_review", needsReviewReason: "Flagged by a change.", canMarkResolved: true },
             { bookingId: "booking-2", venueName: "Breakout Room", isMainVenue: false, status: "complete", needsReviewReason: null },
           ],
         })}
@@ -95,5 +96,30 @@ describe("ReadinessChecklist", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Mark resolved" })).not.toBeInTheDocument();
+  });
+
+  // A conflicted booking cannot be marked resolved: it shows why and links
+  // to the Venue step, where it is moved or cancelled (202611010013).
+  it("explains a conflict and links to the Venue step instead of 'Mark resolved'", () => {
+    const reason =
+      `Clashes with "F1 Event Part 1", which was booked first, once the venue's setup and turnaround time is applied. Move or cancel this booking on the Venue step.`;
+    render(
+      <MemoryRouter>
+        <ReadinessChecklist
+          readiness={readiness({
+            venues: [
+              { bookingId: "booking-1", venueName: "Main Hall", isMainVenue: true, status: "needs_review", needsReviewReason: reason, canMarkResolved: false },
+            ],
+          })}
+          canResolve
+          onResolveBooking={vi.fn()}
+          venueStepHref="/events/event-1/venue"
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(reason)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark resolved" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go to Venue step" })).toHaveAttribute("href", "/events/event-1/venue");
   });
 });

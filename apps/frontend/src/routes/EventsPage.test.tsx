@@ -10,6 +10,7 @@ const deleteEventDraftMock = vi.fn();
 const cancelEventRequestMock = vi.fn();
 const listAssignedEventsMock = vi.fn();
 const listVenueDisruptionsMock = vi.fn();
+const listVenueConflictsForCoordinatorMock = vi.fn();
 const listClarificationsMock = vi.fn();
 const getClarificationReviewStateMock = vi.fn();
 const hasPendingChangeRequestMock = vi.fn();
@@ -41,6 +42,10 @@ vi.mock("@/features/event-requests/services/assigned-events", () => ({
 
 vi.mock("@/features/venues/services/venue-disruptions", () => ({
   listVenueDisruptionsForCoordinator: (...args: unknown[]) => listVenueDisruptionsMock(...args),
+}));
+
+vi.mock("@/features/venues/services/event-venue-conflicts", () => ({
+  listVenueConflictsForCoordinator: (...args: unknown[]) => listVenueConflictsForCoordinatorMock(...args),
 }));
 
 vi.mock("@/features/event-requests/services/clarifications", () => ({
@@ -910,6 +915,7 @@ describe("EventsPage coordinator view", () => {
     authState.profile.role = "event_coordinator";
     listAssignedEventsMock.mockReset().mockResolvedValue([assignedEvent]);
     listVenueDisruptionsMock.mockReset().mockResolvedValue([]);
+    listVenueConflictsForCoordinatorMock.mockReset().mockResolvedValue([]);
     getClarificationReviewStateMock.mockReset().mockResolvedValue(undefined);
     hasPendingChangeRequestMock.mockReset().mockResolvedValue(false);
   });
@@ -936,6 +942,47 @@ describe("EventsPage coordinator view", () => {
     replacementBookingId: null,
     state: "replacement_required" as const,
   };
+
+  // 202611010015: a booking that has to move because of a conflict is a
+  // venue issue like a disruption: same badge, same table.
+  const blockConflict = {
+    bookingId: "booking-9", eventId: "assigned-1", eventTitle: "Shernice Test Submission", venueName: "SMU Connex",
+    bookingStartsAt: "2099-04-06T02:00:00.000Z", bookingEndsAt: "2099-04-06T04:00:00.000Z",
+    blockReason: "failed mic", state: "replacement_required" as const,
+  };
+
+  it("badges an event with a venue conflict as a Venue issue and lists it with the affected bookings", async () => {
+    listVenueConflictsForCoordinatorMock.mockResolvedValue([blockConflict]);
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    const section = await screen.findByRole("region", { name: "Affected venue bookings" });
+    expect(within(section).getByText("1 open")).toBeInTheDocument();
+    expect(within(section).getByText('Clashes with venue block "failed mic"')).toBeInTheDocument();
+    expect(within(section).getByRole("link", { name: "Find replacement" })).toHaveAttribute("href", "/events/assigned-1/venue");
+
+    const titles = await screen.findAllByText("Shernice Test Submission");
+    const card = titles.map((title) => title.closest("article")).find((article) => article !== null);
+    if (!card) throw new Error("Expected the event title to be inside an <article> card.");
+    expect(within(card).getByText("Venue issue")).toBeInTheDocument();
+  });
+
+  it("leaves out a conflict on an event no longer assigned to the coordinator", async () => {
+    listVenueConflictsForCoordinatorMock.mockResolvedValue([{ ...blockConflict, eventId: "someone-elses" }]);
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Shernice Test Submission");
+    await waitFor(() => expect(listVenueConflictsForCoordinatorMock).toHaveBeenCalled());
+    expect(screen.queryByText("Venue issue")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Affected venue bookings" })).not.toBeInTheDocument();
+  });
 
   // SPM-80 AC: the unassigned queue and oversight view are Lead-only.
   it("does not show the Lead's unassigned queue or oversight view to a coordinator", async () => {

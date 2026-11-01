@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { EventVenueConflict } from "@/features/venues/services/event-venue-conflicts";
 import type { VenueBookingRequestSummary } from "@/features/venues/services/venue-bookings";
 
 import { EventVenueBookings } from "./event-venue-bookings";
@@ -39,6 +40,7 @@ function renderBookings(
   props: Partial<{
     busyBookingId: string;
     actionError: { bookingId: string; message: string };
+    conflicts: EventVenueConflict[];
     disruptedBookingId: string;
   }> = {},
 ) {
@@ -182,6 +184,54 @@ describe("EventVenueBookings: a rejected booking", () => {
 
     expect(screen.getByText("Rejected.")).toBeInTheDocument();
     expect(screen.queryByText(/Reason:/)).not.toBeInTheDocument();
+  });
+});
+
+function conflict(overrides: Partial<EventVenueConflict> = {}): EventVenueConflict {
+  return {
+    bookingId: "b-1", mustMove: true, conflictingEventTitle: "F1 Event Part 1",
+    conflictingStartsAt: "2099-04-06T00:00:00.000Z", conflictingEndsAt: "2099-04-06T01:45:00.000Z",
+    blockReason: null, blockStartsAt: null, blockEndsAt: null, flaggedAt: "2099-04-02T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+// 202611010013: of two overlapping bookings the later one moves and the one
+// booked first stays; a booking overlapping a venue block always moves.
+describe("EventVenueBookings: a venue conflict", () => {
+  const approved = booking({ status: "approved" });
+
+  it("keeps a booking that has to move until its replacement is approved", () => {
+    renderBookings([approved], { conflicts: [conflict()] });
+
+    expect(screen.getByText("Venue issue")).toBeInTheDocument();
+    expect(screen.getByText(/This venue clashes with another booking\. The booking stays until its replacement is approved/))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
+  });
+
+  it("offers no Withdraw request on a pending booking that has to move", () => {
+    renderBookings([booking({ status: "pending" })], { conflicts: [conflict()] });
+
+    expect(screen.queryByRole("button", { name: "Withdraw request" })).not.toBeInTheDocument();
+  });
+
+  it("tells the coordinator of the booking made first that no action is needed", () => {
+    renderBookings([approved], {
+      conflicts: [conflict({ mustMove: false, conflictingEventTitle: "F1 Event Part 2" })],
+    });
+
+    expect(screen.queryByText("Venue issue")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText(/That booking was made later, so it is the one expected to move\. No action is needed from you\./))
+      .toBeInTheDocument();
+  });
+
+  it("shows nothing for a booking that is no longer active", () => {
+    renderBookings([booking({ status: "cancelled" })], { conflicts: [conflict()] });
+
+    expect(screen.queryByText("Venue issue")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 
