@@ -71,6 +71,7 @@ import { FROM_EVENTS_LIST_STATE } from "@/features/event-requests/utils/events-l
 import { CHANGE_REQUEST_SUBMITTABLE_STATUSES } from "@/features/event-requests/utils/format-change-request";
 import {
   AffectedVenueBookings,
+  RESOLVED_VISIBLE_DAYS,
   splitVenueDisruptions,
   useVenueDisruptions,
 } from "@/features/venues/components/affected-venue-bookings";
@@ -311,13 +312,14 @@ function CoordinatorEventsView() {
   // Events with a venue disruption or conflict that still needs attention get a badge.
   const eventsWithVenueIssue = new Set([
     ...splitVenueDisruptions(disruptions).open.map((item) => item.eventId),
-    ...assignedConflicts.map((item) => item.eventId),
+    ...assignedConflicts.filter((item) => item.state !== "resolved").map((item) => item.eventId),
   ]);
 
   useEffect(() => {
     let active = true;
     // Non-critical: without it the page simply shows disruptions alone.
-    listVenueConflictsForCoordinator()
+    const resolvedSince = new Date(Date.now() - RESOLVED_VISIBLE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    listVenueConflictsForCoordinator(resolvedSince)
       .then((items) => {
         if (active) setVenueConflicts(items);
       })

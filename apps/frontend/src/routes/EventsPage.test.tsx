@@ -948,7 +948,7 @@ describe("EventsPage coordinator view", () => {
   const blockConflict = {
     bookingId: "booking-9", eventId: "assigned-1", eventTitle: "Shernice Test Submission", venueName: "SMU Connex",
     bookingStartsAt: "2099-04-06T02:00:00.000Z", bookingEndsAt: "2099-04-06T04:00:00.000Z",
-    blockReason: "failed mic", state: "replacement_required" as const,
+    blockReason: "failed mic", state: "replacement_required" as const, resolvedAt: null,
   };
 
   it("badges an event with a venue conflict as a Venue issue and lists it with the affected bookings", async () => {
@@ -968,6 +968,26 @@ describe("EventsPage coordinator view", () => {
     const card = titles.map((title) => title.closest("article")).find((article) => article !== null);
     if (!card) throw new Error("Expected the event title to be inside an <article> card.");
     expect(within(card).getByText("Venue issue")).toBeInTheDocument();
+  });
+
+  it("moves a resolved conflict behind Show resolved and drops its badge", async () => {
+    listVenueConflictsForCoordinatorMock.mockResolvedValue([
+      { ...blockConflict, state: "resolved", resolvedAt: new Date().toISOString() },
+    ]);
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    const section = await screen.findByRole("region", { name: "Affected venue bookings" });
+    expect(within(section).getByText("No open affected bookings.")).toBeInTheDocument();
+    await user.click(within(section).getByRole("button", { name: "Show resolved (1)" }));
+    expect(within(section).getByText('Clashes with venue block "failed mic"')).toBeInTheDocument();
+    expect(within(section).getByText("Resolved")).toBeInTheDocument();
+    expect(within(section).queryByRole("link", { name: "Find replacement" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Venue issue")).not.toBeInTheDocument();
   });
 
   it("leaves out a conflict on an event no longer assigned to the coordinator", async () => {

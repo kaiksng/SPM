@@ -8,6 +8,7 @@ const CHAIN_METHODS = [
   "neq",
   "in",
   "is",
+  "or",
   "not",
   "lt",
   "lte",
