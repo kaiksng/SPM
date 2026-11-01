@@ -1,5 +1,5 @@
 begin;
-select plan(58);
+select plan(61);
 
 insert into auth.users (id, email, raw_user_meta_data) values
   ('f8200000-0000-0000-0000-000000000001', 'spm82-staff@example.test', '{"full_name":"SPM82 Staff","role":"venue_staff"}'::jsonb),
@@ -156,6 +156,25 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"f8200000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok(format($$select public.decide_venue_booking_request(%L::uuid, 'approved'::public.venue_booking_decision_type)$$, (select id from spm82_ids where label = 'r3')),
   '42501', 'Only Venue Staff can decide a venue booking request', 'a coordinator cannot approve a replacement');
+
+-- A Confirmed event with a disrupted booking can search for a replacement venue.
+select lives_ok($$select * from public.search_available_venues('f8200000-0000-0000-0000-0000000000e1'::uuid,
+  '2099-04-06T10:00:00+08:00', '2099-04-06T12:00:00+08:00', 20)$$,
+  'AC04: the assigned coordinator of a Confirmed event with a disrupted booking can search venues');
+select set_config('request.jwt.claims', '{"sub":"f8200000-0000-0000-0000-000000000003","role":"authenticated"}', true);
+select throws_ok($$select * from public.search_available_venues('f8200000-0000-0000-0000-0000000000e1'::uuid,
+  '2099-04-06T10:00:00+08:00', '2099-04-06T12:00:00+08:00', 20)$$,
+  '42501', 'Planning event not found or not assigned to you',
+  'AC04: another coordinator still cannot search for this Confirmed event');
+reset role;
+update public.events set status = 'pending_safety_check' where id = 'f8200000-0000-0000-0000-0000000000e5';
+update public.events set status = 'confirmed' where id = 'f8200000-0000-0000-0000-0000000000e5';
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"f8200000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+select throws_ok($$select * from public.search_available_venues('f8200000-0000-0000-0000-0000000000e5'::uuid,
+  '2099-04-06T17:00:00+08:00', '2099-04-06T18:00:00+08:00', 20)$$,
+  '42501', 'Planning event not found or not assigned to you',
+  'AC04: a Confirmed event with no disrupted booking still cannot search venues');
 
 -- Meanwhile Venue Staff block the replacement venue for that period.
 select set_config('request.jwt.claims', '{"sub":"f8200000-0000-0000-0000-000000000001","role":"authenticated"}', true);
