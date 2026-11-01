@@ -1,0 +1,29 @@
+@startuml ConnectSphere_C4_Context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+HIDE_STEREOTYPE()
+
+title ConnectSphere - C4 System Context Diagram
+
+Person(organiser, "Event Organiser", "Requests events and changes, answers clarifications")
+Person(lead, "Event Coordinator Lead", "Assigns and reassigns coordinators, oversees active events")
+Person(coordinator, "Event Coordinator", "Reviews and plans assigned events, books venues and equipment")
+Person(venueStaff, "Venue Staff", "Maintains venues, decides booking requests, records unavailability")
+Person(techSupport, "Technical Support Staff", "Maintains equipment, reviews and reserves equipment requests")
+Person(safetyOfficer, "Safety Officer", "Reviews operational safety before an event is confirmed")
+Person(attendee, "Attendee", "Browses events and registers")
+
+System(connectsphere, "ConnectSphere", "Event-planning workspace: requests, review, venue and equipment arrangements, safety check, registration, notifications")
+
+System_Ext(supabase, "Supabase", "Hosted authentication, PostgreSQL database and file storage")
+
+Rel(organiser, connectsphere, "Submits requests and change requests")
+Rel(lead, connectsphere, "Assigns coordinators")
+Rel(coordinator, connectsphere, "Plans events, requests venues and equipment")
+Rel(venueStaff, connectsphere, "Approves, rejects or holds venue bookings")
+Rel(techSupport, connectsphere, "Reserves equipment")
+Rel(safetyOfficer, connectsphere, "Approves, rejects or requests changes")
+Rel(attendee, connectsphere, "Registers for events")
+Rel(connectsphere, supabase, "Authenticates users; stores and secures all data", "HTTPS")
+
+@enduml

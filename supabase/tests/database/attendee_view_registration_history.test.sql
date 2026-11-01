@@ -31,26 +31,28 @@ set local role authenticated;
 -- now that it's completed.
 select set_config('request.jwt.claims', '{"sub":"f9000000-0000-0000-0000-000000000003","role":"authenticated"}', true);
 select ok(
-  public.can_view_event('f9000000-0000-0000-0000-0000000000e1'),
+  public.can_attendee_view_event('f9000000-0000-0000-0000-0000000000e1'),
   'an attendee can still view an event they registered for after it leaves confirmed'
 );
+-- 202611010014: the events table is no longer readable by attendees; their
+-- published view of the event comes from attendee_visible_events.
 select is(
-  (select count(*) from public.events where id = 'f9000000-0000-0000-0000-0000000000e1')::int,
+  (select count(*) from public.attendee_visible_events(array['f9000000-0000-0000-0000-0000000000e1']::uuid[]))::int,
   1,
-  'the events row itself is selectable for that attendee via RLS'
+  'the event is returned for that attendee by attendee_visible_events'
 );
 
 -- Attendee 2 never registered for this event and it is no longer confirmed
 -- — negative control: the fix must not open visibility to every attendee.
 select set_config('request.jwt.claims', '{"sub":"f9000000-0000-0000-0000-000000000004","role":"authenticated"}', true);
 select ok(
-  not public.can_view_event('f9000000-0000-0000-0000-0000000000e1'),
+  not public.can_attendee_view_event('f9000000-0000-0000-0000-0000000000e1'),
   'an attendee with no registration still cannot view a non-confirmed event'
 );
 select is(
-  (select count(*) from public.events where id = 'f9000000-0000-0000-0000-0000000000e1')::int,
+  (select count(*) from public.attendee_visible_events(array['f9000000-0000-0000-0000-0000000000e1']::uuid[]))::int,
   0,
-  'the events row is not selectable for an unrelated attendee'
+  'the event is not returned for an unrelated attendee'
 );
 
 select * from finish();

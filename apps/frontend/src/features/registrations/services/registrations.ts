@@ -2,6 +2,7 @@ import type { OwnRegistrationStatus } from "@spm/shared";
 
 import { formatAttendeeVenue, listAttendeeEventVenues } from "@/features/registrations/services/attendee-event";
 import { apiFetch } from "@/lib/api-client";
+import { loadVisibleEvents } from "@/features/registrations/services/visible-events";
 import { supabase } from "@/lib/supabase-client";
 
 /**
@@ -126,59 +127,50 @@ export type MyRegistration = {
 export async function listMyRegistrations(attendeeId: string): Promise<MyRegistration[]> {
   const { data, error } = await supabase
     .from("event_registrations")
-    .select(
-      `
-        id,
-        status,
-        status_before_cancellation,
-        registered_at,
-        event:events (
-          id,
-          title,
-          status,
-          starts_at,
-          ends_at,
-          event_venue_requirements ( preferred_location ),
-          event_registration_requirements ( withdrawal_permitted )
-        )
-      `,
-    )
+    .select("id, event_id, status, status_before_cancellation, registered_at")
     .eq("attendee_id", attendeeId)
     .order("registered_at", { ascending: false });
 
   if (error) throw new Error("We couldn't load your registrations.");
 
-  const ownRows = data.filter((row) => row.event !== null);
+  // The events themselves come from attendee_visible_events: an attendee has
+  // no read access to the events table (SPM-49).
+  const events = new Map(
+    (await loadVisibleEvents(data.map((row) => row.event_id)).catch(() => {
+      throw new Error("We couldn't load your registrations.");
+    })).map((event) => [event.id, event]),
+  );
+  const ownRows = data.filter((row) => events.has(row.event_id));
 
   const waitlistedEventIds = ownRows
     .filter((row) => row.status === "waitlisted")
-    .map((row) => row.event!.id);
+    .map((row) => row.event_id);
 
   const [counts, venues] = await Promise.all([
     loadRegistrationCounts(waitlistedEventIds).catch(() => {
       throw new Error("We couldn't check the waiting list.");
     }),
-    listAttendeeEventVenues(ownRows.map((row) => row.event!.id)),
+    listAttendeeEventVenues(ownRows.map((row) => row.event_id)),
   ]);
 
   return ownRows.map((row) => {
-    const eventId = row.event!.id;
+    const event = events.get(row.event_id)!;
     return {
       id: row.id,
-      eventId,
-      title: row.event!.title,
-      startsAt: row.event!.starts_at,
-      endsAt: row.event!.ends_at,
+      eventId: event.id,
+      title: event.title,
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
       // The booked main venue once Confirmed; else the organiser's preferred area.
-      location: mainVenue(venues.get(eventId)) ?? row.event!.event_venue_requirements?.preferred_location ?? null,
+      location: mainVenue(venues.get(event.id)) ?? event.preferredLocation,
       status: row.status,
       statusBeforeCancellation: row.status_before_cancellation,
       registeredAt: row.registered_at,
-      waitlistPosition: counts.get(eventId)?.ownWaitlistPosition ?? null,
-      withdrawalPermitted: row.event!.event_registration_requirements?.withdrawal_permitted ?? false,
+      waitlistPosition: counts.get(event.id)?.ownWaitlistPosition ?? null,
+      withdrawalPermitted: event.withdrawalPermitted ?? false,
       // A registration only exists once an event was Confirmed, so Planning
       // or Pending Safety Check here means it is being updated.
-      eventBeingUpdated: row.event!.status === "planning" || row.event!.status === "pending_safety_check",
+      eventBeingUpdated: event.status === "planning" || event.status === "pending_safety_check",
     };
   });
 }

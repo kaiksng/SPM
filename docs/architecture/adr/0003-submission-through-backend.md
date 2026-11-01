@@ -1,6 +1,9 @@
 # ADR 0003: Submit an event request through the backend, with least-loaded coordinator assignment
 
-- Status: Accepted
+- Status: Accepted for the submission route; the assignment part was superseded (see below)
+
+> **Amendment (Week 7 customer change):** the customer introduced the Event Coordinator Lead role. Newly submitted requests are no longer auto-assigned to the least-loaded coordinator; they enter an unassigned queue and the Lead assigns and reassigns coordinators (migrations `202610050001`-`202610050005`, `202609280001`). The decision to submit through one Postgres transaction behind a backend route still stands. The least-loaded rule and the "reassignment not supported" consequence below describe the original Release 1 design and are kept for history.
+
 - Date: 2026-09-13
 
 ## Decision
