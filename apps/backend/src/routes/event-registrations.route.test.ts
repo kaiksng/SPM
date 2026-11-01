@@ -1,5 +1,6 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAppServer } from "../test/app-server";
 
 const { rpcMock, getUserMock } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
@@ -14,12 +15,13 @@ vi.mock("../lib/supabase-service-client", () => ({
 }));
 
 const { createApp } = await import("../app");
+const server = useAppServer(createApp);
 
 const EVENT_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
 const USER_ID = "ea333cdb-21d1-4819-8fb0-ec64508d8323";
 
 function authedRequest(eventId = EVENT_ID) {
-  return request(createApp())
+  return request(server())
     .post(`/events/${eventId}/register`)
     .set("Authorization", "Bearer test-token")
     .send();
@@ -49,7 +51,7 @@ describe("POST /events/:eventId/register", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp()).post(`/events/${EVENT_ID}/register`).send();
+    const response = await request(server()).post(`/events/${EVENT_ID}/register`).send();
 
     expect(response.status).toBe(401);
     expect(rpcMock).not.toHaveBeenCalled();
@@ -115,7 +117,7 @@ describe("POST /events/:eventId/waitlist", () => {
   });
 
   function joinRequest(eventId = EVENT_ID) {
-    return request(createApp())
+    return request(server())
       .post(`/events/${eventId}/waitlist`)
       .set("Authorization", "Bearer test-token")
       .send();
@@ -138,7 +140,7 @@ describe("POST /events/:eventId/waitlist", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp()).post(`/events/${EVENT_ID}/waitlist`).send();
+    const response = await request(server()).post(`/events/${EVENT_ID}/waitlist`).send();
 
     expect(response.status).toBe(401);
     expect(rpcMock).not.toHaveBeenCalled();
@@ -164,7 +166,7 @@ describe("DELETE /events/:eventId/waitlist", () => {
   });
 
   function leaveRequest(eventId = EVENT_ID) {
-    return request(createApp())
+    return request(server())
       .delete(`/events/${eventId}/waitlist`)
       .set("Authorization", "Bearer test-token")
       .send();
@@ -194,7 +196,7 @@ describe("DELETE /events/:eventId/waitlist", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp()).delete(`/events/${EVENT_ID}/waitlist`).send();
+    const response = await request(server()).delete(`/events/${EVENT_ID}/waitlist`).send();
 
     expect(response.status).toBe(401);
     expect(rpcMock).not.toHaveBeenCalled();
@@ -209,7 +211,7 @@ describe("POST /events/:eventId/withdraw", () => {
   });
 
   function withdrawRequest(body: unknown = undefined, eventId = EVENT_ID) {
-    return request(createApp())
+    return request(server())
       .post(`/events/${eventId}/withdraw`)
       .set("Authorization", "Bearer test-token")
       .send(body as object);
@@ -264,7 +266,7 @@ describe("POST /events/:eventId/withdraw", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp()).post(`/events/${EVENT_ID}/withdraw`).send();
+    const response = await request(server()).post(`/events/${EVENT_ID}/withdraw`).send();
 
     expect(response.status).toBe(401);
     expect(rpcMock).not.toHaveBeenCalled();

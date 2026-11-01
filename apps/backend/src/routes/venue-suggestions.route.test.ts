@@ -1,5 +1,6 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAppServer } from "../test/app-server";
 
 const { fromMock, rpcMock, getUserMock } = vi.hoisted(() => ({
   fromMock: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock("../lib/supabase-service-client", () => ({
 }));
 
 const { createApp } = await import("../app");
+const server = useAppServer(createApp);
 
 const EVENT_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
 const USER_ID = "ea333cdb-21d1-4819-8fb0-ec64508d8323";
@@ -51,7 +53,7 @@ function eventOwnedBy(organiserId: string, assignedCoordinatorId: string | null 
 }
 
 function get(path = `/events/${EVENT_ID}/suggested-venues`) {
-  return request(createApp()).get(path).set("Authorization", "Bearer test-token");
+  return request(server()).get(path).set("Authorization", "Bearer test-token");
 }
 
 const SUGGESTIONS = [{ id: "venue-1", name: "Innovation Hall", availability_status: "available" }];
@@ -124,7 +126,7 @@ describe("GET /events/:eventId/suggested-venues", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp()).get(`/events/${EVENT_ID}/suggested-venues`);
+    const response = await request(server()).get(`/events/${EVENT_ID}/suggested-venues`);
 
     expect(response.status).toBe(401);
     expect(fromMock).not.toHaveBeenCalled();
