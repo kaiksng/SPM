@@ -276,6 +276,7 @@ export function EventVenuePage() {
                     actionError={actionError}
                     canChangeMain={event.status === "planning"}
                     readOnly={!!closedStatus}
+                    disruptedBookingId={disruption && disruption.state !== "resolved" ? disruption.bookingId : undefined}
                     onWithdraw={handleWithdraw}
                     onConfirmHold={handleConfirmHold}
                     onSetMain={handleSetMain}

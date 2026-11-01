@@ -448,7 +448,17 @@ describe("VenueDetailPage", () => {
     loadEventDetailMock.mockResolvedValue({ ...event, status: "confirmed" });
     renderPage("/venues/venue-1?forEvent=event-1");
 
-    expect(await screen.findByText("This event is not ready for a venue request.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("This event is Confirmed. Venues can only be requested while it is in Planning."),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Request venue" })).toBeDisabled();
+  });
+
+  it("says when the event has no schedule yet", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "planning", startsAt: null, endsAt: null });
+    renderPage("/venues/venue-1?forEvent=event-1");
+
+    expect(await screen.findByText("Add the event's start and end time before requesting a venue.")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Request venue" })).toBeDisabled();
   });
 
