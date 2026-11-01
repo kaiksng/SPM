@@ -92,6 +92,11 @@ function notificationDestination(
     return notification.eventId ? `/events/${notification.eventId}` : "/events";
   }
   if (notification.type === "safety_review_reset") return "/safety-checks";
+  // SPM-90: a Safety Officer can't open /events/:id — take them straight to
+  // the event's review page, where they decide it.
+  if (notification.type === "safety_check_requested") {
+    return notification.eventId ? `/safety-checks/${notification.eventId}` : "/safety-checks";
+  }
   // Attendee-facing: an attendee has no "events" nav section (see
   // navigation.ts) and can't reach /events/:id at all — their own copy of
   // the event lives at /browse-events/:id instead.
