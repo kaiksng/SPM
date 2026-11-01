@@ -588,7 +588,7 @@ describe("EventRequestForm with an open clarification", () => {
   });
 });
 
-describe("EventRequestForm submit mode (PB-03)", () => {
+describe("EventRequestForm submit mode (SPM-3)", () => {
   // AC06: an incomplete request is blocked locally, before the network call.
   it("blocks submission of an incomplete request without calling onSave", async () => {
     const user = userEvent.setup();

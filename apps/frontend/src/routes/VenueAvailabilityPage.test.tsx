@@ -85,7 +85,7 @@ afterEach(() => {
 });
 
 describe("VenueAvailabilityPage: a venue booking on hold", () => {
-  it("AC04: shows an active hold on the calendar in the On Hold style, which the legend names", async () => {
+  it("SPM-78 AC04: shows an active hold on the calendar in the On Hold style, which the legend names", async () => {
     listVenueAvailabilityMock.mockResolvedValue([period({})]);
     const { container } = renderPage();
 
@@ -96,7 +96,7 @@ describe("VenueAvailabilityPage: a venue booking on hold", () => {
     expect(listVenueAvailabilityMock).toHaveBeenCalledWith("venue-1", "staff-1");
   });
 
-  it("AC04: the day's timeline shows the held period and who placed the hold", async () => {
+  it("SPM-78 AC04: the day's timeline shows the held period and who placed the hold", async () => {
     listVenueAvailabilityMock.mockResolvedValue([period({})]);
     renderPage();
 

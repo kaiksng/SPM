@@ -414,7 +414,7 @@ describe("VenueDetailPage", () => {
     replacesBookingId: null,
   };
 
-  // AC04: the event already has an (disrupted) active booking, which must not block
+  // SPM-82 AC04: the event already has an (disrupted) active booking, which must not block
   // a request that replaces exactly that booking.
   it("requests the venue as a replacement and returns to the event's venue page", async () => {
     getActiveVenueBookingMock.mockResolvedValue(activeOriginal);
@@ -514,7 +514,7 @@ describe("VenueDetailPage", () => {
     expect(await screen.findByRole("button", { name: "Request venue" })).toBeDisabled();
   });
 
-  // SPM-87 AC02 + AC03: the database refuses a venue whose effective window
+  // SPM-26 / SPM-87 AC02 + AC03: the database refuses a venue whose effective window
   // (with setup and turnaround) overlaps another booking, and the coordinator
   // sees that window and cannot request it.
   it("blocks the request and shows the conflicting effective window", async () => {
@@ -592,9 +592,9 @@ describe("VenueDetailPage", () => {
     replacesBookingId: null,
   };
 
-  // AC01/AC02: the event's existing booking does not block an additional one, and the
+  // SPM-85 AC01/AC09: the event's existing booking does not block an additional one, and the
   // booking's own label, period, headcount and needs are what is requested.
-  it("AC01/AC02: requests the venue as an additional booking with its own details", async () => {
+  it("SPM-85 AC01/AC09: requests the venue as an additional booking with its own details", async () => {
     getActiveVenueBookingMock.mockResolvedValue(approvedMain);
     const user = userEvent.setup();
     renderPage("/venues/venue-1?forEvent=event-1&additional=1", additionalState);
@@ -616,8 +616,8 @@ describe("VenueDetailPage", () => {
     expect(navigateMock).toHaveBeenCalledWith("/events/event-1/venue");
   });
 
-  // AC04: availability is checked for the booking's own period, not the event's.
-  it("AC04: checks availability for the booking's own period", async () => {
+  // SPM-85 AC04: availability is checked for the booking's own period, not the event's.
+  it("SPM-85 AC04: checks availability for the booking's own period", async () => {
     renderPage("/venues/venue-1?forEvent=event-1&additional=1", additionalState);
 
     await screen.findByText("Request this venue as Breakout 1");
@@ -629,7 +629,7 @@ describe("VenueDetailPage", () => {
     });
   });
 
-  it("AC04: a venue smaller than the booking's headcount cannot be requested", async () => {
+  it("SPM-85 AC04: a venue smaller than the booking's headcount cannot be requested", async () => {
     renderPage("/venues/venue-1?forEvent=event-1&additional=1", {
       ...additionalState,
       venueSearch: { ...additionalState.venueSearch, minimumCapacity: "300" },

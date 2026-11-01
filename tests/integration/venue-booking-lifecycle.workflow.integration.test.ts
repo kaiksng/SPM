@@ -205,7 +205,7 @@ describe("Workflow: venue booking lifecycle", () => {
     expect(await listVenueBookingsForEvent(held.id)).toEqual([expect.objectContaining({ id: booking, status: "expired" })]);
   });
 
-  // SPM-85 AC1-AC4, AC6, AC8, AC9, AC11, AC12 (agreed 12): several independent bookings for one event.
+  // SPM-85 AC1, AC3, AC4, AC6-AC9, AC12, AC13: several independent bookings for one event.
   it("books additional venues independently, keeps one main venue, and releases only the booking withdrawn or cancelled", async () => {
     const hall = await fixture.venue(100);
     const roomA = await fixture.venue(100);

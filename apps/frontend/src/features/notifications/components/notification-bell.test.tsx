@@ -135,9 +135,9 @@ describe("NotificationBell", () => {
     );
   });
 
-  // Venue hold AC05: the reminder takes the coordinator to the event's venue
+  // SPM-75 AC05: the reminder takes the coordinator to the event's venue
   // page, where the Confirm request option is.
-  it("AC05 (venue hold): opens the event's venue page from a hold-expiring-soon reminder", async () => {
+  it("SPM-75 AC05: opens the event's venue page from a hold-expiring-soon reminder", async () => {
     const reminder = {
       id: "n4",
       type: "venue_hold_expiring_soon" as const,

@@ -205,7 +205,7 @@ describe("EventEquipmentPage (SPM-28 arrangement status)", () => {
     ],
   ]);
 
-  it("shows the assigned coordinator each item's status and history (AC02/AC03/AC07)", async () => {
+  it("shows the assigned coordinator each item's status and history (SPM-28 AC02/AC03/AC05)", async () => {
     loadEventDetailMock.mockResolvedValue({
       ...(await loadEventDetailMock()),
       assignedCoordinatorId: "coordinator-1",

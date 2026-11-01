@@ -73,7 +73,7 @@ beforeEach(() => {
 });
 
 describe("EventSafetyCheckPage", () => {
-  // AC01/AC02/AC07.
+  // SPM-33 AC01/AC02/AC07.
   it("shows each venue booking and equipment requirement's status", async () => {
     loadEventReadinessMock.mockResolvedValue(
       readiness({
@@ -88,7 +88,7 @@ describe("EventSafetyCheckPage", () => {
     expect(screen.getByText("Mic")).toBeInTheDocument();
   });
 
-  // AC05: Ready and the assigned coordinator -> submit is enabled.
+  // SPM-33 AC05: Ready and the assigned coordinator -> submit is enabled.
   it("lets the assigned coordinator submit when the event is Ready", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -100,7 +100,7 @@ describe("EventSafetyCheckPage", () => {
     expect(submitEventForSafetyCheckMock).toHaveBeenCalledWith("event-1");
   });
 
-  // AC05/AC04: not Ready -> submission is blocked and outstanding items are listed.
+  // SPM-33 AC06: not Ready -> submission is blocked and outstanding items are listed.
   it("blocks submission and lists outstanding items when the event is not Ready", async () => {
     loadEventReadinessMock.mockResolvedValue(
       readiness({
@@ -247,7 +247,7 @@ describe("EventSafetyCheckPage", () => {
     expect(screen.queryByRole("button", { name: "Mark resolved" })).not.toBeInTheDocument();
   });
 
-  // AC06: once submitted, a read-only banner names the round.
+  // SPM-33 AC08: once submitted, a read-only banner names the round.
   it("shows a read-only banner once the event is Pending Safety Check", async () => {
     loadEventDetailMock.mockResolvedValue({
       id: "event-1",

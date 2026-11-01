@@ -99,7 +99,7 @@ select throws_ok(
     values ((select id from v_ids where name = 'worked'), 'ec000000-0000-0000-0000-0000000000e1', 'arranged', null,
             'ec000000-0000-0000-0000-000000000003')$$,
   '42501', null,
-  'the coordinator still cannot set an arrangement status themselves (SPM-28 AC06)'
+  'the coordinator still cannot set an arrangement status themselves (SPM-28 AC04)'
 );
 
 select * from finish();

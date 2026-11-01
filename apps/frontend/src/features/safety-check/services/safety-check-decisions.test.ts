@@ -95,7 +95,7 @@ describe("listPendingSafetyCheckEvents", () => {
 });
 
 describe("decideEventSafetyCheck", () => {
-  // SPM-90 AC04: the approval is sent to the backend, which records the reviewer and notifies.
+  // SPM-90 AC03: the approval is sent to the backend, which records the reviewer and notifies.
   it("sends an approval with its note and no flagged items", async () => {
     apiFetchMock.mockResolvedValue({ data: { eventId: "event-1", status: "confirmed", outcome: "approved", flaggedBookingCount: 0, flaggedRequirementCount: 0 } });
 

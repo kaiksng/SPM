@@ -150,7 +150,7 @@ describe("SafetyCheckReviewPage", () => {
     expect(screen.getByText("Projector × 2")).toBeInTheDocument();
   });
 
-  // SPM-90 AC02/AC03: the review facts are on the page, shortfall highlighted.
+  // SPM-90 AC02: the review facts are on the page, shortfall highlighted.
   it("shows the review facts and highlights a venue below the expected attendance", async () => {
     renderPage();
 
@@ -159,7 +159,7 @@ describe("SafetyCheckReviewPage", () => {
     expect(loadSafetyReviewDetailsMock).toHaveBeenCalledWith("event-1");
   });
 
-  // SPM-90 AC03: event information is read-only for the Safety Officer — the
+  // SPM-90 AC02: event information is read-only for the Safety Officer — the
   // page offers decision buttons; correction checkboxes appear only after choosing Request changes.
   it("offers no way to edit event information", async () => {
     renderPage();
@@ -310,7 +310,7 @@ describe("SafetyCheckReviewPage", () => {
   });
 
   // This story: Approve, with no reason required.
-  // SPM-90 AC04: Approve (note optional) moves the event to Confirmed.
+  // SPM-90 AC03: Approve (note optional) moves the event to Confirmed.
   it("submits Approve with no reason and navigates with a confirmation notice", async () => {
     decideEventSafetyCheckMock.mockResolvedValue({
       eventId: "event-1",
@@ -360,7 +360,7 @@ describe("SafetyCheckReviewPage", () => {
   });
 });
 
-// SPM-90 AC04/AC06: approving from the review page, and what happens when the page or the decision fails.
+// SPM-90 AC03/AC05: approving from the review page, and what happens when the page or the decision fails.
 describe("SafetyCheckReviewPage approving and loading", () => {
   it("closes the decision dialog without deciding when the Safety Officer cancels", async () => {
     const user = userEvent.setup();
@@ -373,7 +373,7 @@ describe("SafetyCheckReviewPage approving and loading", () => {
     expect(decideEventSafetyCheckMock).not.toHaveBeenCalled();
   });
 
-  // SPM-90 AC06: an event that is no longer Pending Safety Check cannot be approved; the refusal is shown.
+  // SPM-90 AC05: an event that is no longer Pending Safety Check cannot be approved; the refusal is shown.
   it("shows why an approval was refused, on the page and in the dialog, and stays on the review", async () => {
     const user = userEvent.setup();
     decideEventSafetyCheckMock.mockRejectedValueOnce(new Error("Only an event Pending Safety Check can be decided"));

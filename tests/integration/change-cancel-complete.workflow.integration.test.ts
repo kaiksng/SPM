@@ -167,7 +167,7 @@ describe("Workflow: change, cancel, complete", () => {
     await expect(applyEventChangeRequest(requestId, moved)).rejects.toThrow(/Only an Approved change request/);
   });
 
-  // SPM-39 AC10 (other changes leave the status unchanged) and AC1 (nothing flagged).
+  // SPM-39 AC08 (other changes leave the status unchanged) and AC1 (nothing flagged).
   it("leaves a Confirmed event confirmed and flags nothing when the change does not affect arrangements", async () => {
     const event = await confirmed("Integration minor change event");
     const requestId = await approvedChange(event.id, "Reword the description");

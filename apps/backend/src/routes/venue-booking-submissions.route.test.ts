@@ -49,7 +49,7 @@ describe("POST /venue-bookings/submit", () => {
     });
   });
 
-  it("AC02: passes an additional booking's own label, period, headcount and needs to the database", async () => {
+  it("SPM-85 AC09: passes an additional booking's own label, period, headcount and needs to the database", async () => {
     rpcMock.mockResolvedValue({ data: "booking-2", error: null });
 
     const response = await authedRequest({
@@ -80,7 +80,7 @@ describe("POST /venue-bookings/submit", () => {
     });
   });
 
-  it("AC02: rejects invalid booking details before calling the database", async () => {
+  it("SPM-85 AC09: rejects invalid booking details before calling the database", async () => {
     const response = await authedRequest({
       eventId: EVENT_ID,
       venueId: VENUE_ID,
@@ -245,7 +245,7 @@ describe("POST /venue-bookings/:bookingId/replacement", () => {
   });
 });
 
-// SPM-85 AC10: withdraw a Pending booking or cancel an Approved one, with a reason.
+// SPM-85 AC11: withdraw a Pending booking or cancel an Approved one, with a reason.
 describe("POST /venue-bookings/:bookingId/withdraw", () => {
   function withdrawRequest(body: unknown) {
     return request(server())
@@ -282,7 +282,7 @@ describe("POST /venue-bookings/:bookingId/withdraw", () => {
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
-  // SPM-85 AC10: a malformed booking id never reaches the database.
+  // SPM-85 AC11: a malformed booking id never reaches the database.
   it("rejects a booking id that is not valid before calling the database", async () => {
     const response = await request(server())
       .post("/venue-bookings/not-a-booking/withdraw")
@@ -293,7 +293,7 @@ describe("POST /venue-bookings/:bookingId/withdraw", () => {
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
-  it("AC10: rejects a missing or blank reason before calling the database", async () => {
+  it("SPM-85 AC11: rejects a missing or blank reason before calling the database", async () => {
     expect((await withdrawRequest({})).status).toBe(422);
     expect((await withdrawRequest({ reason: "   " })).status).toBe(422);
     expect(rpcMock).not.toHaveBeenCalled();

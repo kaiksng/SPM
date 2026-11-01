@@ -141,7 +141,7 @@ select is(
 select is(
   (select row(equipment_item_id, equipment_name, status) from a_result where requirement_id = (select id from a_ids where name = 'req-legacy')),
   row(null::uuid, 'Old smoke machine'::text, 'unknown'::text),
-  'an unknown equipment type is identified, not treated as available (SPM-31 AC05)'
+  'an unknown equipment type is identified, not treated as available (SPM-31 AC04)'
 );
 
 -- Restoring a retired unit puts it back in stock.

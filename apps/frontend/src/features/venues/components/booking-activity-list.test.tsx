@@ -13,7 +13,7 @@ function entry(overrides: Partial<BookingActivityEntry> = {}): BookingActivityEn
   };
 }
 
-// SPM-85 AC12: a venue's or an event's activity log shows what happened to each booking, newest first.
+// SPM-85 AC13: a venue's or an event's activity log shows what happened to each booking, newest first.
 describe("BookingActivityList", () => {
   it("says so when nothing has happened yet", () => {
     render(<BookingActivityList entries={[]} emptyText="No bookings have been requested at this venue yet." />);

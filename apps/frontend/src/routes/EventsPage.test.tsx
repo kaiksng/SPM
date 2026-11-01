@@ -236,7 +236,7 @@ describe("EventsPage draft controls", () => {
       "href",
       "/events/draft-1/edit",
     );
-    // PB-03.
+    // SPM-3.
     expect(screen.getByRole("link", { name: "Submit request" })).toHaveAttribute(
       "href",
       "/events/draft-1/submit",
@@ -401,7 +401,7 @@ describe("EventsPage draft controls", () => {
     expect(screen.getByText("Shernice Test Submission")).toBeInTheDocument();
   });
 
-  // PB-03 AC04 and AC07.
+  // SPM-3.
   it("shows the submission time and a permitted edit action for a Requested event", async () => {
     listEventRequestsMock.mockResolvedValue([requested]);
 
@@ -1139,7 +1139,7 @@ describe("EventsPage coordinator view", () => {
     expect(screen.queryByText("Awaiting Organiser")).not.toBeInTheDocument();
   });
 
-  // SPM-15 AC04: a coordinator with no assigned events sees an empty list.
+  // SPM-15 AC01: a coordinator with no assigned events sees an empty list.
   it("shows an empty state when nothing is assigned", async () => {
     listAssignedEventsMock.mockResolvedValue([]);
 
@@ -1519,6 +1519,31 @@ describe("EventsPage for the Event Coordinator Lead role", () => {
 
     await waitFor(() => expect(hasPendingChangeRequestMock).toHaveBeenCalledWith("event-q1"));
     expect(await screen.findByText("Change requested")).toBeInTheDocument();
+  });
+
+  // SPM-74 AC01: the Status and date-range panel belongs to the organiser's and
+  // coordinator's views. The Lead's queue and Oversight don't show it; Oversight
+  // has its own coordinator and status filters (SPM-80).
+  it("SPM-74 AC01: shows the Lead no date-range filter on the queue or Oversight", async () => {
+    listAllEventsMock.mockResolvedValue([leadEvent]);
+    listCoordinatorsMock.mockResolvedValue([]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Unassigned Gala")).toBeInTheDocument();
+    expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Filter by status" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^Oversight/ }));
+
+    expect(await screen.findByRole("combobox", { name: "Filter by status" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filter by coordinator" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("From")).not.toBeInTheDocument();
   });
 
   // SPM-77 AC02: the Lead sees every coordinator's assigned events and can reassign.

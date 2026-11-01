@@ -164,7 +164,7 @@ describe("VenueRequestsPage", () => {
       advisoryNotes: "Location: this venue is at Bras Basah, but the event's main venue is at Marina Bay.",
     };
 
-    it("AC09: names the booking's label and its own headcount", async () => {
+    it("SPM-85 AC08: names the booking's label and its own headcount", async () => {
       listVenueBookingRequestsMock.mockResolvedValue([breakout]);
       listVenueDisruptionsMock.mockResolvedValue([]);
       renderPage();
@@ -175,7 +175,7 @@ describe("VenueRequestsPage", () => {
       expect(screen.getByText("300 attendees")).toBeInTheDocument();
     });
 
-    it("AC10: shows why the coordinator cancelled a booking", async () => {
+    it("SPM-85 AC11: shows why the coordinator cancelled a booking", async () => {
       listVenueBookingRequestsMock.mockResolvedValue([
         { ...breakout, status: "cancelled" as const, decidedAt: "2099-04-02T00:00:00.000Z", decidedByName: "Staff", cancellationReason: "Speaker dropped out" },
       ]);
@@ -188,7 +188,7 @@ describe("VenueRequestsPage", () => {
       expect(screen.getByText("Speaker dropped out")).toBeInTheDocument();
     });
 
-    it("AC09: shows the location note without blocking the decision", async () => {
+    it("SPM-85 AC08: shows the location note without blocking the decision", async () => {
       listVenueBookingRequestsMock.mockResolvedValue([breakout]);
       listVenueDisruptionsMock.mockResolvedValue([]);
       renderPage();
@@ -475,7 +475,7 @@ describe("VenueRequestsPage", () => {
       expect(within(card).getByText(formatDateTime(new Date("2099-04-05T01:00:00.000Z")))).toBeInTheDocument();
       expect(within(card).getByText(/Waiting on the coordinator to confirm/)).toBeInTheDocument();
       expect(within(card).queryByRole("button", { name: "Place on hold" })).not.toBeInTheDocument();
-      // Venue hold placement AC02: the active hold still shows its event, venue
+      // SPM-78 AC02: the active hold still shows its event, venue
       // and requested period next to its deadline.
       expect(within(card).getByText("Evening Talk")).toBeInTheDocument();
       expect(within(card).getByText("Main Programme").parentElement).toHaveTextContent("Main Programme · Seminar Room");

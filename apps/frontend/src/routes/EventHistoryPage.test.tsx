@@ -48,9 +48,11 @@ vi.mock("@/features/event-requests/services/event-lifecycle", () => ({
 
 // Without this the page made a real network call, so every test here passed
 // or timed out depending on connectivity.
+const listReassignmentsMock = vi.fn();
+const listAssignmentHistoryMock = vi.fn();
 vi.mock("@/features/event-requests/services/event-reassignment", () => ({
-  listEventCoordinatorReassignments: vi.fn().mockResolvedValue([]),
-  listEventCoordinatorAssignmentHistory: vi.fn().mockResolvedValue([]),
+  listEventCoordinatorReassignments: (...args: unknown[]) => listReassignmentsMock(...args),
+  listEventCoordinatorAssignmentHistory: (...args: unknown[]) => listAssignmentHistoryMock(...args),
 }));
 
 vi.mock("@/features/event-requests/services/equipment", () => ({
@@ -102,6 +104,8 @@ beforeEach(() => {
   listEventDecisionsMock.mockReset().mockResolvedValue([]);
   listEventStatusHistoryMock.mockReset().mockResolvedValue([]);
   loadEquipmentHistoryMock.mockReset().mockResolvedValue([]);
+  listReassignmentsMock.mockReset().mockResolvedValue([]);
+  listAssignmentHistoryMock.mockReset().mockResolvedValue([]);
   listVenueBookingsForEventMock.mockReset().mockResolvedValue([]);
   listVenueBookingFlagsMock.mockReset().mockResolvedValue([]);
   listSafetyCheckDecisionsMock.mockReset().mockResolvedValue([]);
@@ -135,7 +139,112 @@ const baseBooking = {
 };
 
 describe("EventHistoryPage", () => {
-  // SPM-85 AC12: every change to a booking is recorded with the booking's label,
+  // SPM-84 AC03: the previous assignment is closed and the new one recorded, and
+  // the full assignment history is viewable.
+  describe("coordinator assignment history", () => {
+    const firstAssignment = {
+      id: 1,
+      previousCoordinatorId: null,
+      previousCoordinatorName: null,
+      newCoordinatorId: "coord-1",
+      newCoordinatorName: "Priya Shah",
+      changedById: "lead-1",
+      changedByName: "Tom Lead",
+      reason: null,
+      changedAt: "2099-01-01T02:00:00.000Z",
+      endedAt: "2099-01-05T02:00:00.000Z",
+    };
+    const reassignment = {
+      ...firstAssignment,
+      id: 2,
+      previousCoordinatorId: "coord-1",
+      previousCoordinatorName: "Priya Shah",
+      newCoordinatorId: "coord-2",
+      newCoordinatorName: "Marcus Lee",
+      reason: "Priya is on leave",
+      changedAt: "2099-01-05T02:00:00.000Z",
+      endedAt: null,
+    };
+
+    it("SPM-84 AC03: lists every assignment, marking the current one", async () => {
+      listAssignmentHistoryMock.mockResolvedValue([firstAssignment, reassignment]);
+      renderPage();
+
+      const section = (await screen.findByRole("heading", { name: "Coordinator assignments" })).closest("section")!;
+      const [first, second] = within(section).getAllByRole("listitem");
+
+      expect(listAssignmentHistoryMock).toHaveBeenCalledWith("event-1");
+      expect(first).toHaveTextContent("Priya Shah");
+      expect(within(first!).queryByText("Current")).not.toBeInTheDocument();
+      expect(second).toHaveTextContent("Marcus Lee");
+      expect(within(second!).getByText("Current")).toBeInTheDocument();
+    });
+
+    it("SPM-84 AC03: shows who reassigned the event, from whom and why", async () => {
+      listAssignmentHistoryMock.mockResolvedValue([firstAssignment, reassignment]);
+      renderPage();
+
+      expect(await screen.findByText("Reassigned from Priya Shah by Tom Lead")).toBeInTheDocument();
+      expect(screen.getByText('Reason: "Priya is on leave"')).toBeInTheDocument();
+    });
+
+    it("says nothing about the first assignment's reason or a previous coordinator", async () => {
+      listAssignmentHistoryMock.mockResolvedValue([firstAssignment]);
+      renderPage();
+
+      const section = (await screen.findByRole("heading", { name: "Coordinator assignments" })).closest("section")!;
+
+      expect(section).not.toHaveTextContent("Reassigned from");
+      expect(section).not.toHaveTextContent("Reason:");
+    });
+
+    it("names a coordinator whose profile can't be read in general terms", async () => {
+      listAssignmentHistoryMock.mockResolvedValue([{ ...firstAssignment, newCoordinatorName: null }]);
+      renderPage();
+
+      expect(await screen.findByText("An Event Coordinator")).toBeInTheDocument();
+    });
+
+    it("leaves the sections out when there is no assignment history", async () => {
+      renderPage();
+
+      expect(await screen.findByRole("heading", { name: "Lifecycle" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Coordinator assignments" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Reassignments" })).not.toBeInTheDocument();
+    });
+
+    it("still shows the rest of the history when the assignment history can't be loaded", async () => {
+      listAssignmentHistoryMock.mockRejectedValue(new Error("unavailable"));
+      listReassignmentsMock.mockRejectedValue(new Error("unavailable"));
+      renderPage();
+
+      expect(await screen.findByRole("heading", { name: "Lifecycle" })).toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Coordinator assignments" })).not.toBeInTheDocument();
+    });
+
+    it("shows hand-offs from before the Lead assigned coordinators", async () => {
+      listReassignmentsMock.mockResolvedValue([
+        {
+          id: 9,
+          previousCoordinatorId: "coord-1",
+          previousCoordinatorName: "Priya Shah",
+          newCoordinatorId: "coord-2",
+          newCoordinatorName: "Marcus Lee",
+          reason: "Handover",
+          changedAt: "2099-01-05T02:00:00.000Z",
+        },
+      ]);
+      renderPage();
+
+      const section = (await screen.findByRole("heading", { name: "Reassignments" })).closest("section")!;
+
+      expect(section).toHaveTextContent("Reassigned to Marcus Lee");
+      expect(section).toHaveTextContent("From Priya Shah");
+      expect(section).toHaveTextContent('Reason: "Handover"');
+    });
+  });
+
+  // SPM-85 AC13: every change to a booking is recorded with the booking's label,
   // as one time-ordered log (newest first).
   describe("venue booking activity", () => {
     const main = {
@@ -154,7 +263,7 @@ describe("EventHistoryPage", () => {
       cancellationReason: "Speaker dropped out",
     };
 
-    it("AC12: names each entry by the booking's label and venue", async () => {
+    it("SPM-85 AC13: names each entry by the booking's label and venue", async () => {
       listVenueBookingsForEventMock.mockResolvedValue([main, breakout]);
       renderPage();
 
@@ -165,7 +274,7 @@ describe("EventHistoryPage", () => {
       expect(within(section).getAllByText("Room 2.01").length).toBeGreaterThan(0);
     });
 
-    it("AC12: lists the steps newest first, so a cancellation comes before the request", async () => {
+    it("SPM-85 AC13: lists the steps newest first, so a cancellation comes before the request", async () => {
       listVenueBookingsForEventMock.mockResolvedValue([breakout]);
       renderPage();
 
@@ -176,7 +285,7 @@ describe("EventHistoryPage", () => {
       expect(titles[2]).toContain("Requested");
     });
 
-    it("AC12: records who cancelled a booking, and why", async () => {
+    it("SPM-85 AC13: records who cancelled a booking, and why", async () => {
       listVenueBookingsForEventMock.mockResolvedValue([main, breakout]);
       renderPage();
 
@@ -197,8 +306,8 @@ describe("EventHistoryPage", () => {
       expect(screen.getByText('Reason: "Room is reserved for exams"')).toBeInTheDocument();
     });
 
-    // Venue hold AC04: an expired hold stays visible in the event's change history.
-    it("AC04 (venue hold): keeps an expired hold in the history, after its request", async () => {
+    // SPM-75 AC04: an expired hold stays visible in the event's change history.
+    it("SPM-75 AC04: keeps an expired hold in the history, after its request", async () => {
       listVenueBookingsForEventMock.mockResolvedValue([
         { ...breakout, status: "expired" as const, decidedAt: null, decidedByName: null, cancelledAt: null,
           cancelledByName: null, cancellationReason: null, expiresAt: "2099-04-02T12:00:00.000Z" },
@@ -225,7 +334,7 @@ describe("EventHistoryPage", () => {
     });
   });
 
-  // SPM-82 AC09: the disrupted booking and its replacement are linked and visible.
+  // SPM-82 AC08: the disrupted booking and its replacement are linked and visible.
   describe("venue booking replacements", () => {
     const original = {
       ...baseBooking, id: "booking-1", status: "cancelled" as const, venueId: "venue-1",

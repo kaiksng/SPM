@@ -208,7 +208,7 @@ describe("ChangeRequestApplyPage", () => {
     expect(screen.queryByText(/Change applied/)).not.toBeInTheDocument();
   });
 
-  // SPM-39 AC10: the coordinator is told when a new safety review is needed.
+  // SPM-39 AC08: the coordinator is told when a new safety review is needed.
   it("says when the event went back to Planning for a new safety review", async () => {
     applyEventChangeRequestMock.mockResolvedValue({
       status: "implemented",

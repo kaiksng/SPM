@@ -11,7 +11,7 @@ import {
   submittedEventStatuses,
 } from "./event-status";
 
-describe("event status transitions", () => {
+describe("event status transitions (SPM-79)", () => {
   it("defines transitions for every status", () => {
     expect(Object.keys(allowedEventStatusTransitions).sort()).toEqual(
       [...eventStatuses].sort(),
@@ -27,12 +27,12 @@ describe("event status transitions", () => {
     expect(canTransitionEventStatus("rejected", "confirmed")).toBe(false);
   });
 
-  // PB-03 AC05.
+  // SPM-3.
   it("allows a draft event to become requested", () => {
     expect(canTransitionEventStatus("draft", "requested")).toBe(true);
   });
 
-  // PB-03 AC05: a requested event is available for review, not for confirmation.
+  // SPM-3: a requested event is available for review, not for confirmation.
   // "Enforce Revised Event Lifecycle Transitions" retires
   // "clarification_requested" as a reachable target from "requested" —
   // nothing ever produces it (a clarification round keeps status at
