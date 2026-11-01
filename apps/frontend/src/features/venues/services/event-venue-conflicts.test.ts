@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { rpcMock } = vi.hoisted(() => ({ rpcMock: vi.fn() }));
+import { queryBuilder } from "@/test/supabase-mock";
 
-vi.mock("@/lib/supabase-client", () => ({ supabase: { rpc: rpcMock } }));
+const { rpcMock, fromMock } = vi.hoisted(() => ({ rpcMock: vi.fn(), fromMock: vi.fn() }));
 
-import { listEventVenueConflicts } from "./event-venue-conflicts";
+vi.mock("@/lib/supabase-client", () => ({ supabase: { rpc: rpcMock, from: fromMock } }));
+
+import { listEventIdsWithVenueConflict, listEventVenueConflicts } from "./event-venue-conflicts";
 
 beforeEach(() => {
   rpcMock.mockReset();
+  fromMock.mockReset();
 });
 
 describe("listEventVenueConflicts", () => {
@@ -52,5 +55,31 @@ describe("listEventVenueConflicts", () => {
     await expect(listEventVenueConflicts("event-1")).rejects.toThrow(
       "This event's venue conflicts are unavailable.",
     );
+  });
+});
+
+describe("listEventIdsWithVenueConflict", () => {
+  // The coordinator's events whose booking has to move, once each.
+  it("returns each event with an open conflict it has to move for", async () => {
+    const builder = queryBuilder({
+      data: [
+        { booking: { event_id: "event-1", status: "approved" } },
+        { booking: { event_id: "event-1", status: "approved" } },
+        { booking: { event_id: "event-2", status: "pending" } },
+      ],
+      error: null,
+    });
+    fromMock.mockReturnValue(builder);
+
+    await expect(listEventIdsWithVenueConflict()).resolves.toEqual(["event-1", "event-2"]);
+    expect(fromMock).toHaveBeenCalledWith("venue_booking_conflicts");
+    expect(builder.is).toHaveBeenCalledWith("resolved_at", null);
+    expect(builder.eq).toHaveBeenCalledWith("is_responsible", true);
+  });
+
+  it("throws a readable error when the conflicts cannot be loaded", async () => {
+    fromMock.mockReturnValue(queryBuilder({ data: null, error: { message: "boom" } }));
+
+    await expect(listEventIdsWithVenueConflict()).rejects.toThrow("Venue conflicts are unavailable.");
   });
 });

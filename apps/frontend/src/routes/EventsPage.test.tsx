@@ -10,6 +10,7 @@ const deleteEventDraftMock = vi.fn();
 const cancelEventRequestMock = vi.fn();
 const listAssignedEventsMock = vi.fn();
 const listVenueDisruptionsMock = vi.fn();
+const listEventIdsWithVenueConflictMock = vi.fn();
 const listClarificationsMock = vi.fn();
 const getClarificationReviewStateMock = vi.fn();
 const hasPendingChangeRequestMock = vi.fn();
@@ -41,6 +42,10 @@ vi.mock("@/features/event-requests/services/assigned-events", () => ({
 
 vi.mock("@/features/venues/services/venue-disruptions", () => ({
   listVenueDisruptionsForCoordinator: (...args: unknown[]) => listVenueDisruptionsMock(...args),
+}));
+
+vi.mock("@/features/venues/services/event-venue-conflicts", () => ({
+  listEventIdsWithVenueConflict: (...args: unknown[]) => listEventIdsWithVenueConflictMock(...args),
 }));
 
 vi.mock("@/features/event-requests/services/clarifications", () => ({
@@ -910,12 +915,41 @@ describe("EventsPage coordinator view", () => {
     authState.profile.role = "event_coordinator";
     listAssignedEventsMock.mockReset().mockResolvedValue([assignedEvent]);
     listVenueDisruptionsMock.mockReset().mockResolvedValue([]);
+    listEventIdsWithVenueConflictMock.mockReset().mockResolvedValue([]);
     getClarificationReviewStateMock.mockReset().mockResolvedValue(undefined);
     hasPendingChangeRequestMock.mockReset().mockResolvedValue(false);
   });
 
   afterEach(() => {
     authState.profile.role = "event_organiser";
+  });
+
+  // 202611010013: an event whose booking has to move because of a venue
+  // conflict is badged on the coordinator's list, not only notified.
+  it("badges an event with a venue conflict it has to move for", async () => {
+    listEventIdsWithVenueConflictMock.mockResolvedValue(["assigned-1"]);
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    const title = await screen.findByText("Shernice Test Submission");
+    const card = title.closest("article");
+    if (!card) throw new Error("Expected the event title to be inside an <article> card.");
+    expect(await within(card).findByText("Venue conflict")).toBeInTheDocument();
+  });
+
+  it("does not badge an event without a venue conflict", async () => {
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Shernice Test Submission");
+    await waitFor(() => expect(listEventIdsWithVenueConflictMock).toHaveBeenCalled());
+    expect(screen.queryByText("Venue conflict")).not.toBeInTheDocument();
   });
 
   const disruption = {

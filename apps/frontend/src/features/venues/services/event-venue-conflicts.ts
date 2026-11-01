@@ -43,3 +43,22 @@ export async function listEventVenueConflicts(eventId: string): Promise<EventVen
     flaggedAt: row.flagged_at,
   }));
 }
+
+/**
+ * The signed-in coordinator's events with a venue booking that has to move:
+ * it was booked after the booking it overlaps, or it overlaps a venue block.
+ * For the badge on their events list. RLS limits the conflicts to the
+ * coordinator's own events (202611010005), so this needs no extra filter.
+ */
+export async function listEventIdsWithVenueConflict(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("venue_booking_conflicts")
+    .select("booking:venue_bookings!venue_booking_conflicts_booking_id_fkey!inner (event_id, status)")
+    .is("resolved_at", null)
+    .eq("is_responsible", true)
+    .in("booking.status", ["pending", "approved", "on_hold"]);
+
+  if (error) throw new Error("Venue conflicts are unavailable.");
+
+  return [...new Set((data ?? []).map((row) => row.booking.event_id))];
+}
