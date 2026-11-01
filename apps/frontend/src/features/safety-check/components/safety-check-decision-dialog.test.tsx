@@ -17,7 +17,7 @@ function renderDialog(decision: "approved" | "changes_requested" | "rejected", f
 }
 
 describe("SafetyCheckDecisionDialog approving", () => {
-  // SPM-90 AC04: approving moves the event to Confirmed; the note is optional.
+  // SPM-90 AC03: approving moves the event to Confirmed; the note is optional.
   it("explains that the event is confirmed and the coordinator and organiser are told", () => {
     renderDialog("approved");
 

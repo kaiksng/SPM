@@ -43,7 +43,7 @@ create function pg_temp.readiness_status(p_requirement text) returns text langua
 $$;
 
 -- AC04-AC06: nobody sets a status or note by hand.
-select hasnt_function('public', 'update_equipment_arrangement', 'there is no function to set an arrangement status by hand (SPM-28 AC06)');
+select hasnt_function('public', 'update_equipment_arrangement', 'there is no function to set an arrangement status by hand (SPM-28 AC04)');
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"e8000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
@@ -51,7 +51,7 @@ select throws_ok(
   $$insert into public.equipment_arrangement_updates (requirement_id, event_id, status, updated_by)
     values ((select id from v_ids where name = 'open'), 'e8000000-0000-0000-0000-0000000000e1', 'arranged', auth.uid())$$,
   '42501', null,
-  'not even Technical Support Staff can write the history directly (SPM-28 AC06)'
+  'not even Technical Support Staff can write the history directly (SPM-28 AC04)'
 );
 
 -- AC02 + AC03: reserving records the status it leads to.
@@ -100,7 +100,7 @@ select is(pg_temp.readiness_status('full'), 'complete', 'an item already reserve
 select is(
   (select count(*)::integer from public.equipment_arrangement_updates where event_id = 'e8000000-0000-0000-0000-0000000000e1'),
   3,
-  'the assigned coordinator sees the history (SPM-28 AC07)'
+  'the assigned coordinator sees the history (SPM-28 AC05)'
 );
 select set_config('request.jwt.claims', '{"sub":"e8000000-0000-0000-0000-000000000005","role":"authenticated"}', true);
 select is(

@@ -34,7 +34,7 @@ describe("POST /events/:eventId/submit-safety-check", () => {
     getUserMock.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
   });
 
-  // AC05.
+  // SPM-33 AC05.
   it("returns the submission result on success", async () => {
     rpcMock.mockResolvedValue({
       data: { eventId: EVENT_ID, status: "pending_safety_check", round: 1 },
@@ -85,7 +85,7 @@ describe("POST /events/:eventId/submit-safety-check", () => {
     );
   });
 
-  // AC05: every outstanding item is returned, not just the first.
+  // SPM-33 AC06: every outstanding item is returned, not just the first.
   it("maps 23514 to a 422 carrying every outstanding item", async () => {
     const items = [
       { code: "main_venue_not_ready", message: "The main venue booking (Hall) must be Approved and unflagged." },
@@ -144,7 +144,7 @@ describe("POST /events/:eventId/safety-check-decision", () => {
     getUserMock.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null });
   });
 
-  // AC1/AC2/AC7.
+  // SPM-89 AC1/AC2/AC4.
   it("submits Request Changes with the given flagged ids", async () => {
     rpcMock.mockResolvedValue({
       data: {
@@ -177,7 +177,7 @@ describe("POST /events/:eventId/safety-check-decision", () => {
     });
   });
 
-  // AC1/AC3/AC4.
+  // SPM-89 AC1/AC3/AC4.
   it("submits Reject with no flagged ids required", async () => {
     rpcMock.mockResolvedValue({
       data: {
@@ -216,7 +216,7 @@ describe("POST /events/:eventId/safety-check-decision", () => {
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
-  // SPM-90 AC06: a malformed event id never reaches the database, so no event can be approved by guessing.
+  // SPM-90 AC05: a malformed event id never reaches the database, so no event can be approved by guessing.
   it("rejects an event id that is not valid before calling the database", async () => {
     const response = await request(server())
       .post("/events/not-an-event/safety-check-decision")

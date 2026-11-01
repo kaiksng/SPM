@@ -249,7 +249,7 @@ describe("reopening a Draft", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("This request could not be loaded.");
   });
 
-  // PB-03 AC07: a Requested event can be reopened for a permitted edit but is not offered for submission again.
+  // SPM-3: a Requested event can be reopened for a permitted edit but is not offered for submission again.
   it("offers submission only while the request is still a Draft", async () => {
     loadEventDraftMock.mockResolvedValue({ ...savedDraft, status: "requested" });
     renderAt("/events/event-1/edit");

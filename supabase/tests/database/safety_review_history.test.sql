@@ -43,7 +43,7 @@ reset role;
 update public.venues set name='Current Hall Name' where id='fe110000-0000-0000-0000-000000000010';
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"fe110000-0000-0000-0000-000000000004","role":"authenticated"}',true);
--- SPM-90 AC04 and SPM-89 AC04: shared role history, stable round order and saved facts.
+-- SPM-90 AC03 and SPM-89 AC04: shared role history, stable round order and saved facts.
 select is(jsonb_array_length(public.safety_check_review_history()),2,'another safety officer sees both decided rounds');
 select is(public.safety_check_review_history()->0->>'outcome','approved','newest round first even when timestamps tie');
 select is(public.safety_check_review_history()->1->>'round','1','older round retained');

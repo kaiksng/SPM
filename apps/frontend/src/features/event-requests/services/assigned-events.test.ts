@@ -76,7 +76,7 @@ describe("listAssignedEvents", () => {
     ]);
   });
 
-  // SPM-15 AC04: a coordinator with no assigned events gets an empty list, not an error.
+  // SPM-15 AC01: a coordinator with no assigned events gets an empty list, not an error.
   it("returns an empty list when nothing is assigned", async () => {
     fromMock.mockReturnValue(queryBuilder({ data: [], error: null }));
 

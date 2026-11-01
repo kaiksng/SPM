@@ -573,7 +573,7 @@ describe("EquipmentPage event requests (SPM-31)", () => {
     expect(within(gala).getByText("Smoke machine × 1").closest("li")).toHaveTextContent("Short by 1");
   });
 
-  it("identifies unknown equipment instead of treating it as available (AC05)", async () => {
+  it("identifies unknown equipment instead of treating it as available (SPM-31 AC04)", async () => {
     renderPage();
 
     const legacy = (await screen.findByText("Old smoke machine × 1")).closest("li")!;

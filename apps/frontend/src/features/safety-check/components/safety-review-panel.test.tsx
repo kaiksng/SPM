@@ -99,7 +99,7 @@ describe("SafetyReviewPanel", () => {
     expect(screen.queryByText("Equipment placement")).not.toBeInTheDocument();
   });
 
-  // SPM-90 AC03: a venue smaller than its expected attendance is highlighted.
+  // SPM-90 AC02: a venue smaller than its expected attendance is highlighted.
   it("highlights a venue whose capacity is below the expected attendance", () => {
     render(
       <SafetyReviewPanel

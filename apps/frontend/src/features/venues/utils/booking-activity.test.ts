@@ -30,7 +30,7 @@ function flag(overrides: Partial<VenueBookingFlag> = {}): VenueBookingFlag {
 }
 
 describe("buildBookingActivity", () => {
-  it("AC12: logs a request with who asked, the headcount and the booking's label", () => {
+  it("SPM-85 AC13: logs a request with who asked, the headcount and the booking's label", () => {
     const [entry] = buildBookingActivity([booking()]);
 
     expect(entry).toMatchObject({ kind: "requested", title: "Requested", label: "Breakout 1", actor: "Priya", detail: "40 people" });
@@ -89,7 +89,7 @@ describe("buildBookingActivity", () => {
     expect(rejected.some((entry) => entry.kind === "replaced" || entry.kind === "replacement_requested")).toBe(false);
   });
 
-  it("AC04 (venue hold): logs an expired hold at its deadline, without a decision", () => {
+  it("SPM-75 AC04: logs an expired hold at its deadline, without a decision", () => {
     const entries = buildBookingActivity([
       booking({ status: "expired", expiresAt: "2099-04-05T02:00:00.000Z" }),
     ]);
@@ -180,7 +180,7 @@ describe("buildBookingActivity flags", () => {
 });
 
 describe("buildBookingActivity request details", () => {
-  // SPM-82 AC08 / SPM-85 AC12: a replacement request says which disrupted booking it replaces, and where it was.
+  // SPM-82 AC08 / SPM-85 AC13: a replacement request says which disrupted booking it replaces, and where it was.
   it("describes a replacement for a disrupted booking, with or without the original venue", () => {
     const named = buildBookingActivity([booking({ replacesBookingId: "b-0", replacesVenueName: "Auditorium" })]);
     const unnamed = buildBookingActivity([booking({ replacesBookingId: "b-0", replacesVenueName: null })]);

@@ -164,7 +164,7 @@ describe("EventVenuePage", () => {
     expect(screen.queryByText("Current request")).not.toBeInTheDocument();
   });
 
-  it("AC08: lists the booking with its label, venue, period, headcount and status", async () => {
+  it("SPM-85 AC07: lists the booking with its label, venue, period, headcount and status", async () => {
     listVenueBookingsForEventMock.mockResolvedValue([booking()]);
 
     renderPage();
@@ -178,7 +178,7 @@ describe("EventVenuePage", () => {
     expect(within(list).getByRole("button", { name: "Withdraw request" })).toBeInTheDocument();
   });
 
-  it("AC01: offers Add another venue instead of the event's suggestions once a venue is booked", async () => {
+  it("SPM-85 AC01: offers Add another venue instead of the event's suggestions once a venue is booked", async () => {
     listVenueBookingsForEventMock.mockResolvedValue([booking()]);
 
     renderPage();
@@ -187,7 +187,7 @@ describe("EventVenuePage", () => {
     expect(screen.queryByText("Suggested venues")).not.toBeInTheDocument();
   });
 
-  it("AC08: lists every booking of the event, active ones first, and marks one as main", async () => {
+  it("SPM-85 AC07: lists every booking of the event, active ones first, and marks one as main", async () => {
     listVenueBookingsForEventMock.mockResolvedValue([
       booking({ id: "b-3", label: "Cancelled Room", venueName: "Room C", status: "cancelled", isMainVenue: false }),
       booking({ id: "b-2", label: "Breakout 1", venueName: "Room 2.01", status: "approved", isMainVenue: false, expectedHeadcount: 40 }),
@@ -296,7 +296,7 @@ describe("EventVenuePage", () => {
   });
 
   // SPM-24 AC03: withdrawing releases only that booking; SPM-85 AC10: a reason is required.
-  it("AC10: asks for a reason before cancelling an Approved booking", async () => {
+  it("SPM-85 AC11: asks for a reason before cancelling an Approved booking", async () => {
     listVenueBookingsForEventMock
       .mockResolvedValueOnce([booking({ status: "approved" }), booking({ id: "booking-2", label: "Breakout 1", isMainVenue: false, status: "approved" })])
       .mockResolvedValue([booking({ status: "approved" }), booking({ id: "booking-2", label: "Breakout 1", isMainVenue: false, status: "cancelled", cancellationReason: "Room reserved" })]);
@@ -321,7 +321,7 @@ describe("EventVenuePage", () => {
     expect(within(await screen.findByRole("region", { name: "Venue bookings" })).getAllByText("Confirmed Booking")).toHaveLength(1);
   });
 
-  it("AC10: shows the server's refusal inside the dialog", async () => {
+  it("SPM-85 AC11: shows the server's refusal inside the dialog", async () => {
     listVenueBookingsForEventMock.mockResolvedValue([booking()]);
     withdrawVenueBookingRequestMock.mockRejectedValue(new Error("This booking has a pending replacement. Withdraw the replacement first"));
     const user = userEvent.setup();
@@ -334,8 +334,8 @@ describe("EventVenuePage", () => {
     expect(await screen.findByText(/pending replacement/)).toBeInTheDocument();
   });
 
-  // AC07: the coordinator can choose which booking is the main venue.
-  it("AC07: makes another booking the main venue", async () => {
+  // SPM-85 AC05: the coordinator can choose which booking is the main venue.
+  it("SPM-85 AC05: makes another booking the main venue", async () => {
     const second = booking({ id: "booking-2", label: "Breakout 1", isMainVenue: false });
     listVenueBookingsForEventMock
       .mockResolvedValueOnce([booking(), second])
@@ -352,8 +352,8 @@ describe("EventVenuePage", () => {
     expect(items.find((item) => item.textContent?.includes("Breakout 1"))).toHaveTextContent("Main venue");
   });
 
-  // AC11: with the main booking gone, the coordinator is asked to choose another.
-  it("AC11: prompts to choose a main venue when the main booking is no longer active", async () => {
+  // SPM-85 AC12: with the main booking gone, the coordinator is asked to choose another.
+  it("SPM-85 AC12: prompts to choose a main venue when the main booking is no longer active", async () => {
     listVenueBookingsForEventMock.mockResolvedValue([
       booking({ status: "cancelled" }),
       booking({ id: "booking-2", label: "Breakout 1", isMainVenue: false }),
@@ -374,7 +374,7 @@ describe("EventVenuePage", () => {
     expect(screen.queryByText(/This event has no main venue/)).not.toBeInTheDocument();
   });
 
-  it("AC10: withdraws only that booking and shows suggestions again when none is left", async () => {
+  it("SPM-85 AC11: withdraws only that booking and shows suggestions again when none is left", async () => {
     listVenueBookingsForEventMock.mockResolvedValueOnce([booking()]).mockResolvedValue([booking({ status: "cancelled" })]);
     const user = userEvent.setup();
     renderPage();
@@ -389,7 +389,7 @@ describe("EventVenuePage", () => {
     expect(await screen.findByText("Suggested venues")).toBeInTheDocument();
   });
 
-  it("AC01/AC05: Add another venue asks for a label and starts without the event's attendance", async () => {
+  it("SPM-85 AC01/AC10: Add another venue asks for a label and starts without the event's attendance", async () => {
     listVenueBookingsForEventMock.mockResolvedValue([booking()]);
     const user = userEvent.setup();
     renderPage();
@@ -466,7 +466,7 @@ describe("EventVenuePage", () => {
     );
   });
 
-  // SPM-82 AC08: while a replacement is pending, the coordinator can withdraw it
+  // SPM-82 AC07: while a replacement is pending, the coordinator can withdraw it
   // and the original stays disrupted, so a new replacement can be chosen.
   it("shows a pending replacement next to the disrupted booking and lets it be withdrawn", async () => {
     listVenueBookingsForEventMock
@@ -648,7 +648,7 @@ describe("EventVenuePage loading and details", () => {
 describe("EventVenuePage main venue and disruption details", () => {
   const second = () => booking({ id: "booking-2", label: "Breakout 1", isMainVenue: false });
 
-  // SPM-85 AC07: changing the main venue can fail, and the coordinator is told why next to that booking.
+  // SPM-85 AC05: changing the main venue can fail, and the coordinator is told why next to that booking.
   it("shows why the main venue could not be changed, with a plain message when none is given", async () => {
     listVenueBookingsForEventMock.mockResolvedValue([booking(), second()]);
     setMainVenueBookingMock.mockRejectedValueOnce(new Error("Only an Approved booking can be the main venue"));

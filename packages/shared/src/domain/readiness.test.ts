@@ -10,7 +10,7 @@ import {
 } from "./readiness";
 
 describe("deriveVenueBookingReadinessStatus", () => {
-  // AC02/AC07: only Approved, unflagged, undisrupted is Complete.
+  // SPM-33 AC02/AC07: only Approved, unflagged, undisrupted is Complete.
   it("is Complete when approved, unflagged and undisrupted", () => {
     expect(
       deriveVenueBookingReadinessStatus({
@@ -33,7 +33,7 @@ describe("deriveVenueBookingReadinessStatus", () => {
     ).toBe("pending");
   });
 
-  // AC02: an active (tentative) hold is named explicitly as Needs Review.
+  // SPM-33 AC02: an active (tentative) hold is named explicitly as Needs Review.
   it("is Needs Review for an active (tentative) hold, never Complete", () => {
     expect(
       deriveVenueBookingReadinessStatus({
@@ -45,7 +45,7 @@ describe("deriveVenueBookingReadinessStatus", () => {
     ).toBe("needs_review");
   });
 
-  // AC02: a flagged Approved booking is Needs Review.
+  // SPM-33 AC02: a flagged Approved booking is Needs Review.
   it("is Needs Review when approved but flagged", () => {
     expect(
       deriveVenueBookingReadinessStatus({
@@ -68,7 +68,7 @@ describe("deriveVenueBookingReadinessStatus", () => {
     ).toBe("needs_review");
   });
 
-  // AC02: a booking flagged Conflict - Needs Review is Needs Review.
+  // SPM-33 AC02: a booking flagged Conflict - Needs Review is Needs Review.
   it("is Needs Review when approved but conflicted", () => {
     expect(
       deriveVenueBookingReadinessStatus({
@@ -99,7 +99,7 @@ describe("deriveVenueArrangementOverallStatus", () => {
     expect(deriveVenueArrangementOverallStatus([{ isMainVenue: true, status: "pending" }])).toBe("pending");
   });
 
-  // AC03: a cancelled non-main booking is never passed in at all, so a
+  // SPM-33 AC03: a cancelled non-main booking is never passed in at all, so a
   // Complete main venue with nothing else active is Complete.
   it("is Complete with only a Complete main venue", () => {
     expect(deriveVenueArrangementOverallStatus([{ isMainVenue: true, status: "complete" }])).toBe("complete");
@@ -173,7 +173,7 @@ describe("deriveEquipmentArrangementOverallStatus", () => {
     ).toBe("needs_review");
   });
 
-  // AC03: "reserved" is a distinct fact from "arranged" — a hand-set
+  // SPM-33 AC03: "reserved" is a distinct fact from "arranged" — a hand-set
   // Arranged status without a full reservation still isn't Complete.
   it("is Pending when requirements exist but are not all reserved in full", () => {
     expect(
@@ -199,7 +199,7 @@ describe("deriveEquipmentArrangementOverallStatus", () => {
 });
 
 describe("isEventReady", () => {
-  // Configure Event Registration AC07: unfinished registration blocks the safety check.
+  // SPM-40 AC07: unfinished registration blocks the safety check.
   it("is not ready while required registration is incomplete or over capacity", () => {
     expect(
       isEventReady({

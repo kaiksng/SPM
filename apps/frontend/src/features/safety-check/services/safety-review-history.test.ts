@@ -5,7 +5,7 @@ vi.mock("@/lib/supabase-client", () => ({ supabase: { rpc } }));
 import { listSafetyReviewHistory, loadSafetyReviewHistoryRecord } from "./safety-review-history";
 
 beforeEach(() => { rpc.mockReset(); });
-describe("safety review history — SPM-89 AC04 / SPM-90 AC04", () => {
+describe("safety review history — SPM-89 AC04 / SPM-90 AC03", () => {
   it("loads every page without truncating past reviews", async () => {
     const page = Array.from({ length: 100 }, (_, i) => ({ ...safetyReviewRecord, decisionId: i + 1 }));
     rpc.mockResolvedValueOnce({ data: page, error: null }).mockResolvedValueOnce({ data: [{ ...safetyReviewRecord, decisionId: 101 }], error: null });

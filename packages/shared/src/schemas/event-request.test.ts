@@ -326,7 +326,7 @@ function submission(overrides: Record<string, unknown> = {}) {
   });
 }
 
-describe("event submission validation (PB-03)", () => {
+describe("event submission validation (SPM-3)", () => {
   it("accepts a complete request", () => {
     expect(eventSubmissionSchema.safeParse(submission()).success).toBe(true);
   });
