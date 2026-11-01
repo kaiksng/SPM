@@ -458,7 +458,7 @@ function CoordinatorEventsView() {
  * organiser's and coordinator's cards, these have no action buttons beyond
  * assign/reassign, history, and (now) opening the read-only detail page.
  */
-type LeadTab = "queue" | "oversight";
+type LeadTab = "queue" | "oversight" | "all";
 
 const ACTIVE_EVENT_STATUSES = ["requested", "planning", "pending_safety_check", "confirmed"];
 
@@ -485,6 +485,7 @@ function LeadEventsView() {
   const [tab, setTab] = useState<LeadTab>("queue");
   const [coordinatorFilter, setCoordinatorFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("active");
+  const [allFilters, setAllFilters] = useState<EventFilterValues>(emptyEventFilters);
   const [assigningEvent, setAssigningEvent] = useState<LeadEventSummary>();
 
   function reload() {
@@ -570,6 +571,13 @@ function LeadEventsView() {
   });
   const oversightGroups = groupEventsByCoordinator(oversightEvents, coordinators, coordinatorFilter);
 
+  // Every submitted event, whatever its status and whether or not it ever got
+  // a coordinator — e.g. one cancelled before assignment, which neither the
+  // queue nor Oversight shows. Drafts stay private to their organiser.
+  const allEvents = events.filter((event) => event.status !== "draft");
+  const allStatusOptions = [...new Set(allEvents.map((event) => event.status))].sort();
+  const filteredAllEvents = filterEvents(allEvents, searchQuery, allFilters);
+
   const filteredQueueEvents = filterEventsByTitle(queueEvents, searchQuery);
   const filteredOversightGroups = oversightGroups
     .map((group) => ({
@@ -621,10 +629,21 @@ function LeadEventsView() {
               active={tab === "oversight"}
               onClick={() => setTab("oversight")}
             />
+            <LeadTabButton
+              label={`All events (${allEvents.length})`}
+              active={tab === "all"}
+              onClick={() => setTab("all")}
+            />
           </div>
 
           {tab === "queue" ? (
             <EventsToolbar searchValue={searchQuery} onSearchChange={setSearchQuery} hideFilters />
+          ) : tab === "all" ? (
+            <>
+              <EventsToolbar searchValue={searchQuery} onSearchChange={setSearchQuery} hideFilters />
+              <EventFiltersPanel value={allFilters} onChange={setAllFilters} statusOptions={allStatusOptions} />
+              <ActiveFilterChips chips={eventFilterChips(allFilters, setAllFilters)} />
+            </>
           ) : (
             <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="relative w-full max-w-xs">
@@ -706,6 +725,21 @@ function LeadEventsView() {
 
           {loading ? (
             <LoadingList />
+          ) : tab === "all" ? (
+            allEvents.length === 0 ? (
+              <LeadEmptyState tab="all" />
+            ) : filteredAllEvents.length === 0 ? (
+              <NoMatchingEvents
+                filtersActive={Boolean(allFilters.status || allFilters.dateFrom || allFilters.dateTo)}
+                onClearFilters={() => setAllFilters(emptyEventFilters)}
+              />
+            ) : (
+              <div className="mt-7 grid auto-rows-fr gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {filteredAllEvents.map((event) => (
+                  <LeadEventCard key={event.id} event={event} onAssign={() => setAssigningEvent(event)} />
+                ))}
+              </div>
+            )
           ) : tab === "queue" ? (
             queueEvents.length === 0 ? (
               <LeadEmptyState tab="queue" />
@@ -1415,10 +1449,10 @@ function LeadEmptyState({ tab }: { tab: LeadTab }) {
           <CalendarDays aria-hidden="true" />
         </span>
         <h2 className="mt-5 text-lg font-semibold text-slate-950">
-          {tab === "queue" ? "No unassigned events" : "No events assigned yet"}
+          {tab === "queue" ? "No unassigned events" : tab === "all" ? "No submitted events yet" : "No events assigned yet"}
         </h2>
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          {tab === "queue"
+          {tab === "queue" || tab === "all"
             ? "New event requests appear here as soon as an organiser submits one."
             : "Assign a coordinator to an unassigned request to see it here."}
         </p>

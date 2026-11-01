@@ -1399,6 +1399,34 @@ describe("EventsPage for the Event Coordinator Lead role", () => {
     expect(screen.queryByText("Coordinator Two Planning Event")).not.toBeInTheDocument();
   });
 
+  // The Lead sees every submitted event in one place, whatever its status and
+  // whether it ever got a coordinator; organisers' drafts stay private.
+  it("lists every submitted event under All events, including one cancelled before assignment", async () => {
+    listAllEventsMock.mockResolvedValue([
+      { ...leadEvent, id: "event-cancelled", title: "Cancelled Early", status: "cancelled", assignedCoordinatorId: null, assignedCoordinatorName: null },
+      { ...leadEvent, id: "event-confirmed", title: "Confirmed Gala", status: "confirmed", assignedCoordinatorId: "coordinator-1", assignedCoordinatorName: "Coordinator One" },
+      { ...leadEvent, id: "event-draft", title: "Private Draft", status: "draft", assignedCoordinatorId: null, assignedCoordinatorName: null },
+    ]);
+    listCoordinatorsMock.mockResolvedValue([]);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventsPage />
+      </MemoryRouter>,
+    );
+    await user.click(await screen.findByRole("button", { name: "All events (2)" }));
+
+    const cancelled = (await screen.findByText("Cancelled Early")).closest("article")!;
+    expect(cancelled).toHaveTextContent("Coordinator: Unassigned");
+    expect(screen.getByText("Confirmed Gala")).toBeInTheDocument();
+    expect(screen.queryByText("Private Draft")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("radio", { name: "Cancelled" }));
+    expect(screen.getByText("Cancelled Early")).toBeInTheDocument();
+    expect(screen.queryByText("Confirmed Gala")).not.toBeInTheDocument();
+  });
+
   // SPM-80 TC-014: a coordinator with no active events still appears in
   // Oversight, with a count of 0, instead of being omitted.
   it("shows a coordinator with zero active events with a count of 0", async () => {

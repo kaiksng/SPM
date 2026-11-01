@@ -22,4 +22,12 @@ describe("logout action", () => {
 
     expect(signOutMock).toHaveBeenCalledOnce();
   });
+
+  // Shared test accounts: signing out must not end other people's sessions
+  // of the same account.
+  it("signs out this browser only, not the account's other sessions", async () => {
+    await logout();
+
+    expect(signOutMock).toHaveBeenCalledWith({ scope: "local" });
+  });
 });
