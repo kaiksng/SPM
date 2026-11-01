@@ -1,6 +1,6 @@
 begin;
 
-select plan(42);
+select plan(43);
 
 -- SPM-46: Complete an Event (202610210001-202610210003).
 --
@@ -35,7 +35,7 @@ insert into public.equipment_items (id, name, category, code, total_quantity) va
 --   eD is over and has a hold that lapsed before the event started.
 insert into public.events (id, organiser_id, assigned_coordinator_id, title, expected_attendance, status, starts_at, ends_at, requirements_acknowledged) values
   ('c4600000-0000-0000-0000-0000000000a1', 'c4600000-0000-0000-0000-000000000001', 'c4600000-0000-0000-0000-000000000002', 'SPM46 Not Yet Turned Around', 100, 'confirmed', now() - interval '2 hours', now() - interval '30 minutes', true),
-  ('c4600000-0000-0000-0000-0000000000b1', 'c4600000-0000-0000-0000-000000000001', 'c4600000-0000-0000-0000-000000000002', 'SPM46 Finished', 100, 'confirmed', now() - interval '5 hours', now() - interval '3 hours', true),
+  ('c4600000-0000-0000-0000-0000000000b1', 'c4600000-0000-0000-0000-000000000001', 'c4600000-0000-0000-0000-000000000002', 'SPM46 Finished', 100, 'confirmed', now() - interval '5 hours', now() - interval '90 minutes', true),
   ('c4600000-0000-0000-0000-0000000000c1', 'c4600000-0000-0000-0000-000000000001', 'c4600000-0000-0000-0000-000000000002', 'SPM46 Open Request', 100, 'confirmed', now() - interval '12 hours', now() - interval '11 hours', true),
   ('c4600000-0000-0000-0000-0000000000d1', 'c4600000-0000-0000-0000-000000000001', 'c4600000-0000-0000-0000-000000000002', 'SPM46 Lapsed Hold', 100, 'confirmed', now() - interval '20 hours', now() - interval '19 hours', true);
 
@@ -56,8 +56,8 @@ insert into public.equipment_reservations (id, event_id, equipment_item_id, quan
 insert into public.event_registrations (event_id, attendee_id, status) values
   ('c4600000-0000-0000-0000-0000000000b1', 'c4600000-0000-0000-0000-000000000007', 'registered');
 
--- AC01/AC02: the earliest completion time is the latest booking's end plus
--- its venue's turnaround.
+-- AC01/AC02: the earliest completion time is the latest booking's end (no
+-- later than the event's end) plus its venue's turnaround.
 select is(
   public.event_completion_available_at('c4600000-0000-0000-0000-0000000000a1'),
   now() + interval '30 minutes',
@@ -68,6 +68,20 @@ select is(
   now() - interval '90 minutes',
   'AC01: with several venues, the last one turned around decides (the Room, no turnaround, ends after the Hall''s turnaround)'
 );
+
+-- A booking left at an old date after the event's time changed (SPM-39
+-- AC11) counts only up to the event's end, not to the old date.
+update public.venue_bookings
+set starts_at = now() + interval '50 days', ends_at = now() + interval '50 days 3 hours'
+where id = 'c4600000-0000-0000-0000-00000000a001';
+select is(
+  public.event_completion_available_at('c4600000-0000-0000-0000-0000000000a1'),
+  now() + interval '30 minutes',
+  'AC01: a booking still at an old, later date does not delay completion past the event''s end plus turnaround'
+);
+update public.venue_bookings
+set starts_at = now() - interval '2 hours', ends_at = now() - interval '30 minutes'
+where id = 'c4600000-0000-0000-0000-00000000a001';
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"c4600000-0000-0000-0000-000000000002","role":"authenticated"}', true);

@@ -41,6 +41,7 @@ const entry = (overrides: Record<string, unknown>) => ({
   attendeeId: "attendee-1",
   attendeeName: "Avery Attendee",
   status: "registered",
+  statusBeforeCancellation: null,
   registeredAt: "2099-06-01T00:00:00.000Z",
   withdrawnAt: null,
   waitlistPosition: null,
@@ -99,6 +100,36 @@ describe("EventRegistrationsPage", () => {
   });
 
   // SPM-44 AC04: attendee name, status and waiting-list position.
+  it("keeps the three counts, with no Event cancelled count, for an event that wasn't cancelled", async () => {
+    renderPage();
+
+    await screen.findByText("Spring Expo");
+    expect(screen.queryByText(/Event cancelled/)).not.toBeInTheDocument();
+  });
+
+  // 202611010007 / SPM-45: a cancellation's registrations are counted on
+  // their own and still show who was coming.
+  it("counts registrations a cancellation took with it, showing what each was", async () => {
+    loadEventDetailMock.mockResolvedValue({ ...event, status: "cancelled" });
+    listEventRegistrationsMock.mockResolvedValue([
+      entry({ id: "reg-1", status: "event_cancelled", statusBeforeCancellation: "registered" }),
+      entry({ id: "reg-2", attendeeId: "attendee-2", attendeeName: "Blair Attendee", status: "event_cancelled", statusBeforeCancellation: "waitlisted" }),
+      entry({ id: "reg-3", attendeeId: "attendee-3", attendeeName: "Cass Attendee", status: "withdrawn" }),
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByText("Event cancelled (2)")).toBeInTheDocument();
+    expect(screen.getByText("Registered (0)")).toBeInTheDocument();
+    expect(screen.getByText("Withdrawn (1)")).toBeInTheDocument();
+    expect(screen.getByText("(was Registered)")).toBeInTheDocument();
+    expect(screen.getByText("(was on the waiting list)")).toBeInTheDocument();
+
+    await user.click(screen.getByText("Event cancelled (2)"));
+    expect(screen.queryByText("Cass Attendee")).not.toBeInTheDocument();
+    expect(screen.getByText("Blair Attendee")).toBeInTheDocument();
+  });
+
   it("lists each attendee's name, status, registered time and waiting-list position", async () => {
     renderPage();
 
