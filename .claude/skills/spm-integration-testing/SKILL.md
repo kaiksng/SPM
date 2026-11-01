@@ -1,6 +1,6 @@
 ---
 name: spm-integration-testing
-description: "Plan and implement ConnectSphere integration tests for one Jira story with the existing disposable local Supabase harness, AC traceability and scoped verification."
+description: "Plan and implement ConnectSphere integration tests for one business workflow (a group of related Jira stories) with the existing disposable local Supabase harness, AC traceability and scoped verification."
 ---
 
 # ConnectSphere integration testing
