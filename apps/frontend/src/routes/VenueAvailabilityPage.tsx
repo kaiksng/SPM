@@ -6,7 +6,7 @@ import type { EventContentArg, EventInput } from "@fullcalendar/core";
 import FullCalendar from "@fullcalendar/react";
 import { ArrowLeft } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 
 import { useAuth } from "@/context/auth-context";
 import { buttonVariants } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import {
   type VenueAvailabilityPeriod,
 } from "@/features/venues/services/venue-availability";
 import { getVenue, type VenueDetail } from "@/features/venues/services/venues";
-import { cameFromVenueDetail as isFromVenueDetail } from "@/features/venues/utils/venue-detail-navigation";
+import { venueReturnPath } from "@/features/venues/utils/venue-detail-navigation";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
 
@@ -49,9 +49,11 @@ const STATUS_COLORS = {
   // Pink, not a paler red — otherwise this reads as a faint variant of
   // Blocked instead of its own distinct status.
   reserved: { backgroundColor: "#fce7f3", borderColor: "#f9a8d4", textColor: "#be185d" },
-  // Month entries use a red dot and dark title, including multi-day entries.
-  // The day timeline below keeps its solid red background and white text.
-  blocked: { backgroundColor: "transparent", borderColor: "transparent", textColor: "#334155" },
+  // Month entries keep the red dot and dark, readable title on a pale-red
+  // bar, so a block over several days visibly covers every day it runs
+  // (a transparent bar made 8-10 Nov look like 8 Nov only). The day
+  // timeline below keeps its solid red background and white text.
+  blocked: { backgroundColor: "#fef2f2", borderColor: "#fca5a5", textColor: "#334155" },
 } as const satisfies Record<VenueCalendarDisplayStatus, object>;
 
 // The venue's home timezone — every other date/time display in this app
@@ -278,9 +280,7 @@ function periodsForDate(
 
 export function VenueAvailabilityPage() {
   const { venueId } = useParams();
-  const navigate = useNavigate();
   const location = useLocation();
-  const cameFromVenueDetail = isFromVenueDetail(location.state);
   const { user } = useAuth();
   const [venue, setVenue] = useState<VenueDetail>();
   const [periods, setPeriods] = useState<VenueAvailabilityPeriod[]>([]);
@@ -347,26 +347,17 @@ export function VenueAvailabilityPage() {
     <RoleGate>
       <div className="min-h-full bg-slate-50/70 px-4 py-8 sm:px-7 lg:px-10">
         <div className="mx-auto max-w-5xl">
-          {/* Opened from the venue page: go back in history so that page
-              keeps its ?forEvent=... context (the Request this venue panel
-              and its own back link). A fresh /venues/:id link dropped it. */}
-          {cameFromVenueDetail ? (
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
-            >
-              <ArrowLeft /> Back to {venue?.name ?? "venue"}
-            </button>
-          ) : (
-            <Link
-              to={`/venues/${venueId}`}
-              state={location.state}
-              className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
-            >
-              <ArrowLeft /> Back to {venue?.name ?? "venue"}
-            </Link>
-          )}
+          {/* Straight back to the venue page it came from, with its
+              ?forEvent=... context, rather than a step back in history (which
+              could land on the catalogue). The state keeps the venue page's
+              saved catalogue address for its own "Back to venues". */}
+          <Link
+            to={venueId ? venueReturnPath(location.state, venueId) : "/venues"}
+            state={location.state}
+            className={buttonVariants({ variant: "ghost", className: "-ml-2" })}
+          >
+            <ArrowLeft /> Back to {venue?.name ?? "venue"}
+          </Link>
 
           {loading ? (
             <div className="mt-7 h-[600px] animate-pulse rounded-2xl bg-slate-200/70 motion-reduce:animate-none" />

@@ -1,7 +1,7 @@
 begin;
 select plan(12);
 
--- The coordinator side of a venue conflict (202611010010_coordinator_venue_conflicts.sql):
+-- The coordinator side of a venue conflict (202611010013_coordinator_venue_conflicts.sql):
 -- only the later-requested booking needs review, the reason says why, and
 -- the Venue step can read the other booking's event and times.
 insert into auth.users (id, email, raw_user_meta_data) values

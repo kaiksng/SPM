@@ -56,7 +56,7 @@ begin
   -- hold is Needs Review (AC02 names it explicitly), never Complete. An
   -- Approved booking that is flagged, disrupted, or has an active
   -- scheduling conflict it must move for is Needs Review (of two
-  -- overlapping bookings the one booked first stays, 202611010010). Only an Approved, unflagged,
+  -- overlapping bookings the one booked first stays, 202611010013). Only an Approved, unflagged,
   -- undisrupted, unconflicted booking is Complete. Rejected, cancelled and
   -- expired bookings are not "active" and are left out of the checklist
   -- entirely (AC03 explicitly allows a cancelled non-main booking; an

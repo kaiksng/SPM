@@ -27,7 +27,7 @@ export type VenueBookingReadiness = {
   /**
    * Whether "Mark resolved" applies: a change-request or safety-check flag.
    * A conflict or disruption clears once the booking itself is fixed
-   * (202611010010). Absent on readiness snapshots taken before then.
+   * (202611010013). Absent on readiness snapshots taken before then.
    */
   canMarkResolved?: boolean;
 };
@@ -61,7 +61,7 @@ export type EventReadiness = {
  * (AC02 names a hold explicitly), never Complete. A flagged, disrupted, or
  * conflicted Approved booking is also Needs Review. `hasConflict` means a
  * conflict this booking must move for: of two overlapping bookings only the
- * later-requested one, or one overlapping a venue block (202611010010).
+ * later-requested one, or one overlapping a venue block (202611010013).
  */
 export function deriveVenueBookingReadinessStatus(input: {
   status: "pending" | "approved" | "on_hold";

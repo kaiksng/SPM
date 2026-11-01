@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { queryBuilder } from "@/test/supabase-mock";
 
-const { fromMock } = vi.hoisted(() => ({ fromMock: vi.fn() }));
+const { fromMock, rpcMock } = vi.hoisted(() => ({ fromMock: vi.fn(), rpcMock: vi.fn() }));
 
-vi.mock("@/lib/supabase-client", () => ({ supabase: { from: fromMock } }));
+vi.mock("@/lib/supabase-client", () => ({ supabase: { from: fromMock, rpc: rpcMock } }));
 
 import { loadAttendeeEventDetail } from "./attendee-event";
 
@@ -28,6 +28,7 @@ const row = {
 };
 
 beforeEach(() => {
+  rpcMock.mockReset().mockResolvedValue({ data: [], error: null });
   fromMock.mockReset();
 });
 
@@ -45,6 +46,7 @@ describe("loadAttendeeEventDetail", () => {
       status: "confirmed",
       organiserName: "Student Life Office",
       venue: { preferredLocation: "Auditorium" },
+      venues: [],
       registration: {
         required: true,
         opensAt: null,
@@ -106,3 +108,63 @@ describe("loadAttendeeEventDetail", () => {
     );
   });
 });
+
+// An event attendees can't read directly may be a Confirmed event back under
+// review: its attendee-safe details still load.
+describe("an event being updated", () => {
+  it("loads its attendee-safe details when the event itself isn't readable", async () => {
+    fromMock.mockReturnValue(queryBuilder({ data: null, error: null }));
+    rpcMock.mockResolvedValue({
+      data: [
+        {
+          id: "event-9",
+          title: "Updating Gala",
+          description: "An evening gala.",
+          starts_at: "2099-12-01T02:00:00Z",
+          ends_at: "2099-12-01T06:00:00Z",
+          location: "Marina Bay",
+          banner_path: null,
+          registration_required: true,
+          withdrawal_permitted: true,
+        },
+      ],
+      error: null,
+    });
+
+    const detail = await loadAttendeeEventDetail("event-9");
+
+    expect(rpcMock).toHaveBeenCalledWith("attendee_events_being_updated", { p_event_id: "event-9" });
+    expect(detail).toMatchObject({ id: "event-9", title: "Updating Gala", status: "planning", organiserName: null });
+    expect(detail.registration).toMatchObject({ required: true, capacity: null, withdrawalPermitted: true });
+  });
+});
+
+// Attendees see the booked venues once the event is Confirmed.
+describe("the event's booked venues", () => {
+  it("lists them, main venue first, with their labels", async () => {
+    fromMock.mockReturnValue(queryBuilder({ data: row, error: null }));
+    rpcMock.mockResolvedValue({
+      data: [
+        { event_id: "event-1", venue_name: "Willow Room", venue_location: "Marina Bay", label: "Main programme", is_main_venue: true },
+        { event_id: "event-1", venue_name: "Room 2.01", venue_location: "Block A", label: "Breakout A", is_main_venue: false },
+      ],
+      error: null,
+    });
+
+    const detail = await loadAttendeeEventDetail("event-1");
+
+    expect(rpcMock).toHaveBeenCalledWith("attendee_event_venues", { p_event_ids: ["event-1"] });
+    expect(detail.venues).toEqual([
+      { name: "Willow Room", location: "Marina Bay", label: "Main programme", isMainVenue: true },
+      { name: "Room 2.01", location: "Block A", label: "Breakout A", isMainVenue: false },
+    ]);
+  });
+
+  it("shows the event without venues if they can't be loaded", async () => {
+    fromMock.mockReturnValue(queryBuilder({ data: row, error: null }));
+    rpcMock.mockResolvedValue({ data: null, error: { message: "boom" } });
+
+    await expect(loadAttendeeEventDetail("event-1")).resolves.toMatchObject({ venues: [] });
+  });
+});
+

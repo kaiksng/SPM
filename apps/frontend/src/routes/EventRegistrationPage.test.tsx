@@ -26,6 +26,8 @@ vi.mock("@/features/event-banners/services/event-banners", () => ({
 }));
 vi.mock("@/features/registrations/services/attendee-event", () => ({
   loadAttendeeEventDetail: (...args: unknown[]) => loadAttendeeEventDetailMock(...args),
+  isAttendeeEventBeingUpdated: (status: string) => status === "planning" || status === "pending_safety_check",
+  formatAttendeeVenue: (venue: { name: string; location: string }) => `${venue.name} · ${venue.location}`,
 }));
 vi.mock("@/features/registrations/services/registrations", () => ({
   getOwnRegistrationStatus: (...args: unknown[]) => getOwnRegistrationStatusMock(...args),
@@ -56,6 +58,7 @@ const baseEvent = {
   assignedCoordinatorId: null,
   assignedCoordinatorName: null,
   venue: { preferredLocation: "Auditorium", minimumCapacity: null, accessibilityNotes: null, layoutNotes: null, facilities: [] },
+  venues: [] as { name: string; location: string; label: string | null; isMainVenue: boolean }[],
   equipment: [],
   registration: {
     required: true,
@@ -539,3 +542,57 @@ describe("EventRegistrationPage without registration", () => {
     expect(screen.queryByText(/spots left|of 50/)).not.toBeInTheDocument();
   });
 });
+
+// A Confirmed event back under review (e.g. its venue is being replaced)
+// stays visible, venue to be confirmed, registration paused.
+describe("EventRegistrationPage while the event is being updated", () => {
+  it("keeps a registered attendee's place and still lets them withdraw", async () => {
+    loadAttendeeEventDetailMock.mockResolvedValue({
+      ...baseEvent,
+      status: "planning",
+      registration: { ...baseEvent.registration, withdrawalPermitted: true },
+    });
+    getOwnRegistrationStatusMock.mockResolvedValue("registered");
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Venue to be confirmed" })).toBeInTheDocument();
+    expect(screen.getByText(/Your place is kept/)).toBeInTheDocument();
+    expect(screen.queryByText("This event was cancelled.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Withdraw registration" })).toBeInTheDocument();
+  });
+
+  it("pauses new registrations for an attendee who isn't registered", async () => {
+    loadAttendeeEventDetailMock.mockResolvedValue({ ...baseEvent, status: "pending_safety_check" });
+    renderPage();
+
+    expect(await screen.findByText(/Registration is paused while this event's arrangements are updated/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Venue to be confirmed").length).toBeGreaterThan(0);
+  });
+});
+
+// Attendees see where a Confirmed event takes place.
+describe("EventRegistrationPage venues", () => {
+  it("shows the booked main venue, and any other venues with their labels", async () => {
+    loadAttendeeEventDetailMock.mockResolvedValue({
+      ...baseEvent,
+      venues: [
+        { name: "Willow Room", location: "Marina Bay", label: "Main programme", isMainVenue: true },
+        { name: "Room 2.01", location: "Block A", label: "Breakout A", isMainVenue: false },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByText("Willow Room · Marina Bay")).toBeInTheDocument();
+    expect(screen.getByText("Breakout A: Room 2.01 · Block A")).toBeInTheDocument();
+    expect(screen.queryByText("Auditorium")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the preferred area when no venue is booked", async () => {
+    renderPage();
+
+    expect(await screen.findByText("Auditorium")).toBeInTheDocument();
+    expect(screen.queryByText("Other venues")).not.toBeInTheDocument();
+  });
+});
+

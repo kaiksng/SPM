@@ -236,7 +236,7 @@ describe("EventVenuePage", () => {
     expect(screen.getByRole("button", { name: "Cancel booking" })).toBeInTheDocument();
   });
 
-  // 202611010010: the coordinator sees what their booking clashes with and
+  // 202611010013: the coordinator sees what their booking clashes with and
   // that it was booked later, so it is theirs to move.
   it("shows a booking's conflict and what to do about it", async () => {
     listVenueBookingsForEventMock.mockResolvedValue([booking({ status: "approved" })]);

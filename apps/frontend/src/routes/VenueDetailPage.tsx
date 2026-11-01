@@ -8,6 +8,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from "reac
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useAuth } from "@/context/auth-context";
+import { eventStatusLabel } from "@/features/event-requests/components/status-badges";
 import { loadEventDetail, type EventDetail } from "@/features/event-requests/services/event-details";
 import { BookingActivityList } from "@/features/venues/components/booking-activity-list";
 import {
@@ -31,7 +32,7 @@ import {
 } from "@/features/venues/services/venues";
 import { usePageTitle } from "@/hooks/use-page-title";
 import { RoleGate } from "@/routes/RoleGate";
-import { FROM_VENUE_DETAIL_STATE } from "@/features/venues/utils/venue-detail-navigation";
+import { venueDetailReturnState } from "@/features/venues/utils/venue-detail-navigation";
 
 const dateTimeFormatter = new Intl.DateTimeFormat("en-SG", {
   dateStyle: "medium",
@@ -201,8 +202,16 @@ export function VenueDetailPage() {
         // returns the event to Planning); a new request only for Planning.
         const requestableStatus =
           detail.status === "planning" || (Boolean(replacesBookingId) && detail.status === "confirmed");
-        if (!requestableStatus || !detail.startsAt || !detail.endsAt) {
-          setAvailabilityError("This event is not ready for a venue request.");
+        // Say which rule stops the request: it's about the event, not
+        // this venue, which otherwise reads as "the venue isn't available".
+        if (!requestableStatus) {
+          setAvailabilityError(
+            `This event is ${eventStatusLabel(detail.status)}. Venues can only be requested while it is in Planning.`,
+          );
+          return;
+        }
+        if (!detail.startsAt || !detail.endsAt) {
+          setAvailabilityError("Add the event's start and end time before requesting a venue.");
           return;
         }
         // Same function submitVenueBookingRequest/decideVenueBookingRequest
@@ -354,7 +363,7 @@ export function VenueDetailPage() {
                       calendar is a read view any authorised internal user needs. */}
                   <Link
                     to={`/venues/${venueId}/availability`}
-                    state={{ ...location.state, ...FROM_VENUE_DETAIL_STATE }}
+                    state={{ ...location.state, ...venueDetailReturnState(location.pathname, location.search) }}
                     className={buttonVariants({ variant: "outline", size: "sm" })}
                   >
                     <CalendarClock /> View availability

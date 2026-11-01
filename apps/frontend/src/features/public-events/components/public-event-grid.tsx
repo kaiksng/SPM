@@ -29,6 +29,7 @@ function registrationLabel(event: PublicEventSummary): string {
     closed: "Registration closed",
     full: "Full",
     not_required: "No registration needed",
+    being_updated: "Venue to be confirmed",
   };
   return labels[event.registration];
 }
@@ -112,6 +113,7 @@ export function PublicEventGrid({ linkTo }: { linkTo: (eventId: string) => strin
                   event.registration === "open" && "bg-emerald-50 text-emerald-700",
                   event.registration === "not_open" && "bg-blue-50 text-blue-700",
                   event.registration === "not_required" && "bg-violet-50 text-violet-700",
+                  event.registration === "being_updated" && "bg-amber-50 text-amber-800",
                   (event.registration === "full" || event.registration === "closed") && "bg-muted text-muted-foreground",
                 )}
               >

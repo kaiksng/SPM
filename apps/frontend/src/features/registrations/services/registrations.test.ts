@@ -242,6 +242,7 @@ describe("listMyRegistrations", () => {
         registeredAt: "2026-11-01T00:00:00Z",
         waitlistPosition: null,
         withdrawalPermitted: true,
+        eventBeingUpdated: false,
       },
     ]);
     // Keeps it "my registrations" for any signed-in user, including an

@@ -74,6 +74,7 @@ export function EventVenueBookings({
   actionError,
   canChangeMain,
   readOnly = false,
+  disruptedBookingId,
   onWithdraw,
   onConfirmHold,
   onSetMain,
@@ -86,6 +87,12 @@ export function EventVenueBookings({
   canChangeMain: boolean;
   // SPM-46 AC07: a Completed event's bookings are a record — no actions at all.
   readOnly?: boolean;
+  /**
+   * SPM-82/83: a booking whose venue became unavailable. It is kept until its
+   * replacement is approved (which releases it), so it can't be cancelled or
+   * withdrawn by hand meanwhile.
+   */
+  disruptedBookingId?: string;
   onWithdraw: (bookingId: string, reason: string) => Promise<unknown>;
   onConfirmHold: (bookingId: string) => void;
   onSetMain: (bookingId: string) => void;
@@ -194,7 +201,7 @@ export function EventVenueBookings({
                       Make main venue
                     </Button>
                   )}
-                {!readOnly && booking.status === "pending" && (
+                {!readOnly && booking.status === "pending" && booking.id !== disruptedBookingId && (
                   <Button
                     type="button"
                     variant="outline"
@@ -205,7 +212,7 @@ export function EventVenueBookings({
                     Withdraw request
                   </Button>
                 )}
-                {!readOnly && booking.status === "approved" && (
+                {!readOnly && booking.status === "approved" && booking.id !== disruptedBookingId && (
                   <Button
                     type="button"
                     variant="outline"
@@ -217,6 +224,12 @@ export function EventVenueBookings({
                   </Button>
                 )}
               </div>
+              {booking.id === disruptedBookingId && (
+                <p className="mt-2 text-sm text-amber-800">
+                  This venue is no longer available. The booking stays until its replacement is approved,
+                  then it is released automatically.
+                </p>
+              )}
               {booking.cancellationReason && booking.status === "cancelled" && (
                 <p className="mt-2 text-sm text-slate-500">Reason: {booking.cancellationReason}</p>
               )}

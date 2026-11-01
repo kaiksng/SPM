@@ -41,6 +41,7 @@ function renderBookings(
     busyBookingId: string;
     actionError: { bookingId: string; message: string };
     conflicts: EventVenueConflict[];
+    disruptedBookingId: string;
   }> = {},
 ) {
   return render(
@@ -195,7 +196,7 @@ function conflict(overrides: Partial<EventVenueConflict> = {}): EventVenueConfli
   };
 }
 
-// 202611010010: of two overlapping bookings the later one moves and the one
+// 202611010013: of two overlapping bookings the later one moves and the one
 // booked first stays; a booking overlapping a venue block always moves.
 describe("EventVenueBookings: a venue conflict", () => {
   const approved = booking({ status: "approved" });
@@ -237,5 +238,34 @@ describe("EventVenueBookings: a venue conflict", () => {
 
     expect(screen.queryByText("Conflict")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+// SPM-82/83: a booking whose venue became unavailable is kept until its
+// replacement is approved, so it can't be cancelled or withdrawn by hand.
+describe("EventVenueBookings: a disrupted booking", () => {
+  it("offers no Cancel booking on the disrupted booking, and says why", () => {
+    renderBookings([booking({ status: "approved" })], { disruptedBookingId: "b-1" });
+
+    expect(screen.queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
+    expect(screen.getByText(/stays until its replacement is approved/)).toBeInTheDocument();
+  });
+
+  it("offers no Withdraw request on a disrupted pending booking", () => {
+    renderBookings([booking({ status: "pending" })], { disruptedBookingId: "b-1" });
+
+    expect(screen.queryByRole("button", { name: "Withdraw request" })).not.toBeInTheDocument();
+  });
+
+  it("still lets the event's other bookings be cancelled", () => {
+    renderBookings(
+      [
+        booking({ status: "approved" }),
+        booking({ id: "b-2", status: "approved", isMainVenue: false, label: "Breakout", venueName: "Room 2.02" }),
+      ],
+      { disruptedBookingId: "b-1" },
+    );
+
+    expect(screen.getAllByRole("button", { name: "Cancel booking" })).toHaveLength(1);
   });
 });

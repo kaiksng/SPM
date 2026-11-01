@@ -99,7 +99,7 @@ describe("ReadinessChecklist", () => {
   });
 
   // A conflicted booking cannot be marked resolved: it shows why and links
-  // to the Venue step, where it is moved or cancelled (202611010010).
+  // to the Venue step, where it is moved or cancelled (202611010013).
   it("explains a conflict and links to the Venue step instead of 'Mark resolved'", () => {
     const reason =
       `Clashes with "F1 Event Part 1", which was booked first, once the venue's setup and turnaround time is applied. Move or cancel this booking on the Venue step.`;

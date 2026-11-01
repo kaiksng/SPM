@@ -22,7 +22,7 @@ export type EventVenueConflict = {
 };
 
 /**
- * The event's open venue conflicts (event_venue_conflicts, 202611010010).
+ * The event's open venue conflicts (event_venue_conflicts, 202611010013).
  * Limited to the event's assigned coordinator, the Event Coordinator Lead and
  * Venue Staff; anyone else gets none.
  */
