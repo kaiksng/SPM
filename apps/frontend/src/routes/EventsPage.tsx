@@ -74,6 +74,10 @@ import {
   splitVenueDisruptions,
   useVenueDisruptions,
 } from "@/features/venues/components/affected-venue-bookings";
+import {
+  listVenueConflictsForCoordinator,
+  type CoordinatorVenueConflict,
+} from "@/features/venues/services/event-venue-conflicts";
 import { loadMainVenueCapacity } from "@/features/registrations/services/registration-settings";
 import { PagePlaceholder } from "@/features/workspace/components/page-placeholder";
 import { ListToolbar } from "@/features/workspace/components/list-toolbar";
@@ -292,6 +296,8 @@ function CoordinatorEventsView() {
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") ?? "");
   const [filters, setFilters] = useState<EventFilterValues>(() => eventFiltersFromParams(searchParams));
   const { disruptions, error: disruptionError } = useVenueDisruptions();
+  // Bookings that have to move because of a conflict: a venue issue too.
+  const [venueConflicts, setVenueConflicts] = useState<CoordinatorVenueConflict[]>([]);
 
   // Kept in the URL so it's still there when the user goes back from a detail page.
   useEffect(() => {
@@ -300,10 +306,26 @@ function CoordinatorEventsView() {
     setSearchParams(eventParamsFromFilters(searchQuery, filters), { replace: true, state });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, filters]);
-  // Events with a venue disruption that still needs attention get a badge.
-  const eventsWithVenueIssue = new Set(
-    splitVenueDisruptions(disruptions).open.map((item) => item.eventId),
-  );
+  // Only conflicts on events still assigned to this coordinator.
+  const assignedConflicts = venueConflicts.filter((item) => events.some((event) => event.id === item.eventId));
+  // Events with a venue disruption or conflict that still needs attention get a badge.
+  const eventsWithVenueIssue = new Set([
+    ...splitVenueDisruptions(disruptions).open.map((item) => item.eventId),
+    ...assignedConflicts.map((item) => item.eventId),
+  ]);
+
+  useEffect(() => {
+    let active = true;
+    // Non-critical: without it the page simply shows disruptions alone.
+    listVenueConflictsForCoordinator()
+      .then((items) => {
+        if (active) setVenueConflicts(items);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -444,7 +466,7 @@ function CoordinatorEventsView() {
             </>
           )}
 
-          <AffectedVenueBookings disruptions={disruptions} error={disruptionError} />
+          <AffectedVenueBookings disruptions={disruptions} conflicts={assignedConflicts} error={disruptionError} />
         </div>
       </div>
     </RoleGate>

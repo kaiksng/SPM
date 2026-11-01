@@ -7,6 +7,7 @@ import { AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
+import type { CoordinatorVenueConflict } from "@/features/venues/services/event-venue-conflicts";
 import {
   listVenueDisruptionsForCoordinator,
   type VenueDisruption,
@@ -120,16 +121,60 @@ function DisruptionRow({ item }: { item: VenueDisruption }) {
 }
 
 /**
+ * A booking that has to move because of a conflict found by Venue Staff's
+ * re-check. It is replaced the same way as a disrupted one (202611010015).
+ */
+function ConflictRow({ item }: { item: CoordinatorVenueConflict }) {
+  return (
+    <tr className="text-slate-700">
+      <td className="px-4 py-3 align-top font-semibold">
+        <Link
+          to={`/events/${item.eventId}/venue`}
+          className="text-slate-900 hover:text-primary hover:underline"
+        >
+          {item.eventTitle}
+        </Link>
+      </td>
+      <td className="px-4 py-3 align-top">{item.venueName}</td>
+      <td className="px-4 py-3 align-top whitespace-nowrap">
+        {dateTimeFormatter.format(new Date(item.bookingStartsAt))} –{" "}
+        {dateTimeFormatter.format(new Date(item.bookingEndsAt))}
+      </td>
+      <td className="px-4 py-3 align-top">
+        {item.blockReason !== null
+          ? `Clashes with venue block "${item.blockReason}"`
+          : "Clashes with another booking made first"}
+      </td>
+      <td className="px-4 py-3 align-top">
+        <DisruptionStateBadge state={item.state} />
+      </td>
+      <td className="px-4 py-3 align-top whitespace-nowrap">
+        <Link
+          to={`/events/${item.eventId}/venue`}
+          className="font-medium text-primary hover:underline"
+        >
+          {item.state === "replacement_requested" ? "View request" : "Find replacement"}
+        </Link>
+      </td>
+    </tr>
+  );
+}
+
+/**
  * SPM-83: a table of the coordinator's events whose venue booking was
  * disrupted by a venue block. The events are not cancelled; an alternative is
  * needed. Open items are listed first; recently resolved ones are behind a
  * toggle. Nothing renders when there is nothing open or recently resolved.
+ * Bookings that have to move because of a conflict are listed with the open
+ * ones (they clear once fixed), so every venue problem is in one place.
  */
 export function AffectedVenueBookings({
   disruptions,
+  conflicts = [],
   error,
 }: {
   disruptions: VenueDisruption[];
+  conflicts?: CoordinatorVenueConflict[];
   error?: string;
 }) {
   const [showResolved, setShowResolved] = useState(false);
@@ -143,9 +188,8 @@ export function AffectedVenueBookings({
   }
 
   const { open, recentlyResolved } = splitVenueDisruptions(disruptions);
-  if (open.length === 0 && recentlyResolved.length === 0) return null;
-
-  const rows = showResolved ? [...open, ...recentlyResolved] : open;
+  const openCount = open.length + conflicts.length;
+  if (openCount === 0 && recentlyResolved.length === 0) return null;
   return (
     <section aria-label="Affected venue bookings" className="mt-10">
       <div className="flex flex-wrap items-end justify-between gap-2">
@@ -153,15 +197,15 @@ export function AffectedVenueBookings({
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-950">
             <AlertTriangle className="size-4 text-red-600" aria-hidden="true" />
             Affected venue bookings
-            {open.length > 0 && (
+            {openCount > 0 && (
               <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-800">
-                {open.length} open
+                {openCount} open
               </span>
             )}
           </h2>
           <p className="mt-1 text-sm text-slate-600">
-            A venue became unavailable for these bookings. The events have not been cancelled;
-            alternative arrangements are required.
+            A venue became unavailable or clashes with another booking for these bookings. The events
+            have not been cancelled; alternative arrangements are required.
           </p>
         </div>
         {recentlyResolved.length > 0 && (
@@ -177,7 +221,7 @@ export function AffectedVenueBookings({
       </div>
 
       <div className="mt-3 overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-        {rows.length === 0 ? (
+        {openCount === 0 && !showResolved ? (
           <p className="px-4 py-4 text-sm text-slate-500">No open affected bookings.</p>
         ) : (
           <table className="w-full min-w-[820px] text-left text-sm">
@@ -193,7 +237,13 @@ export function AffectedVenueBookings({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rows.map((item) => (
+              {open.map((item) => (
+                <DisruptionRow key={item.id} item={item} />
+              ))}
+              {conflicts.map((item) => (
+                <ConflictRow key={item.bookingId} item={item} />
+              ))}
+              {showResolved && recentlyResolved.map((item) => (
                 <DisruptionRow key={item.id} item={item} />
               ))}
             </tbody>

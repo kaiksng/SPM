@@ -575,7 +575,7 @@ export function VenueDetailPage() {
                         ? isAdditional && additionalDetails
                           ? `Review the details above, then confirm to request this venue as "${additionalDetails.label}" for "${forEvent.title}": ${dateTimeFormatter.format(new Date(additionalDetails.startsAt))} – ${dateTimeFormatter.format(new Date(additionalDetails.endsAt))}, ${additionalDetails.expectedHeadcount} people. It is decided separately from the event's other venues.`
                           : replacesBookingId
-                          ? `Review the details above, then confirm to request this venue as the replacement for the disrupted booking of "${forEvent.title}". It keeps the same period.`
+                          ? `Review the details above, then confirm to request this venue as the replacement for the current booking of "${forEvent.title}". It keeps the same period.`
                           : `Review the details above, then confirm to request this venue for "${forEvent.title}".`
                         : "Review the details above, then confirm to submit the request."
                     ) : activeBooking ? "This event already has an active venue request. You can review venues, but cannot submit another request while it remains active." : exploreOnly ? "This result is for review only. If you searched another time, discuss a schedule change with the organiser before requesting a venue for that time." : availabilityError || (availabilityStatus && availabilityStatus !== "available" ? `This venue was marked ${VENUE_AVAILABILITY_LABELS[availabilityStatus]}.` : "Checking current availability…")}

@@ -433,7 +433,7 @@ describe("VenueDetailPage", () => {
     getActiveVenueBookingMock.mockResolvedValue(activeOriginal);
     renderPage("/venues/venue-1?forEvent=event-1&replaces=booking-1");
 
-    expect(await screen.findByText(/replacement for the disrupted booking of "Career Fair"\. It keeps the same period/)).toBeInTheDocument();
+    expect(await screen.findByText(/replacement for the current booking of "Career Fair"\. It keeps the same period/)).toBeInTheDocument();
   });
 
   it("is also allowed for a Confirmed event, since approving it returns the event to Planning", async () => {

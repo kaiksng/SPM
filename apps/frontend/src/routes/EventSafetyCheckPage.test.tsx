@@ -202,6 +202,7 @@ describe("EventSafetyCheckPage", () => {
             isMainVenue: true,
             status: "needs_review",
             needsReviewReason: "Capacity reduced below the event's headcount.",
+            canMarkResolved: true,
           },
         ],
       }),

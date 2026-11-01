@@ -13,6 +13,11 @@ import {
 } from "@/features/event-requests/services/event-details";
 import { VenueSafetyChecksSection } from "@/features/safety-check/components/venue-safety-checks-section";
 import { AdditionalVenuePanel } from "@/features/venues/components/additional-venue-panel";
+import { VenueConflictSection } from "@/features/venues/components/venue-conflict-section";
+import {
+  listEventVenueConflicts,
+  type EventVenueConflict,
+} from "@/features/venues/services/event-venue-conflicts";
 import {
   EventVenueBookings,
   isActiveVenueBooking,
@@ -54,6 +59,8 @@ export function EventVenuePage() {
   const [bookings, setBookings] = useState<VenueBookingRequestSummary[]>([]);
   // SPM-82: this event's disrupted venue booking, if one still needs a replacement.
   const [disruption, setDisruption] = useState<VenueDisruption>();
+  // Open conflicts on the event's bookings, and which side has to move.
+  const [conflicts, setConflicts] = useState<EventVenueConflict[]>([]);
   const [busyBookingId, setBusyBookingId] = useState<string>();
   const [actionError, setActionError] = useState<{ bookingId: string; message: string }>();
 
@@ -67,11 +74,14 @@ export function EventVenuePage() {
       listVenueBookingsForEvent(id),
       // Non-critical: without it the page simply behaves as it did before SPM-82.
       listVenueDisruptionsForCoordinator().catch(() => [] as VenueDisruption[]),
+      // Non-critical too: without it the bookings simply show no conflict.
+      listEventVenueConflicts(id).catch(() => [] as EventVenueConflict[]),
     ])
-      .then(([detail, venueBookings, disruptions]) => {
+      .then(([detail, venueBookings, disruptions, venueConflicts]) => {
         if (!active) return;
         setEvent(detail);
         setBookings(venueBookings);
+        setConflicts(venueConflicts);
         setDisruption(
           disruptions.find((item) => item.eventId === id && item.state !== "resolved"),
         );
@@ -142,7 +152,26 @@ export function EventVenuePage() {
   const activeBookings = bookings.filter(isActiveVenueBooking);
   const mainBooking = activeBookings.find((booking) => booking.isMainVenue && !booking.replacesBookingId);
   const mainVenueArea = mainBooking?.venueAreaTags[0] ?? mainBooking?.venueLocation ?? null;
-  const needsReplacement = disruption?.state === "replacement_required";
+  const openDisruption = disruption && disruption.state !== "resolved" ? disruption : undefined;
+  // A booking that has to move because of a conflict is replaced the way a
+  // disrupted one is (202611010015). A disruption, if any, is handled first.
+  const movingConflict = openDisruption
+    ? undefined
+    : conflicts.find(
+        (conflict) =>
+          conflict.mustMove
+          && activeBookings.some((booking) => booking.id === conflict.bookingId && !booking.replacesBookingId),
+      );
+  const movingBooking = activeBookings.find((booking) => booking.id === movingConflict?.bookingId);
+  const conflictReplacementRequested =
+    !!movingBooking && activeBookings.some((booking) => booking.replacesBookingId === movingBooking.id);
+  const replacing =
+    disruption?.state === "replacement_required"
+      ? { bookingId: disruption.bookingId, venueId: disruption.venueId }
+      : movingBooking && !conflictReplacementRequested
+        ? { bookingId: movingBooking.id, venueId: movingBooking.venueId }
+        : undefined;
+  const needsReplacement = !!replacing;
   // SPM-46 AC07: the database refuses every venue booking change on a
   // Completed event, so offer none — no requests, withdrawals or cancellations.
   // A Cancelled or Rejected event is closed the same way: it will never need
@@ -269,14 +298,23 @@ export function EventVenuePage() {
                   </section>
                 )}
 
+                {movingConflict && movingBooking && (
+                  <VenueConflictSection
+                    booking={movingBooking}
+                    conflict={movingConflict}
+                    replacementRequested={conflictReplacementRequested}
+                  />
+                )}
+
                 {bookings.length > 0 && (
                   <EventVenueBookings
                     bookings={bookings}
+                    conflicts={conflicts}
                     busyBookingId={busyBookingId}
                     actionError={actionError}
                     canChangeMain={event.status === "planning"}
                     readOnly={!!closedStatus}
-                    disruptedBookingId={disruption && disruption.state !== "resolved" ? disruption.bookingId : undefined}
+                    disruptedBookingId={openDisruption?.bookingId}
                     onWithdraw={handleWithdraw}
                     onConfirmHold={handleConfirmHold}
                     onSetMain={handleSetMain}
@@ -292,11 +330,7 @@ export function EventVenuePage() {
                   <SuggestedVenuesPanel
                     event={event}
                     hasActiveBooking={!needsReplacement && activeBookings.length > 0}
-                    replacing={
-                      disruption?.state === "replacement_required"
-                        ? { bookingId: disruption.bookingId, venueId: disruption.venueId }
-                        : undefined
-                    }
+                    replacing={replacing}
                   />
                 )}
 

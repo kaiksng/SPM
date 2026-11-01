@@ -162,6 +162,7 @@ export function EventSafetyCheckPage() {
                   resolvingId={resolvingId}
                   onResolveBooking={(bookingId) => handleResolve(bookingId, { bookingId })}
                   onResolveRequirement={(requirementId) => handleResolve(requirementId, { requirementId })}
+                  venueStepHref={`/events/${eventId}/venue`}
                 />
 
                 {!readiness.ready && <OutstandingItemsList items={readiness.outstandingItems} />}

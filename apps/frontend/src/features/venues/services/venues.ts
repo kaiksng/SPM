@@ -355,10 +355,9 @@ export type FlaggedBookingConflict = {
   // submitted would otherwise leave this pointing at someone no longer on
   // the event.
   coordinatorName: string | null;
-  // Set on the later-created booking's own row (false on the earlier one) —
-  // not used to single anyone out in the UI; both coordinators are expected
-  // to liaise and resolve the conflict together, but this is kept for any
-  // future use (e.g. sorting the queue by who acted last).
+  // Set on the later-created booking's own row (false on the earlier one).
+  // That booking is the one that has to move: only it blocks its event's
+  // safety check, and its coordinator's Venue step says so (202611010013).
   isResponsible: boolean;
   cause: string;
   flaggedAt: string;
