@@ -55,8 +55,8 @@ function VenueConflictNotice({ conflict }: { conflict: EventVenueConflict }) {
           turnaround time is applied. That booking was made first, so this one needs to move.
         </>
       )}{" "}
-      Cancel this booking and book another venue, or change the event time. Venue Staff then re-check the venue
-      and the conflict clears.
+      Book another venue with Add another venue below, make it the main venue once it is approved, then cancel
+      this booking.
     </p>
   );
 }

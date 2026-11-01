@@ -208,7 +208,7 @@ describe("EventVenueBookings: a venue conflict", () => {
     const notice = screen.getByRole("alert");
     expect(notice).toHaveTextContent('Clashes with "F1 Event Part 1" (6 Apr 2099, 8:00 am – 6 Apr 2099, 9:45 am)');
     expect(notice).toHaveTextContent("That booking was made first, so this one needs to move.");
-    expect(notice).toHaveTextContent("Cancel this booking and book another venue, or change the event time.");
+    expect(notice).toHaveTextContent("Book another venue with Add another venue below, make it the main venue once it is approved, then cancel this booking.");
   });
 
   it("tells the coordinator of the booking made first that no action is needed", () => {
