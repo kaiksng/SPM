@@ -201,14 +201,19 @@ function conflict(overrides: Partial<EventVenueConflict> = {}): EventVenueConfli
 describe("EventVenueBookings: a venue conflict", () => {
   const approved = booking({ status: "approved" });
 
-  it("tells the coordinator of the later booking what it clashes with and that it must move", () => {
+  it("keeps a booking that has to move until its replacement is approved", () => {
     renderBookings([approved], { conflicts: [conflict()] });
 
     expect(screen.getByText("Conflict")).toBeInTheDocument();
-    const notice = screen.getByRole("alert");
-    expect(notice).toHaveTextContent('Clashes with "F1 Event Part 1" (6 Apr 2099, 8:00 am – 6 Apr 2099, 9:45 am)');
-    expect(notice).toHaveTextContent("That booking was made first, so this one needs to move.");
-    expect(notice).toHaveTextContent("Book another venue with Add another venue below, make it the main venue once it is approved, then cancel this booking.");
+    expect(screen.getByText(/This venue clashes with another booking\. The booking stays until its replacement is approved/))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
+  });
+
+  it("offers no Withdraw request on a pending booking that has to move", () => {
+    renderBookings([booking({ status: "pending" })], { conflicts: [conflict()] });
+
+    expect(screen.queryByRole("button", { name: "Withdraw request" })).not.toBeInTheDocument();
   });
 
   it("tells the coordinator of the booking made first that no action is needed", () => {
@@ -220,17 +225,6 @@ describe("EventVenueBookings: a venue conflict", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByText(/That booking was made later, so it is the one expected to move\. No action is needed from you\./))
       .toBeInTheDocument();
-  });
-
-  it("names the venue block a booking overlaps", () => {
-    renderBookings([approved], {
-      conflicts: [conflict({
-        conflictingEventTitle: null, conflictingStartsAt: null, conflictingEndsAt: null,
-        blockReason: "Failed mic", blockStartsAt: "2099-04-06T01:50:00.000Z", blockEndsAt: "2099-04-06T02:00:00.000Z",
-      })],
-    });
-
-    expect(screen.getByRole("alert")).toHaveTextContent('Overlaps the venue block "Failed mic"');
   });
 
   it("shows nothing for a booking that is no longer active", () => {

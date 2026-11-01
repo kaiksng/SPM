@@ -24,39 +24,17 @@ function formatPeriod(startsAt: string | null, endsAt: string | null) {
 }
 
 /**
- * What Venue Staff's re-check found on this booking. Of two overlapping
- * bookings the one requested later has to move and the one booked first
- * stays; a booking overlapping a venue block always has to move.
+ * The booking made first of two that overlap stays booked; its coordinator
+ * is told the other one is expected to move. (The booking that has to move
+ * is explained in the Venue conflict section at the top of the page.)
  */
-function VenueConflictNotice({ conflict }: { conflict: EventVenueConflict }) {
-  if (!conflict.mustMove) {
-    return (
-      <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-        Overlaps <span className="font-semibold">"{conflict.conflictingEventTitle ?? "another event"}"</span>
-        {formatPeriod(conflict.conflictingStartsAt, conflict.conflictingEndsAt)} once the venue's setup and
-        turnaround time is applied. That booking was made later, so it is the one expected to move. No action
-        is needed from you.
-      </p>
-    );
-  }
-
+function VenueConflictNote({ conflict }: { conflict: EventVenueConflict }) {
   return (
-    <p role="alert" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-      {conflict.blockReason !== null ? (
-        <>
-          <span className="font-semibold">Overlaps the venue block "{conflict.blockReason}"</span>
-          {formatPeriod(conflict.blockStartsAt, conflict.blockEndsAt)} once the venue's setup and turnaround time
-          is applied, so this booking needs to move.
-        </>
-      ) : (
-        <>
-          <span className="font-semibold">Clashes with "{conflict.conflictingEventTitle ?? "another event"}"</span>
-          {formatPeriod(conflict.conflictingStartsAt, conflict.conflictingEndsAt)} once the venue's setup and
-          turnaround time is applied. That booking was made first, so this one needs to move.
-        </>
-      )}{" "}
-      Book another venue with Add another venue below, make it the main venue once it is approved, then cancel
-      this booking.
+    <p className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+      Overlaps <span className="font-semibold">"{conflict.conflictingEventTitle ?? "another event"}"</span>
+      {formatPeriod(conflict.conflictingStartsAt, conflict.conflictingEndsAt)} once the venue's setup and
+      turnaround time is applied. That booking was made later, so it is the one expected to move. No action
+      is needed from you.
     </p>
   );
 }
@@ -65,7 +43,8 @@ function VenueConflictNotice({ conflict }: { conflict: EventVenueConflict }) {
  * SPM-85: every venue booking of an event — label, venue, period, headcount
  * and status — active ones first, then rejected, cancelled and expired ones
  * (kept visible so the coordinator sees what happened to them). A booking
- * with an open conflict says what it clashes with and who has to move.
+ * that has to move because of a conflict is replaced like a disrupted one
+ * (202611010015), so it can't be cancelled or withdrawn by hand either.
  */
 export function EventVenueBookings({
   bookings,
@@ -119,6 +98,8 @@ export function EventVenueBookings({
           const bookingConflicts = isActiveVenueBooking(booking)
             ? conflicts.filter((conflict) => conflict.bookingId === booking.id)
             : [];
+          const mustMove = bookingConflicts.some((conflict) => conflict.mustMove);
+          const awaitingReplacement = booking.id === disruptedBookingId || mustMove;
           return (
             <li key={booking.id} className="py-4 first:pt-0 last:pb-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -134,7 +115,7 @@ export function EventVenueBookings({
                   </span>
                 )}
                 <VenueBookingStatusBadge status={booking.status} />
-                {bookingConflicts.some((conflict) => conflict.mustMove) && (
+                {mustMove && (
                   <span className="inline-block rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-amber-800">
                     Conflict
                   </span>
@@ -147,8 +128,8 @@ export function EventVenueBookings({
                 {dateTimeFormatter.format(new Date(booking.endsAt))}
                 {booking.expectedHeadcount != null && ` · ${booking.expectedHeadcount} people`}
               </p>
-              {bookingConflicts.map((conflict, index) => (
-                <VenueConflictNotice key={index} conflict={conflict} />
+              {!mustMove && bookingConflicts.map((conflict, index) => (
+                <VenueConflictNote key={index} conflict={conflict} />
               ))}
               {booking.status === "rejected" && (
                 <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -201,7 +182,7 @@ export function EventVenueBookings({
                       Make main venue
                     </Button>
                   )}
-                {!readOnly && booking.status === "pending" && booking.id !== disruptedBookingId && (
+                {!readOnly && booking.status === "pending" && !awaitingReplacement && (
                   <Button
                     type="button"
                     variant="outline"
@@ -212,7 +193,7 @@ export function EventVenueBookings({
                     Withdraw request
                   </Button>
                 )}
-                {!readOnly && booking.status === "approved" && booking.id !== disruptedBookingId && (
+                {!readOnly && booking.status === "approved" && !awaitingReplacement && (
                   <Button
                     type="button"
                     variant="outline"
@@ -227,6 +208,12 @@ export function EventVenueBookings({
               {booking.id === disruptedBookingId && (
                 <p className="mt-2 text-sm text-amber-800">
                   This venue is no longer available. The booking stays until its replacement is approved,
+                  then it is released automatically.
+                </p>
+              )}
+              {mustMove && booking.id !== disruptedBookingId && (
+                <p className="mt-2 text-sm text-amber-800">
+                  This venue clashes with another booking. The booking stays until its replacement is approved,
                   then it is released automatically.
                 </p>
               )}

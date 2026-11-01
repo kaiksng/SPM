@@ -236,28 +236,6 @@ describe("EventVenuePage", () => {
     expect(screen.getByRole("button", { name: "Cancel booking" })).toBeInTheDocument();
   });
 
-  // 202611010013: the coordinator sees what their booking clashes with and
-  // that it was booked later, so it is theirs to move.
-  it("shows a booking's conflict and what to do about it", async () => {
-    listVenueBookingsForEventMock.mockResolvedValue([booking({ status: "approved" })]);
-    listEventVenueConflictsMock.mockResolvedValue([
-      {
-        bookingId: "booking-1", mustMove: true, conflictingEventTitle: "F1 Event Part 1",
-        conflictingStartsAt: "2099-04-06T00:00:00.000Z", conflictingEndsAt: "2099-04-06T01:45:00.000Z",
-        blockReason: null, blockStartsAt: null, blockEndsAt: null, flaggedAt: "2099-04-02T00:00:00.000Z",
-      },
-    ]);
-
-    renderPage();
-
-    const list = await screen.findByRole("region", { name: "Venue bookings" });
-    expect(await within(list).findByText("Conflict")).toBeInTheDocument();
-    expect(within(list).getByRole("alert")).toHaveTextContent(
-      'Clashes with "F1 Event Part 1" (6 Apr 2099, 8:00 am – 6 Apr 2099, 9:45 am)',
-    );
-    expect(listEventVenueConflictsMock).toHaveBeenCalledWith("event-1");
-  });
-
   // SPM-46 AC07: a Completed event's bookings stay visible, but none can be
   // requested, withdrawn, cancelled, confirmed or made main.
   it("offers no venue booking actions once the event is Completed", async () => {
@@ -516,6 +494,67 @@ describe("EventVenuePage", () => {
     // The original is still disrupted, so the replacement choice is offered again.
     const refreshed = await screen.findByRole("region", { name: "Disrupted venue booking" });
     expect(within(refreshed).getByText("Replacement Required")).toBeInTheDocument();
+  });
+
+  // 202611010015: a booking that has to move because of a conflict is
+  // replaced the way a disrupted one is, and can't be cancelled by hand.
+  const movingConflict = {
+      bookingId: "booking-1", mustMove: true, conflictingEventTitle: "F1 Event Part 1",
+      conflictingStartsAt: "2099-04-06T00:00:00.000Z", conflictingEndsAt: "2099-04-06T01:45:00.000Z",
+      blockReason: null, blockStartsAt: null, blockEndsAt: null, flaggedAt: "2099-04-02T00:00:00.000Z",
+    };
+
+  it("shows the conflicting booking and offers other venues as its replacement", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([approvedOriginal]);
+    listEventVenueConflictsMock.mockResolvedValue([movingConflict]);
+    listSuggestedVenuesMock.mockResolvedValue([
+      suggestedVenue("venue-1", "Auditorium"),
+      suggestedVenue("venue-2", "Grand Hall"),
+    ]);
+
+    renderPage();
+
+    const card = await screen.findByRole("region", { name: "Venue conflict" });
+    expect(within(card).getByText("Auditorium")).toBeInTheDocument();
+    expect(within(card).getByText("Replacement Required")).toBeInTheDocument();
+    expect(within(card).getByText(/Clashes with "F1 Event Part 1" \(6 Apr 2099, 8:00 am – 6 Apr 2099, 9:45 am\), which was booked first/))
+      .toBeInTheDocument();
+    expect(within(card).getByText(/no longer suitable for the event/)).toBeInTheDocument();
+
+    const bookingsList = screen.getByRole("region", { name: "Venue bookings" });
+    expect(within(bookingsList).getByText("Conflict")).toBeInTheDocument();
+    expect(within(bookingsList).getByText(/clashes with another booking\. The booking stays until its replacement is approved/))
+      .toBeInTheDocument();
+    expect(within(bookingsList).queryByRole("button", { name: "Cancel booking" })).not.toBeInTheDocument();
+
+    expect(await screen.findByText("Grand Hall")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View details" })).toHaveAttribute(
+      "href",
+      "/venues/venue-2?forEvent=event-1&status=available&replaces=booking-1",
+    );
+  });
+
+  it("shows a requested replacement for the conflicting booking", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([approvedOriginal, pendingReplacement]);
+    listEventVenueConflictsMock.mockResolvedValue([movingConflict]);
+
+    renderPage();
+
+    const card = await screen.findByRole("region", { name: "Venue conflict" });
+    expect(within(card).getByText("Replacement Requested")).toBeInTheDocument();
+    expect(within(card).getByText(/stays until Venue Staff approve it/)).toBeInTheDocument();
+    expect(screen.queryByText("Suggested venues")).not.toBeInTheDocument();
+  });
+
+  it("keeps Cancel booking for the booking made first, which stays", async () => {
+    listVenueBookingsForEventMock.mockResolvedValue([approvedOriginal]);
+    listEventVenueConflictsMock.mockResolvedValue([{ ...movingConflict, mustMove: false, conflictingEventTitle: "F1 Event Part 2" }]);
+
+    renderPage();
+
+    expect(await screen.findByText(/No action is needed from you/)).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Venue conflict" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel booking" })).toBeInTheDocument();
   });
 
   it("does not show a disruption that is already resolved", async () => {

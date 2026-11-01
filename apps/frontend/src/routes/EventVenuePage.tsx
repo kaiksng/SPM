@@ -13,6 +13,7 @@ import {
 } from "@/features/event-requests/services/event-details";
 import { VenueSafetyChecksSection } from "@/features/safety-check/components/venue-safety-checks-section";
 import { AdditionalVenuePanel } from "@/features/venues/components/additional-venue-panel";
+import { VenueConflictSection } from "@/features/venues/components/venue-conflict-section";
 import {
   listEventVenueConflicts,
   type EventVenueConflict,
@@ -151,7 +152,26 @@ export function EventVenuePage() {
   const activeBookings = bookings.filter(isActiveVenueBooking);
   const mainBooking = activeBookings.find((booking) => booking.isMainVenue && !booking.replacesBookingId);
   const mainVenueArea = mainBooking?.venueAreaTags[0] ?? mainBooking?.venueLocation ?? null;
-  const needsReplacement = disruption?.state === "replacement_required";
+  const openDisruption = disruption && disruption.state !== "resolved" ? disruption : undefined;
+  // A booking that has to move because of a conflict is replaced the way a
+  // disrupted one is (202611010015). A disruption, if any, is handled first.
+  const movingConflict = openDisruption
+    ? undefined
+    : conflicts.find(
+        (conflict) =>
+          conflict.mustMove
+          && activeBookings.some((booking) => booking.id === conflict.bookingId && !booking.replacesBookingId),
+      );
+  const movingBooking = activeBookings.find((booking) => booking.id === movingConflict?.bookingId);
+  const conflictReplacementRequested =
+    !!movingBooking && activeBookings.some((booking) => booking.replacesBookingId === movingBooking.id);
+  const replacing =
+    disruption?.state === "replacement_required"
+      ? { bookingId: disruption.bookingId, venueId: disruption.venueId }
+      : movingBooking && !conflictReplacementRequested
+        ? { bookingId: movingBooking.id, venueId: movingBooking.venueId }
+        : undefined;
+  const needsReplacement = !!replacing;
   // SPM-46 AC07: the database refuses every venue booking change on a
   // Completed event, so offer none — no requests, withdrawals or cancellations.
   // A Cancelled or Rejected event is closed the same way: it will never need
@@ -278,6 +298,14 @@ export function EventVenuePage() {
                   </section>
                 )}
 
+                {movingConflict && movingBooking && (
+                  <VenueConflictSection
+                    booking={movingBooking}
+                    conflict={movingConflict}
+                    replacementRequested={conflictReplacementRequested}
+                  />
+                )}
+
                 {bookings.length > 0 && (
                   <EventVenueBookings
                     bookings={bookings}
@@ -286,7 +314,7 @@ export function EventVenuePage() {
                     actionError={actionError}
                     canChangeMain={event.status === "planning"}
                     readOnly={!!closedStatus}
-                    disruptedBookingId={disruption && disruption.state !== "resolved" ? disruption.bookingId : undefined}
+                    disruptedBookingId={openDisruption?.bookingId}
                     onWithdraw={handleWithdraw}
                     onConfirmHold={handleConfirmHold}
                     onSetMain={handleSetMain}
@@ -302,11 +330,7 @@ export function EventVenuePage() {
                   <SuggestedVenuesPanel
                     event={event}
                     hasActiveBooking={!needsReplacement && activeBookings.length > 0}
-                    replacing={
-                      disruption?.state === "replacement_required"
-                        ? { bookingId: disruption.bookingId, venueId: disruption.venueId }
-                        : undefined
-                    }
+                    replacing={replacing}
                   />
                 )}
 
