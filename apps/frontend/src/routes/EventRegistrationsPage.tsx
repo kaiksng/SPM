@@ -21,15 +21,17 @@ const STATUS_LABELS: Record<string, string> = {
   registered: "Registered",
   waitlisted: "Waitlisted",
   withdrawn: "Withdrawn",
+  event_cancelled: "Event cancelled",
 };
 
 const STATUS_BADGE_CLASSES: Record<string, string> = {
   registered: "bg-emerald-100 text-emerald-800",
   waitlisted: "bg-orange-100 text-orange-800",
   withdrawn: "bg-slate-200 text-slate-600",
+  event_cancelled: "bg-red-100 text-red-700",
 };
 
-type StatusFilter = "all" | "registered" | "waitlisted" | "withdrawn";
+type StatusFilter = "all" | "registered" | "waitlisted" | "withdrawn" | "event_cancelled";
 
 /**
  * View Event Registration Information: capacity, counts by status, and
@@ -87,9 +89,20 @@ export function EventRegistrationsPage() {
     registered: registrations?.filter((r) => r.status === "registered").length ?? 0,
     waitlisted: registrations?.filter((r) => r.status === "waitlisted").length ?? 0,
     withdrawn: registrations?.filter((r) => r.status === "withdrawn").length ?? 0,
+    event_cancelled: registrations?.filter((r) => r.status === "event_cancelled").length ?? 0,
   };
   const total = (registrations ?? []).length;
   const filtered = (registrations ?? []).filter((r) => filter === "all" || r.status === filter);
+  // Registrations a cancellation took with it (202611010007): shown only
+  // where there are any, so ordinary events keep their three counts.
+  const showCancelled = counts.event_cancelled > 0;
+  const filterOptions = [
+    "all",
+    "registered",
+    "waitlisted",
+    "withdrawn",
+    ...(showCancelled ? ["event_cancelled"] : []),
+  ] as StatusFilter[];
 
   return (
     <RoleGate>
@@ -135,14 +148,17 @@ export function EventRegistrationsPage() {
                 </div>
               )}
 
-              <div className="mt-5 grid grid-cols-3 gap-3">
+              <div className={`mt-5 grid gap-3 ${showCancelled ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
                 <CountTile label="Registered" count={counts.registered} className="border-emerald-200 bg-emerald-50 text-emerald-800" />
                 <CountTile label="Waitlisted" count={counts.waitlisted} className="border-orange-200 bg-orange-50 text-orange-800" />
                 <CountTile label="Withdrawn" count={counts.withdrawn} className="border-slate-200 bg-slate-100 text-slate-600" />
+                {showCancelled && (
+                  <CountTile label="Event cancelled" count={counts.event_cancelled} className="border-red-200 bg-red-50 text-red-700" />
+                )}
               </div>
 
               <div role="group" aria-label="Filter by status" className="mt-5 flex flex-wrap gap-2">
-                {(["all", "registered", "waitlisted", "withdrawn"] as const).map((value) => (
+                {filterOptions.map((value) => (
                   <button
                     key={value}
                     type="button"
@@ -185,6 +201,11 @@ export function EventRegistrationsPage() {
                             >
                               {STATUS_LABELS[entry.status] ?? entry.status}
                             </span>
+                            {entry.status === "event_cancelled" && entry.statusBeforeCancellation && (
+                              <span className="ml-2 text-xs text-slate-500">
+                                (was {entry.statusBeforeCancellation === "waitlisted" ? "on the waiting list" : "Registered"})
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-slate-500">
                             {dateTimeFormatter.format(new Date(entry.registeredAt))}

@@ -207,6 +207,20 @@ export function EventRegistrationPage() {
             </section>
           ) : (
             <div className="mt-6 flex flex-col gap-4">
+              {/* Opened from My Registrations or the cancellation notification:
+                  say so first, not only beside the registration actions. */}
+              {event.status === "cancelled" && (
+                <section className="rounded-2xl border border-red-200 bg-red-50 p-5">
+                  <h2 className="font-semibold text-red-900">This event was cancelled</h2>
+                  <p className="mt-1 text-sm text-red-800">
+                    {ownStatus === "registered"
+                      ? "You were registered. Your place has been released."
+                      : ownStatus === "waitlisted"
+                        ? "You were on the waiting list and have been taken off it."
+                        : "It will not go ahead."}
+                  </p>
+                </section>
+              )}
               <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                 <div
                   className="flex h-44 flex-col justify-between bg-gradient-to-br from-primary to-blue-900 bg-cover bg-center p-5"
@@ -301,11 +315,17 @@ export function EventRegistrationPage() {
                 <div className="mt-5 border-t border-slate-100 pt-5">
                   {!isConfirmed ? (
                     <p className="text-sm text-slate-600">
-                      {event.status === "completed"
-                        ? "This event has ended."
-                        : "This event was cancelled."}
-                      {ownStatus === "registered" && " You were registered."}
-                      {ownStatus === "waitlisted" && " You were on the waiting list."}
+                      {event.status === "completed" ? (
+                        <>
+                          This event has ended.
+                          {ownStatus === "registered" && " You were registered."}
+                          {ownStatus === "waitlisted" && " You were on the waiting list."}
+                        </>
+                      ) : event.status === "cancelled" ? (
+                        "Registration is closed because the event was cancelled."
+                      ) : (
+                        "This event was cancelled."
+                      )}
                     </p>
                   ) : state === "open" ? (
                     <>

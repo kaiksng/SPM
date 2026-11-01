@@ -236,8 +236,25 @@ describe("EventRegistrationPage", () => {
     loadAttendeeEventDetailMock.mockResolvedValue({ ...baseEvent, status: "cancelled" });
     renderPage();
 
-    expect(await screen.findByText("This event was cancelled.")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "This event was cancelled" })).toBeInTheDocument();
+    expect(screen.getByText("It will not go ahead.")).toBeInTheDocument();
+    expect(screen.getByText("Registration is closed because the event was cancelled.")).toBeInTheDocument();
     expect(screen.queryByText(/You were registered/)).not.toBeInTheDocument();
+  });
+
+  // 202611010007: the registration became "Event cancelled"; the page is
+  // told what it was, and says so in a banner at the top.
+  it.each([
+    ["registered" as const, "You were registered. Your place has been released."],
+    ["waitlisted" as const, "You were on the waiting list and have been taken off it."],
+  ])("tells an attendee who was %s that the event was cancelled, with no actions", async (status, message) => {
+    getOwnRegistrationStatusMock.mockResolvedValue(status);
+    loadAttendeeEventDetailMock.mockResolvedValue({ ...baseEvent, status: "cancelled" });
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "This event was cancelled" })).toBeInTheDocument();
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Register|Withdraw|Join|Leave/ })).not.toBeInTheDocument();
   });
 
   it("tells a still-registered attendee they were registered once the event ends", async () => {

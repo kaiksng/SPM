@@ -1,5 +1,6 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAppServer } from "../test/app-server";
 
 const { rpcMock, getUserMock } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
@@ -14,13 +15,14 @@ vi.mock("../lib/supabase-service-client", () => ({
 }));
 
 const { createApp } = await import("../app");
+const server = useAppServer(createApp);
 
 const EVENT_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
 const USER_ID = "ea333cdb-21d1-4819-8fb0-ec64508d8323";
 const REQUIREMENT_ID = "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 
 function authedRequest() {
-  return request(createApp())
+  return request(server())
     .post(`/events/${EVENT_ID}/submit-safety-check`)
     .set("Authorization", "Bearer test-token");
 }
@@ -50,14 +52,14 @@ describe("POST /events/:eventId/submit-safety-check", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp()).post(`/events/${EVENT_ID}/submit-safety-check`);
+    const response = await request(server()).post(`/events/${EVENT_ID}/submit-safety-check`);
 
     expect(response.status).toBe(401);
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid event id before calling the database", async () => {
-    const response = await request(createApp())
+    const response = await request(server())
       .post("/events/not-a-uuid/submit-safety-check")
       .set("Authorization", "Bearer test-token");
 
@@ -130,7 +132,7 @@ describe("POST /events/:eventId/submit-safety-check", () => {
 
 describe("POST /events/:eventId/safety-check-decision", () => {
   function decisionRequest(body: unknown) {
-    return request(createApp())
+    return request(server())
       .post(`/events/${EVENT_ID}/safety-check-decision`)
       .set("Authorization", "Bearer test-token")
       .send(body as object);
@@ -206,7 +208,7 @@ describe("POST /events/:eventId/safety-check-decision", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp())
+    const response = await request(server())
       .post(`/events/${EVENT_ID}/safety-check-decision`)
       .send({ decision: "rejected", reason: "No reason" });
 
@@ -216,7 +218,7 @@ describe("POST /events/:eventId/safety-check-decision", () => {
 
   // SPM-90 AC06: a malformed event id never reaches the database, so no event can be approved by guessing.
   it("rejects an event id that is not valid before calling the database", async () => {
-    const response = await request(createApp())
+    const response = await request(server())
       .post("/events/not-an-event/safety-check-decision")
       .set("Authorization", "Bearer test-token")
       .send({ decision: "approved" });

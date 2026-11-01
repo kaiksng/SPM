@@ -1,5 +1,6 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAppServer } from "../test/app-server";
 
 const { rpcMock, getUserMock } = vi.hoisted(() => ({
   rpcMock: vi.fn(),
@@ -14,6 +15,7 @@ vi.mock("../lib/supabase-service-client", () => ({
 }));
 
 const { createApp } = await import("../app");
+const server = useAppServer(createApp);
 
 const EVENT_ID = "c7ceb582-cb27-47df-8dea-e3a9f0c3b676";
 const CLARIFICATION_ID = "9c6e9f0a-2f0d-4a3d-8f0a-2f0d4a3d8f0a";
@@ -27,7 +29,7 @@ beforeEach(() => {
 
 describe("POST /events/:eventId/clarifications", () => {
   function authedRequest(body: object) {
-    return request(createApp())
+    return request(server())
       .post(`/events/${EVENT_ID}/clarifications`)
       .set("Authorization", "Bearer test-token")
       .send(body);
@@ -55,7 +57,7 @@ describe("POST /events/:eventId/clarifications", () => {
   });
 
   it("rejects a request with no bearer token", async () => {
-    const response = await request(createApp())
+    const response = await request(server())
       .post(`/events/${EVENT_ID}/clarifications`)
       .send({ question: "Why?", permittedFields: [] });
 
@@ -123,7 +125,7 @@ describe("POST /events/:eventId/clarifications", () => {
 
 describe("POST /clarifications/:clarificationId/respond", () => {
   function authedRequest(body: object) {
-    return request(createApp())
+    return request(server())
       .post(`/clarifications/${CLARIFICATION_ID}/respond`)
       .set("Authorization", "Bearer test-token")
       .send(body);
@@ -174,7 +176,7 @@ describe("POST /clarifications/:clarificationId/resolve", () => {
       error: null,
     });
 
-    const response = await request(createApp())
+    const response = await request(server())
       .post(`/clarifications/${CLARIFICATION_ID}/resolve`)
       .set("Authorization", "Bearer test-token")
       .send();
@@ -195,7 +197,7 @@ describe("POST /clarifications/:clarificationId/resolve", () => {
       },
     });
 
-    const response = await request(createApp())
+    const response = await request(server())
       .post(`/clarifications/${CLARIFICATION_ID}/resolve`)
       .set("Authorization", "Bearer test-token")
       .send();
@@ -204,7 +206,7 @@ describe("POST /clarifications/:clarificationId/resolve", () => {
   });
 
   it("rejects an invalid clarification id before calling the database", async () => {
-    const response = await request(createApp())
+    const response = await request(server())
       .post("/clarifications/not-a-uuid/resolve")
       .set("Authorization", "Bearer test-token")
       .send();

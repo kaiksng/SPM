@@ -184,7 +184,9 @@ describe("ChangeRequestApplyPage", () => {
       ),
     );
     expect(
-      await screen.findByText(/Change applied\. Any affected arrangements are marked Needs Review\./),
+      await screen.findByText(
+        /Change applied\. Update the event's venue bookings and equipment if the change affects them\./,
+      ),
     ).toBeInTheDocument();
   });
 
