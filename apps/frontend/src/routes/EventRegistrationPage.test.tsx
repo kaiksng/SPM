@@ -27,6 +27,7 @@ vi.mock("@/features/event-banners/services/event-banners", () => ({
 vi.mock("@/features/registrations/services/attendee-event", () => ({
   loadAttendeeEventDetail: (...args: unknown[]) => loadAttendeeEventDetailMock(...args),
   isAttendeeEventBeingUpdated: (status: string) => status === "planning" || status === "pending_safety_check",
+  formatAttendeeVenue: (venue: { name: string; location: string }) => `${venue.name} · ${venue.location}`,
 }));
 vi.mock("@/features/registrations/services/registrations", () => ({
   getOwnRegistrationStatus: (...args: unknown[]) => getOwnRegistrationStatusMock(...args),
@@ -57,6 +58,7 @@ const baseEvent = {
   assignedCoordinatorId: null,
   assignedCoordinatorName: null,
   venue: { preferredLocation: "Auditorium", minimumCapacity: null, accessibilityNotes: null, layoutNotes: null, facilities: [] },
+  venues: [] as { name: string; location: string; label: string | null; isMainVenue: boolean }[],
   equipment: [],
   registration: {
     required: true,
@@ -566,6 +568,31 @@ describe("EventRegistrationPage while the event is being updated", () => {
     expect(await screen.findByText(/Registration is paused while this event's arrangements are updated/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
     expect(screen.getAllByText("Venue to be confirmed").length).toBeGreaterThan(0);
+  });
+});
+
+// Attendees see where a Confirmed event takes place.
+describe("EventRegistrationPage venues", () => {
+  it("shows the booked main venue, and any other venues with their labels", async () => {
+    loadAttendeeEventDetailMock.mockResolvedValue({
+      ...baseEvent,
+      venues: [
+        { name: "Willow Room", location: "Marina Bay", label: "Main programme", isMainVenue: true },
+        { name: "Room 2.01", location: "Block A", label: "Breakout A", isMainVenue: false },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByText("Willow Room · Marina Bay")).toBeInTheDocument();
+    expect(screen.getByText("Breakout A: Room 2.01 · Block A")).toBeInTheDocument();
+    expect(screen.queryByText("Auditorium")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the preferred area when no venue is booked", async () => {
+    renderPage();
+
+    expect(await screen.findByText("Auditorium")).toBeInTheDocument();
+    expect(screen.queryByText("Other venues")).not.toBeInTheDocument();
   });
 });
 

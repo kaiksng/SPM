@@ -1,5 +1,6 @@
 import type { OwnRegistrationStatus } from "@spm/shared";
 
+import { formatAttendeeVenue, listAttendeeEventVenues } from "@/features/registrations/services/attendee-event";
 import { apiFetch } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase-client";
 
@@ -153,9 +154,12 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
     .filter((row) => row.status === "waitlisted")
     .map((row) => row.event!.id);
 
-  const counts = await loadRegistrationCounts(waitlistedEventIds).catch(() => {
-    throw new Error("We couldn't check the waiting list.");
-  });
+  const [counts, venues] = await Promise.all([
+    loadRegistrationCounts(waitlistedEventIds).catch(() => {
+      throw new Error("We couldn't check the waiting list.");
+    }),
+    listAttendeeEventVenues(ownRows.map((row) => row.event!.id)),
+  ]);
 
   return ownRows.map((row) => {
     const eventId = row.event!.id;
@@ -165,7 +169,8 @@ export async function listMyRegistrations(attendeeId: string): Promise<MyRegistr
       title: row.event!.title,
       startsAt: row.event!.starts_at,
       endsAt: row.event!.ends_at,
-      location: row.event!.event_venue_requirements?.preferred_location ?? null,
+      // The booked main venue once Confirmed; else the organiser's preferred area.
+      location: mainVenue(venues.get(eventId)) ?? row.event!.event_venue_requirements?.preferred_location ?? null,
       status: row.status,
       statusBeforeCancellation: row.status_before_cancellation,
       registeredAt: row.registered_at,
@@ -227,4 +232,9 @@ export async function listEventRegistrations(eventId: string): Promise<EventRegi
     withdrawnAt: row.withdrawn_at,
     waitlistPosition: waitlistPositions.get(row.id) ?? null,
   }));
+}
+
+function mainVenue(venues: { name: string; location: string; isMainVenue: boolean }[] | undefined) {
+  const main = venues?.find((venue) => venue.isMainVenue) ?? venues?.[0];
+  return main ? formatAttendeeVenue(main) : null;
 }

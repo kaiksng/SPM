@@ -4,6 +4,7 @@ import {
   type RegistrationState,
 } from "@spm/shared";
 
+import { formatAttendeeVenue, listAttendeeEventVenues } from "@/features/registrations/services/attendee-event";
 import { loadRegistrationCounts } from "@/features/registrations/services/registrations";
 import { supabase } from "@/lib/supabase-client";
 
@@ -67,13 +68,14 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
 
   // SPM-44: only the attendee's own rows are readable; places taken and the
   // attendee's waiting-list position come from loadRegistrationCounts.
-  const [{ data: ownRegistrations, error: registrationsError }, counts] = await Promise.all([
+  const [{ data: ownRegistrations, error: registrationsError }, counts, venues] = await Promise.all([
     supabase
       .from("event_registrations")
       .select("event_id, status")
       .in("event_id", eventIds)
       .eq("attendee_id", attendeeId),
     loadRegistrationCounts(eventIds).catch(() => null),
+    listAttendeeEventVenues(data.map((event) => event.id)),
   ]);
 
   if (registrationsError || !counts) throw new Error("We couldn't load events.");
@@ -102,7 +104,8 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
       bannerPath: event.banner_path,
       startsAt: event.starts_at,
       endsAt: event.ends_at,
-      location: event.event_venue_requirements?.preferred_location ?? null,
+      // The booked main venue once Confirmed; else the organiser's preferred area.
+      location: mainVenueLocation(venues.get(event.id)) ?? event.event_venue_requirements?.preferred_location ?? null,
       opensAt: availability.opensAt,
       closesAt: availability.closesAt,
       capacity: availability.capacity,
@@ -142,4 +145,9 @@ export async function listBrowseEvents(attendeeId: string): Promise<BrowseEventS
   return [...confirmed, ...beingUpdated].sort((left, right) =>
     (left.startsAt ?? "\uffff").localeCompare(right.startsAt ?? "\uffff"),
   );
+}
+
+function mainVenueLocation(venues: { name: string; location: string; isMainVenue: boolean }[] | undefined) {
+  const main = venues?.find((venue) => venue.isMainVenue) ?? venues?.[0];
+  return main ? formatAttendeeVenue(main) : null;
 }

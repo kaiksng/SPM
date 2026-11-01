@@ -9,6 +9,7 @@ import { eventBannerUrl } from "@/features/event-banners/services/event-banners"
 import { RegistrationStatusBadge } from "@/features/registrations/components/registration-status-badge";
 import { WithdrawRegistrationDialog } from "@/features/registrations/components/withdraw-registration-dialog";
 import {
+  formatAttendeeVenue,
   isAttendeeEventBeingUpdated,
   loadAttendeeEventDetail,
   type AttendeeEventDetail,
@@ -174,6 +175,9 @@ export function EventRegistrationPage() {
   // A Confirmed event back under review: still shown, venue to be confirmed,
   // new registrations paused (the database refuses them), withdrawals allowed.
   const isBeingUpdated = Boolean(event && isAttendeeEventBeingUpdated(event.status));
+  // The booked venues once Confirmed: the main one in the details, any others below.
+  const mainVenue = event?.venues.find((venue) => venue.isMainVenue) ?? event?.venues[0];
+  const otherVenues = event?.venues.filter((venue) => venue !== mainVenue) ?? [];
 
   const state = event
     ? computeRegistrationState(
@@ -262,6 +266,11 @@ export function EventRegistrationPage() {
                       <MapPin className="size-4 text-primary" aria-hidden="true" />
                       Venue to be confirmed
                     </span>
+                  ) : mainVenue ? (
+                    <span className="flex items-center gap-2">
+                      <MapPin className="size-4 text-primary" aria-hidden="true" />
+                      {formatAttendeeVenue(mainVenue)}
+                    </span>
                   ) : (
                     event.venue.preferredLocation && (
                       <span className="flex items-center gap-2">
@@ -277,6 +286,20 @@ export function EventRegistrationPage() {
                     </span>
                   )}
                 </div>
+                {/* Events using several spaces, e.g. breakout rooms. */}
+                {!isBeingUpdated && otherVenues.length > 0 && (
+                  <div className="px-6 pb-4">
+                    <p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">Other venues</p>
+                    <ul className="mt-1 space-y-0.5 text-sm text-slate-700">
+                      {otherVenues.map((venue) => (
+                        <li key={`${venue.name}-${venue.label ?? ""}`}>
+                          {venue.label ? `${venue.label}: ` : ""}
+                          {formatAttendeeVenue(venue)}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {event.description && (
                   <p className="px-6 pb-6 text-sm leading-6 text-slate-600">{event.description}</p>
                 )}

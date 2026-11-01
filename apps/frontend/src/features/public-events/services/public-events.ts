@@ -33,7 +33,12 @@ export async function listPublicEvents(limit = 6, now: Date = new Date()): Promi
       title: row.title,
       startsAt: row.starts_at ?? null,
       endsAt: row.ends_at ?? null,
-      location: row.location ?? null,
+      // The booked main venue once Confirmed; else the organiser's preferred area.
+      location: row.venue_name
+        ? row.venue_location
+          ? `${row.venue_name} · ${row.venue_location}`
+          : row.venue_name
+        : (row.location ?? null),
       bannerPath: row.banner_path ?? null,
       opensAt,
       // The same order as computeRegistrationState (@spm/shared).

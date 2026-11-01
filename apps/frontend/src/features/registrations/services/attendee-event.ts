@@ -1,5 +1,41 @@
 import { supabase } from "@/lib/supabase-client";
 
+export type AttendeeEventVenue = {
+  name: string;
+  location: string;
+  label: string | null;
+  isMainVenue: boolean;
+};
+
+/** How a venue reads to an attendee, e.g. "Willow Room · Marina Bay". */
+export function formatAttendeeVenue(venue: Pick<AttendeeEventVenue, "name" | "location">) {
+  return venue.location ? `${venue.name} · ${venue.location}` : venue.name;
+}
+
+/**
+ * The booked venues of the given events, for attendees: name, location,
+ * label, main or not (public.attendee_event_venues, 202611010012). Extra
+ * detail, so a failure leaves the events without venues instead of failing.
+ */
+export async function listAttendeeEventVenues(eventIds: string[]): Promise<Map<string, AttendeeEventVenue[]>> {
+  const venues = new Map<string, AttendeeEventVenue[]>();
+  if (eventIds.length === 0) return venues;
+  let data;
+  try {
+    const result = await supabase.rpc("attendee_event_venues", { p_event_ids: eventIds });
+    if (result.error) return venues;
+    data = result.data;
+  } catch {
+    return venues;
+  }
+  for (const row of data ?? []) {
+    const list = venues.get(row.event_id) ?? [];
+    list.push({ name: row.venue_name, location: row.venue_location, label: row.label ?? null, isMainVenue: row.is_main_venue });
+    venues.set(row.event_id, list);
+  }
+  return venues;
+}
+
 /** What an attendee sees about an event: nothing from internal planning. */
 export type AttendeeEventDetail = {
   id: string;
@@ -12,6 +48,8 @@ export type AttendeeEventDetail = {
   /** The organiser's optional banner image. */
   bannerPath: string | null;
   venue: { preferredLocation: string | null };
+  /** The booked venues once Confirmed, main venue first; empty otherwise. */
+  venues: AttendeeEventVenue[];
   registration: {
     required: boolean;
     opensAt: string | null;
@@ -63,6 +101,7 @@ export async function loadAttendeeEventDetail(eventId: string): Promise<Attendee
   if (!data) return loadEventBeingUpdated(eventId);
 
   const registration = data.event_registration_requirements;
+  const venues = (await listAttendeeEventVenues([data.id])).get(data.id) ?? [];
 
   return {
     id: data.id,
@@ -74,6 +113,7 @@ export async function loadAttendeeEventDetail(eventId: string): Promise<Attendee
     organiserName: data.organiser?.full_name ?? null,
     bannerPath: data.banner_path,
     venue: { preferredLocation: data.event_venue_requirements?.preferred_location ?? null },
+    venues,
     registration: {
       required: registration?.registration_required ?? false,
       opensAt: registration?.registration_opens_at ?? null,
@@ -107,6 +147,8 @@ async function loadEventBeingUpdated(eventId: string): Promise<AttendeeEventDeta
     organiserName: null,
     bannerPath: event.banner_path ?? null,
     venue: { preferredLocation: event.location ?? null },
+    // Being updated: the venue is to be confirmed.
+    venues: [],
     registration: {
       required: event.registration_required,
       opensAt: null,

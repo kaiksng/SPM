@@ -38,12 +38,15 @@ function given(
   ownRows: unknown[] = [],
   counts: { event_id: string; registered_count: number; own_waitlist_position: number | null }[] = [],
   updating: unknown[] = [],
+  venues: unknown[] = [],
 ) {
   const eventsQuery = queryBuilder({ data: events, error: null });
   const ownQuery = queryBuilder({ data: ownRows, error: null });
   fromMock.mockImplementation((table: string) => (table === "events" ? eventsQuery : ownQuery));
   rpcMock.mockImplementation(async (name: string) =>
-    name === "attendee_events_being_updated" ? { data: updating, error: null } : { data: counts, error: null },
+    name === "attendee_events_being_updated" || name === "attendee_event_venues"
+      ? { data: name === "attendee_event_venues" ? venues : updating, error: null }
+      : { data: counts, error: null },
   );
   return { eventsQuery, ownQuery: ownQuery as QueryBuilderMock };
 }

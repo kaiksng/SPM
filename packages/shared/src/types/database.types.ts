@@ -1878,6 +1878,16 @@ export type Database = {
         Returns: Json
       }
       assert_technical_support_staff: { Args: never; Returns: undefined }
+      attendee_event_venues: {
+        Args: { p_event_ids: string[] }
+        Returns: {
+          event_id: string
+          is_main_venue: boolean
+          label: string
+          venue_location: string
+          venue_name: string
+        }[]
+      }
       attendee_events_being_updated: {
         Args: { p_event_id?: string }
         Returns: {
@@ -2208,6 +2218,8 @@ export type Database = {
           registration_required: boolean
           starts_at: string
           title: string
+          venue_location: string
+          venue_name: string
         }[]
       }
       lock_requirement_for_reservation: {
